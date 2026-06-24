@@ -1,0 +1,38 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: limen-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: limen
+      MYSQL_USER: limen
+      MYSQL_PASSWORD: limen_dev_pw
+      MYSQL_ROOT_PASSWORD: root_dev_pw
+    ports:
+      - "3306:3306"
+    volumes:
+      - limen_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_dev_pw"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: limen-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  adminer:
+    image: adminer:latest
+    container_name: limen-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+
+volumes:
+  limen_mysql_data:
