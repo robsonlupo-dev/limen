@@ -40,5 +40,7 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 - Tudo isso é registrado no `token_ledger` (append-only).
 
 ## Estado atual
-- Fase 0: fundação do repo + ambiente (MySQL/Docker). 
-- Próxima: Fase 1 — modelo de dados + segurança de base.
+- Fase 0: fundação do repo + ambiente (MySQL/Docker).
+- Fase 1: modelo de dados + segurança de base (migrations, models, TokenService, seeder).
+- Fase 2: autenticação + cadastro (Sanctum API, register/login/logout/me, email verification, password reset, role middleware, policies, audit log).
+- Próxima: Fase 3.

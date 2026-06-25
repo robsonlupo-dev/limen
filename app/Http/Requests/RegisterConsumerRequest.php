@@ -25,8 +25,10 @@ class RegisterConsumerRequest extends FormRequest
                 'required', 'date', 'before_or_equal:today',
                 'before_or_equal:' . now()->subYears(18)->format('Y-m-d'),
             ],
-            'terms_accepted' => ['required', 'accepted'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'accept_terms' => ['required', 'accepted'],
             'lgpd_consent' => ['required', 'accepted'],
+            'terms_version' => ['required', 'string', 'max:20'],
         ];
     }
 
@@ -35,7 +37,7 @@ class RegisterConsumerRequest extends FormRequest
         return [
             'birthdate.before_or_equal' => 'You must be at least 18 years old to register.',
             'password.regex' => 'Password must contain at least one uppercase letter and one number.',
-            'terms_accepted.accepted' => 'You must accept the terms of service.',
+            'accept_terms.accepted' => 'You must accept the terms of service.',
             'lgpd_consent.accepted' => 'You must consent to the LGPD data processing terms.',
         ];
     }

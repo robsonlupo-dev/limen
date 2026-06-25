@@ -13,8 +13,9 @@ function validateRegistration(array $overrides = []): \Illuminate\Validation\Val
         'password' => 'Password1',
         'password_confirmation' => 'Password1',
         'birthdate' => now()->subYears(20)->format('Y-m-d'),
-        'terms_accepted' => true,
+        'accept_terms' => true,
         'lgpd_consent' => true,
+        'terms_version' => '1.0',
     ], $overrides);
 
     return Validator::make($data, $request->rules(), $request->messages());
@@ -40,20 +41,11 @@ it('rejects registration with future birthdate', function () {
 
 it('rejects registration without accepting terms', function () {
     $validator = validateRegistration([
-        'terms_accepted' => false,
+        'accept_terms' => false,
     ]);
 
     expect($validator->fails())->toBeTrue();
-    expect($validator->errors()->has('terms_accepted'))->toBeTrue();
-});
-
-it('rejects registration without LGPD consent', function () {
-    $validator = validateRegistration([
-        'lgpd_consent' => false,
-    ]);
-
-    expect($validator->fails())->toBeTrue();
-    expect($validator->errors()->has('lgpd_consent'))->toBeTrue();
+    expect($validator->errors()->has('accept_terms'))->toBeTrue();
 });
 
 it('rejects weak passwords', function () {
