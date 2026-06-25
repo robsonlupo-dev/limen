@@ -1,11 +1,14 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AsaasWebhookController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\TokenPackageController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/auth')->group(function () {
@@ -28,6 +31,15 @@ Route::prefix('v1/auth')->group(function () {
             ->name('auth.verification.resend');
     });
 });
+
+Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
+    Route::get('token-packages', [TokenPackageController::class, 'index'])->name('token-packages.index');
+    Route::post('payments', [PaymentController::class, 'store'])->middleware('throttle:10,1')->name('payments.store');
+    Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
+});
+
+Route::post('v1/webhooks/asaas', AsaasWebhookController::class)->name('webhooks.asaas');
 
 Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(function () {
     Route::get('performer/dashboard', fn () => response()->json(['message' => 'Performer area.']))->name('performer.dashboard');

@@ -43,4 +43,5 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 - Fase 0: fundação do repo + ambiente (MySQL/Docker).
 - Fase 1: modelo de dados + segurança de base (migrations, models, TokenService, seeder).
 - Fase 2: autenticação + cadastro (Sanctum API, register/login/logout/me, email verification, password reset, role middleware, policies, audit log).
-- Próxima: Fase 3.
+- Fase 3: compra de tokens + Asaas/PIX (cliente mockável, pagamento, webhook idempotente, reconciliação agendada).
+- Próxima: Fase 4.
