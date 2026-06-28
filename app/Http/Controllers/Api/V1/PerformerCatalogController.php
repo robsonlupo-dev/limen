@@ -27,6 +27,7 @@ class PerformerCatalogController extends Controller
         }
 
         if ($request->filled('search')) {
+            $request->validate(['search' => 'string|max:100']);
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('stage_name', 'like', "%{$search}%")

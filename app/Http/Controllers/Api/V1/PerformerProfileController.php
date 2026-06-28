@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
 use App\Http\Resources\PerformerPrivateResource;
 use App\Models\PerformerProfile;
+use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -40,6 +41,8 @@ class PerformerProfileController extends Controller
 
         $profile->update($data);
 
+        Audit::log('performer_profile_updated', $profile, ['fields' => array_keys($data)], $request);
+
         return new PerformerPrivateResource($profile->fresh());
     }
 
@@ -49,6 +52,10 @@ class PerformerProfileController extends Controller
 
         abort_if(! $profile, 404);
 
+        if ($profile->avatar_path) {
+            Storage::disk('local')->delete($profile->avatar_path);
+        }
+
         $ext  = $request->file('file')->extension();
         $path = $request->file('file')->storeAs(
             "performer-media/{$request->user()->id}",
@@ -57,6 +64,8 @@ class PerformerProfileController extends Controller
         );
 
         $profile->update(['avatar_path' => $path]);
+
+        Audit::log('performer_avatar_updated', $profile, null, $request);
 
         return response()->json([
             'avatar_url' => URL::temporarySignedRoute(
@@ -73,6 +82,10 @@ class PerformerProfileController extends Controller
 
         abort_if(! $profile, 404);
 
+        if ($profile->cover_path) {
+            Storage::disk('local')->delete($profile->cover_path);
+        }
+
         $ext  = $request->file('file')->extension();
         $path = $request->file('file')->storeAs(
             "performer-media/{$request->user()->id}",
@@ -81,6 +94,8 @@ class PerformerProfileController extends Controller
         );
 
         $profile->update(['cover_path' => $path]);
+
+        Audit::log('performer_cover_updated', $profile, null, $request);
 
         return response()->json([
             'cover_url' => URL::temporarySignedRoute(

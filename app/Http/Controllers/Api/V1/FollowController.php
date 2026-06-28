@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\FollowResource;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,15 +18,19 @@ class FollowController extends Controller
         $profile = PerformerProfile::publicCatalog()->where('slug', $slug)->firstOrFail();
 
         DB::transaction(function () use ($request, $profile) {
-            $follow = Follow::firstOrCreate([
-                'user_id'              => $request->user()->id,
-                'performer_profile_id' => $profile->id,
-            ]);
+            try {
+                $follow = Follow::firstOrCreate([
+                    'user_id'              => $request->user()->id,
+                    'performer_profile_id' => $profile->id,
+                ]);
 
-            if ($follow->wasRecentlyCreated) {
-                DB::table('performer_profiles')
-                    ->where('id', $profile->id)
-                    ->increment('followers_count');
+                if ($follow->wasRecentlyCreated) {
+                    DB::table('performer_profiles')
+                        ->where('id', $profile->id)
+                        ->increment('followers_count');
+                }
+            } catch (UniqueConstraintViolationException) {
+                // concurrent follow — unique constraint protected integrity; count unchanged
             }
         });
 

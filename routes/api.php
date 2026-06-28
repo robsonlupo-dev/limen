@@ -37,7 +37,7 @@ Route::prefix('v1/auth')->group(function () {
 });
 
 // Public catalog (no auth required)
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware('throttle:30,1')->group(function () {
     Route::get('performers', [PerformerCatalogController::class, 'index'])->name('performers.index');
     Route::get('performers/{slug}', [PerformerCatalogController::class, 'show'])->name('performers.show');
 });
