@@ -14,7 +14,7 @@ class PerformerProfile extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'user_id', 'stage_name', 'slug', 'bio', 'category', 'work_modes',
+        'stage_name', 'slug', 'bio', 'category', 'work_modes',
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
         'is_live', 'is_verified', 'avatar_path', 'cover_path',
     ];

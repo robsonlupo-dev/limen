@@ -52,6 +52,8 @@ class PerformerProfileController extends Controller
 
         abort_if(! $profile, 404);
 
+        $this->authorize('update', $profile);
+
         if ($profile->avatar_path) {
             Storage::disk('local')->delete($profile->avatar_path);
         }
@@ -81,6 +83,8 @@ class PerformerProfileController extends Controller
         $profile = $request->user()->performerProfile;
 
         abort_if(! $profile, 404);
+
+        $this->authorize('update', $profile);
 
         if ($profile->cover_path) {
             Storage::disk('local')->delete($profile->cover_path);

@@ -52,8 +52,7 @@ class AuthService
             $user->status = 'pending';
             $user->save();
 
-            PerformerProfile::create([
-                'user_id' => $user->id,
+            $user->performerProfile()->create([
                 'stage_name' => $data['stage_name'],
                 'category' => $data['category'] ?? 'mulheres',
             ]);

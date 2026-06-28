@@ -15,8 +15,7 @@ function makePerformer(array $userAttrs = [], array $profileAttrs = []): array
         'status' => 'active',
     ], $userAttrs));
 
-    $profile = PerformerProfile::create(array_merge([
-        'user_id'     => $user->id,
+    $profile = $user->performerProfile()->create(array_merge([
         'stage_name'  => 'Ana Lima',
         'slug'        => 'ana-lima-' . strtolower(\Illuminate\Support\Str::random(4)),
         'category'    => 'mulheres',
