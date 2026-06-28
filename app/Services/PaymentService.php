@@ -23,8 +23,6 @@ class PaymentService
     {
         $this->ensureAsaasCustomer($user, $cpf);
 
-        Log::debug('asaas_customer_id before PIX charge', ['asaas_customer_id' => $user->asaas_customer_id]);
-
         $payload = [
             'customer' => $user->asaas_customer_id,
             'billingType' => 'PIX',
@@ -32,8 +30,6 @@ class PaymentService
             'dueDate' => now()->addDay()->format('Y-m-d'),
             'externalReference' => "user_{$user->id}_pkg_{$package->id}",
         ];
-
-        Log::debug('PIX charge payload', $payload);
 
         $charge = $this->asaas->createPixCharge($payload);
 

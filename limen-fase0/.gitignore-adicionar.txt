@@ -1,9 +1,0 @@
-# ===== Garanta que estas linhas estão no seu .gitignore =====
-/vendor
-/node_modules
-.env
-.env.*
-!.env.example
-/storage/*.key
-public/storage
-.DS_Store
