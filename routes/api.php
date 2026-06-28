@@ -7,7 +7,11 @@ use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PerformerCatalogController;
+use App\Http\Controllers\Api\V1\PerformerMediaController;
+use App\Http\Controllers\Api\V1\PerformerProfileController;
 use App\Http\Controllers\Api\V1\TokenPackageController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +36,17 @@ Route::prefix('v1/auth')->group(function () {
     });
 });
 
+// Public catalog (no auth required)
+Route::prefix('v1')->group(function () {
+    Route::get('performers', [PerformerCatalogController::class, 'index'])->name('performers.index');
+    Route::get('performers/{slug}', [PerformerCatalogController::class, 'show'])->name('performers.show');
+});
+
+// Private media serving (signed URL, no session auth)
+Route::get('v1/performer-media', PerformerMediaController::class)
+    ->middleware('signed')
+    ->name('performer.media');
+
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::get('token-packages', [TokenPackageController::class, 'index'])->name('token-packages.index');
     Route::post('payments', [PaymentController::class, 'store'])->middleware('throttle:10,1')->name('payments.store');
@@ -41,6 +56,18 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
 Route::post('v1/webhooks/asaas', AsaasWebhookController::class)->name('webhooks.asaas');
 
+// Performer profile management
 Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(function () {
     Route::get('performer/dashboard', fn () => response()->json(['message' => 'Performer area.']))->name('performer.dashboard');
+    Route::get('performer/profile', [PerformerProfileController::class, 'show'])->name('performer.profile.show');
+    Route::put('performer/profile', [PerformerProfileController::class, 'update'])->name('performer.profile.update');
+    Route::post('performer/profile/avatar', [PerformerProfileController::class, 'avatar'])->name('performer.profile.avatar');
+    Route::post('performer/profile/cover', [PerformerProfileController::class, 'cover'])->name('performer.profile.cover');
+});
+
+// Follow system (consumer only)
+Route::prefix('v1')->middleware(['auth:sanctum', 'role:consumer'])->group(function () {
+    Route::post('performers/{slug}/follow', [FollowController::class, 'follow'])->name('performers.follow');
+    Route::delete('performers/{slug}/follow', [FollowController::class, 'unfollow'])->name('performers.unfollow');
+    Route::get('performers/{slug}/following', [FollowController::class, 'following'])->name('performers.following');
 });

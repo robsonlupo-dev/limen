@@ -14,6 +14,7 @@ class PerformerProfilePolicy
 
     public function update(User $user, PerformerProfile $profile): bool
     {
-        return $user->id === $profile->user_id || $user->role === 'admin';
+        return $user->role === 'performer'
+            && $user->id === $profile->user_id;
     }
 }
