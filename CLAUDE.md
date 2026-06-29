@@ -44,4 +44,8 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 - Fase 1: modelo de dados + segurança de base (migrations, models, TokenService, seeder).
 - Fase 2: autenticação + cadastro (Sanctum API, register/login/logout/me, email verification, password reset, role middleware, policies, audit log).
 - Fase 3: compra de tokens + Asaas/PIX (cliente mockável, pagamento, webhook idempotente, reconciliação agendada).
-- Próxima: Fase 4.
+- Fase 4: perfis de performer, catálogo público e sistema de follows.
+- Fase 5: verificação KYC de performers (webhook Didit, resubmissão, documentos criptografados).
+- Fase 6: gorjetas (TipService, split, ledger append-only, idempotência, rate limit 10/min).
+- Fase 7: frontend Inertia + Vue 3 + Tailwind v4 (design system Limen, páginas Landing/Cadastro/Login/VerifyEmail/Catálogo, gate de idade, auth por sessão, Ziggy).
+- Próxima: Fase 8 (catálogo de performers no frontend).
