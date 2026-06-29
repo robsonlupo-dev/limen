@@ -26,6 +26,7 @@ function performerPayload(array $overrides = []): array
     ]), [
         'stage_name' => 'StageName',
         'category' => 'mulheres',
+        'cpf' => '529.982.247-25',
     ], $overrides);
 }
 

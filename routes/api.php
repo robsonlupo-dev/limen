@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminKycController;
 use App\Http\Controllers\Api\V1\AsaasWebhookController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -8,6 +9,8 @@ use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\V1\KycController;
+use App\Http\Controllers\Api\V1\KycWebhookController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PerformerCatalogController;
 use App\Http\Controllers\Api\V1\PerformerMediaController;
@@ -55,14 +58,25 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 });
 
 Route::post('v1/webhooks/asaas', AsaasWebhookController::class)->name('webhooks.asaas');
+Route::post('v1/webhooks/kyc', KycWebhookController::class)->name('webhooks.kyc');
 
-// Performer profile management
+// Performer profile management + KYC
 Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(function () {
     Route::get('performer/dashboard', fn () => response()->json(['message' => 'Performer area.']))->name('performer.dashboard');
     Route::get('performer/profile', [PerformerProfileController::class, 'show'])->name('performer.profile.show');
     Route::put('performer/profile', [PerformerProfileController::class, 'update'])->name('performer.profile.update');
     Route::post('performer/profile/avatar', [PerformerProfileController::class, 'avatar'])->name('performer.profile.avatar');
     Route::post('performer/profile/cover', [PerformerProfileController::class, 'cover'])->name('performer.profile.cover');
+
+    Route::post('performer/kyc/submit', [KycController::class, 'submit'])->name('performer.kyc.submit');
+    Route::get('performer/kyc/status', [KycController::class, 'status'])->name('performer.kyc.status');
+});
+
+// Admin KYC management
+Route::prefix('v1')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::get('admin/kyc', [AdminKycController::class, 'index'])->name('admin.kyc.index');
+    Route::post('admin/kyc/{verification}/approve', [AdminKycController::class, 'approve'])->name('admin.kyc.approve');
+    Route::post('admin/kyc/{verification}/reject', [AdminKycController::class, 'reject'])->name('admin.kyc.reject');
 });
 
 // Follow system (consumer only)
