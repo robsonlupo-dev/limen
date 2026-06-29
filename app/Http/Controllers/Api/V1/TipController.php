@@ -76,8 +76,9 @@ class TipController extends Controller
         }
 
         $tips = Tip::where('performer_profile_id', $profile->id)
-            ->with('consumer:id,name')
+            ->with('consumer:id')
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate(20);
 
         return response()->json($tips);
@@ -89,7 +90,6 @@ class TipController extends Controller
 
         return response()->json([
             'tips_count' => $profile->tips_count,
-            'total_received' => Tip::where('performer_profile_id', $profile->id)->sum('performer_amount'),
         ]);
     }
 }

@@ -21,7 +21,7 @@ class TipService
         string $idempotencyKey,
         ?string $message = null,
     ): Tip {
-        // Idempotency check outside transaction (fast path)
+        // Fast-path idempotency check (outside transaction, no locks)
         $existing = Tip::where('idempotency_key', $idempotencyKey)->first();
         if ($existing) {
             return $existing;
@@ -29,6 +29,15 @@ class TipService
 
         return DB::transaction(function () use ($consumer, $performerProfile, $amount, $idempotencyKey, $message) {
             $performerUser = $performerProfile->user;
+
+            // Guard against self-tipping at service layer
+            if ($consumer->id === $performerUser->id) {
+                throw new \InvalidArgumentException('Cannot tip yourself.');
+            }
+
+            if ($performerProfile->split_pct > 100) {
+                throw new \RuntimeException('Invalid split configuration.');
+            }
 
             // Ensure wallets exist before locking
             TokenWallet::firstOrCreate(['user_id' => $consumer->id], ['balance' => 0]);
@@ -40,6 +49,12 @@ class TipService
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('user_id');
+
+            // Re-check idempotency inside the transaction after acquiring locks
+            $existing = Tip::where('idempotency_key', $idempotencyKey)->first();
+            if ($existing) {
+                return $existing;
+            }
 
             $consumerWallet = $wallets->get($consumer->id);
 
@@ -93,6 +108,18 @@ class TipService
                     'performer_profile_id' => $performerProfile->id,
                     'performer_amount' => $performerAmount,
                     'platform_amount' => $platformAmount,
+                ],
+            ]);
+
+            AuditLog::create([
+                'user_id' => $performerUser->id,
+                'action' => 'tip.received',
+                'subject_type' => Tip::class,
+                'subject_id' => $tip->id,
+                'ip' => null,
+                'metadata' => [
+                    'amount' => $performerAmount,
+                    'consumer_id' => $consumer->id,
                 ],
             ]);
 
