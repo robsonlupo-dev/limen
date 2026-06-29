@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\V1\TipController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\KycWebhookController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -70,6 +71,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(funct
 
     Route::post('performer/kyc/submit', [KycController::class, 'submit'])->name('performer.kyc.submit');
     Route::get('performer/kyc/status', [KycController::class, 'status'])->name('performer.kyc.status');
+
+    // Tips received by performer
+    Route::get('performer/tips', [TipController::class, 'performerHistory'])->name('tips.performer-history');
 });
 
 // Admin KYC management
@@ -84,4 +88,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'role:consumer'])->group(functi
     Route::post('performers/{slug}/follow', [FollowController::class, 'follow'])->name('performers.follow');
     Route::delete('performers/{slug}/follow', [FollowController::class, 'unfollow'])->name('performers.unfollow');
     Route::get('performers/{slug}/following', [FollowController::class, 'following'])->name('performers.following');
+
+    // Tips (consumer sends tips)
+    Route::post('tips', [TipController::class, 'store'])->middleware('throttle:10,1')->name('tips.store');
+    Route::get('tips', [TipController::class, 'consumerHistory'])->name('tips.consumer-history');
 });
+
+// Public tips summary
+Route::get('v1/performers/{slug}/tips/summary', [TipController::class, 'performerSummary'])
+    ->middleware('throttle:30,1')
+    ->name('tips.performer-summary');

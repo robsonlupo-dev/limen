@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('wallet_id')->constrained('token_wallets')->cascadeOnDelete();
             $table->enum('entry_type', [
                 'purchase', 'spend_tip', 'spend_private', 'spend_camera',
-                'payout_reserve', 'refund', 'bonus', 'adjustment',
+                'payout_reserve', 'refund', 'bonus', 'adjustment', 'tip_credit',
             ]);
             $table->bigInteger('amount');
             $table->bigInteger('balance_after');
