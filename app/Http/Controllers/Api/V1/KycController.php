@@ -23,9 +23,9 @@ class KycController extends Controller
             ->latest()
             ->first();
 
-        if ($verification && $verification->status === 'pending') {
+        if ($verification) {
             return response()->json([
-                'message' => 'Você já possui uma verificação pendente.',
+                'message' => 'Você já possui uma verificação ativa ou pendente.',
             ], 422);
         }
 

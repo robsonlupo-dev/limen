@@ -29,14 +29,18 @@ class KycWebhookController extends Controller
         $status = $request->input('status');
         $reason = $request->input('reason');
 
+        if (! $providerReference) {
+            return response()->json(['message' => 'OK.']);
+        }
+
         $verification = IdentityVerification::where('provider_reference', $providerReference)->first();
 
         if (! $verification) {
             return response()->json(['message' => 'OK.']);
         }
 
-        // Idempotency: skip if already in the requested status
-        if ($verification->status === $status) {
+        // Once in a terminal state, never transition again (blocks downgrade + replay)
+        if (in_array($verification->status, ['approved', 'rejected'])) {
             return response()->json(['message' => 'OK.']);
         }
 
