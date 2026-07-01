@@ -25,3 +25,8 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Artefatos de entrega por fase (não versionar)
+/fase*/
+/limen-fase*/
+/limen-fase*.zip
