@@ -65,7 +65,7 @@ Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 
 
 // Performer profile management + KYC
 Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(function () {
-    Route::get('performer/dashboard', fn () => response()->json(['message' => 'Performer area.']))->name('performer.dashboard');
+    Route::get('performer/dashboard', fn () => response()->json(['message' => 'Performer area.']));
     Route::get('performer/profile', [PerformerProfileController::class, 'show'])->name('performer.profile.show');
     Route::put('performer/profile', [PerformerProfileController::class, 'update'])->name('performer.profile.update');
     Route::post('performer/profile/avatar', [PerformerProfileController::class, 'avatar'])->name('performer.profile.avatar');
