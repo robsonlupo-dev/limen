@@ -7,6 +7,41 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Limen — Deploy
+
+Plataforma premium de conteúdo adulto verificado (mercado BR). Stack: Laravel + MySQL 8.4
++ Redis, front-end Inertia/Vue 3 + Tailwind, locale `pt_BR`.
+
+### Ambiente local
+```bash
+docker compose up -d          # MySQL, Redis, Adminer
+composer install
+npm install && npm run build
+cp .env.example .env && php artisan key:generate
+php artisan migrate --seed
+php artisan serve
+```
+
+### Testes
+```bash
+php artisan test              # requer a extensão pdo_sqlite (usada no CI)
+```
+
+### Produção (Hetzner CX22 · Nuremberg · Let's Encrypt · GitHub Actions)
+1. Provisionar servidor (PHP 8.3+, MySQL 8.4, Redis, Nginx, Node 20, Supervisor, Certbot)
+   e usuário `deploy` com chave SSH.
+2. Clonar em `/var/www/limen`; `cp .env.production.example .env` e preencher os segredos
+   (Asaas, Unico/KYC, Mail, DB). `APP_DEBUG=false`, `APP_ENV=production`.
+3. `php artisan key:generate && php artisan migrate --force && npm ci && npm run build`.
+4. Cachear config/rotas/views/eventos; Nginx apontando para `public/`; SSL via Certbot.
+5. GitHub Secrets: `HETZNER_HOST`, `HETZNER_SSH_KEY`. Push na `main` dispara o CI/CD
+   (`.github/workflows/deploy.yml`).
+
+Deploy manual de fallback: `./deploy.sh`. Backup: `docs/backup.sh`.
+Checklist completo de go-live: `.claude/handoff/go-live-checklist.md`.
+
+---
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
