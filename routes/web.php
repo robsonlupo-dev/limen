@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\Performer\DashboardController;
+use App\Http\Controllers\Web\Performer\PayoutController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -37,6 +38,19 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/performer/dashboard', [DashboardController::class, 'index'])
         ->name('performer.dashboard')
+        ->can('performer-active');
+
+    Route::get('/performer/payouts', [PayoutController::class, 'index'])
+        ->name('performer.payouts.index')
+        ->can('performer-active');
+
+    Route::get('/performer/payouts/history', [PayoutController::class, 'history'])
+        ->name('performer.payouts.history')
+        ->can('performer-active');
+
+    Route::post('/performer/payouts', [PayoutController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('performer.payouts.store')
         ->can('performer-active');
 
     Route::middleware(['role:consumer'])->group(function () {

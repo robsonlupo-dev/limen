@@ -8,6 +8,10 @@ class FakeAsaasClient implements AsaasClientInterface
 
     private array $customers = [];
 
+    private array $transfers = [];
+
+    private bool $forceNextTransferFailure = false;
+
     public function createCustomer(array $data): array
     {
         $customer = [
@@ -76,6 +80,47 @@ class FakeAsaasClient implements AsaasClientInterface
     {
         if (isset($this->charges[$chargeId])) {
             $this->charges[$chargeId]['status'] = 'OVERDUE';
+        }
+    }
+
+    public function createTransfer(array $data): array
+    {
+        if ($this->forceNextTransferFailure) {
+            $this->forceNextTransferFailure = false;
+            throw new \RuntimeException('Simulated Asaas transfer failure.');
+        }
+
+        $id = 'transfer_fake_' . uniqid();
+
+        $this->transfers[$id] = [
+            'id' => $id,
+            'status' => 'PENDING',
+            'value' => $data['value'],
+            'pixAddressKey' => $data['pix_key'] ?? null,
+            'pixAddressKeyType' => $data['pix_key_type'] ?? null,
+            'description' => $data['description'] ?? null,
+            'externalReference' => $data['external_reference'] ?? null,
+        ];
+
+        return $this->transfers[$id];
+    }
+
+    public function forceNextTransferFailure(): void
+    {
+        $this->forceNextTransferFailure = true;
+    }
+
+    public function simulateTransferPaid(string $transferId): void
+    {
+        if (isset($this->transfers[$transferId])) {
+            $this->transfers[$transferId]['status'] = 'DONE';
+        }
+    }
+
+    public function simulateTransferFailed(string $transferId): void
+    {
+        if (isset($this->transfers[$transferId])) {
+            $this->transfers[$transferId]['status'] = 'FAILED';
         }
     }
 }

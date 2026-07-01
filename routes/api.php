@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AsaasTransferWebhookController;
 use App\Http\Controllers\Api\V1\AdminKycController;
 use App\Http\Controllers\Api\V1\AsaasWebhookController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
@@ -60,6 +61,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
 Route::post('v1/webhooks/asaas', AsaasWebhookController::class)->name('webhooks.asaas');
 Route::post('v1/webhooks/kyc', KycWebhookController::class)->name('webhooks.kyc');
+Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 'handle'])->name('webhooks.asaas.transfer');
 
 // Performer profile management + KYC
 Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(function () {

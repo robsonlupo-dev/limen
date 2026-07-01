@@ -11,4 +11,6 @@ interface AsaasClientInterface
     public function getPixQrCode(string $chargeId): array;
 
     public function getPayment(string $chargeId): array;
+
+    public function createTransfer(array $data): array;
 }
