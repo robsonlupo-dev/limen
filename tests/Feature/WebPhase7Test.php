@@ -144,7 +144,7 @@ it('renders catalog page for authenticated consumer', function () {
     $this->actingAs($user)
         ->get('/catalogo')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->component('Catalog'));
+        ->assertInertia(fn (Assert $page) => $page->component('Catalog/Index'));
 });
 
 // ─── 12. Age gate: shared ageAccepted is false without cookie ─────────────────

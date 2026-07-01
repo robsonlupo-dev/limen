@@ -3,9 +3,10 @@
 use App\Http\Controllers\Web\Auth\EmailVerificationController;
 use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
+use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 
@@ -23,5 +24,12 @@ Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')-
 // Authenticated area
 Route::middleware('auth')->group(function () {
     Route::get('/email/verificar', [EmailVerificationController::class, 'notice'])->name('verification.notice');
-    Route::get('/catalogo', fn () => Inertia::render('Catalog'))->name('catalog');
+
+    Route::get('/catalogo', [CatalogController::class, 'index'])->name('catalog');
+    Route::get('/catalogo/{slug}', [CatalogController::class, 'show'])->name('catalog.show');
+
+    Route::middleware(['role:consumer', 'throttle:30,1'])->group(function () {
+        Route::post('/catalogo/{slug}/seguir', [FollowController::class, 'store'])->name('catalog.follow');
+        Route::delete('/catalogo/{slug}/seguir', [FollowController::class, 'destroy'])->name('catalog.unfollow');
+    });
 });

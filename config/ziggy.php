@@ -10,5 +10,8 @@ return [
         'logout',
         'verification.notice',
         'catalog',
+        'catalog.show',
+        'catalog.follow',
+        'catalog.unfollow',
     ],
 ];

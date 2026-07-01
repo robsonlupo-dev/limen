@@ -39,6 +39,9 @@ function logout() {
         <div v-if="page.props.flash?.success" class="bg-success/10 border-b border-success/30 px-6 py-3 text-sm text-success text-center">
             {{ page.props.flash.success }}
         </div>
+        <div v-if="page.props.flash?.error" class="bg-danger/10 border-b border-danger/30 px-6 py-3 text-sm text-danger text-center">
+            {{ page.props.flash.error }}
+        </div>
 
         <!-- Content -->
         <main class="flex-1">
