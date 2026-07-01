@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\Auth\EmailVerificationController;
 use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\Performer\DashboardController;
@@ -37,4 +38,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/performer/dashboard', [DashboardController::class, 'index'])
         ->name('performer.dashboard')
         ->can('performer-active');
+
+    Route::middleware(['role:consumer'])->group(function () {
+        Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
+        Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');
+
+        Route::post('/wallet/purchase/{package}', [WalletController::class, 'purchase'])
+            ->middleware('throttle:10,1')
+            ->name('wallet.purchase');
+
+        Route::get('/wallet/pending', [WalletController::class, 'pending'])
+            ->middleware('throttle:60,1')
+            ->name('wallet.pending');
+    });
 });

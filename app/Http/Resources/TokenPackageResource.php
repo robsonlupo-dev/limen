@@ -14,6 +14,7 @@ class TokenPackageResource extends JsonResource
             'slug' => $this->slug,
             'name' => $this->name,
             'tokens' => $this->tokens,
+            'bonus' => $this->bonus,
             'price_cents' => $this->price_cents,
             'price_formatted' => 'R$ ' . number_format($this->price_cents / 100, 2, ',', '.'),
         ];

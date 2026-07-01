@@ -21,16 +21,16 @@ class DatabaseSeeder extends Seeder
     private function seedTokenPackages(): void
     {
         $packages = [
-            ['slug' => 'bronze',   'name' => 'Bronze',   'tokens' => 200,  'price_cents' => 2490, 'sort_order' => 1],
-            ['slug' => 'prata',    'name' => 'Prata',    'tokens' => 500,  'price_cents' => 4990, 'sort_order' => 2],
-            ['slug' => 'ouro',     'name' => 'Ouro',     'tokens' => 1200, 'price_cents' => 9990, 'sort_order' => 3],
-            ['slug' => 'platina',  'name' => 'Platina',  'tokens' => 2000, 'price_cents' => 14990, 'sort_order' => 4],
-            ['slug' => 'diamante', 'name' => 'Diamante', 'tokens' => 2500, 'price_cents' => 17990, 'sort_order' => 5],
-            ['slug' => 'black',    'name' => 'Black',    'tokens' => 6000, 'price_cents' => 39990, 'sort_order' => 6],
+            ['slug' => 'bronze',   'name' => 'Bronze',   'tokens' => 100,  'bonus' => 0,    'price_cents' => 990,   'sort_order' => 1],
+            ['slug' => 'prata',    'name' => 'Prata',    'tokens' => 250,  'bonus' => 25,   'price_cents' => 2490,  'sort_order' => 2],
+            ['slug' => 'ouro',     'name' => 'Ouro',     'tokens' => 500,  'bonus' => 75,   'price_cents' => 4990,  'sort_order' => 3],
+            ['slug' => 'platina',  'name' => 'Platina',  'tokens' => 1000, 'bonus' => 200,  'price_cents' => 9990,  'sort_order' => 4],
+            ['slug' => 'diamante', 'name' => 'Diamante', 'tokens' => 2500, 'bonus' => 600,  'price_cents' => 24990, 'sort_order' => 5],
+            ['slug' => 'black',    'name' => 'Black',    'tokens' => 5000, 'bonus' => 1500, 'price_cents' => 49990, 'sort_order' => 6],
         ];
 
         foreach ($packages as $pkg) {
-            TokenPackage::firstOrCreate(['slug' => $pkg['slug']], $pkg);
+            TokenPackage::updateOrCreate(['slug' => $pkg['slug']], $pkg);
         }
     }
 
