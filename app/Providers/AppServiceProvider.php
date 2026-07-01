@@ -8,7 +8,9 @@ use App\Services\Asaas\FakeAsaasClient;
 use App\Services\Kyc\FakeKycClient;
 use App\Services\Kyc\KycClientInterface;
 use App\Services\Kyc\KycHttpClient;
+use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -36,6 +38,10 @@ class AppServiceProvider extends ServiceProvider
     {
         ResetPassword::createUrlUsing(function ($notifiable, string $token) {
             return config('app.url') . '/reset-password?token=' . $token . '&email=' . urlencode($notifiable->getEmailForPasswordReset());
+        });
+
+        Gate::define('performer-active', function (User $user) {
+            return $user->role === 'performer' && $user->status === 'active';
         });
     }
 }

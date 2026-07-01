@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
+use App\Http\Controllers\Web\Performer\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -32,4 +33,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/catalogo/{slug}/seguir', [FollowController::class, 'store'])->name('catalog.follow');
         Route::delete('/catalogo/{slug}/seguir', [FollowController::class, 'destroy'])->name('catalog.unfollow');
     });
+
+    Route::get('/performer/dashboard', [DashboardController::class, 'index'])
+        ->name('performer.dashboard')
+        ->can('performer-active');
 });
