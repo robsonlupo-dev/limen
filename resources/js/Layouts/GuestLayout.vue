@@ -1,15 +1,22 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3'
+import { Head, Link, usePage } from '@inertiajs/vue3'
 import PortalLogo from '@/Components/PortalLogo.vue'
+import AgeGateModal from '@/Components/AgeGateModal.vue'
+import IntroAnimation from '@/Components/IntroAnimation.vue'
 
 defineProps({
     title: String,
 })
+
+const page = usePage()
 </script>
 
 <template>
     <Head :title="title" />
     <div class="min-h-screen bg-background flex flex-col">
+        <IntroAnimation />
+        <AgeGateModal :age-accepted="page.props.ageAccepted" />
+
         <!-- Header -->
         <header class="border-b border-frame/50">
             <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -20,7 +27,7 @@ defineProps({
                 <nav class="flex items-center gap-6 text-sm text-muted">
                     <Link :href="route('login')" class="hover:text-cream transition-colors">Entrar</Link>
                     <Link
-                        :href="route('register')"
+                        :href="route('entrada')"
                         class="border border-gold text-gold px-4 py-1.5 rounded-lg hover:bg-gold/10 transition-colors"
                     >
                         Criar conta
@@ -28,6 +35,14 @@ defineProps({
                 </nav>
             </div>
         </header>
+
+        <!-- Flash messages -->
+        <div v-if="page.props.flash?.success" class="bg-success/10 border-b border-success/30 px-6 py-3 text-sm text-success text-center">
+            {{ page.props.flash.success }}
+        </div>
+        <div v-if="page.props.flash?.error" class="bg-danger/10 border-b border-danger/30 px-6 py-3 text-sm text-danger text-center">
+            {{ page.props.flash.error }}
+        </div>
 
         <!-- Content -->
         <main class="flex-1">

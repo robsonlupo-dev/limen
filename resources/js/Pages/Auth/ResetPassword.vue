@@ -5,30 +5,36 @@ import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 
+const props = defineProps({
+    token: String,
+    email: String,
+})
+
 const form = useForm({
-    email: '',
+    token: props.token,
+    email: props.email ?? '',
     password: '',
+    password_confirmation: '',
 })
 
 function submit() {
-    form.post(route('login.store'), {
-        onFinish: () => form.reset('password'),
+    form.post(route('password.update'), {
+        onFinish: () => form.reset('password', 'password_confirmation'),
     })
 }
 </script>
 
 <template>
-    <GuestLayout title="Entrar">
+    <GuestLayout title="Redefinir senha">
         <div class="min-h-[80vh] flex items-center justify-center px-6 py-16">
             <div class="w-full max-w-sm">
-                <!-- Logo -->
                 <div class="flex justify-center mb-8">
                     <PortalLogo :size="48" />
                 </div>
 
                 <div class="bg-surface border border-frame rounded-2xl p-8">
-                    <h1 class="font-serif text-2xl text-cream mb-1">Entrar</h1>
-                    <p class="text-muted text-sm mb-8">Bem-vindo de volta ao portal.</p>
+                    <h1 class="font-serif text-2xl text-cream mb-1">Redefinir senha</h1>
+                    <p class="text-muted text-sm mb-8">Escolha uma nova senha para sua conta.</p>
 
                     <form @submit.prevent="submit" novalidate class="space-y-5">
                         <Input
@@ -36,7 +42,6 @@ function submit() {
                             v-model="form.email"
                             label="E-mail"
                             type="email"
-                            placeholder="voce@email.com"
                             autocomplete="email"
                             :required="true"
                             :error="form.errors.email"
@@ -45,22 +50,24 @@ function submit() {
                         <Input
                             id="password"
                             v-model="form.password"
-                            label="Senha"
+                            label="Nova senha"
                             type="password"
-                            placeholder="Sua senha"
-                            autocomplete="current-password"
+                            placeholder="Mín. 8 caracteres, 1 maiúscula e 1 número"
+                            autocomplete="new-password"
                             :required="true"
                             :error="form.errors.password"
                         />
 
-                        <div class="text-right -mt-2">
-                            <Link
-                                :href="route('password.request')"
-                                class="text-[13px] text-gold/70 hover:text-gold-light transition-colors"
-                            >
-                                Esqueceu sua senha?
-                            </Link>
-                        </div>
+                        <Input
+                            id="password_confirmation"
+                            v-model="form.password_confirmation"
+                            label="Confirmar nova senha"
+                            type="password"
+                            placeholder="Repita a nova senha"
+                            autocomplete="new-password"
+                            :required="true"
+                            :error="form.errors.password_confirmation"
+                        />
 
                         <Button
                             type="submit"
@@ -69,14 +76,13 @@ function submit() {
                             class="w-full"
                             :loading="form.processing"
                         >
-                            Entrar
+                            Redefinir senha
                         </Button>
                     </form>
 
                     <p class="mt-6 text-center text-sm text-muted">
-                        Não tem conta?
-                        <Link :href="route('register')" class="text-gold hover:text-gold-light">
-                            Criar conta
+                        <Link :href="route('login')" class="text-gold hover:text-gold-light">
+                            Voltar para o login
                         </Link>
                     </p>
                 </div>

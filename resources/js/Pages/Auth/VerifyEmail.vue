@@ -7,7 +7,13 @@ import PortalLogo from '@/Components/PortalLogo.vue'
 const page = usePage()
 
 function resend() {
-    router.post(route('verification.resend'))
+    router.post(route('verification.send'))
+}
+
+function useAnotherEmail() {
+    router.post(route('logout'), {}, {
+        onSuccess: () => router.visit(route('register')),
+    })
 }
 </script>
 
@@ -34,6 +40,15 @@ function resend() {
                 <Button variant="ghost" @click="resend">
                     Reenviar e-mail de verificação
                 </Button>
+
+                <div>
+                    <button
+                        class="text-muted hover:text-cream transition-colors text-sm underline underline-offset-4"
+                        @click="useAnotherEmail"
+                    >
+                        Usar outro e-mail
+                    </button>
+                </div>
             </div>
         </div>
     </AppLayout>

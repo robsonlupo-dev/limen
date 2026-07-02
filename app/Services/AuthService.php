@@ -26,6 +26,9 @@ class AuthService
             ]);
             $user->role = 'consumer';
             $user->status = 'active';
+            // preferred_world is intentionally kept out of $fillable and set
+            // explicitly here to avoid mass-assignment of privileged fields.
+            $user->preferred_world = $data['preferred_world'] ?? null;
             $user->save();
 
             TokenWallet::create(['user_id' => $user->id, 'balance' => 0]);

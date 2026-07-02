@@ -1,34 +1,41 @@
 <script setup>
-import { useForm, Link } from '@inertiajs/vue3'
+import { useForm, Link, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 
+const page = usePage()
+
 const form = useForm({
     email: '',
-    password: '',
 })
 
 function submit() {
-    form.post(route('login.store'), {
-        onFinish: () => form.reset('password'),
-    })
+    form.post(route('password.email'))
 }
 </script>
 
 <template>
-    <GuestLayout title="Entrar">
+    <GuestLayout title="Esqueci minha senha">
         <div class="min-h-[80vh] flex items-center justify-center px-6 py-16">
             <div class="w-full max-w-sm">
-                <!-- Logo -->
                 <div class="flex justify-center mb-8">
                     <PortalLogo :size="48" />
                 </div>
 
                 <div class="bg-surface border border-frame rounded-2xl p-8">
-                    <h1 class="font-serif text-2xl text-cream mb-1">Entrar</h1>
-                    <p class="text-muted text-sm mb-8">Bem-vindo de volta ao portal.</p>
+                    <h1 class="font-serif text-2xl text-cream mb-1">Esqueceu sua senha?</h1>
+                    <p class="text-muted text-sm mb-8">
+                        Informe seu e-mail e enviaremos um link para redefinir sua senha.
+                    </p>
+
+                    <div
+                        v-if="page.props.flash?.success"
+                        class="mb-6 bg-success/10 border border-success/30 rounded-xl p-4 text-sm text-success"
+                    >
+                        {{ page.props.flash.success }}
+                    </div>
 
                     <form @submit.prevent="submit" novalidate class="space-y-5">
                         <Input
@@ -42,26 +49,6 @@ function submit() {
                             :error="form.errors.email"
                         />
 
-                        <Input
-                            id="password"
-                            v-model="form.password"
-                            label="Senha"
-                            type="password"
-                            placeholder="Sua senha"
-                            autocomplete="current-password"
-                            :required="true"
-                            :error="form.errors.password"
-                        />
-
-                        <div class="text-right -mt-2">
-                            <Link
-                                :href="route('password.request')"
-                                class="text-[13px] text-gold/70 hover:text-gold-light transition-colors"
-                            >
-                                Esqueceu sua senha?
-                            </Link>
-                        </div>
-
                         <Button
                             type="submit"
                             variant="primary"
@@ -69,14 +56,14 @@ function submit() {
                             class="w-full"
                             :loading="form.processing"
                         >
-                            Entrar
+                            Enviar link de redefinição
                         </Button>
                     </form>
 
                     <p class="mt-6 text-center text-sm text-muted">
-                        Não tem conta?
-                        <Link :href="route('register')" class="text-gold hover:text-gold-light">
-                            Criar conta
+                        Lembrou a senha?
+                        <Link :href="route('login')" class="text-gold hover:text-gold-light">
+                            Entrar
                         </Link>
                     </p>
                 </div>

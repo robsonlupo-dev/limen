@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class LandingController extends Controller
+class EntradaController extends Controller
 {
     public function index(): Response|RedirectResponse
     {
@@ -16,6 +16,6 @@ class LandingController extends Controller
             return redirect()->route('catalog');
         }
 
-        return Inertia::render('Landing');
+        return Inertia::render('Entrada');
     }
 }

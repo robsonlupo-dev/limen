@@ -19,6 +19,10 @@ class PerformerCatalogService
             $query->where('is_live', true);
         }
 
+        if (! empty($filters['level'])) {
+            $query->where('level', $filters['level']);
+        }
+
         if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {

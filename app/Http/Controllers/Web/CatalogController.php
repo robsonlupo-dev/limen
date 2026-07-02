@@ -24,13 +24,20 @@ class CatalogController extends Controller
             'category' => 'nullable|in:mulheres,homens,casais,trans,gls,swing',
             'search' => 'nullable|string|max:100',
             'sort' => 'nullable|in:rating_avg,followers_count,newest',
+            'level' => 'nullable|in:iniciante,estrela,premium,vip',
         ]);
 
+        // The member browses within a single "world". Default to their chosen
+        // preferred_world (fallback "mulheres"); an explicit ?category overrides.
+        $defaultWorld = $request->user()->preferred_world ?? 'mulheres';
+        $currentWorld = $request->input('category', $defaultWorld);
+
         $filters = [
-            'category' => $request->input('category'),
+            'category' => $currentWorld,
             'is_live' => $request->boolean('is_live'),
             'search' => $request->input('search'),
             'sort' => $request->input('sort', 'rating_avg'),
+            'level' => $request->input('level'),
         ];
 
         $performers = $this->catalogService->search($filters);
@@ -57,6 +64,8 @@ class CatalogController extends Controller
         return Inertia::render('Catalog/Index', [
             'performers' => $paginated,
             'filters' => $filters,
+            'currentWorld' => $currentWorld,
+            'userWorld' => $request->user()->preferred_world,
         ]);
     }
 

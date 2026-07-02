@@ -30,7 +30,7 @@ Route::prefix('v1/auth')->group(function () {
 
     Route::get('email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
         ->middleware('signed')
-        ->name('verification.verify');
+        ->name('api.verification.verify');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', LogoutController::class)->name('auth.logout');

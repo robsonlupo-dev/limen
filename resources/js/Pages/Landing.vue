@@ -1,11 +1,8 @@
 <script setup>
-import { Link, usePage } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
-import AgeGateModal from '@/Components/AgeGateModal.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
-
-const page = usePage()
 
 const features = [
     {
@@ -28,8 +25,6 @@ const features = [
 
 <template>
     <GuestLayout title="Portal verificado de conteúdo adulto">
-        <AgeGateModal :age-accepted="page.props.ageAccepted" />
-
         <!-- Hero -->
         <section class="relative flex flex-col items-center justify-center min-h-[80vh] px-6 text-center overflow-hidden">
             <!-- Background glow -->
@@ -49,9 +44,9 @@ const features = [
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-4">
-                    <Link :href="route('register')">
+                    <Link :href="route('entrada')">
                         <Button variant="primary" size="lg">
-                            Criar conta gratuita
+                            Entrar no portal
                         </Button>
                     </Link>
                     <Link :href="route('login')">
