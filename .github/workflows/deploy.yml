@@ -96,7 +96,8 @@ jobs:
           script: |
             cd /var/www/limen
             git config --global --add safe.directory /var/www/limen
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             composer install --no-dev --optimize-autoloader --no-interaction
             npm ci
             npm run build
