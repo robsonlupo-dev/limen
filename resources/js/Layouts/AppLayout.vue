@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
@@ -10,6 +10,13 @@ defineProps({
 })
 
 const page = usePage()
+
+const isPerformer = computed(() => page.props.auth.user?.role === 'performer')
+const dashboardRoute = computed(() =>
+    page.props.auth.user?.status === 'active'
+        ? route('performer.dashboard')
+        : route('performer.onboarding'),
+)
 
 const showLogoutConfirm = ref(false)
 
@@ -30,6 +37,13 @@ function logout() {
                     <span class="font-serif text-xl tracking-widest text-gold uppercase">Limen</span>
                 </Link>
                 <nav class="flex items-center gap-6 text-sm text-muted">
+                    <Link
+                        v-if="isPerformer"
+                        :href="dashboardRoute"
+                        class="text-gold/80 hover:text-gold transition-colors no-underline"
+                    >
+                        Meu Painel
+                    </Link>
                     <span class="text-cream">{{ page.props.auth.user?.name }}</span>
                     <button
                         class="hover:text-cream transition-colors"
