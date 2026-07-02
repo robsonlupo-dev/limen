@@ -14,6 +14,13 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        // Contas de teste com senha conhecida jamais podem nascer em produção.
+        if (app()->environment('production')) {
+            $this->command?->error('DatabaseSeeder cria contas de teste e não roda em produção.');
+
+            return;
+        }
+
         $this->seedTokenPackages();
         $this->seedUsers();
     }
@@ -40,7 +47,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@limen.test'],
             [
                 'name' => 'Admin Limen',
-                'password' => 'Password1',
+                'password' => env('SEED_ADMIN_PASSWORD', 'Password1'),
                 'role' => 'admin',
                 'status' => 'active',
                 'birthdate' => '1990-01-15',
@@ -62,18 +69,31 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        PerformerProfile::firstOrCreate(
+        $profile = PerformerProfile::firstOrCreate(
             ['user_id' => $performer->id],
             [
                 'stage_name' => 'StarTest',
+                'slug' => PerformerProfile::generateSlug('StarTest'),
                 'bio' => 'Perfil de teste para desenvolvimento.',
                 'category' => 'mulheres',
-                'work_modes' => ['streaming', 'videos'],
+                'work_modes' => ['chat', 'private', 'camera'],
                 'level' => 'iniciante',
             ],
         );
 
-        User::firstOrCreate(
+        // Backfill idempotente para bancos onde o perfil já existia sem slug
+        // ou com work_modes fora do vocabulário real (chat/private/camera).
+        if (! $profile->slug) {
+            $profile->slug = PerformerProfile::generateSlug($profile->stage_name);
+        }
+        if (array_diff($profile->work_modes ?? [], ['chat', 'private', 'camera'])) {
+            $profile->work_modes = ['chat', 'private', 'camera'];
+        }
+        if ($profile->isDirty()) {
+            $profile->save();
+        }
+
+        $consumer = User::firstOrCreate(
             ['email' => 'consumer@limen.test'],
             [
                 'name' => 'Consumer Teste',
@@ -85,5 +105,12 @@ class DatabaseSeeder extends Seeder
                 'terms_version' => '1.0',
             ],
         );
+
+        // preferred_world fica fora do mass-assignment; backfill explícito
+        // alinhado à categoria do performer de teste.
+        if ($consumer->preferred_world === null) {
+            $consumer->preferred_world = 'mulheres';
+            $consumer->save();
+        }
     }
 }
