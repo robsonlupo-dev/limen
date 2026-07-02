@@ -11,6 +11,20 @@ class RegisterWebRequest extends FormRequest
         return true;
     }
 
+    /**
+     * Derive the account role from the `tipo` picker (see /entrada). Only
+     * `consumer` and `performer` are ever accepted here — `admin` can never be
+     * created through public registration.
+     */
+    protected function prepareForValidation(): void
+    {
+        $tipo = $this->input('tipo', $this->input('role'));
+
+        $this->merge([
+            'role' => $tipo === 'performer' ? 'performer' : 'consumer',
+        ]);
+    }
+
     public function rules(): array
     {
         return [
@@ -27,6 +41,16 @@ class RegisterWebRequest extends FormRequest
             ],
             'accept_terms' => ['required', 'accepted'],
             'lgpd_consent' => ['required', 'accepted'],
+
+            'role' => ['required', 'in:consumer,performer'],
+
+            // Performer-only fields.
+            'stage_name' => ['required_if:role,performer', 'nullable', 'string', 'max:255'],
+            'category' => ['required_if:role,performer', 'nullable', 'in:mulheres,homens,casais,trans,gls,swing'],
+
+            // Member-only "world" preference. Optional server-side (defaults to
+            // "mulheres" in the catalog), required in the UI.
+            'preferred_world' => ['nullable', 'in:mulheres,homens,casais,trans,gls,swing'],
         ];
     }
 
@@ -37,6 +61,8 @@ class RegisterWebRequest extends FormRequest
             'password.regex' => 'A senha deve conter ao menos uma letra maiúscula e um número.',
             'accept_terms.accepted' => 'Você deve aceitar os termos de uso.',
             'lgpd_consent.accepted' => 'Você deve consentir com o tratamento de dados (LGPD).',
+            'stage_name.required_if' => 'Informe seu nome artístico.',
+            'category.required_if' => 'Selecione o mundo que você representa.',
         ];
     }
 }
