@@ -30,7 +30,9 @@ return [
         // User preferences
         'preferences.update',
 
-        // Performer onboarding & payouts
+        // Performer area (all performer.* web routes)
+        'performer.dashboard',
+        'performer.onboarding',
         'performer.onboarding.profile',
         'performer.onboarding.avatar',
         'performer.payouts.index',
