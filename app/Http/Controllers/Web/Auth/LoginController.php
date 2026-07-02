@@ -34,7 +34,18 @@ class LoginController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('catalog'));
+        return redirect()->intended(route($this->homeRouteFor($user)));
+    }
+
+    private function homeRouteFor(\App\Models\User $user): string
+    {
+        if ($user->role !== 'performer') {
+            return 'catalog';
+        }
+
+        return $user->status === 'active'
+            ? 'performer.dashboard'
+            : 'performer.onboarding';
     }
 
     public function destroy(Request $request)
