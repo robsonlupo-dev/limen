@@ -27,10 +27,18 @@ class SecurityHeaders
         $response->headers->set('Content-Security-Policy', "frame-ancestors 'self'");
 
         // HSTS só faz sentido sob HTTPS; navegadores ignoram o header em HTTP.
+        //
+        // O valor é condicional ao ambiente para que o deploy (git reset --hard)
+        // não reintroduza um HSTS agressivo em staging:
+        //  - produção (limen.com.br): max-age completo + includeSubDomains + preload;
+        //  - staging/dev (limen.dev.br): max-age curto, SEM preload, para que a redução
+        //    seja reversível e não quebre proxies de inspeção SSL corporativos.
         if ($request->isSecure()) {
             $response->headers->set(
                 'Strict-Transport-Security',
-                'max-age=31536000; includeSubDomains; preload'
+                app()->environment('production')
+                    ? 'max-age=31536000; includeSubDomains; preload'
+                    : 'max-age=300'
             );
         }
 
