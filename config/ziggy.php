@@ -2,16 +2,45 @@
 
 return [
     'only' => [
+        // Public / landing
         'landing',
+        'entrada',
+
+        // Auth
         'register',
         'register.store',
         'login',
         'login.store',
         'logout',
+        'password.request',
+        'password.email',
+        'password.reset',
+        'password.update',
+
+        // Email verification
         'verification.notice',
+        'verification.send',
+
+        // Catalog & follows
         'catalog',
         'catalog.show',
         'catalog.follow',
         'catalog.unfollow',
+
+        // User preferences
+        'preferences.update',
+
+        // Performer onboarding & payouts
+        'performer.onboarding.profile',
+        'performer.onboarding.avatar',
+        'performer.payouts.index',
+        'performer.payouts.history',
+        'performer.payouts.store',
+
+        // Consumer wallet
+        'wallet.index',
+        'wallet.history',
+        'wallet.purchase',
+        'wallet.pending',
     ],
 ];
