@@ -42,25 +42,28 @@ class DatabaseSeeder extends Seeder
     }
 
     /**
-     * Senha do admin base. O fallback conhecido (`Password1`) só é aceitável em
-     * ambientes descartáveis (local/testing). Em qualquer outro ambiente da
-     * allowlist — staging, development — exige SEED_ADMIN_PASSWORD explícita,
-     * senão aborta: nunca criar um admin real com credencial pública.
+     * Senha das contas base (admin/performer/consumer @limen.test). O fallback
+     * conhecido (`Password1`) só é aceitável em ambientes descartáveis
+     * (local/testing, exigidos pela UNIÃO de sinais — ver isEnvironment). Em
+     * qualquer outro ambiente da allowlist — staging, development — exige
+     * SEED_ADMIN_PASSWORD explícita, senão aborta: nunca criar contas reais com
+     * credencial pública num ambiente alcançável (staging é exposto via túnel).
      */
-    private function adminPassword(): string
+    private function seedPassword(): string
     {
-        $password = env('SEED_ADMIN_PASSWORD');
+        // Leitura bruta (imune a config:cache) com fallback para env().
+        $password = $this->rawEnv('SEED_ADMIN_PASSWORD') ?? env('SEED_ADMIN_PASSWORD');
         if (is_string($password) && $password !== '') {
             return $password;
         }
 
-        if (app()->environment('local', 'testing')) {
+        if ($this->isEnvironment(['local', 'testing'])) {
             return 'Password1';
         }
 
         throw new \RuntimeException(
-            'SEED_ADMIN_PASSWORD é obrigatória fora de local/testing: '
-            . 'recuse-se a criar admin@limen.test com senha default.',
+            'SEED_ADMIN_PASSWORD é obrigatória fora de local/testing: recuse-se a '
+            . 'criar contas base (admin/performer/consumer) com senha default.',
         );
     }
 
@@ -70,7 +73,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@limen.test'],
             [
                 'name' => 'Admin Limen',
-                'password' => $this->adminPassword(),
+                'password' => $this->seedPassword(),
                 'role' => 'admin',
                 'status' => 'active',
                 'birthdate' => '1990-01-15',
@@ -83,7 +86,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'performer@limen.test'],
             [
                 'name' => 'Performer Teste',
-                'password' => 'Password1',
+                'password' => $this->seedPassword(),
                 'role' => 'performer',
                 'status' => 'pending',
                 'birthdate' => '1995-06-20',
@@ -120,7 +123,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'consumer@limen.test'],
             [
                 'name' => 'Consumer Teste',
-                'password' => 'Password1',
+                'password' => $this->seedPassword(),
                 'role' => 'consumer',
                 'status' => 'active',
                 'birthdate' => '1998-03-10',
