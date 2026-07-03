@@ -209,6 +209,35 @@ it('transfer_paid marca payout como paid', function () {
     expect($payout->processed_at)->not->toBeNull();
 });
 
+it('transfer_paid marca como paid mesmo se o payout ainda estiver pending (webhook corre à frente)', function () {
+    [$performer] = makeWebPerformer();
+
+    // Payout gravado mas ainda 'pending' — o update para 'processing' não aconteceu
+    // (webhook chegou antes, ou o processo morreu logo após criar a transferência).
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'pending',
+        'asaas_transfer_id' => 'transfer_race_1',
+        'requested_at' => now(),
+    ]);
+
+    config(['asaas.webhook_token' => 'valid-token']);
+
+    $this->postJson('/api/webhooks/asaas/transfer', [
+        'id' => 'evt_transfer_paid_race',
+        'event' => 'TRANSFER_PAID',
+        'transfer' => ['id' => 'transfer_race_1'],
+    ], ['asaas-access-token' => 'valid-token'])->assertOk();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('paid');
+    expect($payout->processed_at)->not->toBeNull();
+});
+
 it('transfer_failed marca payout como failed e estorna tokens', function () {
     [$performer] = makeWebPerformer();
     fundPerformerWallet($performer, 2000);

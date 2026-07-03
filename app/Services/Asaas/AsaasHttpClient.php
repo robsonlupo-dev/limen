@@ -42,11 +42,28 @@ class AsaasHttpClient implements AsaasClientInterface
         return $this->get("/payments/{$chargeId}");
     }
 
+    // Maps our internal pix_key_type values to Asaas's pixAddressKeyType enum.
+    // Note a random ("chave aleatória") key is EVP in Asaas — NOT "RANDOM", which
+    // a naive strtoupper() would produce and Asaas would reject.
+    private const PIX_KEY_TYPE_MAP = [
+        'cpf' => 'CPF',
+        'cnpj' => 'CNPJ',
+        'email' => 'EMAIL',
+        'phone' => 'PHONE',
+        'random' => 'EVP',
+    ];
+
     public function createTransfer(array $data): array
     {
+        $keyType = strtolower((string) $data['pix_key_type']);
+
+        if (! isset(self::PIX_KEY_TYPE_MAP[$keyType])) {
+            throw new RuntimeException("Unsupported PIX key type: {$data['pix_key_type']}");
+        }
+
         return $this->post('/transfers', [
             'pixAddressKey' => $data['pix_key'],
-            'pixAddressKeyType' => strtoupper($data['pix_key_type']),
+            'pixAddressKeyType' => self::PIX_KEY_TYPE_MAP[$keyType],
             'value' => $data['value'],
             'description' => $data['description'] ?? null,
             'externalReference' => $data['external_reference'] ?? null,

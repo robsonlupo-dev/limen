@@ -185,7 +185,10 @@ class PayoutService
         DB::transaction(function () use ($payout) {
             $locked = Payout::where('id', $payout->id)->lockForUpdate()->first();
 
-            if ($locked->status !== 'processing') {
+            // Accept 'pending' too: a TRANSFER_PAID webhook can race ahead of our
+            // own update to 'processing' (or the process may die right after
+            // createTransfer). A paid transfer must not get stranded as unpaid.
+            if (! in_array($locked->status, ['processing', 'pending'], true)) {
                 return;
             }
 
