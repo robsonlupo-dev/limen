@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\EntradaController;
+use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
@@ -86,6 +87,10 @@ Route::middleware('auth')->group(function () {
         ->can('performer-active');
 
     Route::middleware(['role:consumer'])->group(function () {
+        Route::post('/gorjetas', [TipController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('tips.send');
+
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');
 
