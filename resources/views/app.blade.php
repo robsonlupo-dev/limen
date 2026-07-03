@@ -6,10 +6,10 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title inertia>{{ config('app.name', 'Limen') }}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <meta name="description" content="Limen — O Portal de conteúdo exclusivo verificado">
+    <meta name="description" content="Conteúdo adulto premium. Performers verificados. Privacidade total.">
     <meta name="theme-color" content="#0A0A0A">
     <meta property="og:title" content="Limen — O Portal">
-    <meta property="og:description" content="Conteúdo adulto premium com performers verificados, pagamentos via PIX e total privacidade.">
+    <meta property="og:description" content="Conteúdo adulto premium. Performers verificados. Privacidade total.">
     <meta property="og:type" content="website">
     <meta property="og:image" content="/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">

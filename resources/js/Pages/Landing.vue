@@ -12,7 +12,7 @@ const features = [
     },
     {
         icon: '◈',
-        title: 'Pagamentos via PIX',
+        title: 'Pagamento instantâneo',
         description: 'Compre tokens com PIX instantâneo. Gorjetas chegam ao criador em segundos, com split automático.',
     },
     {
@@ -39,7 +39,7 @@ const features = [
                         <em class="text-gold not-italic">Verificado, real.</em>
                     </h1>
                     <p class="text-muted text-lg leading-relaxed max-w-lg mx-auto">
-                        Conteúdo adulto premium com performers verificados, pagamentos via PIX e total privacidade.
+                        Conteúdo adulto premium. Performers verificados. Privacidade total.
                     </p>
                 </div>
 
@@ -82,30 +82,6 @@ const features = [
         </section>
     </GuestLayout>
 </template>
-
-<script>
-export default {
-    data: () => ({
-        features: [
-            {
-                icon: '✦',
-                title: 'Performers verificados',
-                description: 'Todos os criadores passam por verificação de identidade e idade antes de publicar qualquer conteúdo.',
-            },
-            {
-                icon: '◈',
-                title: 'Pagamentos via PIX',
-                description: 'Compre tokens com PIX instantâneo. Gorjetas chegam ao criador em segundos, com split automático.',
-            },
-            {
-                icon: '◉',
-                title: 'Privacidade total',
-                description: 'Seus dados são criptografados e nunca compartilhados. Transações discretas, sem julgamentos.',
-            },
-        ],
-    }),
-}
-</script>
 
 <style scoped>
 @keyframes fade-in {
