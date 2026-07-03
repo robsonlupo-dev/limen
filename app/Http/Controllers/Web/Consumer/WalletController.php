@@ -14,6 +14,7 @@ use App\Services\TokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,16 +58,31 @@ class WalletController extends Controller
 
         $user = $request->user();
 
-        $payment = Cache::lock("wallet-purchase:{$user->id}:{$package->id}", 10)->block(5, function () use ($user, $package, $request) {
-            $existing = Payment::where('user_id', $user->id)
-                ->where('token_package_id', $package->id)
-                ->where('status', 'pending')
-                ->where('created_at', '>=', now()->subHours(2))
-                ->latest('id')
-                ->first();
+        try {
+            $payment = Cache::lock("wallet-purchase:{$user->id}:{$package->id}", 10)->block(5, function () use ($user, $package, $request) {
+                $existing = Payment::where('user_id', $user->id)
+                    ->where('token_package_id', $package->id)
+                    ->where('status', 'pending')
+                    ->where('created_at', '>=', now()->subHours(2))
+                    ->latest('id')
+                    ->first();
 
-            return $existing ?? $this->paymentService->createPayment($user, $package, $request->input('cpf'));
-        });
+                return $existing ?? $this->paymentService->createPayment($user, $package, $request->input('cpf'));
+            });
+        } catch (\RuntimeException $e) {
+            // The Asaas gateway rejected or was unreachable. Surface a clean error
+            // instead of a 500 — a raw exception page could leak the CPF/name in a
+            // stack trace, and the frontend needs a JSON body it can consume.
+            Log::warning('Wallet purchase failed at gateway', [
+                'user_id' => $user->id,
+                'package_id' => $package->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Não foi possível gerar a cobrança PIX agora. Verifique o CPF informado e tente novamente.',
+            ], 422);
+        }
 
         return response()->json([
             'payment_id' => $payment->id,

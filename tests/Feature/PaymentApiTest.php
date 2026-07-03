@@ -405,3 +405,70 @@ it('reuses existing asaas customer on second purchase without requiring cpf', fu
     $fake = app(\App\Services\Asaas\AsaasClientInterface::class);
     expect($fake->getCreatedCustomers())->toHaveCount(0);
 });
+
+// 15. Falha transitória do getPayment no webhook não engole o crédito: o evento
+// fica sem processar e o reconcile credita depois (regressão da Etapa 3 — cliente HTTP real).
+it('leaves the event unprocessed when confirm fails at the gateway so reconcile recovers', function () {
+    $package = createActivePackage();
+    [$user, $token] = authenticatedUser();
+
+    // Charge conhecido pelo fake e marcado como pago (usado só no reconcile).
+    $fake = new \App\Services\Asaas\FakeAsaasClient();
+    $charge = $fake->createPixCharge([
+        'value' => $package->price_cents / 100,
+        'dueDate' => now()->addDay()->format('Y-m-d'),
+    ]);
+    $fake->simulatePaymentReceived($charge['id']);
+
+    $payment = Payment::create([
+        'user_id' => $user->id,
+        'token_package_id' => $package->id,
+        'provider' => 'asaas',
+        'provider_charge_id' => $charge['id'],
+        'method' => 'pix',
+        'amount_cents' => $package->price_cents,
+        'tokens' => $package->tokens,
+        'status' => 'pending',
+        'expires_at' => now()->addDay(),
+    ]);
+
+    // Age it past the reconcile threshold (bypass Eloquent timestamp handling).
+    Payment::where('id', $payment->id)->update(['created_at' => now()->subMinutes(10)]);
+
+    // Cliente que estoura ao reconsultar a cobrança (getPayment), como um timeout do Asaas.
+    $throwing = new class implements \App\Services\Asaas\AsaasClientInterface {
+        public function createCustomer(array $data): array { return ['id' => 'cus_x']; }
+        public function createPixCharge(array $data): array { return ['id' => 'pay_x']; }
+        public function getPixQrCode(string $chargeId): array { return ['encodedImage' => '', 'payload' => '']; }
+        public function getPayment(string $chargeId): array { throw new \RuntimeException('Asaas API error: HTTP 503'); }
+        public function createTransfer(array $data): array { return ['id' => 'tr_x']; }
+    };
+    app()->instance(\App\Services\Asaas\AsaasClientInterface::class, $throwing);
+
+    config(['asaas.webhook_token' => 'valid-token']);
+
+    $response = $this->postJson('/api/v1/webhooks/asaas', [
+        'id' => 'evt_transient_001',
+        'event' => 'PAYMENT_RECEIVED',
+        'payment' => ['id' => $charge['id']],
+    ], ['asaas-access-token' => 'valid-token']);
+
+    // Webhook responde 200 (não força retries do Asaas), mas nada foi creditado
+    // e o evento fica sem processed_at para o reconcile assumir.
+    $response->assertOk();
+    expect($payment->fresh()->status)->toBe('pending');
+    expect(TokenLedger::where('reference_type', 'payment')->where('reference_id', $payment->id)->count())->toBe(0);
+
+    $this->assertDatabaseHas('payment_events', [
+        'provider_event_id' => 'evt_transient_001',
+        'processed_at' => null,
+    ]);
+
+    // Reconcile com o gateway saudável credita — uma única vez.
+    app()->instance(\App\Services\Asaas\AsaasClientInterface::class, $fake);
+    app(\App\Services\PaymentService::class)->reconcile();
+
+    expect($payment->fresh()->status)->toBe('confirmed');
+    expect(TokenLedger::where('reference_type', 'payment')->where('reference_id', $payment->id)->count())->toBe(1);
+    expect(TokenWallet::where('user_id', $user->id)->first()->balance)->toBe($package->tokens);
+});
