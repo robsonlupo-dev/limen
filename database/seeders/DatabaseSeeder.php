@@ -5,19 +5,19 @@ namespace Database\Seeders;
 use App\Models\PerformerProfile;
 use App\Models\TokenPackage;
 use App\Models\User;
+use Database\Seeders\Concerns\RefusesUnsafeEnvironment;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
+    use RefusesUnsafeEnvironment;
     use WithoutModelEvents;
 
     public function run(): void
     {
         // Contas de teste com senha conhecida jamais podem nascer em produção.
-        if (app()->environment('production')) {
-            $this->command?->error('DatabaseSeeder cria contas de teste e não roda em produção.');
-
+        if (! $this->safeToSeed()) {
             return;
         }
 
@@ -41,13 +41,36 @@ class DatabaseSeeder extends Seeder
         }
     }
 
+    /**
+     * Senha do admin base. O fallback conhecido (`Password1`) só é aceitável em
+     * ambientes descartáveis (local/testing). Em qualquer outro ambiente da
+     * allowlist — staging, development — exige SEED_ADMIN_PASSWORD explícita,
+     * senão aborta: nunca criar um admin real com credencial pública.
+     */
+    private function adminPassword(): string
+    {
+        $password = env('SEED_ADMIN_PASSWORD');
+        if (is_string($password) && $password !== '') {
+            return $password;
+        }
+
+        if (app()->environment('local', 'testing')) {
+            return 'Password1';
+        }
+
+        throw new \RuntimeException(
+            'SEED_ADMIN_PASSWORD é obrigatória fora de local/testing: '
+            . 'recuse-se a criar admin@limen.test com senha default.',
+        );
+    }
+
     private function seedUsers(): void
     {
         User::firstOrCreate(
             ['email' => 'admin@limen.test'],
             [
                 'name' => 'Admin Limen',
-                'password' => env('SEED_ADMIN_PASSWORD', 'Password1'),
+                'password' => $this->adminPassword(),
                 'role' => 'admin',
                 'status' => 'active',
                 'birthdate' => '1990-01-15',
