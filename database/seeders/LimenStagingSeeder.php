@@ -54,6 +54,9 @@ class LimenStagingSeeder extends Seeder
         'swing' => 10,
     ];
 
+    /** Saldo inicial de demo das performers (creditado via ledger, não direto). */
+    private const PERFORMER_SEED_TOKENS = 500;
+
     /** Nível → [split_pct, quantidade]. Total: 50. */
     private const LEVELS = [
         'iniciante' => [65, 15],
@@ -172,7 +175,11 @@ class LimenStagingSeeder extends Seeder
                 if ($user->wasRecentlyCreated) {
                     $this->storeAvatar($user, $profile, $email);
                     $this->approveKyc($user);
-                    TokenWallet::firstOrCreate(['user_id' => $user->id], ['balance' => 0]);
+                    // Saldo inicial de demo SEMPRE via ledger (nunca UPDATE direto
+                    // na wallet), igual aos membros — assim a carteira nasce com
+                    // soma do ledger == balance. Versões antigas setavam balance
+                    // direto e criavam resíduo (corrigido por tokens:reconcile-wallets).
+                    $tokenService->credit($user, self::PERFORMER_SEED_TOKENS, 'bonus', null, null, 'staging_seed');
                 }
             }
         }
