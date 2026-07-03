@@ -5,7 +5,9 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\Kyc\FakeKycClient;
 use App\Services\Kyc\KycClientInterface;
+use App\Services\Kyc\KycDocumentStore;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -66,7 +68,7 @@ function postKyc(mixed $test, array $payload = [], array $files = [], string $to
 // ─── Test 1: Valid KYC submission → 201, verification created pending ────────
 
 it('performer submits KYC with valid CPF and receives 201 with pending status', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -82,10 +84,54 @@ it('performer submits KYC with valid CPF and receives 201 with pending status', 
     ]);
 });
 
+// ─── KycDocumentStore: encryption at rest ───────────────────────────────────
+
+it('KycDocumentStore writes ciphertext at rest and decrypts on retrieve', function () {
+    Storage::fake('kyc');
+
+    $store = app(KycDocumentStore::class);
+    $content = 'CONFIDENTIAL-IDENTITY-DOC-' . str_repeat('Z', 300);
+    $file = UploadedFile::fake()->createWithContent('doc.jpg', $content);
+
+    $path = $store->store(42, $file, 'document_front');
+
+    // Path lands on the private disk and is marked as encrypted.
+    expect($path)->toStartWith('kyc/42/');
+    expect($path)->toEndWith('.enc');
+
+    // On-disk bytes are NOT the plaintext.
+    $onDisk = Storage::disk('kyc')->get($path);
+    expect($onDisk)->not->toBe($content);
+    expect($onDisk)->not->toContain('CONFIDENTIAL');
+
+    // …and round-trip back to the original.
+    expect($store->retrieve($path))->toBe($content);
+    expect(Crypt::decryptString($onDisk))->toBe($content);
+});
+
+it('KYC submission stores the documents encrypted (paths .enc, disk ciphertext)', function () {
+    Storage::fake('kyc');
+    Queue::fake();
+
+    [$user, $token] = makePendingPerformer();
+
+    postKyc($this, validKycPayload(), kycFiles(), $token)->assertStatus(201);
+
+    $verification = IdentityVerification::where('user_id', $user->id)->firstOrFail();
+
+    expect($verification->document_front_path)->toEndWith('.enc');
+    expect($verification->selfie_path)->toEndWith('.enc');
+    Storage::disk('kyc')->assertExists($verification->document_front_path);
+
+    // Stored bytes were encrypted on write (decrypt succeeds; raw filename absent).
+    $onDisk = Storage::disk('kyc')->get($verification->document_front_path);
+    expect(fn () => Crypt::decryptString($onDisk))->not->toThrow(Exception::class);
+});
+
 // ─── Test 2: Invalid CPF → 422 ───────────────────────────────────────────────
 
 it('returns 422 when CPF is invalid in KYC submission', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
 
     [, $token] = makePendingPerformer();
 
@@ -99,7 +145,7 @@ it('returns 422 when CPF is invalid in KYC submission', function () {
 // ─── Test 3: Under 18 → 422 ──────────────────────────────────────────────────
 
 it('returns 422 when performer is under 18 in KYC submission', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
 
     [, $token] = makePendingPerformer();
 
@@ -115,7 +161,7 @@ it('returns 422 when performer is under 18 in KYC submission', function () {
 // ─── Test 4: Invalid file type or >10MB → 422 ────────────────────────────────
 
 it('returns 422 for invalid file type (pdf) or file exceeding 10MB', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
 
     [, $token] = makePendingPerformer();
 
@@ -135,7 +181,7 @@ it('returns 422 for invalid file type (pdf) or file exceeding 10MB', function ()
 // ─── Test 5: Webhook approved → performer active + verified, audit logged ────
 
 it('webhook approved transitions performer to active and verified and logs audit', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -166,7 +212,7 @@ it('webhook approved transitions performer to active and verified and logs audit
 // ─── Test 6: Webhook rejected → performer stays pending, audit logged ─────────
 
 it('webhook rejected keeps performer pending and logs audit', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -193,7 +239,7 @@ it('webhook rejected keeps performer pending and logs audit', function () {
 // ─── Test 7: Webhook with wrong secret → 401, nothing changed ────────────────
 
 it('webhook with wrong secret returns 401 and leaves verification unchanged', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -218,7 +264,7 @@ it('webhook with wrong secret returns 401 and leaves verification unchanged', fu
 // ─── Test 8: Idempotency — same webhook twice → processed only once ──────────
 
 it('sending the same webhook twice processes only once (idempotent)', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -241,7 +287,7 @@ it('sending the same webhook twice processes only once (idempotent)', function (
 // ─── Test 9: Admin approves manually → same result as webhook approved ────────
 
 it('admin can manually approve a pending verification', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -269,7 +315,7 @@ it('admin can manually approve a pending verification', function () {
 // ─── Test 10: Admin rejects → same result as webhook rejected ────────────────
 
 it('admin can manually reject a pending verification', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -296,7 +342,7 @@ it('admin can manually reject a pending verification', function () {
 // ─── Test 11: GET /performer/kyc/status returns status, no provider data ─────
 
 it('performer can check KYC status without seeing provider internals', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -320,7 +366,7 @@ it('performer can check KYC status without seeing provider internals', function 
 // ─── Test 12: Approved performer appears in public catalog ───────────────────
 
 it('performer appears in public catalog after KYC approval', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
@@ -364,7 +410,7 @@ it('returns 422 when performer registers with invalid CPF', function () {
 // ─── Test 14: Pending performer cannot resubmit without prior rejection ───────
 
 it('performer cannot submit KYC twice while still pending', function () {
-    Storage::fake('local');
+    Storage::fake('kyc');
     Queue::fake();
 
     [$user, $token] = makePendingPerformer();
