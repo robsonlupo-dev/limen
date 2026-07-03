@@ -7,6 +7,7 @@ use App\Models\PerformerProfile;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\TokenService;
+use App\Support\AvatarPlaceholder;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
@@ -254,15 +255,7 @@ class LimenStagingSeeder extends Seeder
             // sem rede — cai no fallback SVG abaixo
         }
 
-        $initial = mb_strtoupper(mb_substr($profile->stage_name, 0, 1));
-        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">'
-            . '<rect width="300" height="300" fill="#1a1a2e"/>'
-            . '<circle cx="150" cy="150" r="120" fill="none" stroke="#c9a227" stroke-width="3"/>'
-            . "<text x=\"150\" y=\"172\" font-family=\"Georgia, serif\" font-size=\"96\" fill=\"#c9a227\" text-anchor=\"middle\">{$initial}</text>"
-            . '</svg>';
-
-        $path = "performer-media/{$user->id}/avatar.svg";
-        Storage::disk('local')->put($path, $svg);
+        $path = AvatarPlaceholder::store('local', $user->id, $profile->stage_name);
         $profile->update(['avatar_path' => $path]);
     }
 
