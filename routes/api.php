@@ -61,7 +61,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
 Route::post('v1/webhooks/asaas', AsaasWebhookController::class)->name('webhooks.asaas');
 Route::post('v1/webhooks/kyc', KycWebhookController::class)->name('webhooks.kyc');
-Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 'handle'])->name('webhooks.asaas.transfer');
+// Generous throttle: caps the log/audit-flood vector from unauthenticated hits
+// while staying well above any real Asaas webhook burst (retries survive a 429).
+Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('webhooks.asaas.transfer');
 
 // Performer profile management + KYC
 Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(function () {

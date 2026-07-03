@@ -50,6 +50,55 @@ it('surfaces the Asaas error description in the exception without logging the re
     expect($context['errors'])->not->toContain('12345678900');
 });
 
+it('maps a random PIX key to Asaas EVP (not RANDOM) on a transfer', function () {
+    Http::fake([
+        'sandbox.asaas.com/api/v3/transfers' => Http::response(['id' => 'tr_1', 'status' => 'PENDING'], 200),
+    ]);
+
+    (new AsaasHttpClient())->createTransfer([
+        'pix_key' => 'a1b2c3d4-0000-0000-0000-000000000000',
+        'pix_key_type' => 'random',
+        'value' => 32.18,
+        'description' => 'Limen payout #1',
+        'external_reference' => 'payout_1',
+    ]);
+
+    Http::assertSent(fn ($request) => $request['pixAddressKeyType'] === 'EVP'
+        && $request['pixAddressKey'] === 'a1b2c3d4-0000-0000-0000-000000000000');
+});
+
+it('maps cpf/email/phone key types to the Asaas enum', function () {
+    Http::fake([
+        'sandbox.asaas.com/api/v3/transfers' => Http::response(['id' => 'tr_1'], 200),
+    ]);
+
+    $client = new AsaasHttpClient();
+
+    foreach (['cpf' => 'CPF', 'email' => 'EMAIL', 'phone' => 'PHONE'] as $internal => $asaas) {
+        $client->createTransfer([
+            'pix_key' => 'k',
+            'pix_key_type' => $internal,
+            'value' => 10.0,
+        ]);
+    }
+
+    Http::assertSent(fn ($r) => ($r['pixAddressKeyType'] ?? null) === 'CPF');
+    Http::assertSent(fn ($r) => ($r['pixAddressKeyType'] ?? null) === 'EMAIL');
+    Http::assertSent(fn ($r) => ($r['pixAddressKeyType'] ?? null) === 'PHONE');
+});
+
+it('rejects an unknown PIX key type before calling Asaas', function () {
+    Http::fake();
+
+    expect(fn () => (new AsaasHttpClient())->createTransfer([
+        'pix_key' => 'k',
+        'pix_key_type' => 'iban',
+        'value' => 10.0,
+    ]))->toThrow(RuntimeException::class, 'Unsupported PIX key type');
+
+    Http::assertNothingSent();
+});
+
 it('lets a connection/timeout failure propagate instead of hanging', function () {
     Http::fake(function () {
         throw new \Illuminate\Http\Client\ConnectionException('cURL error 28: timeout');
