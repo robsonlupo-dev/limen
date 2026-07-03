@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import AgeGateModal from '@/Components/AgeGateModal.vue'
@@ -9,13 +10,22 @@ defineProps({
 })
 
 const page = usePage()
+
+// Single source of truth for whether the age gate / intro appear. A logged-in
+// visitor already declared age at registration, so both are suppressed. Guests
+// see each at most once per device, driven by the server-read cookie flags
+// (ageConfirmed / introSeen) shared in HandleInertiaRequests. Because these are
+// v-if guards, the components never even mount once the cookie is present.
+const isLoggedIn = computed(() => Boolean(page.props.auth?.user))
+const showAgeGate = computed(() => !isLoggedIn.value && !page.props.ageConfirmed)
+const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
 </script>
 
 <template>
     <Head :title="title" />
     <div class="min-h-screen bg-background flex flex-col">
-        <IntroAnimation />
-        <AgeGateModal :age-accepted="page.props.ageAccepted" />
+        <IntroAnimation v-if="showIntro" />
+        <AgeGateModal v-if="showAgeGate" />
 
         <!-- Header -->
         <header class="border-b border-frame/50">

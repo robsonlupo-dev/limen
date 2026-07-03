@@ -1,26 +1,25 @@
 <script setup>
 import { ref } from 'vue'
 import PortalLogo from './PortalLogo.vue'
+import { setCookie } from '@/lib/cookies'
 
 // NOTE: this age gate is a UI/UX control only. Real age enforcement is
 // server-side (18+ birthdate on registration; the catalog is auth-gated).
+//
+// Whether this component renders at all is decided by GuestLayout (never for
+// a logged-in user, never once the limen_age_confirmed cookie exists). Here we
+// only handle the confirm/decline action and dismiss without a page reload.
 //
 // TODO Fase 13: após declaração, iniciar liveness check via Unico/idwall
 // para verificação de maioridade real (como o Chaturbate faz com ID scan).
 // Apenas para cadastro de Performer (KYC obrigatório) — Membros: declaração + CPF.
 
-const props = defineProps({
-    // Server-known acceptance (limen_age cookie), shared via Inertia props.
-    ageAccepted: { type: Boolean, default: false },
-})
-
-const accepted = ref(props.ageAccepted)
+const accepted = ref(false)
 
 function accept() {
-    const expires = new Date()
-    expires.setFullYear(expires.getFullYear() + 1)
-    const secure = window.location.protocol === 'https:' ? '; Secure' : ''
-    document.cookie = `limen_age=1; path=/; expires=${expires.toUTCString()}; SameSite=Lax${secure}`
+    // 365-day cookie, readable by the front-end (not httpOnly), exempt from
+    // Laravel cookie encryption so the server sees ageConfirmed=true next load.
+    setCookie('limen_age_confirmed', '1', 365)
     accepted.value = true
 }
 

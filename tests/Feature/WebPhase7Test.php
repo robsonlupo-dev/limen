@@ -147,19 +147,44 @@ it('renders catalog page for authenticated consumer', function () {
         ->assertInertia(fn (Assert $page) => $page->component('Catalog/Index'));
 });
 
-// ─── 12. Age gate: shared ageAccepted is false without cookie ─────────────────
+// ─── 12. Age gate: shared ageConfirmed is false without cookie ────────────────
 
-it('shares ageAccepted=false when the age gate cookie is absent', function () {
+it('shares ageConfirmed=false when the age gate cookie is absent', function () {
     $this->get('/')
-        ->assertInertia(fn (Assert $page) => $page->where('ageAccepted', false));
+        ->assertInertia(fn (Assert $page) => $page->where('ageConfirmed', false));
 });
 
-// ─── 13. Age gate: shared ageAccepted is true with accepted cookie ────────────
+// ─── 13. Age gate: shared ageConfirmed is true with confirmed cookie ──────────
 
-it('shares ageAccepted=true when the age gate cookie is present', function () {
-    $this->withCookie('limen_age', '1')
+it('shares ageConfirmed=true when the age gate cookie is present', function () {
+    $this->withCookie('limen_age_confirmed', '1')
         ->get('/')
-        ->assertInertia(fn (Assert $page) => $page->where('ageAccepted', true));
+        ->assertInertia(fn (Assert $page) => $page->where('ageConfirmed', true));
+});
+
+// ─── 13b. Intro: shared introSeen reflects the cookie ─────────────────────────
+
+it('shares introSeen=false when the intro cookie is absent', function () {
+    $this->get('/')
+        ->assertInertia(fn (Assert $page) => $page->where('introSeen', false));
+});
+
+it('shares introSeen=true when the intro cookie is present', function () {
+    $this->withCookie('limen_intro_seen', '1')
+        ->get('/')
+        ->assertInertia(fn (Assert $page) => $page->where('introSeen', true));
+});
+
+// ─── 13c. The UI-flag cookies are exempt from Laravel cookie encryption ───────
+// A browser sets these in plaintext; if they were encrypted, the server would
+// discard the JS-set value and the gate/intro would loop forever.
+
+it('exempts the age/intro flag cookies from encryption', function () {
+    $encryptCookies = app(\Illuminate\Cookie\Middleware\EncryptCookies::class);
+
+    expect($encryptCookies->isDisabled('limen_age_confirmed'))->toBeTrue()
+        ->and($encryptCookies->isDisabled('limen_intro_seen'))->toBeTrue()
+        ->and($encryptCookies->isDisabled('some_other_cookie'))->toBeFalse();
 });
 
 // ─── 14. Auth user is shared in Inertia props ────────────────────────────────

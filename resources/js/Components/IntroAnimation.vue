@@ -1,21 +1,28 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { setCookie } from '@/lib/cookies'
 
+// GuestLayout only mounts this on a guest's first visit (no limen_intro_seen
+// cookie, not logged in). We persist the "seen" flag as a 30-day cookie — not
+// sessionStorage, which is per-tab and dies on browser close — and set it up
+// front so a reload mid-intro never replays it.
 const showing = ref(false)
 const phase = ref(1)
 
 onMounted(() => {
-    // Show only once per browser session.
-    if (sessionStorage.getItem('intro_shown')) {
-        return
-    }
-
+    setCookie('limen_intro_seen', '1', 30)
     showing.value = true
-    sessionStorage.setItem('intro_shown', '1')
 
-    setTimeout(() => { phase.value = 2 }, 400)   // arch drawn → text
-    setTimeout(() => { phase.value = 3 }, 900)   // tagline
-    setTimeout(() => { showing.value = false }, 2200) // fade out
+    // Reduced sequence on small screens (~1.4s) vs. full on desktop (~2.2s,
+    // always under the 3s budget).
+    const mobile = window.innerWidth < 768
+    const t = mobile
+        ? { text: 250, tagline: 600, end: 1400 }
+        : { text: 400, tagline: 900, end: 2200 }
+
+    setTimeout(() => { phase.value = 2 }, t.text)      // arch drawn → text
+    setTimeout(() => { phase.value = 3 }, t.tagline)   // tagline
+    setTimeout(() => { showing.value = false }, t.end) // fade out
 })
 </script>
 

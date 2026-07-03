@@ -17,6 +17,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
+        // UI-only flags written by the front-end in plaintext (age gate + intro).
+        // They carry no secret, so they must be exempt from cookie encryption —
+        // otherwise Laravel discards the JS-set cookie and the gate/intro loop.
+        $middleware->encryptCookies(except: [
+            'limen_age_confirmed',
+            'limen_intro_seen',
+        ]);
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
         ]);

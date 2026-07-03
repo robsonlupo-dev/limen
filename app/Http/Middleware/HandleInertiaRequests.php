@@ -31,7 +31,8 @@ class HandleInertiaRequests extends Middleware
                 'success' => session('success'),
                 'error' => session('error'),
             ],
-            'ageAccepted' => (bool) $request->cookie('limen_age'),
+            'ageConfirmed' => (bool) $request->cookie('limen_age_confirmed'),
+            'introSeen' => (bool) $request->cookie('limen_intro_seen'),
         ]);
     }
 }
