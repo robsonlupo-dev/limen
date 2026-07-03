@@ -40,6 +40,13 @@ php artisan event:cache
 echo "▶ Ajustando permissões"
 sudo chown -R www-data:www-data storage bootstrap/cache
 
+# Garante o cron do scheduler do Laravel (idempotente). Sem ele o
+# payments:reconcile não roda — e ele é o plano B do crédito de tokens
+# (webhook perdido/inalcançável). O guard evita duplicar a linha.
+echo "▶ Garantindo cron do scheduler"
+crontab -l 2>/dev/null | grep -Fq 'artisan schedule:run' || \
+  ( crontab -l 2>/dev/null; echo "* * * * * cd $APP_DIR && php artisan schedule:run >> /dev/null 2>&1" ) | crontab -
+
 echo "▶ Reiniciando workers de fila"
 sudo supervisorctl restart limen-worker:*
 

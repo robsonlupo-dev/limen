@@ -112,4 +112,10 @@ jobs:
             php artisan view:cache
             php artisan event:cache
             sudo chown -R www-data:www-data storage bootstrap/cache
+            # Garante o cron do scheduler do Laravel (idempotente). Sem ele o
+            # payments:reconcile não roda — e ele é o plano B do crédito de
+            # tokens (webhook perdido/inalcançável). O guard evita duplicar a
+            # linha em deploys repetidos.
+            crontab -l 2>/dev/null | grep -Fq 'artisan schedule:run' || \
+              ( crontab -l 2>/dev/null; echo "* * * * * cd /var/www/limen && php artisan schedule:run >> /dev/null 2>&1" ) | crontab -
             sudo supervisorctl restart limen-worker:*
