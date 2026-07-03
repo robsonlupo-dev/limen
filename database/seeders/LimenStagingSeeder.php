@@ -8,6 +8,7 @@ use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\TokenService;
 use App\Support\AvatarPlaceholder;
+use Database\Seeders\Concerns\RefusesUnsafeEnvironment;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
@@ -32,6 +33,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class LimenStagingSeeder extends Seeder
 {
+    use RefusesUnsafeEnvironment;
+
     public const PASSWORD = 'Limen2026!';
 
     /** Distribuição exata dos 50 performers por mundo. */
@@ -94,9 +97,7 @@ class LimenStagingSeeder extends Seeder
 
     public function run(): void
     {
-        if (app()->environment('production')) {
-            $this->command?->error('LimenStagingSeeder cria contas de teste e não roda em produção.');
-
+        if (! $this->safeToSeed()) {
             return;
         }
 
