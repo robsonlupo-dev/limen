@@ -5,14 +5,17 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SubmitKycRequest;
 use App\Services\Kyc\KycClientInterface;
+use App\Services\Kyc\KycDocumentStore;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class KycController extends Controller
 {
-    public function __construct(private KycClientInterface $kycClient) {}
+    public function __construct(
+        private KycClientInterface $kycClient,
+        private KycDocumentStore $documents,
+    ) {}
 
     public function submit(SubmitKycRequest $request): JsonResponse
     {
@@ -30,26 +33,14 @@ class KycController extends Controller
         }
 
         $userId = $user->id;
-        $frontPath = Storage::disk('local')->putFileAs(
-            "kyc/{$userId}",
-            $request->file('document_front'),
-            'document_front.' . $request->file('document_front')->extension()
-        );
+        $frontPath = $this->documents->store($userId, $request->file('document_front'), 'document_front');
 
         $backPath = null;
         if ($request->hasFile('document_back')) {
-            $backPath = Storage::disk('local')->putFileAs(
-                "kyc/{$userId}",
-                $request->file('document_back'),
-                'document_back.' . $request->file('document_back')->extension()
-            );
+            $backPath = $this->documents->store($userId, $request->file('document_back'), 'document_back');
         }
 
-        $selfiePath = Storage::disk('local')->putFileAs(
-            "kyc/{$userId}",
-            $request->file('selfie'),
-            'selfie.' . $request->file('selfie')->extension()
-        );
+        $selfiePath = $this->documents->store($userId, $request->file('selfie'), 'selfie');
 
         $providerResponse = $this->kycClient->submitVerification([
             'document_type' => $request->input('document_type'),

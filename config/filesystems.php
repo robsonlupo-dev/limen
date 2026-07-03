@@ -38,6 +38,17 @@ return [
             'report' => false,
         ],
 
+        // Isolated, non-web-served disk for KYC identity documents (principle 4:
+        // PII isolated + encrypted at rest). No 'serve'/'url' — files are only
+        // reachable server-side, decrypted through KycDocumentStore behind authz.
+        'kyc' => [
+            'driver' => 'local',
+            'root' => storage_path('app/kyc'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
