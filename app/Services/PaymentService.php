@@ -88,7 +88,21 @@ class PaymentService
         }
 
         if (in_array($eventType, ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])) {
-            $this->confirmPayment($payment);
+            try {
+                $this->confirmPayment($payment);
+            } catch (\Throwable $e) {
+                // confirmPayment re-queries Asaas (getPayment), which can fail or
+                // time out against the live gateway. Leave processed_at null so the
+                // event stays visibly unprocessed and payments:reconcile retries the
+                // credit — better a delayed credit than a silently swallowed one.
+                Log::error('Webhook confirm failed; reconcile will retry', [
+                    'payment_id' => $payment->id,
+                    'event' => $eventId,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return;
+            }
         } elseif ($eventType === 'PAYMENT_OVERDUE') {
             $payment->update(['status' => 'expired']);
         }

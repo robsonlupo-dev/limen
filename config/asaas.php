@@ -2,8 +2,10 @@
 
 return [
     // Which Asaas client to use: 'http' (real API) or 'fake' (in-memory stub).
-    // Dev/staging default to 'fake' (synthetic data — see CLAUDE.md); production
-    // sets 'http' with real credentials. Tests always use the fake regardless.
+    // Defaults to 'http' so an env that forgets the flag never issues fake,
+    // unpayable charges. Dev sets ASAAS_DRIVER=fake explicitly (synthetic data —
+    // see CLAUDE.md); staging/prod set 'http' with real credentials. Tests always
+    // use the fake regardless of this value (see AppServiceProvider).
     'driver' => env('ASAAS_DRIVER', 'http'),
 
     'env' => env('ASAAS_ENV', 'sandbox'),
