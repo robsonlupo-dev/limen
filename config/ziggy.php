@@ -39,6 +39,9 @@ return [
         'performer.payouts.history',
         'performer.payouts.store',
 
+        // Consumer tips
+        'tips.send',
+
         // Consumer wallet
         'wallet.index',
         'wallet.history',
