@@ -18,11 +18,17 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AsaasClientInterface::class, function () {
-            if ($this->app->environment('testing')) {
-                return new FakeAsaasClient();
+            $useFake = $this->app->environment('testing') || config('asaas.driver') === 'fake';
+
+            // Production must never use the fake gateway (would issue unpayable
+            // charges). Fail loudly rather than silently if the flag leaks.
+            if ($useFake && $this->app->environment('production')) {
+                throw new \RuntimeException(
+                    'Refusing to use the fake Asaas client in production. Set ASAAS_DRIVER=http with real credentials.'
+                );
             }
 
-            return new AsaasHttpClient();
+            return $useFake ? new FakeAsaasClient() : new AsaasHttpClient();
         });
 
         $this->app->singleton(KycClientInterface::class, function () {
