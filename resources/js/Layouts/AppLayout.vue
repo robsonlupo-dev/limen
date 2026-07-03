@@ -12,6 +12,7 @@ defineProps({
 const page = usePage()
 
 const isPerformer = computed(() => page.props.auth.user?.role === 'performer')
+const isConsumer = computed(() => page.props.auth.user?.role === 'consumer')
 const dashboardRoute = computed(() =>
     page.props.auth.user?.status === 'active'
         ? route('performer.dashboard')
@@ -43,6 +44,13 @@ function logout() {
                         class="text-gold/80 hover:text-gold transition-colors no-underline"
                     >
                         Meu Painel
+                    </Link>
+                    <Link
+                        v-if="isConsumer"
+                        :href="route('wallet.index')"
+                        class="text-gold/80 hover:text-gold transition-colors no-underline"
+                    >
+                        Carteira
                     </Link>
                     <span class="text-cream">{{ page.props.auth.user?.name }}</span>
                     <button
