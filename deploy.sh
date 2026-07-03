@@ -13,6 +13,14 @@ cd "$APP_DIR"
 echo "▶ Atualizando código"
 git pull origin main
 
+# `composer install --no-dev` remove os pacotes de dev de vendor/. Se algum
+# arquivo em vendor/ ficou com dono != deploy (ex.: www-data de um deploy
+# anterior, ou root de um seed rodado como root), o composer não consegue
+# apagá-lo e o deploy quebra ("Could not delete .../vendor/..."). Reassumir a
+# posse de vendor/ ANTES do composer torna o passo idempotente.
+echo "▶ Normalizando posse de vendor/"
+sudo chown -R deploy:deploy "$APP_DIR/vendor"
+
 echo "▶ Instalando dependências PHP (produção)"
 composer install --no-dev --optimize-autoloader --no-interaction
 

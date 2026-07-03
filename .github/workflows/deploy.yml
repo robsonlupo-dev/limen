@@ -98,6 +98,11 @@ jobs:
             git config --global --add safe.directory /var/www/limen
             git fetch origin main
             git reset --hard origin/main
+            # composer install --no-dev remove os pacotes de dev de vendor/.
+            # Se algum arquivo em vendor/ ficou com dono != deploy, o composer
+            # não consegue apagá-lo e o deploy quebra. Reassumir a posse antes
+            # do install torna o passo idempotente (S1.6).
+            sudo chown -R deploy:deploy /var/www/limen/vendor
             composer install --no-dev --optimize-autoloader --no-interaction
             npm ci
             npm run build

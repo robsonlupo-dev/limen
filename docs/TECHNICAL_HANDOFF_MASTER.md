@@ -204,6 +204,7 @@ cd /var/www/limen
 git config --global --add safe.directory /var/www/limen
 git fetch origin main
 git reset --hard origin/main          # força servidor == repo (ver Decisões)
+sudo chown -R deploy:deploy /var/www/limen/vendor   # S1.6: torna o composer idempotente
 composer install --no-dev --optimize-autoloader --no-interaction
 npm ci && npm run build
 php artisan migrate --force
@@ -212,8 +213,18 @@ sudo chown -R www-data:www-data storage bootstrap/cache
 sudo supervisorctl restart limen-worker:*
 ```
 
+**S1.6 — fix permanente do deploy:** `composer install --no-dev` remove os pacotes de dev de
+`vendor/`. Se qualquer arquivo em `vendor/` ficou com dono != `deploy` (www-data de um deploy
+anterior, root de um seed rodado como root), o composer não consegue apagá-lo e o deploy morre
+com `Could not delete .../vendor/...`. O `chown -R deploy:deploy vendor` **antes** do composer
+reassume a posse e torna o passo idempotente — o `reset --hard` nunca mais reintroduz o problema.
+
 **Sudoers:** `/etc/sudoers.d/deploy-limen` dá NOPASSWD ao usuário `deploy` **somente** para o
-`chown storage/bootstrap` e o `supervisorctl restart limen-worker:*`.
+`chown storage/bootstrap`, o **`chown -R deploy:deploy /var/www/limen/vendor`** (adicionado no
+S1.6) e o `supervisorctl restart limen-worker:*`. Linha a acrescentar no arquivo do servidor:
+```
+deploy ALL=(root) NOPASSWD: /usr/bin/chown -R deploy\:deploy /var/www/limen/vendor
+```
 
 ⚠️ **Consequência do `reset --hard`:** qualquer edição manual no servidor é descartada a cada
 deploy. O `config/ziggy.php` e o `SecurityHeaders.php` **não** devem ser editados no servidor —
