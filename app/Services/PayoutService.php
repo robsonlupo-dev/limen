@@ -8,6 +8,7 @@ use App\Models\Payout;
 use App\Models\TokenLedger;
 use App\Models\User;
 use App\Services\Asaas\AsaasClientInterface;
+use App\Services\Asaas\AsaasUnavailableException;
 use App\Support\Audit;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,10 @@ class PayoutService
     private const MIN_TOKENS = 500;
 
     private const MAX_TOKENS = 50000;
+
+    // Only reconcile payouts that have been in flight for a while, so a normal
+    // in-progress transfer and its webhook have had time to arrive first.
+    private const RECONCILE_MIN_AGE_MINUTES = 15;
 
     public function __construct(
         private AsaasClientInterface $asaas,
@@ -84,7 +89,22 @@ class PayoutService
             Audit::log('payout.processing', $payout, [
                 'asaas_transfer_id' => $payout->asaas_transfer_id,
             ]);
+        } catch (AsaasUnavailableException $e) {
+            // Ambiguous outcome (timeout / 5xx): Asaas may have created the transfer
+            // and be paying the PIX. Reversing here could return tokens for money
+            // that actually went out. Leave the payout 'processing' with no transfer
+            // id; the webhook (resolves by externalReference) or payouts:reconcile
+            // settles it against Asaas.
+            Log::error('Payout transfer result unknown; deferring to reconcile', [
+                'payout_id' => $payout->id,
+                'error_class' => get_class($e),
+            ]);
+
+            $payout->update(['status' => 'processing']);
+            Audit::log('payout.unconfirmed', $payout);
         } catch (\Throwable $e) {
+            // Definitive failure (4xx / invalid request): the transfer was not
+            // created, so it is safe to fail and return the reserved tokens.
             Log::error('Payout transfer creation failed', [
                 'payout_id' => $payout->id,
                 'error_class' => get_class($e),
@@ -131,9 +151,12 @@ class PayoutService
         }
 
         if ($payout) {
-            if ($eventType === 'TRANSFER_PAID') {
+            // Asaas signals a completed transfer with TRANSFER_DONE (status DONE) —
+            // NOT "TRANSFER_PAID". Accept the alias too for safety. A cancelled
+            // transfer, like a failed one, must reverse the reservation.
+            if (in_array($eventType, ['TRANSFER_DONE', 'TRANSFER_PAID'], true)) {
                 $this->markPaid($payout);
-            } elseif ($eventType === 'TRANSFER_FAILED') {
+            } elseif (in_array($eventType, ['TRANSFER_FAILED', 'TRANSFER_CANCELLED'], true)) {
                 $reason = $payload['transfer']['failReason'] ?? ($payload['reason'] ?? 'Transfer failed');
                 $this->markFailedAndReverse($payout, $reason);
             }
@@ -145,6 +168,86 @@ class PayoutService
         }
 
         PaymentEvent::where('provider_event_id', $eventId)->update(['processed_at' => now()]);
+    }
+
+    /**
+     * Settle payouts left in flight — the safety net for a lost webhook or an
+     * ambiguous createTransfer (where we intentionally did NOT reverse). Resolves
+     * each against Asaas so tokens are never stranded and money is never double-paid.
+     */
+    public function reconcile(): void
+    {
+        $inFlight = Payout::whereIn('status', ['pending', 'processing'])
+            ->where('requested_at', '<=', now()->subMinutes(self::RECONCILE_MIN_AGE_MINUTES))
+            ->get();
+
+        foreach ($inFlight as $payout) {
+            try {
+                $this->reconcileOne($payout);
+            } catch (AsaasUnavailableException) {
+                // Still can't reach Asaas — leave it exactly as is and retry next run.
+                Log::warning('Payout reconcile deferred (gateway unavailable)', ['payout_id' => $payout->id]);
+            } catch (\Throwable $e) {
+                Log::error('Payout reconcile error', [
+                    'payout_id' => $payout->id,
+                    'error_class' => get_class($e),
+                ]);
+            }
+        }
+    }
+
+    private function reconcileOne(Payout $payout): void
+    {
+        $transfer = $this->locateTransfer($payout);
+
+        if ($transfer === null) {
+            // We could NOT positively confirm a transfer. This is not proof one
+            // doesn't exist — Asaas search is not read-after-write, and a 4xx like
+            // 429/401 on the lookup is an operational hiccup, not "gone". Reversing
+            // here could return tokens for a PIX that already went out (double pay),
+            // so never auto-reverse: flag it for manual review and move on.
+            Log::warning('Payout unresolved by reconcile — needs manual review', ['payout_id' => $payout->id]);
+            Audit::log('payout.reconcile_unresolved', $payout);
+
+            return;
+        }
+
+        if (! $payout->asaas_transfer_id && ! empty($transfer['id'])) {
+            $payout->update(['asaas_transfer_id' => $transfer['id']]);
+        }
+
+        $status = $transfer['status'] ?? '';
+
+        // Only an EXPLICIT terminal status from Asaas moves money: DONE credits the
+        // performer's payout as paid; FAILED/CANCELLED returns the reserved tokens.
+        if ($status === 'DONE') {
+            $this->markPaid($payout);
+        } elseif (in_array($status, ['FAILED', 'CANCELLED'], true)) {
+            $this->markFailedAndReverse($payout, $transfer['failReason'] ?? 'Transferência falhou no provedor.');
+        }
+        // PENDING / BANK_PROCESSING: still moving — leave for a later run.
+    }
+
+    private function locateTransfer(Payout $payout): ?array
+    {
+        if ($payout->asaas_transfer_id) {
+            // A recorded id means the transfer WAS created. Never swallow a lookup
+            // failure into "not found" here — let it propagate so reconcile() defers
+            // (a 404/429/401 must not turn into a reversal of a possibly-paid PIX).
+            return $this->asaas->getTransfer($payout->asaas_transfer_id);
+        }
+
+        // Ambiguous payout: we never recorded an id. Find it by the external
+        // reference we sent. Filter client-side so an unfiltered list response
+        // can never make us act on someone else's transfer.
+        $result = $this->asaas->findTransfersByExternalReference("payout_{$payout->id}");
+
+        $matches = array_values(array_filter(
+            $result['data'] ?? [],
+            fn ($transfer) => ($transfer['externalReference'] ?? null) === "payout_{$payout->id}",
+        ));
+
+        return $matches[0] ?? null;
     }
 
     private function resolvePayoutForTransfer(string $transferId, array $payload): ?Payout

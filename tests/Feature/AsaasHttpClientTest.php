@@ -99,11 +99,32 @@ it('rejects an unknown PIX key type before calling Asaas', function () {
     Http::assertNothingSent();
 });
 
-it('lets a connection/timeout failure propagate instead of hanging', function () {
+it('wraps a connection/timeout failure as an ambiguous AsaasUnavailableException', function () {
     Http::fake(function () {
         throw new \Illuminate\Http\Client\ConnectionException('cURL error 28: timeout');
     });
 
     expect(fn () => (new AsaasHttpClient())->getPayment('pay_1'))
-        ->toThrow(\Illuminate\Http\Client\ConnectionException::class);
+        ->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
+});
+
+it('classifies a 4xx as a definitive AsaasRequestException', function () {
+    Http::fake([
+        'sandbox.asaas.com/api/v3/payments/pay_1' => Http::response(['errors' => [['description' => 'bad']]], 400),
+    ]);
+
+    expect(fn () => (new AsaasHttpClient())->getPayment('pay_1'))
+        ->toThrow(\App\Services\Asaas\AsaasRequestException::class);
+});
+
+it('classifies a 5xx as an ambiguous AsaasUnavailableException', function () {
+    Http::fake([
+        'sandbox.asaas.com/api/v3/transfers' => Http::response('gateway error', 503),
+    ]);
+
+    expect(fn () => (new AsaasHttpClient())->createTransfer([
+        'pix_key' => 'k@e.com',
+        'pix_key_type' => 'email',
+        'value' => 10.0,
+    ]))->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
 });

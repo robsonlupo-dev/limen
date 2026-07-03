@@ -2,10 +2,10 @@
 
 namespace App\Services\Asaas;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 class AsaasHttpClient implements AsaasClientInterface
 {
@@ -42,6 +42,16 @@ class AsaasHttpClient implements AsaasClientInterface
         return $this->get("/payments/{$chargeId}");
     }
 
+    public function getTransfer(string $transferId): array
+    {
+        return $this->get("/transfers/{$transferId}");
+    }
+
+    public function findTransfersByExternalReference(string $externalReference): array
+    {
+        return $this->get('/transfers?externalReference=' . urlencode($externalReference));
+    }
+
     // Maps our internal pix_key_type values to Asaas's pixAddressKeyType enum.
     // Note a random ("chave aleatória") key is EVP in Asaas — NOT "RANDOM", which
     // a naive strtoupper() would produce and Asaas would reject.
@@ -58,7 +68,8 @@ class AsaasHttpClient implements AsaasClientInterface
         $keyType = strtolower((string) $data['pix_key_type']);
 
         if (! isset(self::PIX_KEY_TYPE_MAP[$keyType])) {
-            throw new RuntimeException("Unsupported PIX key type: {$data['pix_key_type']}");
+            // Definitive: a bad request we won't even send — safe to fail hard.
+            throw new AsaasRequestException("Unsupported PIX key type: {$data['pix_key_type']}");
         }
 
         return $this->post('/transfers', [
@@ -72,18 +83,28 @@ class AsaasHttpClient implements AsaasClientInterface
 
     private function post(string $path, array $data): array
     {
-        $response = Http::withHeaders([
-            'access_token' => $this->apiKey,
-        ])->timeout(self::TIMEOUT_SECONDS)->post($this->baseUrl . $path, $data);
+        try {
+            $response = Http::withHeaders([
+                'access_token' => $this->apiKey,
+            ])->timeout(self::TIMEOUT_SECONDS)->post($this->baseUrl . $path, $data);
+        } catch (ConnectionException $e) {
+            // Timeout / connection reset: the request may still have been processed
+            // by Asaas. Ambiguous — callers must not assume it failed.
+            throw new AsaasUnavailableException("Asaas unreachable on POST {$path}: {$e->getMessage()}", previous: $e);
+        }
 
         return $this->handle($path, $response);
     }
 
     private function get(string $path): array
     {
-        $response = Http::withHeaders([
-            'access_token' => $this->apiKey,
-        ])->timeout(self::TIMEOUT_SECONDS)->get($this->baseUrl . $path);
+        try {
+            $response = Http::withHeaders([
+                'access_token' => $this->apiKey,
+            ])->timeout(self::TIMEOUT_SECONDS)->get($this->baseUrl . $path);
+        } catch (ConnectionException $e) {
+            throw new AsaasUnavailableException("Asaas unreachable on GET {$path}: {$e->getMessage()}", previous: $e);
+        }
 
         return $this->handle($path, $response);
     }
@@ -103,8 +124,13 @@ class AsaasHttpClient implements AsaasClientInterface
             ]);
 
             $detail = $errors !== '' ? " ({$errors})" : '';
+            $message = "Asaas API error: HTTP {$response->status()}{$detail}";
 
-            throw new RuntimeException("Asaas API error: HTTP {$response->status()}{$detail}");
+            // 5xx = Asaas-side failure; the request may have been processed →
+            // ambiguous. 4xx = rejected/not processed → definitive.
+            throw $response->serverError()
+                ? new AsaasUnavailableException($message)
+                : new AsaasRequestException($message);
         }
 
         return $response->json();

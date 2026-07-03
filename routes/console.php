@@ -9,3 +9,6 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('payments:reconcile')->everyTenMinutes();
+// withoutOverlapping: a slow Asaas run must not stack two reconciles and pile on
+// rate-limit pressure (a 429 mid-reconcile must never be read as a failed transfer).
+Schedule::command('payouts:reconcile')->everyTenMinutes()->withoutOverlapping();

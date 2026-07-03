@@ -12,6 +12,10 @@ class FakeAsaasClient implements AsaasClientInterface
 
     private bool $forceNextTransferFailure = false;
 
+    private bool $forceNextTransferUnavailable = false;
+
+    private bool $forceNextGetTransferFailure = false;
+
     public function createCustomer(array $data): array
     {
         $customer = [
@@ -85,9 +89,24 @@ class FakeAsaasClient implements AsaasClientInterface
 
     public function createTransfer(array $data): array
     {
+        if ($this->forceNextTransferUnavailable) {
+            $this->forceNextTransferUnavailable = false;
+            // Ambiguous outcome: still record the transfer (as if Asaas created it
+            // but our response was lost), so reconcile can later find it.
+            $id = 'transfer_fake_' . uniqid();
+            $this->transfers[$id] = [
+                'id' => $id,
+                'status' => 'PENDING',
+                'value' => $data['value'],
+                'externalReference' => $data['external_reference'] ?? null,
+            ];
+
+            throw new AsaasUnavailableException('Simulated Asaas transfer timeout.');
+        }
+
         if ($this->forceNextTransferFailure) {
             $this->forceNextTransferFailure = false;
-            throw new \RuntimeException('Simulated Asaas transfer failure.');
+            throw new AsaasRequestException('Simulated Asaas transfer rejection.');
         }
 
         $id = 'transfer_fake_' . uniqid();
@@ -105,9 +124,44 @@ class FakeAsaasClient implements AsaasClientInterface
         return $this->transfers[$id];
     }
 
+    public function getTransfer(string $transferId): array
+    {
+        if ($this->forceNextGetTransferFailure) {
+            $this->forceNextGetTransferFailure = false;
+            // e.g. a 429/401 during a reconcile batch — an operational hiccup.
+            throw new AsaasRequestException('Asaas API error: HTTP 429 (rate limited)');
+        }
+
+        if (isset($this->transfers[$transferId])) {
+            return $this->transfers[$transferId];
+        }
+
+        throw new AsaasRequestException('Asaas API error: HTTP 404 (transfer not found)');
+    }
+
+    public function findTransfersByExternalReference(string $externalReference): array
+    {
+        $matches = array_values(array_filter(
+            $this->transfers,
+            fn ($transfer) => ($transfer['externalReference'] ?? null) === $externalReference,
+        ));
+
+        return ['data' => $matches];
+    }
+
     public function forceNextTransferFailure(): void
     {
         $this->forceNextTransferFailure = true;
+    }
+
+    public function forceNextTransferUnavailable(): void
+    {
+        $this->forceNextTransferUnavailable = true;
+    }
+
+    public function forceNextGetTransferFailure(): void
+    {
+        $this->forceNextGetTransferFailure = true;
     }
 
     public function simulateTransferPaid(string $transferId): void
