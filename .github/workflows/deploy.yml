@@ -105,6 +105,14 @@ jobs:
             sudo chown -R deploy:deploy /var/www/limen/vendor
             composer install --no-dev --optimize-autoloader --no-interaction
             npm ci
+            # O npm run build (Vite) reescreve public/build/. Se algum arquivo
+            # ali ficou com dono root (build manual no servidor rodado como
+            # root), o Vite não consegue sobrescrevê-lo e o build quebra com
+            # EACCES. Reassumir a posse antes do build torna o passo idempotente
+            # (mesma tática do vendor/ acima, S2.1). O mkdir -p cobre o primeiro
+            # deploy, quando public/build/ ainda não existe.
+            sudo mkdir -p /var/www/limen/public/build
+            sudo chown -R deploy:deploy /var/www/limen/public/build
             npm run build
             php artisan migrate --force
             php artisan config:cache
