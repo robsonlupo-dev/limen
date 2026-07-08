@@ -61,9 +61,18 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
 
         <!-- Footer -->
         <footer class="border-t border-frame/50 py-8">
-            <div class="max-w-6xl mx-auto px-6 text-center text-xs text-muted space-y-1">
-                <p>© {{ new Date().getFullYear() }} Limen. Todos os direitos reservados.</p>
-                <p class="text-gold/70">+18 · Conteúdo adulto verificado · Proibido para menores de 18 anos.</p>
+            <div class="max-w-6xl mx-auto px-6 text-center text-xs text-muted space-y-4">
+                <!-- Legal links (placeholder até as páginas existirem). -->
+                <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+                    <a href="#" class="hover:text-cream transition-colors">Termos de uso</a>
+                    <a href="#" class="hover:text-cream transition-colors">Privacidade (LGPD)</a>
+                    <a href="#" class="hover:text-cream transition-colors">Conformidade 18+</a>
+                    <a href="#" class="hover:text-cream transition-colors">Contato</a>
+                </nav>
+                <div class="space-y-1">
+                    <p>© {{ new Date().getFullYear() }} Limen. Todos os direitos reservados.</p>
+                    <p class="text-gold/70">+18 · Conteúdo adulto verificado · Proibido para menores de 18 anos.</p>
+                </div>
             </div>
         </footer>
     </div>

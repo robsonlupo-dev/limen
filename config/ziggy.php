@@ -5,6 +5,7 @@ return [
         // Public / landing
         'landing',
         'entrada',
+        'waitlist.store',
 
         // Auth
         'register',
