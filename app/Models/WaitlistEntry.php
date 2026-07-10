@@ -11,11 +11,12 @@ use Illuminate\Support\Str;
 
 class WaitlistEntry extends Model
 {
-    protected $fillable = [
-        'name', 'email', 'role', 'world', 'source', 'age_confirmed',
-        'invite_code', 'invite_token', 'referred_by', 'confirmed_at',
-        'referral_count', 'tier',
-    ];
+    // Only user-supplied fields are mass-assignable. The program-controlled
+    // fields (invite_code, invite_token, referred_by, confirmed_at,
+    // referral_count, tier) are set by direct assignment in WaitlistService /
+    // the observers — never from request input — so a stray create($request->all())
+    // can never forge a tier or referral count.
+    protected $fillable = ['name', 'email', 'role', 'world', 'source', 'age_confirmed'];
 
     protected $casts = [
         'age_confirmed' => 'boolean',

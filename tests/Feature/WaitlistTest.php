@@ -256,3 +256,16 @@ it('does nothing on POST with a forged token', function () {
     $this->post('/waitlist/cancelar', ['token' => 'deadbeef'])->assertRedirect(route('landing'));
     expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
 });
+
+it('recomputes the referrer tier when a confirmed referred person unsubscribes', function () {
+    $referrer = joinWaitlist(['email' => 'boss@example.com']);
+    $friend = joinWaitlist(['email' => 'friend@example.com'], $referrer);
+    app(WaitlistService::class)->confirm($friend);
+    expect($referrer->fresh()->referral_count)->toBe(1);
+
+    // Unsubscribing the referred person must not leave the referrer inflated.
+    $this->post('/waitlist/cancelar', ['token' => $friend->invite_token]);
+
+    expect($referrer->fresh()->referral_count)->toBe(0);
+    expect(WaitlistReferral::count())->toBe(0);
+});

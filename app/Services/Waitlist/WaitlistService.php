@@ -96,8 +96,10 @@ class WaitlistService
 
     private function ipUnderReferralCap(?string $ip): bool
     {
+        // Fail closed: without an IP we can't enforce the cap, so we don't grant
+        // referral credit rather than leave an unlimited hole.
         if ($ip === null) {
-            return true;
+            return false;
         }
 
         $recent = WaitlistReferral::where('referred_ip_hash', $this->hashIp($ip))
