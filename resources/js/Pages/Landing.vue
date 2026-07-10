@@ -5,6 +5,13 @@ import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 
+// When the visitor arrived via an invite link (/convite/{code}), the server
+// passes the referrer's first name so we can show a "convidado por X" banner.
+// The referral itself is attributed server-side via the session, not this prop.
+defineProps({
+    referral: { type: Object, default: null },
+})
+
 // ── Content ──────────────────────────────────────────────────────────────────
 
 const memberSteps = [
@@ -102,6 +109,13 @@ const vReveal = {
             <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_35%,rgba(201,162,75,0.10),transparent)]" />
 
             <div class="relative z-10 mx-auto flex max-w-2xl flex-col items-center gap-8 animate-fade-in">
+                <div
+                    v-if="referral"
+                    class="rounded-full border border-gold/40 bg-gold/[0.06] px-5 py-2 text-sm text-cream"
+                >
+                    ✦ Você foi convidado por <span class="text-gold">{{ referral.name }}</span>
+                </div>
+
                 <PortalLogo :size="104" />
 
                 <div class="space-y-5">

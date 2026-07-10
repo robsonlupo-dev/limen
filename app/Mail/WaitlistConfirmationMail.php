@@ -10,12 +10,14 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 /**
- * Confirmation sent when someone joins the pre-launch waitlist. Implements
- * ShouldQueue so it rides the (database) queue when a worker is active, and
- * never blocks or breaks the landing submission if mail delivery is slow.
- * The from address falls back to MAIL_FROM_ADDRESS configured in the .env.
+ * Confirmation + activation email for the Founding Members program. Sent on a
+ * new signup: asks the person to confirm (double opt-in), shows their waitlist
+ * position and tier, and hands them their unique invite link to climb tiers.
+ * ShouldQueue so it never blocks the landing submission; from address falls back
+ * to MAIL_FROM_ADDRESS.
  */
 class WaitlistConfirmationMail extends Mailable implements ShouldQueue
 {
@@ -28,23 +30,29 @@ class WaitlistConfirmationMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Você está na lista — Limen');
+        return new Envelope(subject: 'Confirme seu lugar — Limen Founding Members');
     }
 
     public function content(): Content
     {
+        $tier = $this->entry->tier;
+        $next = $tier->next();
+
         return new Content(
             view: 'emails.waitlist.confirmation',
             with: [
-                'name' => $this->entry->name,
+                'firstName' => Str::of($this->entry->name)->trim()->explode(' ')->first(),
                 'position' => $this->position,
-                // Absolute links so they resolve from an inbox. The unsubscribe
-                // link opens a confirmation page (GET is side-effect-free); the
-                // token is opaque and carries the email, so no PII hits the log.
-                'landingUrl' => URL::route('landing', ['ref' => 'waitlist']),
-                'unsubscribeUrl' => URL::route('waitlist.unsubscribe', [
-                    't' => $this->entry->unsubscribeToken(),
-                ]),
+                'tierLabel' => $tier->label(),
+                'nextTier' => $next ? [
+                    'label' => $next->label(),
+                    'benefit' => $next->benefit(),
+                    'remaining' => max(1, $next->threshold() - $this->entry->referral_count),
+                ] : null,
+                'inviteUrl' => URL::route('convite.show', ['invite_code' => $this->entry->invite_code]),
+                'confirmUrl' => URL::route('waitlist.confirm', ['t' => $this->entry->invite_token]),
+                'panelUrl' => URL::route('waitlist.founder', ['invite_code' => $this->entry->invite_code]),
+                'unsubscribeUrl' => URL::route('waitlist.unsubscribe', ['t' => $this->entry->invite_token]),
             ],
         );
     }

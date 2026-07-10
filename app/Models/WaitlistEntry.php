@@ -2,48 +2,88 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Encryption\DecryptException;
+use App\Enums\WaitlistTier;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class WaitlistEntry extends Model
 {
+    // Only user-supplied fields are mass-assignable. The program-controlled
+    // fields (invite_code, invite_token, referred_by, confirmed_at,
+    // referral_count, tier) are set by direct assignment in WaitlistService /
+    // the observers — never from request input — so a stray create($request->all())
+    // can never forge a tier or referral count.
     protected $fillable = ['name', 'email', 'role', 'world', 'source', 'age_confirmed'];
 
-    protected $casts = ['age_confirmed' => 'boolean'];
+    protected $casts = [
+        'age_confirmed' => 'boolean',
+        'confirmed_at' => 'datetime',
+        'referral_count' => 'integer',
+        'tier' => WaitlistTier::class,
+    ];
 
-    /**
-     * Opaque, tamper-proof unsubscribe token: the email encrypted with APP_KEY
-     * (AES-256 + HMAC via Laravel Crypt). Carrying the email *inside* the token
-     * keeps the raw email out of the URL/query string — and therefore out of the
-     * nginx access log (CLAUDE.md principle 4: PII never in log, never in URL).
-     * Not forgeable without APP_KEY; decryption fails closed on any tampering.
-     */
-    public static function makeUnsubscribeToken(string $email): string
+    // ── Relationships ────────────────────────────────────────────────────────
+
+    /** The entry that referred this one, if any. */
+    public function referrer(): BelongsTo
     {
-        return Crypt::encryptString(Str::lower(trim($email)));
+        return $this->belongsTo(self::class, 'referred_by');
     }
 
-    public function unsubscribeToken(): string
+    /** The single referral edge where this entry is the referred person. */
+    public function referralEdge(): HasOne
     {
-        return static::makeUnsubscribeToken($this->email);
+        return $this->hasOne(WaitlistReferral::class, 'referred_id');
+    }
+
+    /** All referral edges where this entry is the referrer. */
+    public function referralsMade(): HasMany
+    {
+        return $this->hasMany(WaitlistReferral::class, 'referrer_id');
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    public function isConfirmed(): bool
+    {
+        return $this->confirmed_at !== null;
     }
 
     /**
-     * The normalized email carried by an unsubscribe token, or null if the token
-     * is missing, tampered with, or was signed under a different APP_KEY.
+     * A unique invite code in the form LIMEN-XXX-0000: three random letters plus
+     * four random digits (~1.7e8 combinations). The letters are random — not
+     * derived from the name — on purpose: a name-derived prefix would let anyone
+     * enumerate a target's public founder panel (an "is X on Limen?" oracle) by
+     * brute-forcing only the 4 digits. Generated once at signup, never changes.
      */
-    public static function emailFromUnsubscribeToken(string $token): ?string
+    public static function generateInviteCode(): string
     {
-        if ($token === '') {
-            return null;
-        }
+        do {
+            $letters = '';
+            for ($i = 0; $i < 3; $i++) {
+                $letters .= chr(random_int(65, 90)); // A–Z
+            }
+            $code = sprintf('LIMEN-%s-%04d', $letters, random_int(0, 9999));
+        } while (static::where('invite_code', $code)->exists());
 
-        try {
-            return Str::lower(trim(Crypt::decryptString($token)));
-        } catch (DecryptException) {
-            return null;
-        }
+        return $code;
+    }
+
+    /** A high-entropy, unguessable token for the confirm/unsubscribe links. */
+    public static function generateInviteToken(): string
+    {
+        return bin2hex(random_bytes(20));
+    }
+
+    public static function findByInviteToken(?string $token): ?self
+    {
+        return $token ? static::where('invite_token', $token)->first() : null;
+    }
+
+    public static function findByInviteCode(?string $code): ?self
+    {
+        return $code ? static::where('invite_code', $code)->first() : null;
     }
 }

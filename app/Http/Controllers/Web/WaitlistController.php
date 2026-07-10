@@ -6,92 +6,103 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\WaitlistWebRequest;
 use App\Mail\WaitlistConfirmationMail;
 use App\Models\WaitlistEntry;
+use App\Services\Waitlist\WaitlistService;
+use App\Services\Waitlist\WaitlistStats;
 use Illuminate\Contracts\View\View;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
 class WaitlistController extends Controller
 {
+    public function __construct(
+        private readonly WaitlistService $service,
+        private readonly WaitlistStats $stats,
+    ) {}
+
     /**
      * Pre-launch interest capture from the public landing page. Idempotent per
-     * (email, role): re-submitting the same interest updates the name instead of
-     * creating a duplicate, so a curious visitor never sees an error.
+     * (email, role). When the visitor arrived through an invite link, the
+     * referrer id was stashed in the session by ConviteController; we attribute
+     * the referral here (the service enforces the anti-fraud cap).
      */
     public function store(WaitlistWebRequest $request): RedirectResponse
     {
-        $success = 'Tudo certo! Você está na lista. Avisaremos assim que o Limen abrir.';
+        $success = 'Tudo certo! Confirme seu e-mail para garantir seu lugar na lista.';
 
-        // Honeypot: a hidden field no human should ever fill. When a bot fills it,
-        // we swallow the submission (return the same success) without persisting.
+        // Honeypot: a hidden field no human should ever fill.
         if (filled($request->input('website'))) {
             return back()->with('success', $success);
         }
 
-        $data = $request->validated();
+        $referrer = WaitlistEntry::find($request->session()->get('waitlist_referrer_id'));
 
-        $entry = WaitlistEntry::updateOrCreate(
-            ['email' => $data['email'], 'role' => $data['role']],
-            [
-                'name' => $data['name'],
-                'world' => $data['world'] ?? null,
-                'age_confirmed' => true,
-                'source' => 'landing',
-            ],
+        ['entry' => $entry, 'created' => $created] = $this->service->join(
+            $request->validated(),
+            $referrer,
+            $request->ip(),
         );
 
-        // Confirm by email only for a genuinely new signup, so a curious visitor
-        // re-submitting the form is not mailed again on every save.
-        if ($entry->wasRecentlyCreated) {
-            // 1-based place in line, frozen at signup time so the number in the
-            // email never drifts. Ties on the same timestamp break by id.
-            $position = WaitlistEntry::where('created_at', '<', $entry->created_at)
-                ->orWhere(fn ($q) => $q->where('created_at', $entry->created_at)->where('id', '<=', $entry->id))
-                ->count();
-
+        if ($created) {
+            $position = $this->stats->position($entry);
             Mail::to($entry->email)->send(new WaitlistConfirmationMail($entry, $position));
         }
+
+        // The invite has been consumed; don't attribute future signups to it.
+        $request->session()->forget('waitlist_referrer_id');
 
         return back()->with('success', $success);
     }
 
     /**
-     * Landing page of the unsubscribe flow (from the email link). A GET must be
-     * side-effect-free: email clients and security scanners pre-fetch every link
-     * on delivery, so deleting here would silently unsubscribe legitimate users.
-     * Instead we only render a confirmation page; the actual removal happens on
-     * the POST below (CSRF-protected, never pre-fetched). The token is opaque and
-     * carries the email, so nothing sensitive appears in the query string/log.
+     * Double opt-in email confirmation. Reached from the link in the
+     * confirmation email; idempotent, so a link pre-fetch confirms at most once.
+     * On success we land the person on their own founder panel.
      */
-    public function confirmUnsubscribe(Request $request): View|RedirectResponse
+    public function confirm(Request $request): RedirectResponse
     {
-        $token = (string) $request->query('t', '');
-        $email = WaitlistEntry::emailFromUnsubscribeToken($token);
+        $entry = WaitlistEntry::findByInviteToken((string) $request->query('t', ''));
 
-        // Invalid/tampered/missing token → neutral bounce, no oracle.
-        if ($email === null) {
+        if ($entry === null) {
             return redirect()->route('landing');
         }
 
-        return view('waitlist.unsubscribe', ['email' => $email, 'token' => $token]);
+        $this->service->confirm($entry);
+
+        return redirect()
+            ->route('waitlist.founder', ['invite_code' => $entry->invite_code])
+            ->with('success', 'E-mail confirmado! Seu lugar está garantido.');
+    }
+
+    /**
+     * Landing of the unsubscribe flow. A GET must be side-effect-free (email
+     * clients/scanners pre-fetch links), so it only renders a confirmation page;
+     * the removal happens on the CSRF-protected POST below. The token is the
+     * per-row invite_token — opaque and unguessable, no PII in the URL.
+     */
+    public function confirmUnsubscribe(Request $request): View|RedirectResponse
+    {
+        $entry = WaitlistEntry::findByInviteToken((string) $request->query('t', ''));
+
+        if ($entry === null) {
+            return redirect()->route('landing');
+        }
+
+        return view('waitlist.unsubscribe', ['email' => $entry->email, 'token' => $entry->invite_token]);
     }
 
     /**
      * Perform the unsubscribe. Reached only via the confirmation form's POST, so
-     * it is CSRF-protected and cannot be triggered by a link pre-fetch. The
-     * response is intentionally neutral — it never reveals whether the email was
-     * on the list (no enumeration oracle). Removes every role for the email.
+     * it is CSRF-protected. Neutral response — never reveals membership.
      */
     public function unsubscribe(Request $request): RedirectResponse
     {
-        $email = WaitlistEntry::emailFromUnsubscribeToken((string) $request->input('token', ''));
+        $entry = WaitlistEntry::findByInviteToken((string) $request->input('token', ''));
 
-        if ($email !== null) {
-            WaitlistEntry::where('email', $email)->delete();
-        }
+        $entry?->delete();
 
         return redirect()
             ->route('landing')
-            ->with('success', 'Pronto. Se você estava na lista, seu email foi removido.');
+            ->with('success', 'Pronto. Se você estava na lista, seu e-mail foi removido.');
     }
 }

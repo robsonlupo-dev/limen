@@ -5,8 +5,11 @@ use App\Http\Controllers\Web\Auth\ForgotPasswordController;
 use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
+use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\ConviteController;
 use App\Http\Controllers\Web\EntradaController;
+use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\FollowController;
@@ -25,6 +28,22 @@ Route::get('/entrada', [EntradaController::class, 'index'])->name('entrada');
 Route::post('/interesse', [WaitlistController::class, 'store'])
     ->middleware('throttle:5,1')
     ->name('waitlist.store');
+
+// Invite link: renders the landing with a referral banner and stashes the
+// referrer in the session so the signup is attributed to them.
+Route::get('/convite/{invite_code}', [ConviteController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('convite.show');
+
+// Public founder panel (shareable viral surface, no auth).
+Route::get('/f/{invite_code}', [FounderPanelController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('waitlist.founder');
+
+// Double opt-in email confirmation (idempotent; from the confirmation email).
+Route::get('/waitlist/confirmar', [WaitlistController::class, 'confirm'])
+    ->middleware('throttle:20,1')
+    ->name('waitlist.confirm');
 
 // Unsubscribe from the waitlist email. GET only shows a confirmation page (safe
 // against link pre-fetch); the POST performs the delete (CSRF-protected). The
@@ -51,6 +70,11 @@ Route::middleware('guest')->group(function () {
 
 // Logout
 Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')->name('logout');
+
+// Admin back-office (auth + admin role).
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('/waitlist', [WaitlistAdminController::class, 'index'])->name('admin.waitlist');
+});
 
 // Authenticated area
 Route::middleware('auth')->group(function () {

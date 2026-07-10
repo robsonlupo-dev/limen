@@ -9,6 +9,10 @@ use App\Services\Kyc\FakeKycClient;
 use App\Services\Kyc\KycClientInterface;
 use App\Services\Kyc\KycHttpClient;
 use App\Models\User;
+use App\Models\WaitlistEntry;
+use App\Models\WaitlistReferral;
+use App\Observers\WaitlistEntryObserver;
+use App\Observers\WaitlistReferralObserver;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -52,5 +56,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('performer-active', function (User $user) {
             return $user->role === 'performer' && $user->status === 'active';
         });
+
+        WaitlistEntry::observe(WaitlistEntryObserver::class);
+        WaitlistReferral::observe(WaitlistReferralObserver::class);
     }
 }
