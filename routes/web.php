@@ -26,6 +26,11 @@ Route::post('/interesse', [WaitlistController::class, 'store'])
     ->middleware('throttle:5,1')
     ->name('waitlist.store');
 
+// One-click unsubscribe from the waitlist confirmation email (HMAC-signed link).
+Route::get('/waitlist/cancelar', [WaitlistController::class, 'unsubscribe'])
+    ->middleware('throttle:10,1')
+    ->name('waitlist.unsubscribe');
+
 // Auth (guest only)
 Route::middleware('guest')->group(function () {
     Route::get('/cadastro', [RegisterController::class, 'create'])->name('register');

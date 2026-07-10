@@ -1,8 +1,10 @@
 <?php
 
+use App\Mail\WaitlistConfirmationMail;
 use App\Models\User;
 use App\Models\WaitlistEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -115,4 +117,111 @@ it('silently swallows honeypot (bot) submissions without persisting', function (
     ])->assertRedirect()->assertSessionHas('success');
 
     expect(WaitlistEntry::count())->toBe(0);
+});
+
+// ─── Confirmation email ──────────────────────────────────────────────────────
+
+it('queues a confirmation email to a new waitlist signup with its position', function () {
+    Mail::fake();
+
+    // Seed one earlier entry so the new signup is #2 in line.
+    WaitlistEntry::create([
+        'name' => 'Early Bird', 'email' => 'early@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    $this->post('/interesse', [
+        'name' => 'Maria Silva',
+        'email' => 'maria@example.com',
+        'role' => 'member',
+        'age_confirmed' => true,
+    ])->assertSessionHas('success');
+
+    Mail::assertQueued(WaitlistConfirmationMail::class, function ($mail) {
+        return $mail->hasTo('maria@example.com')
+            && $mail->entry->name === 'Maria Silva'
+            && $mail->position === 2;
+    });
+});
+
+it('does not resend the confirmation email on an idempotent re-submit', function () {
+    Mail::fake();
+
+    $payload = ['name' => 'Jo', 'email' => 'jo@example.com', 'role' => 'member', 'age_confirmed' => true];
+    $this->post('/interesse', $payload)->assertSessionHas('success');
+    $this->post('/interesse', ['name' => 'Joana'] + $payload)->assertSessionHas('success');
+
+    Mail::assertQueued(WaitlistConfirmationMail::class, 1);
+});
+
+it('does not send a confirmation email for a honeypot submission', function () {
+    Mail::fake();
+
+    $this->post('/interesse', [
+        'name' => 'Bot',
+        'email' => 'bot@example.com',
+        'role' => 'member',
+        'age_confirmed' => true,
+        'website' => 'http://spam.example',
+    ]);
+
+    Mail::assertNothingQueued();
+});
+
+// ─── Unsubscribe ─────────────────────────────────────────────────────────────
+
+it('removes the email from the waitlist with a valid token', function () {
+    $entry = WaitlistEntry::create([
+        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    $this->get('/waitlist/cancelar?email=rita@example.com&token=' . $entry->unsubscribeToken())
+        ->assertRedirect(route('landing'))
+        ->assertSessionHas('success');
+
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(0);
+});
+
+it('removes every role for the email on unsubscribe', function () {
+    foreach (['member', 'performer'] as $role) {
+        WaitlistEntry::create([
+            'name' => 'Sam', 'email' => 'sam@example.com', 'role' => $role,
+            'age_confirmed' => true, 'source' => 'landing',
+        ]);
+    }
+
+    $token = WaitlistEntry::makeUnsubscribeToken('sam@example.com');
+    $this->get('/waitlist/cancelar?email=sam@example.com&token=' . $token);
+
+    expect(WaitlistEntry::where('email', 'sam@example.com')->count())->toBe(0);
+});
+
+it('does not remove anything with a forged or missing token', function () {
+    WaitlistEntry::create([
+        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    // Forged token — must not delete.
+    $this->get('/waitlist/cancelar?email=rita@example.com&token=deadbeef')
+        ->assertRedirect(route('landing'));
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
+
+    // Missing token — must not delete.
+    $this->get('/waitlist/cancelar?email=rita@example.com');
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
+});
+
+it('normalizes the email before matching on unsubscribe', function () {
+    WaitlistEntry::create([
+        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    // Token is defined over the normalized email; an uppercase query still works.
+    $token = WaitlistEntry::makeUnsubscribeToken('rita@example.com');
+    $this->get('/waitlist/cancelar?email=' . urlencode('RITA@example.com ') . '&token=' . $token);
+
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(0);
 });
