@@ -1,8 +1,10 @@
 <?php
 
+use App\Mail\WaitlistConfirmationMail;
 use App\Models\User;
 use App\Models\WaitlistEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -115,4 +117,115 @@ it('silently swallows honeypot (bot) submissions without persisting', function (
     ])->assertRedirect()->assertSessionHas('success');
 
     expect(WaitlistEntry::count())->toBe(0);
+});
+
+// ─── Confirmation email ──────────────────────────────────────────────────────
+
+it('queues a confirmation email to a new waitlist signup with its position', function () {
+    Mail::fake();
+
+    // Seed one earlier entry so the new signup is #2 in line.
+    WaitlistEntry::create([
+        'name' => 'Early Bird', 'email' => 'early@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    $this->post('/interesse', [
+        'name' => 'Maria Silva',
+        'email' => 'maria@example.com',
+        'role' => 'member',
+        'age_confirmed' => true,
+    ])->assertSessionHas('success');
+
+    Mail::assertQueued(WaitlistConfirmationMail::class, function ($mail) {
+        return $mail->hasTo('maria@example.com')
+            && $mail->entry->name === 'Maria Silva'
+            && $mail->position === 2;
+    });
+});
+
+it('does not resend the confirmation email on an idempotent re-submit', function () {
+    Mail::fake();
+
+    $payload = ['name' => 'Jo', 'email' => 'jo@example.com', 'role' => 'member', 'age_confirmed' => true];
+    $this->post('/interesse', $payload)->assertSessionHas('success');
+    $this->post('/interesse', ['name' => 'Joana'] + $payload)->assertSessionHas('success');
+
+    Mail::assertQueued(WaitlistConfirmationMail::class, 1);
+});
+
+it('does not send a confirmation email for a honeypot submission', function () {
+    Mail::fake();
+
+    $this->post('/interesse', [
+        'name' => 'Bot',
+        'email' => 'bot@example.com',
+        'role' => 'member',
+        'age_confirmed' => true,
+        'website' => 'http://spam.example',
+    ]);
+
+    Mail::assertNothingQueued();
+});
+
+// ─── Unsubscribe ─────────────────────────────────────────────────────────────
+
+it('renders the confirmation page for a valid token without deleting (GET is safe)', function () {
+    $entry = WaitlistEntry::create([
+        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    // A link pre-fetch (GET) must never remove the entry.
+    $this->get('/waitlist/cancelar?t=' . urlencode($entry->unsubscribeToken()))
+        ->assertOk()
+        ->assertSee('rita@example.com');
+
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
+});
+
+it('bounces the confirmation page to the landing for a forged or missing token', function () {
+    $this->get('/waitlist/cancelar?t=not-a-real-token')->assertRedirect(route('landing'));
+    $this->get('/waitlist/cancelar')->assertRedirect(route('landing'));
+});
+
+it('removes every role for the email on a confirmed (POST) unsubscribe', function () {
+    foreach (['member', 'performer'] as $role) {
+        WaitlistEntry::create([
+            'name' => 'Sam', 'email' => 'sam@example.com', 'role' => $role,
+            'age_confirmed' => true, 'source' => 'landing',
+        ]);
+    }
+
+    $this->post('/waitlist/cancelar', ['token' => WaitlistEntry::makeUnsubscribeToken('sam@example.com')])
+        ->assertRedirect(route('landing'))
+        ->assertSessionHas('success');
+
+    expect(WaitlistEntry::where('email', 'sam@example.com')->count())->toBe(0);
+});
+
+it('does not remove anything on POST with a forged or missing token', function () {
+    WaitlistEntry::create([
+        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    $this->post('/waitlist/cancelar', ['token' => 'deadbeef'])->assertRedirect(route('landing'));
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
+
+    $this->post('/waitlist/cancelar', [])->assertRedirect(route('landing'));
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
+});
+
+it('does not leak the raw email in the unsubscribe link (no PII in URL)', function () {
+    $entry = WaitlistEntry::create([
+        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
+        'age_confirmed' => true, 'source' => 'landing',
+    ]);
+
+    // The opaque token must not contain the plaintext email.
+    expect($entry->unsubscribeToken())->not->toContain('rita@example.com');
+    // …but it must round-trip back to it.
+    expect(WaitlistEntry::emailFromUnsubscribeToken($entry->unsubscribeToken()))
+        ->toBe('rita@example.com');
 });
