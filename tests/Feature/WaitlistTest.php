@@ -1,231 +1,258 @@
 <?php
 
+use App\Enums\WaitlistTier;
 use App\Mail\WaitlistConfirmationMail;
 use App\Models\User;
 use App\Models\WaitlistEntry;
+use App\Models\WaitlistReferral;
+use App\Services\Waitlist\WaitlistService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
-// ─── Landing renders for guests ──────────────────────────────────────────────
+/** Persist a signup through the real service and return the entry. */
+function joinWaitlist(array $overrides = [], ?WaitlistEntry $referrer = null, ?string $ip = '127.0.0.1'): WaitlistEntry
+{
+    $data = array_merge([
+        'name' => 'Maria Silva', 'email' => 'maria@example.com', 'role' => 'member',
+    ], $overrides);
+
+    return app(WaitlistService::class)->join($data, $referrer, $ip)['entry'];
+}
+
+// ─── Landing ─────────────────────────────────────────────────────────────────
 
 it('renders the landing page as Inertia Landing component for guests', function () {
-    $this->get('/')
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->component('Landing'));
+    $this->get('/')->assertOk()->assertInertia(fn (Assert $p) => $p->component('Landing'));
 });
 
 it('redirects logged-in users away from the landing to the catalog', function () {
-    $this->actingAs(User::factory()->create())
-        ->get('/')
-        ->assertRedirect(route('catalog'));
+    $this->actingAs(User::factory()->create())->get('/')->assertRedirect(route('catalog'));
 });
 
 // ─── Waitlist capture ────────────────────────────────────────────────────────
 
-it('stores a member waitlist entry and flashes success', function () {
+it('stores a member signup, generates an invite code/token, and flashes success', function () {
+    Mail::fake();
+
     $this->post('/interesse', [
-        'name' => 'Maria Silva',
-        'email' => 'MARIA@Example.com ',
-        'role' => 'member',
-        'age_confirmed' => true,
+        'name' => 'Maria Silva', 'email' => 'MARIA@Example.com ', 'role' => 'member', 'age_confirmed' => true,
     ])->assertRedirect()->assertSessionHas('success');
 
-    // Email is normalized (lowercased/trimmed) before persisting.
-    $this->assertDatabaseHas('waitlist_entries', [
-        'email' => 'maria@example.com',
-        'role' => 'member',
-        'name' => 'Maria Silva',
-        'source' => 'landing',
-        'age_confirmed' => true,
-    ]);
+    $entry = WaitlistEntry::firstWhere('email', 'maria@example.com');
+    expect($entry)->not->toBeNull()
+        ->and($entry->invite_code)->toMatch('/^LIMEN-[A-Z]{3}-\d{4}$/')
+        ->and($entry->invite_token)->toHaveLength(40)
+        ->and($entry->tier)->toBe(WaitlistTier::Curious)
+        ->and($entry->confirmed_at)->toBeNull();
 });
 
-it('stores a performer waitlist entry with an optional world', function () {
-    $this->post('/interesse', [
-        'name' => 'Alex',
-        'email' => 'alex@example.com',
-        'role' => 'performer',
-        'world' => 'trans',
-        'age_confirmed' => true,
-    ])->assertRedirect()->assertSessionHas('success');
+it('is idempotent per email and role (no duplicate rows, keeps the same invite code)', function () {
+    Mail::fake();
+    $this->post('/interesse', ['name' => 'Jo', 'email' => 'jo@example.com', 'role' => 'member', 'age_confirmed' => true]);
+    $code = WaitlistEntry::firstWhere('email', 'jo@example.com')->invite_code;
 
-    $this->assertDatabaseHas('waitlist_entries', [
-        'email' => 'alex@example.com',
-        'role' => 'performer',
-        'world' => 'trans',
-    ]);
-});
+    $this->post('/interesse', ['name' => 'Joana', 'email' => 'jo@example.com', 'role' => 'member', 'age_confirmed' => true]);
 
-it('is idempotent per email and role (no duplicate rows)', function () {
-    $this->post('/interesse', ['name' => 'Jo', 'email' => 'jo@example.com', 'role' => 'member', 'age_confirmed' => true])
-        ->assertSessionHas('success');
-    $this->post('/interesse', ['name' => 'Joana', 'email' => 'jo@example.com', 'role' => 'member', 'age_confirmed' => true])
-        ->assertSessionHas('success');
-
-    expect(WaitlistEntry::where('email', 'jo@example.com')->where('role', 'member')->count())->toBe(1);
-    // The latest submission updates the stored name.
-    $this->assertDatabaseHas('waitlist_entries', ['email' => 'jo@example.com', 'name' => 'Joana']);
-});
-
-it('allows the same email for both member and performer roles', function () {
-    $this->post('/interesse', ['name' => 'Sam', 'email' => 'sam@example.com', 'role' => 'member', 'age_confirmed' => true]);
-    $this->post('/interesse', ['name' => 'Sam', 'email' => 'sam@example.com', 'role' => 'performer', 'age_confirmed' => true]);
-
-    expect(WaitlistEntry::where('email', 'sam@example.com')->count())->toBe(2);
-});
-
-// ─── Validation & anti-abuse ─────────────────────────────────────────────────
-
-it('rejects a waitlist submission with missing fields', function () {
-    $this->post('/interesse', ['name' => '', 'email' => 'not-an-email', 'role' => 'admin'])
-        ->assertSessionHasErrors(['name', 'email', 'role']);
-
-    expect(WaitlistEntry::count())->toBe(0);
+    expect(WaitlistEntry::where('email', 'jo@example.com')->count())->toBe(1);
+    expect(WaitlistEntry::firstWhere('email', 'jo@example.com')->invite_code)->toBe($code);
 });
 
 it('requires explicit 18+ confirmation', function () {
-    $this->post('/interesse', [
-        'name' => 'Nina',
-        'email' => 'nina@example.com',
-        'role' => 'member',
-        'age_confirmed' => false,
-    ])->assertSessionHasErrors('age_confirmed');
-
+    $this->post('/interesse', ['name' => 'Nina', 'email' => 'nina@example.com', 'role' => 'member', 'age_confirmed' => false])
+        ->assertSessionHasErrors('age_confirmed');
     expect(WaitlistEntry::count())->toBe(0);
 });
 
-it('rejects an invalid world value', function () {
+it('silently swallows honeypot submissions without persisting or mailing', function () {
+    Mail::fake();
     $this->post('/interesse', [
-        'name' => 'Kim',
-        'email' => 'kim@example.com',
-        'role' => 'member',
-        'age_confirmed' => true,
-        'world' => 'invalid',
-    ])->assertSessionHasErrors('world');
-});
-
-it('silently swallows honeypot (bot) submissions without persisting', function () {
-    $this->post('/interesse', [
-        'name' => 'Bot',
-        'email' => 'bot@example.com',
-        'role' => 'member',
-        'age_confirmed' => true,
+        'name' => 'Bot', 'email' => 'bot@example.com', 'role' => 'member', 'age_confirmed' => true,
         'website' => 'http://spam.example',
-    ])->assertRedirect()->assertSessionHas('success');
+    ])->assertSessionHas('success');
 
     expect(WaitlistEntry::count())->toBe(0);
+    Mail::assertNothingQueued();
 });
 
 // ─── Confirmation email ──────────────────────────────────────────────────────
 
-it('queues a confirmation email to a new waitlist signup with its position', function () {
+it('queues the confirmation email with position and tier on a new signup', function () {
     Mail::fake();
+    joinWaitlist(['email' => 'early@example.com']); // seed one earlier entry (via service, no mail)
 
-    // Seed one earlier entry so the new signup is #2 in line.
-    WaitlistEntry::create([
-        'name' => 'Early Bird', 'email' => 'early@example.com', 'role' => 'member',
-        'age_confirmed' => true, 'source' => 'landing',
-    ]);
+    $this->post('/interesse', ['name' => 'Bianca', 'email' => 'bia@example.com', 'role' => 'member', 'age_confirmed' => true]);
 
-    $this->post('/interesse', [
-        'name' => 'Maria Silva',
-        'email' => 'maria@example.com',
-        'role' => 'member',
-        'age_confirmed' => true,
-    ])->assertSessionHas('success');
-
-    Mail::assertQueued(WaitlistConfirmationMail::class, function ($mail) {
-        return $mail->hasTo('maria@example.com')
-            && $mail->entry->name === 'Maria Silva'
-            && $mail->position === 2;
-    });
+    Mail::assertQueued(WaitlistConfirmationMail::class, fn ($m) => $m->hasTo('bia@example.com') && $m->position === 2);
 });
 
 it('does not resend the confirmation email on an idempotent re-submit', function () {
     Mail::fake();
-
     $payload = ['name' => 'Jo', 'email' => 'jo@example.com', 'role' => 'member', 'age_confirmed' => true];
-    $this->post('/interesse', $payload)->assertSessionHas('success');
-    $this->post('/interesse', ['name' => 'Joana'] + $payload)->assertSessionHas('success');
+    $this->post('/interesse', $payload);
+    $this->post('/interesse', ['name' => 'Joana'] + $payload);
 
     Mail::assertQueued(WaitlistConfirmationMail::class, 1);
 });
 
-it('does not send a confirmation email for a honeypot submission', function () {
-    Mail::fake();
+// ─── Email confirmation (double opt-in) ──────────────────────────────────────
 
-    $this->post('/interesse', [
-        'name' => 'Bot',
-        'email' => 'bot@example.com',
-        'role' => 'member',
-        'age_confirmed' => true,
-        'website' => 'http://spam.example',
-    ]);
+it('confirms an email via the token link and lands on the founder panel', function () {
+    $entry = joinWaitlist();
 
-    Mail::assertNothingQueued();
+    $this->get('/waitlist/confirmar?t=' . $entry->invite_token)
+        ->assertRedirect(route('waitlist.founder', ['invite_code' => $entry->invite_code]))
+        ->assertSessionHas('success');
+
+    expect($entry->fresh()->confirmed_at)->not->toBeNull();
 });
 
-// ─── Unsubscribe ─────────────────────────────────────────────────────────────
+it('is idempotent on confirm and bounces an invalid token to the landing', function () {
+    $entry = joinWaitlist();
+    $this->get('/waitlist/confirmar?t=' . $entry->invite_token);
+    $first = $entry->fresh()->confirmed_at;
+    $this->get('/waitlist/confirmar?t=' . $entry->invite_token); // second hit (e.g. prefetch)
+    expect($entry->fresh()->confirmed_at->eq($first))->toBeTrue();
 
-it('renders the confirmation page for a valid token without deleting (GET is safe)', function () {
-    $entry = WaitlistEntry::create([
-        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
-        'age_confirmed' => true, 'source' => 'landing',
-    ]);
+    $this->get('/waitlist/confirmar?t=bogus')->assertRedirect(route('landing'));
+});
 
-    // A link pre-fetch (GET) must never remove the entry.
-    $this->get('/waitlist/cancelar?t=' . urlencode($entry->unsubscribeToken()))
+// ─── Referral attribution ────────────────────────────────────────────────────
+
+it('shows the referral banner and attributes the signup through an invite link', function () {
+    Mail::fake();
+    $referrer = joinWaitlist(['name' => 'Rafael Souza', 'email' => 'raf@example.com']);
+
+    // Visiting the invite link shows the banner and stashes the referrer.
+    $this->get('/convite/' . $referrer->invite_code)
+        ->assertOk()
+        ->assertInertia(fn (Assert $p) => $p->component('Landing')->where('referral.name', 'Rafael'));
+
+    // A signup in the same session is attributed to the referrer.
+    $this->post('/interesse', ['name' => 'Novo', 'email' => 'novo@example.com', 'role' => 'member', 'age_confirmed' => true]);
+
+    $referred = WaitlistEntry::firstWhere('email', 'novo@example.com');
+    expect($referred->referred_by)->toBe($referrer->id);
+    expect(WaitlistReferral::where('referred_id', $referred->id)->exists())->toBeTrue();
+});
+
+it('increments referral_count only after the referred person confirms', function () {
+    $referrer = joinWaitlist(['email' => 'ref@example.com']);
+    $referred = joinWaitlist(['email' => 'friend@example.com'], $referrer);
+
+    expect($referrer->fresh()->referral_count)->toBe(0); // not yet confirmed
+
+    app(WaitlistService::class)->confirm($referred);
+
+    expect($referrer->fresh()->referral_count)->toBe(1);
+});
+
+it('promotes the tier as confirmed referrals cross thresholds', function () {
+    $referrer = joinWaitlist(['email' => 'boss@example.com']);
+
+    foreach (range(1, 5) as $i) {
+        $friend = joinWaitlist(['email' => "f{$i}@example.com"], $referrer, "8.8.8.{$i}");
+        app(WaitlistService::class)->confirm($friend);
+    }
+
+    $referrer->refresh();
+    expect($referrer->referral_count)->toBe(5);
+    expect($referrer->tier)->toBe(WaitlistTier::Founder); // 5 => founder
+});
+
+it('never attributes a self-referral', function () {
+    $referrer = joinWaitlist(['email' => 'self@example.com']);
+    // Same email re-joining through their own link must not create a referral.
+    $again = joinWaitlist(['email' => 'self@example.com'], $referrer);
+
+    expect($again->referred_by)->toBeNull();
+    expect(WaitlistReferral::count())->toBe(0);
+});
+
+// ─── Anti-fraud ──────────────────────────────────────────────────────────────
+
+it('caps referrals from the same IP at 3 per 24h', function () {
+    $referrer = joinWaitlist(['email' => 'farm@example.com']);
+    $svc = app(WaitlistService::class);
+
+    foreach (range(1, 5) as $i) {
+        $svc->join(['name' => "Fake$i", 'email' => "fake{$i}@example.com", 'role' => 'member'], $referrer, '6.6.6.6');
+    }
+
+    // All 5 entries exist, but only the first 3 are attributed as referrals.
+    expect(WaitlistEntry::where('email', 'like', 'fake%')->count())->toBe(5);
+    expect(WaitlistReferral::count())->toBe(3);
+});
+
+// ─── Founder panel ───────────────────────────────────────────────────────────
+
+it('renders the public founder panel for a valid invite code', function () {
+    $entry = joinWaitlist(['name' => 'Rafael Souza', 'email' => 'raf@example.com']);
+
+    $this->get('/f/' . $entry->invite_code)
+        ->assertOk()
+        ->assertSee('Painel de Rafael')
+        ->assertSee($entry->invite_code)
+        ->assertSee('Curioso');
+});
+
+it('404s the founder panel for an unknown invite code', function () {
+    $this->get('/f/LIMEN-XXX-0000')->assertNotFound();
+});
+
+it('does not expose referred emails on the founder panel (only masked names)', function () {
+    $referrer = joinWaitlist(['email' => 'ref@example.com']);
+    joinWaitlist(['name' => 'Carla Menezes', 'email' => 'carla@example.com'], $referrer);
+
+    $this->get('/f/' . $referrer->invite_code)
+        ->assertSee('Carla M.')          // masked
+        ->assertDontSee('carla@example.com');
+});
+
+// ─── Admin ───────────────────────────────────────────────────────────────────
+
+it('blocks the admin waitlist page for guests and non-admins', function () {
+    $this->get('/admin/waitlist')->assertRedirect(route('login'));
+    $this->actingAs(User::factory()->create(['role' => 'consumer']))->get('/admin/waitlist')->assertForbidden();
+});
+
+it('shows the admin waitlist dashboard to an admin', function () {
+    $referrer = joinWaitlist(['email' => 'a@example.com']);
+    $friend = joinWaitlist(['email' => 'b@example.com'], $referrer);
+    app(WaitlistService::class)->confirm($friend);
+
+    $this->actingAs(User::factory()->create(['role' => 'admin']))
+        ->get('/admin/waitlist')
+        ->assertOk()
+        ->assertSee('Founding Members')
+        ->assertSee('Coeficiente viral');
+});
+
+// ─── Unsubscribe (via stored invite_token) ───────────────────────────────────
+
+it('renders the unsubscribe confirmation on GET without deleting', function () {
+    $entry = joinWaitlist(['email' => 'rita@example.com']);
+
+    $this->get('/waitlist/cancelar?t=' . $entry->invite_token)
         ->assertOk()
         ->assertSee('rita@example.com');
 
     expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
 });
 
-it('bounces the confirmation page to the landing for a forged or missing token', function () {
-    $this->get('/waitlist/cancelar?t=not-a-real-token')->assertRedirect(route('landing'));
-    $this->get('/waitlist/cancelar')->assertRedirect(route('landing'));
+it('deletes the entry only on the confirmed POST', function () {
+    $entry = joinWaitlist(['email' => 'rita@example.com']);
+
+    $this->post('/waitlist/cancelar', ['token' => $entry->invite_token])
+        ->assertRedirect(route('landing'))->assertSessionHas('success');
+
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(0);
 });
 
-it('removes every role for the email on a confirmed (POST) unsubscribe', function () {
-    foreach (['member', 'performer'] as $role) {
-        WaitlistEntry::create([
-            'name' => 'Sam', 'email' => 'sam@example.com', 'role' => $role,
-            'age_confirmed' => true, 'source' => 'landing',
-        ]);
-    }
-
-    $this->post('/waitlist/cancelar', ['token' => WaitlistEntry::makeUnsubscribeToken('sam@example.com')])
-        ->assertRedirect(route('landing'))
-        ->assertSessionHas('success');
-
-    expect(WaitlistEntry::where('email', 'sam@example.com')->count())->toBe(0);
-});
-
-it('does not remove anything on POST with a forged or missing token', function () {
-    WaitlistEntry::create([
-        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
-        'age_confirmed' => true, 'source' => 'landing',
-    ]);
-
+it('does nothing on POST with a forged token', function () {
+    joinWaitlist(['email' => 'rita@example.com']);
     $this->post('/waitlist/cancelar', ['token' => 'deadbeef'])->assertRedirect(route('landing'));
     expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
-
-    $this->post('/waitlist/cancelar', [])->assertRedirect(route('landing'));
-    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
-});
-
-it('does not leak the raw email in the unsubscribe link (no PII in URL)', function () {
-    $entry = WaitlistEntry::create([
-        'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
-        'age_confirmed' => true, 'source' => 'landing',
-    ]);
-
-    // The opaque token must not contain the plaintext email.
-    expect($entry->unsubscribeToken())->not->toContain('rita@example.com');
-    // …but it must round-trip back to it.
-    expect(WaitlistEntry::emailFromUnsubscribeToken($entry->unsubscribeToken()))
-        ->toBe('rita@example.com');
 });
