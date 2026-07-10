@@ -3,7 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -35,26 +34,30 @@ return new class extends Migration
         });
 
         // Backfill entries that predate this migration (the base waitlist already
-        // live on staging) so every row has a unique code/token.
+        // live on staging) so every row has a unique code/token. Codes use random
+        // letters (not name-derived) for the same anti-enumeration reason as new
+        // signups (see WaitlistEntry::generateInviteCode).
         DB::table('waitlist_entries')->whereNull('invite_code')->orderBy('id')
             ->each(function ($row) {
                 DB::table('waitlist_entries')->where('id', $row->id)->update([
-                    'invite_code' => self::backfillCode($row->name, $row->id),
+                    'invite_code' => self::backfillCode(),
                     'invite_token' => bin2hex(random_bytes(20)),
                 ]);
             });
     }
 
-    /** Deterministic, collision-free code for backfill: LIMEN-XXX-#### keyed on id. */
-    private static function backfillCode(?string $name, int $id): string
+    /** A unique, non-enumerable code for backfill: LIMEN-XXX-#### (all random). */
+    private static function backfillCode(): string
     {
-        $letters = Str::upper(Str::padRight(
-            Str::substr(preg_replace('/[^A-Za-z]/', '', (string) $name), 0, 3) ?: 'LMN',
-            3,
-            'X',
-        ));
+        do {
+            $letters = '';
+            for ($i = 0; $i < 3; $i++) {
+                $letters .= chr(random_int(65, 90));
+            }
+            $code = sprintf('LIMEN-%s-%04d', $letters, random_int(0, 9999));
+        } while (DB::table('waitlist_entries')->where('invite_code', $code)->exists());
 
-        return sprintf('LIMEN-%s-%04d', $letters, $id % 10000);
+        return $code;
     }
 
     public function down(): void

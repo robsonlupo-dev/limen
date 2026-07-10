@@ -33,7 +33,7 @@ class WaitlistService
         $entry->source = $created ? ($data['source'] ?? 'landing') : $entry->source;
 
         if ($created) {
-            $entry->invite_code = WaitlistEntry::generateInviteCode($data['name']);
+            $entry->invite_code = WaitlistEntry::generateInviteCode();
             $entry->invite_token = WaitlistEntry::generateInviteToken();
         }
 

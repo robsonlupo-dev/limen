@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Support\Str;
 
 class WaitlistEntry extends Model
 {
@@ -53,19 +52,19 @@ class WaitlistEntry extends Model
     }
 
     /**
-     * A unique invite code in the form LIMEN-XXX-0000: three letters from the
-     * name (padded, uppercased) plus four random digits. Loops until unique so
-     * the code never collides. Generated once at signup and never changes.
+     * A unique invite code in the form LIMEN-XXX-0000: three random letters plus
+     * four random digits (~1.7e8 combinations). The letters are random — not
+     * derived from the name — on purpose: a name-derived prefix would let anyone
+     * enumerate a target's public founder panel (an "is X on Limen?" oracle) by
+     * brute-forcing only the 4 digits. Generated once at signup, never changes.
      */
-    public static function generateInviteCode(string $name): string
+    public static function generateInviteCode(): string
     {
-        $letters = Str::upper(str_pad(
-            substr(preg_replace('/[^A-Za-z]/', '', $name) ?: 'LMN', 0, 3),
-            3,
-            'X',
-        ));
-
         do {
+            $letters = '';
+            for ($i = 0; $i < 3; $i++) {
+                $letters .= chr(random_int(65, 90)); // A–Z
+            }
             $code = sprintf('LIMEN-%s-%04d', $letters, random_int(0, 9999));
         } while (static::where('invite_code', $code)->exists());
 
