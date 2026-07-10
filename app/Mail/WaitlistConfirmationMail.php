@@ -38,12 +38,12 @@ class WaitlistConfirmationMail extends Mailable implements ShouldQueue
             with: [
                 'name' => $this->entry->name,
                 'position' => $this->position,
-                // Absolute links so they resolve from an inbox. Unsubscribe is
-                // HMAC-signed (see WaitlistEntry) so it cannot be forged.
+                // Absolute links so they resolve from an inbox. The unsubscribe
+                // link opens a confirmation page (GET is side-effect-free); the
+                // token is opaque and carries the email, so no PII hits the log.
                 'landingUrl' => URL::route('landing', ['ref' => 'waitlist']),
                 'unsubscribeUrl' => URL::route('waitlist.unsubscribe', [
-                    'email' => $this->entry->email,
-                    'token' => $this->entry->unsubscribeToken(),
+                    't' => $this->entry->unsubscribeToken(),
                 ]),
             ],
         );

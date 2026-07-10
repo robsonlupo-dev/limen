@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\WaitlistWebRequest;
 use App\Mail\WaitlistConfirmationMail;
 use App\Models\WaitlistEntry;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 class WaitlistController extends Controller
 {
@@ -56,22 +56,42 @@ class WaitlistController extends Controller
     }
 
     /**
-     * One-click unsubscribe from the pre-launch waitlist. The token is an
-     * HMAC of the email (see WaitlistEntry) so a link cannot be forged to remove
-     * someone else's address. The response is intentionally neutral — it never
-     * reveals whether the email was on the list (no enumeration oracle).
+     * Landing page of the unsubscribe flow (from the email link). A GET must be
+     * side-effect-free: email clients and security scanners pre-fetch every link
+     * on delivery, so deleting here would silently unsubscribe legitimate users.
+     * Instead we only render a confirmation page; the actual removal happens on
+     * the POST below (CSRF-protected, never pre-fetched). The token is opaque and
+     * carries the email, so nothing sensitive appears in the query string/log.
+     */
+    public function confirmUnsubscribe(Request $request): View|RedirectResponse
+    {
+        $token = (string) $request->query('t', '');
+        $email = WaitlistEntry::emailFromUnsubscribeToken($token);
+
+        // Invalid/tampered/missing token → neutral bounce, no oracle.
+        if ($email === null) {
+            return redirect()->route('landing');
+        }
+
+        return view('waitlist.unsubscribe', ['email' => $email, 'token' => $token]);
+    }
+
+    /**
+     * Perform the unsubscribe. Reached only via the confirmation form's POST, so
+     * it is CSRF-protected and cannot be triggered by a link pre-fetch. The
+     * response is intentionally neutral — it never reveals whether the email was
+     * on the list (no enumeration oracle). Removes every role for the email.
      */
     public function unsubscribe(Request $request): RedirectResponse
     {
-        $email = Str::lower(trim((string) $request->query('email', '')));
-        $token = (string) $request->query('token', '');
+        $email = WaitlistEntry::emailFromUnsubscribeToken((string) $request->input('token', ''));
 
-        if ($email !== '' && WaitlistEntry::isValidUnsubscribeToken($email, $token)) {
+        if ($email !== null) {
             WaitlistEntry::where('email', $email)->delete();
         }
 
         return redirect()
             ->route('landing')
-            ->with('success', 'Pronto. Seu email foi removido da lista de espera.');
+            ->with('success', 'Pronto. Se você estava na lista, seu email foi removido.');
     }
 }

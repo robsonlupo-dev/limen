@@ -170,20 +170,26 @@ it('does not send a confirmation email for a honeypot submission', function () {
 
 // ─── Unsubscribe ─────────────────────────────────────────────────────────────
 
-it('removes the email from the waitlist with a valid token', function () {
+it('renders the confirmation page for a valid token without deleting (GET is safe)', function () {
     $entry = WaitlistEntry::create([
         'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
         'age_confirmed' => true, 'source' => 'landing',
     ]);
 
-    $this->get('/waitlist/cancelar?email=rita@example.com&token=' . $entry->unsubscribeToken())
-        ->assertRedirect(route('landing'))
-        ->assertSessionHas('success');
+    // A link pre-fetch (GET) must never remove the entry.
+    $this->get('/waitlist/cancelar?t=' . urlencode($entry->unsubscribeToken()))
+        ->assertOk()
+        ->assertSee('rita@example.com');
 
-    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(0);
+    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
 });
 
-it('removes every role for the email on unsubscribe', function () {
+it('bounces the confirmation page to the landing for a forged or missing token', function () {
+    $this->get('/waitlist/cancelar?t=not-a-real-token')->assertRedirect(route('landing'));
+    $this->get('/waitlist/cancelar')->assertRedirect(route('landing'));
+});
+
+it('removes every role for the email on a confirmed (POST) unsubscribe', function () {
     foreach (['member', 'performer'] as $role) {
         WaitlistEntry::create([
             'name' => 'Sam', 'email' => 'sam@example.com', 'role' => $role,
@@ -191,37 +197,35 @@ it('removes every role for the email on unsubscribe', function () {
         ]);
     }
 
-    $token = WaitlistEntry::makeUnsubscribeToken('sam@example.com');
-    $this->get('/waitlist/cancelar?email=sam@example.com&token=' . $token);
+    $this->post('/waitlist/cancelar', ['token' => WaitlistEntry::makeUnsubscribeToken('sam@example.com')])
+        ->assertRedirect(route('landing'))
+        ->assertSessionHas('success');
 
     expect(WaitlistEntry::where('email', 'sam@example.com')->count())->toBe(0);
 });
 
-it('does not remove anything with a forged or missing token', function () {
+it('does not remove anything on POST with a forged or missing token', function () {
     WaitlistEntry::create([
         'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
         'age_confirmed' => true, 'source' => 'landing',
     ]);
 
-    // Forged token — must not delete.
-    $this->get('/waitlist/cancelar?email=rita@example.com&token=deadbeef')
-        ->assertRedirect(route('landing'));
+    $this->post('/waitlist/cancelar', ['token' => 'deadbeef'])->assertRedirect(route('landing'));
     expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
 
-    // Missing token — must not delete.
-    $this->get('/waitlist/cancelar?email=rita@example.com');
+    $this->post('/waitlist/cancelar', [])->assertRedirect(route('landing'));
     expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
 });
 
-it('normalizes the email before matching on unsubscribe', function () {
-    WaitlistEntry::create([
+it('does not leak the raw email in the unsubscribe link (no PII in URL)', function () {
+    $entry = WaitlistEntry::create([
         'name' => 'Rita', 'email' => 'rita@example.com', 'role' => 'member',
         'age_confirmed' => true, 'source' => 'landing',
     ]);
 
-    // Token is defined over the normalized email; an uppercase query still works.
-    $token = WaitlistEntry::makeUnsubscribeToken('rita@example.com');
-    $this->get('/waitlist/cancelar?email=' . urlencode('RITA@example.com ') . '&token=' . $token);
-
-    expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(0);
+    // The opaque token must not contain the plaintext email.
+    expect($entry->unsubscribeToken())->not->toContain('rita@example.com');
+    // …but it must round-trip back to it.
+    expect(WaitlistEntry::emailFromUnsubscribeToken($entry->unsubscribeToken()))
+        ->toBe('rita@example.com');
 });

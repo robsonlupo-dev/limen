@@ -26,10 +26,15 @@ Route::post('/interesse', [WaitlistController::class, 'store'])
     ->middleware('throttle:5,1')
     ->name('waitlist.store');
 
-// One-click unsubscribe from the waitlist confirmation email (HMAC-signed link).
-Route::get('/waitlist/cancelar', [WaitlistController::class, 'unsubscribe'])
-    ->middleware('throttle:10,1')
+// Unsubscribe from the waitlist email. GET only shows a confirmation page (safe
+// against link pre-fetch); the POST performs the delete (CSRF-protected). The
+// token is opaque and carries the email — no PII in the URL/access log.
+Route::get('/waitlist/cancelar', [WaitlistController::class, 'confirmUnsubscribe'])
+    ->middleware('throttle:20,1')
     ->name('waitlist.unsubscribe');
+Route::post('/waitlist/cancelar', [WaitlistController::class, 'unsubscribe'])
+    ->middleware('throttle:10,1')
+    ->name('waitlist.unsubscribe.confirm');
 
 // Auth (guest only)
 Route::middleware('guest')->group(function () {
