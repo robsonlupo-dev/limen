@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\PublicCatalogController;
 use App\Http\Controllers\Web\ConviteController;
 use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FounderPanelController;
@@ -54,6 +55,16 @@ Route::get('/waitlist/cancelar', [WaitlistController::class, 'confirmUnsubscribe
 Route::post('/waitlist/cancelar', [WaitlistController::class, 'unsubscribe'])
     ->middleware('throttle:10,1')
     ->name('waitlist.unsubscribe.confirm');
+
+// Public performer catalog (no auth — SEO/marketing surface). Separate from the
+// authenticated /catalogo experience; interaction actions route to signup.
+Route::get('/performers', [PublicCatalogController::class, 'index'])
+    ->middleware('throttle:60,1')
+    ->name('performers.public');
+Route::get('/performers/{slug}', [PublicCatalogController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->where('slug', '[a-z0-9\-]+')
+    ->name('performers.public.show');
 
 // Auth (guest only)
 Route::middleware('guest')->group(function () {

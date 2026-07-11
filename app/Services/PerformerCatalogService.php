@@ -7,6 +7,47 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class PerformerCatalogService
 {
+    /**
+     * The four public "worlds" surfaced on the unauthenticated catalog. Data may
+     * carry legacy categories (gls/swing); the public surface is constrained to
+     * these so a card never renders a world the guest UI has no label/icon for.
+     */
+    public const PUBLIC_WORLDS = ['mulheres', 'homens', 'casais', 'trans'];
+
+    /**
+     * Public (no-auth) catalog listing. Unlike search(), it does not force a
+     * single world: with no filter it shows every public world; an optional
+     * $world narrows to one. Only active + verified performers, never pending.
+     */
+    public function publicSearch(?string $world = null): LengthAwarePaginator
+    {
+        $query = PerformerProfile::query()
+            ->publicCatalog()
+            ->whereIn('category', self::PUBLIC_WORLDS);
+
+        if ($world !== null && in_array($world, self::PUBLIC_WORLDS, true)) {
+            $query->where('category', $world);
+        }
+
+        return $query
+            ->orderByDesc('followers_count')
+            ->orderByDesc('rating_avg')
+            ->paginate(24)
+            ->withQueryString();
+    }
+
+    /**
+     * Resolve a single public profile by slug, scoped so pending/unverified
+     * performers 404 even when the slug is known.
+     */
+    public function findPublicBySlug(string $slug): PerformerProfile
+    {
+        return PerformerProfile::publicCatalog()
+            ->whereIn('category', self::PUBLIC_WORLDS)
+            ->where('slug', $slug)
+            ->firstOrFail();
+    }
+
     public function search(array $filters): LengthAwarePaginator
     {
         $query = PerformerProfile::query()->publicCatalog();
