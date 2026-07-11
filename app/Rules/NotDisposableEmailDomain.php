@@ -22,8 +22,14 @@ class NotDisposableEmailDomain implements ValidationRule
             return;
         }
 
-        if (in_array($host, config('waitlist.disposable_email_domains', []), true)) {
-            $fail('Use um e-mail pessoal válido — endereços descartáveis não são aceitos.');
+        foreach (config('waitlist.disposable_email_domains', []) as $domain) {
+            // Block the domain itself and any subdomain of it (sub.mailinator.com),
+            // a common way to dodge an exact-match list.
+            if ($host === $domain || str_ends_with($host, '.'.$domain)) {
+                $fail('Use um e-mail pessoal válido — endereços descartáveis não são aceitos.');
+
+                return;
+            }
         }
     }
 }

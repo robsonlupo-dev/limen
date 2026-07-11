@@ -102,8 +102,8 @@ it('silently swallows honeypot submissions without persisting or mailing', funct
 
 // ─── Anti-fraud: disposable email domains ────────────────────────────────────
 
-it('rejects signups from disposable email domains', function () {
-    foreach (['x@mailinator.com', 'y@guerrillamail.com', 'z@yopmail.com'] as $email) {
+it('rejects signups from disposable email domains (incl. subdomains and casing)', function () {
+    foreach (['x@mailinator.com', 'y@guerrillamail.com', 'Z@YOPMAIL.com', 'w@sub.mailinator.com'] as $email) {
         $this->post('/interesse', ['name' => 'Burner', 'email' => $email, 'role' => 'member', 'age_confirmed' => true])
             ->assertSessionHasErrors('email');
     }
