@@ -7,9 +7,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WaitlistReferral extends Model
 {
-    protected $fillable = ['referrer_id', 'referred_id', 'confirmed', 'referred_ip_hash'];
+    protected $fillable = [
+        'referrer_id', 'referred_id', 'confirmed', 'referred_ip_hash',
+        'referral_type', 'converted_at',
+    ];
 
-    protected $casts = ['confirmed' => 'boolean'];
+    protected $casts = [
+        'confirmed' => 'boolean',
+        'converted_at' => 'datetime',
+    ];
 
     public function referrer(): BelongsTo
     {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Rules\NotDisposableEmailDomain;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 
@@ -25,7 +26,7 @@ class WaitlistWebRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'string', 'email', 'max:190'],
+            'email' => ['required', 'string', 'email', 'max:190', new NotDisposableEmailDomain],
             'role' => ['required', 'in:performer,member'],
             'world' => ['nullable', 'in:mulheres,homens,casais,trans,gls,swing'],
             'age_confirmed' => ['required', 'accepted'],

@@ -2,6 +2,8 @@
 
 namespace App\Services\Waitlist;
 
+use App\Enums\MemberTier;
+use App\Enums\PerformerTier;
 use App\Models\WaitlistEntry;
 use App\Models\WaitlistReferral;
 use Illuminate\Support\Facades\DB;
@@ -13,8 +15,9 @@ class WaitlistService
 
     /**
      * Idempotent per (email, role) join. On a genuinely new entry we mint the
-     * immutable invite code + token and, when the signup came through a valid
-     * invite link, record the referral edge (subject to the anti-fraud cap).
+     * immutable invite code + token, freeze the per-role position and seed the
+     * base tier, and — when the signup came through a valid invite link — record
+     * the referral edge (subject to self-referral and anti-fraud guards).
      *
      * @return array{entry: WaitlistEntry, created: bool}
      */
@@ -32,31 +35,35 @@ class WaitlistService
         $entry->age_confirmed = true;
         $entry->source = $created ? ($data['source'] ?? 'landing') : $entry->source;
 
-        if ($created) {
-            $entry->invite_code = WaitlistEntry::generateInviteCode();
-            $entry->invite_token = WaitlistEntry::generateInviteToken();
-        }
-
-        // A referral is only attributed on a brand-new entry, when the referrer
-        // is a real *other* entry, and not the same person re-inviting themselves.
+        // A referral is only attributed on a brand-new entry, from a real *other*
+        // entry, not a self re-invite, and within the anti-fraud cap.
         $attributeReferral = $created
             && $referrer !== null
             && $referrer->exists
             && ! $this->isSelfReferral($referrer, $data['email'])
             && $this->ipUnderReferralCap($ip);
 
-        if ($attributeReferral) {
-            $entry->referred_by = $referrer->id;
-        }
+        DB::transaction(function () use ($entry, $data, $created, $attributeReferral, $referrer, $ip) {
+            if ($created) {
+                $entry->invite_code = WaitlistEntry::generateInviteCode();
+                $entry->invite_token = WaitlistEntry::generateInviteToken();
+                // Position counted separately per role, frozen at signup.
+                $entry->position_in_role = WaitlistEntry::where('role', $data['role'])->count() + 1;
+                $this->seedBaseTier($entry);
+            }
 
-        DB::transaction(function () use ($entry, $attributeReferral, $ip) {
+            if ($attributeReferral) {
+                $entry->referred_by = $referrer->id;
+            }
+
             $entry->save();
 
             if ($attributeReferral) {
                 WaitlistReferral::create([
-                    'referrer_id' => $entry->referred_by,
+                    'referrer_id' => $referrer->id,
                     'referred_id' => $entry->id,
                     'confirmed' => false,
+                    'referral_type' => $referrer->role === $entry->role ? 'same_role' : 'cross_role',
                     'referred_ip_hash' => $this->hashIp($ip),
                 ]);
             }
@@ -66,9 +73,9 @@ class WaitlistService
     }
 
     /**
-     * Confirm a signup's email (double opt-in). Idempotent: a second call (e.g.
-     * from a link pre-fetch) is a no-op. Confirming the entry also confirms its
-     * referral edge, which the observer turns into viral credit for the referrer.
+     * Confirm a signup's email (double opt-in). Idempotent. Confirming the entry
+     * also confirms its referral edge, which the observer turns into tier credit
+     * for the referrer.
      */
     public function confirm(WaitlistEntry $entry): void
     {
@@ -87,6 +94,29 @@ class WaitlistService
                 $edge->save();
             }
         });
+    }
+
+    /**
+     * Mark a signup as converted into a real registered user (post-launch). The
+     * stronger signal behind the founder/patron/ambassador tiers; idempotent.
+     */
+    public function convert(WaitlistEntry $entry): void
+    {
+        $edge = $entry->referralEdge()->first();
+
+        if ($edge !== null && $edge->converted_at === null) {
+            $edge->converted_at = now();
+            $edge->save();
+        }
+    }
+
+    private function seedBaseTier(WaitlistEntry $entry): void
+    {
+        if ($entry->role === 'performer') {
+            $entry->tier_performer = PerformerTier::Candidate;
+        } else {
+            $entry->tier_member = MemberTier::Curious;
+        }
     }
 
     private function isSelfReferral(WaitlistEntry $referrer, string $email): bool

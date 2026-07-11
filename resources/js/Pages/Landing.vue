@@ -6,9 +6,10 @@ import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 
 // When the visitor arrived via an invite link (/convite/{code}), the server
-// passes the referrer's first name so we can show a "convidado por X" banner.
+// passes the referrer's first name (for the "convidado por X" banner) and a
+// suggestedRole nudging the form toward the referrer's own side of the platform.
 // The referral itself is attributed server-side via the session, not this prop.
-defineProps({
+const props = defineProps({
     referral: { type: Object, default: null },
 })
 
@@ -58,7 +59,7 @@ const submitted = ref(false)
 const form = useForm({
     name: '',
     email: '',
-    role: 'member',
+    role: props.referral?.suggestedRole ?? 'member',
     world: null,
     age_confirmed: false,
     website: '', // honeypot — must stay empty

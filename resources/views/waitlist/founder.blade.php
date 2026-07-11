@@ -58,17 +58,22 @@
         <h1 style="margin:28px 0 0;font-size:26px;font-weight:normal;text-align:center;">
             Painel de {{ $firstName }}
         </h1>
+        <p class="center gold" style="margin:6px 0 0;font-size:14px;letter-spacing:1px;">
+            {{ $founderTitle }} #{{ number_format($position, 0, ',', '.') }}
+        </p>
         @unless ($confirmed)
             <p class="center muted" style="margin:8px 0 0;font-size:14px;">
                 Seu e-mail ainda não foi confirmado — confira sua caixa de entrada para garantir seu lugar.
             </p>
         @endunless
 
-        {{-- Position --}}
+        {{-- Position (per role) --}}
         <div class="card center">
             <div class="muted" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;">Sua posição</div>
             <div class="gold" style="font-size:52px;line-height:1.1;margin-top:4px;">#{{ number_format($position, 0, ',', '.') }}</div>
-            <div class="dim" style="font-size:14px;">de {{ number_format($total, 0, ',', '.') }} inscritos</div>
+            <div class="dim" style="font-size:14px;">
+                de {{ number_format($totalInRole, 0, ',', '.') }} {{ $isPerformer ? 'performers' : 'membros' }} na lista
+            </div>
         </div>
 
         {{-- Tier + progress --}}
@@ -82,7 +87,7 @@
             @if ($nextTier)
                 <div class="bar"><span style="width: {{ $nextTier['progress'] }}%;"></span></div>
                 <p class="dim" style="margin:0;font-size:13px;">
-                    Faltam <span class="gold">{{ $nextTier['remaining'] }}</span> para
+                    Faltam <span class="gold">{{ $nextTier['remaining'] }}</span> {{ $nextTier['phrase'] }} para
                     <span style="color:#F5F0E8;">{{ $nextTier['label'] }}</span> — {{ $nextTier['benefit'] }}.
                 </p>
             @else
@@ -108,7 +113,7 @@
                     <div class="dot {{ $b['achieved'] ? 'on' : '' }}">{{ $b['achieved'] ? '✓' : '' }}</div>
                     <div>
                         <div style="font-size:15px;{{ $b['achieved'] ? '' : 'color:#9a938a;' }}">
-                            {{ $b['label'] }} <span class="dim" style="font-size:13px;">· {{ $b['threshold'] }} indicações</span>
+                            {{ $b['label'] }} <span class="dim" style="font-size:13px;">· meta {{ $b['threshold'] }}</span>
                         </div>
                         <div class="{{ $b['achieved'] ? 'muted' : 'dim' }}" style="font-size:13px;">{{ $b['benefit'] }}</div>
                     </div>
