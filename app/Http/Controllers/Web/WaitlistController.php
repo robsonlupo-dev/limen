@@ -7,7 +7,6 @@ use App\Http\Requests\Web\WaitlistWebRequest;
 use App\Mail\WaitlistConfirmationMail;
 use App\Models\WaitlistEntry;
 use App\Services\Waitlist\WaitlistService;
-use App\Services\Waitlist\WaitlistStats;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +16,6 @@ class WaitlistController extends Controller
 {
     public function __construct(
         private readonly WaitlistService $service,
-        private readonly WaitlistStats $stats,
     ) {}
 
     /**
@@ -44,8 +42,7 @@ class WaitlistController extends Controller
         );
 
         if ($created) {
-            $position = $this->stats->position($entry);
-            Mail::to($entry->email)->send(new WaitlistConfirmationMail($entry, $position));
+            Mail::to($entry->email)->send(new WaitlistConfirmationMail($entry));
         }
 
         // The invite has been consumed; don't attribute future signups to it.

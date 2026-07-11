@@ -2,7 +2,8 @@
 
 namespace App\Models;
 
-use App\Enums\WaitlistTier;
+use App\Enums\MemberTier;
+use App\Enums\PerformerTier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,16 +13,18 @@ class WaitlistEntry extends Model
 {
     // Only user-supplied fields are mass-assignable. The program-controlled
     // fields (invite_code, invite_token, referred_by, confirmed_at,
-    // referral_count, tier) are set by direct assignment in WaitlistService /
-    // the observers — never from request input — so a stray create($request->all())
-    // can never forge a tier or referral count.
+    // position_in_role, referral_count, tier_member, tier_performer) are set by
+    // direct assignment in WaitlistService / the observers — never from request
+    // input — so a stray create($request->all()) can never forge a tier.
     protected $fillable = ['name', 'email', 'role', 'world', 'source', 'age_confirmed'];
 
     protected $casts = [
         'age_confirmed' => 'boolean',
         'confirmed_at' => 'datetime',
         'referral_count' => 'integer',
-        'tier' => WaitlistTier::class,
+        'position_in_role' => 'integer',
+        'tier_member' => MemberTier::class,
+        'tier_performer' => PerformerTier::class,
     ];
 
     // ── Relationships ────────────────────────────────────────────────────────
@@ -49,6 +52,30 @@ class WaitlistEntry extends Model
     public function isConfirmed(): bool
     {
         return $this->confirmed_at !== null;
+    }
+
+    public function isPerformer(): bool
+    {
+        return $this->role === 'performer';
+    }
+
+    /** The tier that applies to this entry's role (base tier if none set yet). */
+    public function activeTier(): MemberTier|PerformerTier
+    {
+        return $this->isPerformer()
+            ? ($this->tier_performer ?? PerformerTier::Candidate)
+            : ($this->tier_member ?? MemberTier::Curious);
+    }
+
+    public function tierLabel(): string
+    {
+        return $this->activeTier()->label();
+    }
+
+    /** "Membro Fundador" / "Performer Fundadora" — the founder title by role. */
+    public function founderTitle(): string
+    {
+        return $this->isPerformer() ? 'Performer Fundadora' : 'Membro Fundador';
     }
 
     /**

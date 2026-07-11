@@ -38,11 +38,12 @@
                         </td>
                     </tr>
 
-                    {{-- Big position --}}
+                    {{-- Big position (per role) --}}
                     <tr>
                         <td align="center" style="padding:28px 40px 0 40px;">
-                            <div style="font-size:13px; letter-spacing:2px; color:#9a938a; text-transform:uppercase;">Sua posição na lista</div>
-                            <div style="font-size:58px; line-height:1.1; color:#C9A84C; margin-top:4px;">#{{ number_format($position, 0, ',', '.') }}</div>
+                            <div style="font-size:13px; letter-spacing:2px; color:#9a938a; text-transform:uppercase;">Você é o</div>
+                            <div style="font-size:20px; color:#F5F0E8; margin-top:6px;">{{ $founderTitle }}</div>
+                            <div style="font-size:58px; line-height:1.1; color:#C9A84C; margin-top:2px;">#{{ number_format($position, 0, ',', '.') }}</div>
                         </td>
                     </tr>
 
@@ -51,12 +52,12 @@
                         <td style="padding:28px 44px 0 44px;">
                             <div style="border:1px solid #262626; border-radius:12px; padding:20px 22px;">
                                 <p style="margin:0; font-size:16px; line-height:1.6; color:#F5F0E8;">
-                                    Você é <span style="color:#C9A84C;">{{ $tierLabel }}</span>.
+                                    Seu nível: <span style="color:#C9A84C;">{{ $tierLabel }}</span>.
                                 </p>
                                 @if ($nextTier)
                                     <p style="margin:8px 0 0 0; font-size:15px; line-height:1.6; color:#9a938a;">
                                         Convide mais <span style="color:#F5F0E8;">{{ $nextTier['remaining'] }}</span>
-                                        {{ $nextTier['remaining'] == 1 ? 'pessoa' : 'pessoas' }} e vire
+                                        {{ $nextTier['phrase'] }} e vire
                                         <span style="color:#C9A84C;">{{ $nextTier['label'] }}</span> — {{ $nextTier['benefit'] }}.
                                     </p>
                                 @endif

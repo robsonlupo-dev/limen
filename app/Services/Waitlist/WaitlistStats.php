@@ -8,17 +8,10 @@ use Illuminate\Support\Collection;
 
 class WaitlistStats
 {
-    /** 1-based place in line, ordered by signup time (id breaks ties). */
-    public function position(WaitlistEntry $entry): int
+    /** Total signups for the same role as the given entry. */
+    public function totalInRole(WaitlistEntry $entry): int
     {
-        return WaitlistEntry::where('created_at', '<', $entry->created_at)
-            ->orWhere(fn ($q) => $q->where('created_at', $entry->created_at)->where('id', '<=', $entry->id))
-            ->count();
-    }
-
-    public function total(): int
-    {
-        return WaitlistEntry::count();
+        return WaitlistEntry::where('role', $entry->role)->count();
     }
 
     /**
@@ -80,12 +73,12 @@ class WaitlistStats
             'top_referrers' => WaitlistEntry::where('referral_count', '>', 0)
                 ->orderByDesc('referral_count')
                 ->limit(10)
-                ->get(['name', 'invite_code', 'referral_count', 'tier'])
+                ->get(['name', 'invite_code', 'referral_count', 'role', 'tier_member', 'tier_performer'])
                 ->map(fn ($e) => [
                     'name' => $e->name,
                     'invite_code' => $e->invite_code,
                     'referral_count' => $e->referral_count,
-                    'tier' => $e->tier->label(),
+                    'tier' => $e->tierLabel(),
                 ]),
             'daily_growth' => $this->dailyGrowth(),
         ];

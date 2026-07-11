@@ -37,7 +37,13 @@ class ConviteController extends Controller
         $request->session()->put('waitlist_referrer_id', $referrer->id);
 
         return Inertia::render('Landing', [
-            'referral' => ['name' => Str::of($referrer->name)->trim()->explode(' ')->first()],
+            'referral' => [
+                'name' => Str::of($referrer->name)->trim()->explode(' ')->first(),
+                // Nudge the form toward the referrer's own side of the platform:
+                // a performer's invite defaults to "Quero ser Performer", a
+                // member's to "Quero entrar".
+                'suggestedRole' => $referrer->role === 'performer' ? 'performer' : 'member',
+            ],
         ]);
     }
 }
