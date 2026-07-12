@@ -127,12 +127,48 @@ it('queues the confirmation email on a new signup', function () {
     Mail::assertQueued(WaitlistConfirmationMail::class, fn ($m) => $m->hasTo('bia@example.com'));
 });
 
-it('renders the founder title and per-role position in the email', function () {
-    $member = joinWaitlist(['email' => 'm@example.com', 'role' => 'member']);
-    $performer = joinWaitlist(['email' => 'p@example.com', 'role' => 'performer']);
+it('renders the role-specific member email with only the first name', function () {
+    $member = joinWaitlist(['name' => 'Robson Membro', 'email' => 'm@example.com', 'role' => 'member']);
 
-    expect((new WaitlistConfirmationMail($member))->render())->toContain('Membro Fundador')->toContain('#1');
-    expect((new WaitlistConfirmationMail($performer))->render())->toContain('Performer Fundadora')->toContain('#1');
+    $html = (new WaitlistConfirmationMail($member))->render();
+
+    expect($html)
+        ->toContain('Olá, Robson.')            // first name only, never the full/composite name
+        ->not->toContain('Robson Membro')
+        ->toContain('Membro Fundador')
+        ->toContain('Seu lugar está reservado.')
+        ->toContain('Confirmar meu lugar')
+        ->toContain('painel de fundador');
+});
+
+it('renders the role-specific performer email', function () {
+    $performer = joinWaitlist(['name' => 'Cris Performer', 'email' => 'p@example.com', 'role' => 'performer']);
+
+    $html = (new WaitlistConfirmationMail($performer))->render();
+
+    expect($html)
+        ->toContain('Olá, Cris.')
+        ->toContain('Performer Fundadora')
+        ->toContain('Sua reserva foi confirmada.')
+        ->toContain('Confirmar minha identidade')
+        ->toContain('painel de fundadora');
+});
+
+it('never exposes the founder position or the invite/referral link in the email', function () {
+    $member = joinWaitlist(['email' => 'pos@example.com', 'role' => 'member']);
+
+    $html = (new WaitlistConfirmationMail($member))->render();
+
+    // Position number: nobody learns how many have signed up (panel-only).
+    expect($html)
+        ->not->toContain('#1')
+        ->not->toContain('Você é o');
+
+    // Invite/referral mechanic lives only on the panel — no raw invite URL here.
+    expect($html)
+        ->not->toContain(route('convite.show', ['invite_code' => $member->invite_code]))
+        ->not->toContain('link de convite')
+        ->not->toContain('Copiar meu link');
 });
 
 it('does not resend the confirmation email on an idempotent re-submit', function () {
