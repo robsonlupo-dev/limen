@@ -7,6 +7,10 @@ return [
         'entrada',
         'waitlist.store',
 
+        // Public performer catalog (no auth)
+        'performers.public',
+        'performers.public.show',
+
         // Auth
         'register',
         'register.store',
