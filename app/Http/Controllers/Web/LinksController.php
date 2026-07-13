@@ -28,7 +28,7 @@ class LinksController extends Controller
                 'og_title' => 'Limen — Links oficiais',
                 'og_description' => 'O portal do desejo, verificado e real. Entre na lista de espera e siga os canais oficiais. +18',
                 'og_url' => $publicBase.'/links',
-                'og_image' => $publicBase.'/og-image.svg',
+                'og_image' => $publicBase.'/og-image.png',
             ],
         ]);
     }
