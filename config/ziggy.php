@@ -8,8 +8,9 @@ return [
         'links',
         'waitlist.store',
 
-        // Public catalog (reserved — route not yet defined; harmless until it is)
+        // Public performer catalog (no auth)
         'performers.public',
+        'performers.public.show',
 
         // Auth
         'register',
