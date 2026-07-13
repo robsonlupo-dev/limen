@@ -43,6 +43,13 @@ class PublicCatalogController extends Controller
         return Inertia::render('Performers/Index', [
             'performers' => $paginated,
             'filters' => ['mundo' => $world],
+            'meta' => [
+                'title' => 'Performers verificadas · Limen',
+                'description' => 'Descubra performers verificadas no Limen. Conteúdo adulto premium, privacidade total. Crie sua conta para interagir.',
+                'og_title' => 'Performers verificadas · Limen',
+                'og_description' => 'Descubra performers verificadas no Limen. Conteúdo adulto premium, privacidade total.',
+                'og_type' => 'website',
+            ],
         ]);
     }
 
@@ -62,6 +69,7 @@ class PublicCatalogController extends Controller
             'meta' => [
                 'title' => "{$stageName} · Limen",
                 'description' => $description,
+                'og_type' => 'profile',
             ],
         ]);
     }

@@ -18,7 +18,7 @@ const btnClass =
 </script>
 
 <template>
-    <Head title="Limen — Links oficiais" />
+    <Head title="Links oficiais" />
 
     <main class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-6 py-16">
         <!-- Ambient gold glow (matches the landing hero) -->

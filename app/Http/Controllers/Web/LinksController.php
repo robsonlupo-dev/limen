@@ -22,10 +22,10 @@ class LinksController extends Controller
 
         return Inertia::render('Links', [
             'meta' => [
-                'title' => 'Limen — Links oficiais',
+                'title' => 'Links oficiais · Limen',
                 'description' => 'Todos os canais oficiais do Limen: lista de espera, Instagram, TikTok, Telegram, YouTube e X. O portal do desejo, verificado e real. +18',
                 'canonical' => $publicBase.'/links',
-                'og_title' => 'Limen — Links oficiais',
+                'og_title' => 'Links oficiais · Limen',
                 'og_description' => 'O portal do desejo, verificado e real. Entre na lista de espera e siga os canais oficiais. +18',
                 'og_url' => $publicBase.'/links',
                 'og_image' => $publicBase.'/og-image.png',

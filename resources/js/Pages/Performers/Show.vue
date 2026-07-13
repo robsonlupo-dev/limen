@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
@@ -25,15 +25,7 @@ const lockedTiles = 6
 </script>
 
 <template>
-    <Head>
-        <title>{{ meta.title }}</title>
-        <meta name="description" :content="meta.description" />
-        <meta property="og:title" :content="meta.title" />
-        <meta property="og:description" :content="meta.description" />
-        <meta property="og:type" content="profile" />
-    </Head>
-
-    <GuestLayout :title="performer.stage_name">
+    <GuestLayout :title="meta.title">
         <div>
             <!-- Hero / cover -->
             <div class="relative h-64 md:h-80 bg-surface-2 overflow-hidden">

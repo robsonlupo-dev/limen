@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
-import { Head, Link, router } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import PublicPerformerCard from '@/Components/PublicPerformerCard.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
@@ -38,15 +38,7 @@ const isActive = (value) => (props.filters.mundo ?? null) === value
 </script>
 
 <template>
-    <Head>
-        <title>Performers verificadas · Limen</title>
-        <meta name="description" content="Descubra performers verificadas no Limen. Conteúdo adulto premium, privacidade total. Crie sua conta para interagir." />
-        <meta property="og:title" content="Performers verificadas · Limen" />
-        <meta property="og:description" content="Descubra performers verificadas no Limen. Conteúdo adulto premium, privacidade total." />
-        <meta property="og:type" content="website" />
-    </Head>
-
-    <GuestLayout title="Performers">
+    <GuestLayout title="Performers verificadas">
         <div class="max-w-6xl mx-auto px-6 py-10 space-y-8">
             <div class="space-y-2 text-center">
                 <h1 class="font-serif text-4xl text-cream">Performers verificadas</h1>

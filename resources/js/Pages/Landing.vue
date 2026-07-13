@@ -104,7 +104,7 @@ const vReveal = {
 </script>
 
 <template>
-    <GuestLayout title="Limen — portal verificado de conteúdo adulto">
+    <GuestLayout title="Limen — O Portal Exclusivo para Criadores Verificados no Brasil">
         <!-- ── Hero ─────────────────────────────────────────────────────── -->
         <section class="relative flex min-h-[88vh] flex-col items-center justify-center overflow-hidden px-6 text-center">
             <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_35%,rgba(201,162,75,0.10),transparent)]" />
