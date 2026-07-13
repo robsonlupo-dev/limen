@@ -1,0 +1,109 @@
+# =============================================================================
+# thelimen.com.br — PUBLIC production vhost (Limen)
+# -----------------------------------------------------------------------------
+# Serves the SAME app as staging: /var/www/limen (public/ front controller).
+# Unlike staging (limen.dev.br), this domain is a PUBLIC MARKETING GATE: only
+# the pre-launch surface is reachable. Every other route 302s back to /.
+#
+# Install on the server (limen-dev-01):
+#   sudo cp deploy/nginx/thelimen.com.br /etc/nginx/sites-available/thelimen.com.br
+#   sudo ln -s /etc/nginx/sites-available/thelimen.com.br /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# SSL: this file is HTTP-only for now (port 80). When DNS for thelimen.com.br
+# points at this box, run certbot (see the block at the bottom) and it will
+# inject the 443 server + redirect automatically. DO NOT run certbot before DNS
+# propagates or the ACME challenge fails.
+# =============================================================================
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name thelimen.com.br www.thelimen.com.br;
+
+    root /var/www/limen/public;
+    index index.php;
+
+    charset utf-8;
+
+    # Let's Encrypt HTTP-01 challenge (webroot). Kept reachable so certbot can
+    # validate over :80 even after 443 exists. Must come before the allowlist.
+    location ^~ /.well-known/acme-challenge/ {
+        default_type "text/plain";
+        root /var/www/limen/public;
+        allow all;
+    }
+
+    # ----- Static assets (served directly, never hit PHP) --------------------
+    location ^~ /build/ {
+        try_files $uri =404;
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    location ^~ /assets/ {
+        try_files $uri =404;
+        access_log off;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+    location ^~ /storage/ {
+        try_files $uri =404;
+        access_log off;
+        expires 7d;
+    }
+    location = /favicon.ico { try_files $uri =404; access_log off; log_not_found off; }
+    location = /favicon.svg { try_files $uri =404; access_log off; log_not_found off; }
+    location = /robots.txt  { try_files $uri =404; access_log off; log_not_found off; }
+
+    # ----- ALLOWLISTED app routes -> Laravel front controller ----------------
+    # Only these paths are allowed to reach the application on this domain.
+    # `= ` exact and `^~ ` prefix matches win over the catch-all `location /`.
+    location = /            { try_files $uri /index.php?$query_string; }  # landing
+    location = /links       { try_files $uri /index.php?$query_string; }  # link-in-bio
+    location = /interesse   { try_files $uri /index.php?$query_string; }  # waitlist POST
+    location ^~ /convite/   { try_files $uri /index.php?$query_string; }  # invite links
+    location ^~ /f/         { try_files $uri /index.php?$query_string; }  # founder panel
+    location ^~ /waitlist/  { try_files $uri /index.php?$query_string; }  # confirm/cancel
+
+    # ----- PHP handler -------------------------------------------------------
+    # `internal` = only reachable via the try_files internal redirects above.
+    # A direct request to /index.php (or any .php) from a client 404s, so the
+    # allowlist cannot be bypassed with /index.php/catalogo path-info tricks.
+    location ~ \.php$ {
+        internal;
+        include fastcgi_params;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_hide_header X-Powered-By;
+    }
+
+    # ----- Everything else -> 302 to the landing -----------------------------
+    # /login, /catalogo, /admin/*, /cadastro, etc. are gated off this domain.
+    location / {
+        return 302 /;
+    }
+
+    # Deny dotfiles (.env, .git, ...) outside the ACME challenge above.
+    location ~ /\.(?!well-known) {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    client_max_body_size 20M;
+
+    # =========================================================================
+    # SSL — run AFTER DNS for thelimen.com.br resolves to this server:
+    #
+    #   sudo certbot --nginx -d thelimen.com.br -d www.thelimen.com.br
+    #
+    # Certbot (python3-certbot-nginx) rewrites this file to add the `listen 443
+    # ssl` server, the certificate paths, and the 80->443 redirect. Matches the
+    # existing Let's Encrypt (ECDSA) setup used for limen.dev.br.
+    # =========================================================================
+}
