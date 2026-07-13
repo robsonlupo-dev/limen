@@ -5,6 +5,7 @@ return [
         // Public / landing
         'landing',
         'entrada',
+        'links',
         'waitlist.store',
 
         // Public performer catalog (no auth)

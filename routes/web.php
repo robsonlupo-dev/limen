@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
+use App\Http\Controllers\Web\LinksController;
 use App\Http\Controllers\Web\UserPreferencesController;
 use App\Http\Controllers\Web\WaitlistController;
 use App\Http\Controllers\Web\Performer\DashboardController;
@@ -24,6 +25,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 Route::get('/entrada', [EntradaController::class, 'index'])->name('entrada');
+
+// Public link-in-bio hub (Linktree replacement, no auth). Allowlisted on the
+// public domain (thelimen.com.br) — see deploy/nginx/thelimen.com.br.
+Route::get('/links', [LinksController::class, 'index'])->name('links');
 
 // Pre-launch waitlist capture from the public landing page (no auth).
 Route::post('/interesse', [WaitlistController::class, 'store'])
