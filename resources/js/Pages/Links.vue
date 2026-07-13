@@ -10,7 +10,7 @@ const links = [
     { label: 'TikTok', href: 'https://tiktok.com/@limen.oficial', internal: false },
     { label: 'Telegram', href: 'https://t.me/Limenbr', internal: false },
     { label: 'YouTube', href: 'https://youtube.com/@Limen.oficial', internal: false },
-    { label: 'X / Twitter', href: 'https://x.com/Limen_oficial', internal: false },
+    { label: 'X / Twitter', href: 'https://x.com/Limenoficial', internal: false },
 ]
 
 const btnClass =
