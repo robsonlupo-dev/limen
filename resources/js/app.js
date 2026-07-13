@@ -12,7 +12,13 @@ const route = (name, params, absolute = false, config) =>
 window.route = route
 
 createInertiaApp({
-    title: (title) => title ? `${title} — Limen` : 'Limen',
+    // Marca cada aba como "<página> · Limen". Idempotente: títulos que já citam a
+    // marca (a headline de marketing da home, ou páginas públicas cujo título
+    // server-side/OG já carrega o sufixo) passam intactos — nunca duplicamos.
+    title: (title) => {
+        if (!title) return 'Limen'
+        return title.includes('Limen') ? title : `${title} · Limen`
+    },
     resolve: (name) =>
         resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')),
     setup({ el, App, props, plugin }) {

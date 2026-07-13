@@ -38,7 +38,7 @@ const isActive = (value) => (props.filters.mundo ?? null) === value
 </script>
 
 <template>
-    <GuestLayout title="Performers verificadas · Limen">
+    <GuestLayout title="Performers verificadas">
         <div class="max-w-6xl mx-auto px-6 py-10 space-y-8">
             <div class="space-y-2 text-center">
                 <h1 class="font-serif text-4xl text-cream">Performers verificadas</h1>
