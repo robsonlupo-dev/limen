@@ -1,12 +1,11 @@
 # WAITLIST — Cadastro em 2 etapas (Membro / Performer)
 
-> **STATUS: PROPOSTA — para revisão do Product Owner. Nada implementado ainda.**
+> **STATUS: APROVADO — decisões fechadas pelo PO em 2026-07-13 (ver seção 8). Em implementação.**
 >
 > Este documento foi derivado do código atual (`WaitlistController`, `WaitlistEntry`,
 > `WaitlistService`, `WaitlistWebRequest`, migrations e `Landing.vue`) e dos docs
-> `CIRCLES_SYSTEM_V4.md` e `WORLDS_ARCHITECTURE.md`. Onde o código e os docs
-> divergem, ou onde falta definição, há uma seção **"Decisões pendentes"** — nada
-> ali deve ser tratado como fato até você confirmar.
+> `CIRCLES_SYSTEM_V4.md` e `WORLDS_ARCHITECTURE.md`. As decisões de design foram
+> confirmadas pelo Product Owner e estão registradas na seção 8.
 
 ---
 
@@ -194,23 +193,25 @@ campos precisam entrar no `$fillable` **com cuidado** — nada que seja derivado
 
 ---
 
-## 8. Decisões pendentes (preciso da sua definição antes de codar)
+## 8. Decisões fechadas (PO — 2026-07-13)
 
-1. **Quantos mundos, afinal?** O código valida **6** (`mulheres, homens, casais,
-   trans, gls, swing`); `WORLDS_ARCHITECTURE.md` define **4** (Mulheres, Homens,
-   Trans, Casais). Qual é a fonte de verdade para a waitlist?
-2. **Modelagem de mundo membro × performer:** membro = preferências múltiplas
-   privadas; performer = 1 mundo obrigatório. Confirma essa assimetria? Coluna JSON
-   ou pivot para as preferências do membro?
-3. **Capturar `circle_interest` do membro** (Explorador→FC) já na waitlist, ou deixar
-   para pós-lançamento?
-4. **Capturar solo/casal do performer** já na waitlist (`performer_kind`)?
-5. **Capturar `work_focus` do performer** (lives/conteúdo/etc.) ou omitir por ora?
-6. **E-mail de confirmação:** variar a cópia por papel (recomendado) ou manter único?
-7. **Mecânica das etapas:** confirma o **wizard client-side com POST único**
-   (recomendado), ou prefere 2 POSTs/draft?
-8. **Nome do performer:** "nome artístico" é o mesmo campo `name` ou um campo à parte
-   (o KYC da Fase 5 pode exigir nome legal separado depois)?
+1. **Mundos:** **4** — `mulheres, homens, trans, casais`. Remover `gls`/`swing`.
+   **Escopo da remoção:** apenas as superfícies de **cadastro/waitlist**
+   (`WaitlistWebRequest`) nesta entrega. O catálogo/enum de `performer_profiles`,
+   seeders e `PublicCatalogTest` (que tratam gls/swing como legado oculto do
+   público) **ficam intocados** — purga legada é follow-up separado.
+2. **Modelagem de mundo (assimetria confirmada):** performer = coluna `world`
+   atual, **obrigatória quando `role=performer`**. Membro = nova coluna JSON
+   **`world_preferences`** (nullable, N valores).
+3. **`circle_interest`:** **não** capturar agora.
+4. **`performer_kind` (solo/casal):** **sim**, capturar. **Obrigatório quando
+   `world=casais`**, nullable nos demais mundos.
+5. **`work_focus`:** **não** capturar.
+6. **E-mail de confirmação:** varia por papel na **mesma classe**
+   `WaitlistConfirmationMail`, com branch por `role` (mecanismo `isPerformer()`
+   **já existente** — sem trabalho adicional).
+7. **Mecânica das etapas:** **wizard client-side com POST único** confirmado.
+8. **Nome artístico:** é o **mesmo campo `name`** (sem campo separado nesta entrega).
 
 ---
 
@@ -226,7 +227,7 @@ campos precisam entrar no `$fillable` **com cuidado** — nada que seja derivado
 
 ## 10. Próximo passo
 
-Você revisa este documento e responde às **Decisões pendentes** (seção 8). Só depois
-disso eu proponho o plano de implementação técnico (migrations, Form Request por papel,
-ajustes no `WaitlistService`/`Landing.vue`, testes) e começo a codar — em
-`feat/waitlist-2-steps` (branch já criada a partir da `origin/main`).
+Decisões fechadas (seção 8) e plano técnico aprovado. Implementação em andamento na
+branch `feat/waitlist-2-steps` (a partir da `origin/main`), nesta ordem: migration →
+model → `WaitlistWebRequest` (validação por papel) → `WaitlistService` → `Landing.vue`
+(wizard) → testes. E-mail não muda (já ramifica por papel).
