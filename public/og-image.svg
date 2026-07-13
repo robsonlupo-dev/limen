@@ -1,0 +1,38 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Limen — o portal do desejo, verificado e real">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="38%" r="55%">
+      <stop offset="0%" stop-color="#C9A24B" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#C9A24B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="70%" stop-color="#0A0A0B" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0A0A0B" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0A0A0B"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect x="24" y="24" width="1152" height="582" rx="20" fill="none" stroke="#2A2A30" stroke-width="2"/>
+
+  <!-- Portal arch (scaled from PortalLogo) -->
+  <g transform="translate(600,150) scale(2.4)" stroke="#C9A24B" fill="none" stroke-linecap="round">
+    <path d="M -34,60 L -34,28 Q -34,0 0,0 Q 34,0 34,28 L 34,60" stroke-width="2.5"/>
+    <path d="M -22,60 L -22,30 Q -22,12 0,12 Q 22,12 22,30 L 22,60" stroke-width="1.5" opacity="0.55"/>
+    <line x1="-34" y1="60" x2="34" y2="60" stroke-width="2.5"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="600" y="470" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif"
+        font-size="92" font-weight="600" letter-spacing="34" fill="#C9A24B">LIMEN</text>
+
+  <!-- Tagline -->
+  <text x="600" y="524" text-anchor="middle" font-family="Inter, Arial, sans-serif"
+        font-size="30" letter-spacing="1" fill="#F5F5F2">O portal do desejo, verificado e real.</text>
+
+  <!-- 18+ badge -->
+  <text x="600" y="574" text-anchor="middle" font-family="Inter, Arial, sans-serif"
+        font-size="20" letter-spacing="6" fill="#9A9A93">BRASIL · +18</text>
+
+  <rect width="1200" height="630" fill="url(#fade)"/>
+</svg>

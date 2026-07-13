@@ -5,7 +5,11 @@ return [
         // Public / landing
         'landing',
         'entrada',
+        'links',
         'waitlist.store',
+
+        // Public catalog (reserved — route not yet defined; harmless until it is)
+        'performers.public',
 
         // Auth
         'register',
