@@ -48,6 +48,12 @@ class WaitlistEntry extends Model
         return $this->hasMany(WaitlistReferral::class, 'referrer_id');
     }
 
+    /** Append-only log of nurturing/transactional emails sent to this entry. */
+    public function emailLog(): HasMany
+    {
+        return $this->hasMany(WaitlistEmailLog::class, 'waitlist_entry_id');
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     public function isConfirmed(): bool
