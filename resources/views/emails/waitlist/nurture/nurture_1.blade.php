@@ -1,12 +1,18 @@
-{{-- PLACEHOLDER COPY — PO substitui. Beat: boas-vindas / o que é o Limen (dia 1). --}}
+{{-- Dia 1 — reserva garantida / boas-vindas. --}}
 <x-mail.waitlist-nurture
-    :title="$isPerformer ? 'Bem-vinda ao Limen' : 'Bem-vindo ao Limen'"
-    preheader="Um espaço pensado para quem chega antes de todos."
-    :headline="$isPerformer ? 'Você está entre as primeiras.' : 'Que bom ter você aqui.'"
-    :firstName="$firstName" :isPerformer="$isPerformer" :panelUrl="$panelUrl" :unsubscribeUrl="$unsubscribeUrl">
+    :title="$subject"
+    :preheader="$isPerformer ? 'Isso é só o começo.' : 'Guarde este email.'"
+    :firstName="$firstName"
+    :ctaLabel="'Acessar meu painel'"
+    :ctaUrl="$ctaUrl"
+    :unsubscribeUrl="$unsubscribeUrl">
     @if ($isPerformer)
-        [PLACEHOLDER] O Limen é uma plataforma verificada e discreta para criadoras. Nos próximos dias vamos te contar como funciona por dentro — no seu tempo.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Você deu o primeiro passo para algo diferente de tudo que existe no Brasil.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Sua reserva está ativa. Seu número, guardado.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Quando as portas abrirem, você sabe onde encontrar a gente.</p>
     @else
-        [PLACEHOLDER] O Limen é um espaço premium e verificado. Nos próximos dias vamos te mostrar o que estamos construindo e por que vale a pena chegar antes.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Seu lugar está reservado.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Não por sorte. Por escolha.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">O que estamos construindo não é para todo mundo — e você já sabe disso.</p>
     @endif
 </x-mail.waitlist-nurture>

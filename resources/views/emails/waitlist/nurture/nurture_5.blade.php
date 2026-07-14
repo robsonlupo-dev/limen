@@ -1,12 +1,18 @@
-{{-- PLACEHOLDER COPY — PO substitui. Beat: benefícios de fundador (dia 21). --}}
+{{-- Dia 21 — indicação/quem você traz. CTA aponta ao painel (referral vive lá). --}}
 <x-mail.waitlist-nurture
-    title="Vantagens de fundador"
-    preheader="O que muda por ter chegado antes."
-    :headline="$isPerformer ? 'Fundadora tem prioridade.' : 'Fundador entra na frente.'"
-    :firstName="$firstName" :isPerformer="$isPerformer" :panelUrl="$panelUrl" :unsubscribeUrl="$unsubscribeUrl">
+    :title="$subject"
+    :preheader="$isPerformer ? 'Seu nome abre portas aqui.' : 'Seu círculo diz muito sobre você.'"
+    :firstName="$firstName"
+    :ctaLabel="$isPerformer ? 'Trazer alguém da minha confiança' : 'Trazer alguém'"
+    :ctaUrl="$ctaUrl"
+    :unsubscribeUrl="$unsubscribeUrl">
     @if ($isPerformer)
-        [PLACEHOLDER] Como fundadora, você tem prioridade na verificação, destaque no lançamento e condições que não vão se repetir depois da abertura.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Se você conhece alguém que deveria estar no Limen, traga.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Performers que chegam por indicação chegam com contexto — e isso muda tudo.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Seu nome vale aqui.</p>
     @else
-        [PLACEHOLDER] Como fundador, você entra antes de todo mundo e garante vantagens exclusivas que só existem para quem estava aqui desde o começo.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Cada pessoa que você traz carrega o seu nome.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Quem entra por você chega com uma expectativa diferente — e isso importa.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Compartilhe com quem merece estar aqui.</p>
     @endif
 </x-mail.waitlist-nurture>

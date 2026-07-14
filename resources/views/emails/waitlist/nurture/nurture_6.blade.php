@@ -1,13 +1,18 @@
-{{-- PLACEHOLDER COPY — PO substitui. Beat: convite / referral (dia 30). O invite
-     link NÃO vai no corpo (regra); o CTA aponta ao painel, onde vive a mecânica. --}}
+{{-- Dia 30 — um mês / paciência. --}}
 <x-mail.waitlist-nurture
-    title="Traga quem você confia"
-    preheader="Sua posição pode subir no seu painel."
-    :headline="$isPerformer ? 'Convide e suba de nível.' : 'Convide quem merece entrar.'"
-    :firstName="$firstName" :isPerformer="$isPerformer" :panelUrl="$panelUrl" :unsubscribeUrl="$unsubscribeUrl">
+    :title="$subject"
+    :preheader="$isPerformer ? 'Paciência tem recompensa.' : 'Você ainda está aqui.'"
+    :firstName="$firstName"
+    :ctaLabel="$isPerformer ? 'Acessar meu painel' : 'Ver meu painel de fundador'"
+    :ctaUrl="$ctaUrl"
+    :unsubscribeUrl="$unsubscribeUrl">
     @if ($isPerformer)
-        [PLACEHOLDER] Cada pessoa que você traz — e que confirma — melhora o seu tier de fundadora. Seu link de convite fica no seu painel, é só compartilhar.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Construir algo sólido leva tempo. Você entende isso melhor do que ninguém.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Sua vaga continua reservada. Seu lugar, garantido.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Estamos chegando lá.</p>
     @else
-        [PLACEHOLDER] Indique pessoas que combinam com o Limen. A cada confirmação, seu tier sobe. Pegue seu link de convite direto no seu painel.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Trinta dias desde que você reservou seu lugar.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">A maioria desiste antes disso. Você não.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">O portal está mais perto do que parece.</p>
     @endif
 </x-mail.waitlist-nurture>

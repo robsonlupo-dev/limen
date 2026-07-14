@@ -1,12 +1,18 @@
-{{-- PLACEHOLDER COPY — PO substitui. Beat: segurança & verificação (dia 3). --}}
+{{-- Dia 3 — silêncio/vantagem (membro) · quem cria merece mais (performer). --}}
 <x-mail.waitlist-nurture
-    title="Verificação de verdade"
-    preheader="Por que o Limen verifica os dois lados."
-    :headline="$isPerformer ? 'Um ambiente onde você está protegida.' : 'Todo mundo aqui é verificado.'"
-    :firstName="$firstName" :isPerformer="$isPerformer" :panelUrl="$panelUrl" :unsubscribeUrl="$unsubscribeUrl">
+    :title="$subject"
+    :preheader="$isPerformer ? 'Você já sabe disso.' : 'Nem tudo precisa ser anunciado.'"
+    :firstName="$firstName"
+    :ctaLabel="$isPerformer ? 'Ver meu painel' : 'Ver meu painel de fundador'"
+    :ctaUrl="$ctaUrl"
+    :unsubscribeUrl="$unsubscribeUrl">
     @if ($isPerformer)
-        [PLACEHOLDER] No Limen, cada pessoa é verificada e maior de idade. Isso significa menos ruído, menos risco e uma audiência que respeita o seu trabalho.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Você investe tempo, presença, energia.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">O que você recebe em troca deveria refletir isso.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Estamos construindo um espaço onde isso finalmente é verdade.</p>
     @else
-        [PLACEHOLDER] Verificamos identidade e idade dos dois lados. Nada de perfis falsos: só pessoas reais, num ambiente pensado para ser seguro e discreto.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Enquanto outros falam sobre o que vão fazer, nós construímos.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Você está do lado de dentro de algo que ainda não existe para o mundo.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Isso tem um nome: vantagem.</p>
     @endif
 </x-mail.waitlist-nurture>

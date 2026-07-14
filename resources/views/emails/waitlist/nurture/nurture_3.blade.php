@@ -1,12 +1,18 @@
-{{-- PLACEHOLDER COPY — PO substitui. Beat: como funciona / bastidores (dia 7). --}}
+{{-- Dia 7 — posição na fila (membro) · discrição por design (performer). --}}
 <x-mail.waitlist-nurture
-    title="Como o Limen funciona"
-    preheader="Uma olhada por dentro da plataforma."
-    :headline="$isPerformer ? 'Feito para quem cria.' : 'Feito para quem valoriza.'"
-    :firstName="$firstName" :isPerformer="$isPerformer" :panelUrl="$panelUrl" :unsubscribeUrl="$unsubscribeUrl">
+    :title="$subject"
+    :preheader="$isPerformer ? 'É o padrão mínimo.' : 'Seu número está guardado.'"
+    :firstName="$firstName"
+    :ctaLabel="$isPerformer ? 'Acessar meu painel' : 'Confirmar meu lugar'"
+    :ctaUrl="$ctaUrl"
+    :unsubscribeUrl="$unsubscribeUrl">
     @if ($isPerformer)
-        [PLACEHOLDER] Tokens, gorjetas e sessões privadas — com um split transparente por nível. Aqui você tem controle sobre o que oferece e para quem.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">No Limen, sua identidade é protegida por design — não por promessa.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Quem acessa seu conteúdo foi verificado. Quem paga, paga de verdade.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Sem surpresas. Sem exposição indesejada.</p>
     @else
-        [PLACEHOLDER] Você usa tokens para apoiar quem você curte: gorjetas e momentos privados, do seu jeito. Simples, direto e sem pegadinha.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Seu lugar na fila não se move. Não expira. Não é transferível.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Enquanto o portal permanece fechado, sua posição cresce em valor.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Quando as portas abrirem, você entra primeiro.</p>
     @endif
 </x-mail.waitlist-nurture>
