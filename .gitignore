@@ -26,6 +26,9 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
+# Growth OS (Lead Scout / briefing) — ferramentas fora da entrega, contém .env com segredo
+/growth_os/
+
 # Artefatos de entrega por fase (não versionar)
 /fase*/
 /limen-fase*/

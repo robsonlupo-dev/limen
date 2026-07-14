@@ -31,7 +31,13 @@ class WaitlistService
         $created = ! $entry->exists;
 
         $entry->name = $data['name'];
-        $entry->world = $data['world'] ?? null;
+        // World capture is role-specific: a performer picks the single world they
+        // represent (+ solo/casal); a member picks their private world preferences.
+        // The other role's fields are nulled so no stale cross-role data lingers.
+        $isPerformer = $data['role'] === 'performer';
+        $entry->world = $isPerformer ? ($data['world'] ?? null) : null;
+        $entry->performer_kind = $isPerformer ? ($data['performer_kind'] ?? null) : null;
+        $entry->world_preferences = $isPerformer ? null : ($data['world_preferences'] ?? null);
         $entry->age_confirmed = true;
         $entry->source = $created ? ($data['source'] ?? 'landing') : $entry->source;
 

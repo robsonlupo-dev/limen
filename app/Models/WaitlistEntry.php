@@ -16,13 +16,14 @@ class WaitlistEntry extends Model
     // position_in_role, referral_count, tier_member, tier_performer) are set by
     // direct assignment in WaitlistService / the observers — never from request
     // input — so a stray create($request->all()) can never forge a tier.
-    protected $fillable = ['name', 'email', 'role', 'world', 'source', 'age_confirmed'];
+    protected $fillable = ['name', 'email', 'role', 'world', 'world_preferences', 'performer_kind', 'source', 'age_confirmed'];
 
     protected $casts = [
         'age_confirmed' => 'boolean',
         'confirmed_at' => 'datetime',
         'referral_count' => 'integer',
         'position_in_role' => 'integer',
+        'world_preferences' => 'array',
         'tier_member' => MemberTier::class,
         'tier_performer' => PerformerTier::class,
     ];
