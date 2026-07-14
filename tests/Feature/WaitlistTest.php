@@ -100,6 +100,101 @@ it('silently swallows honeypot submissions without persisting or mailing', funct
     Mail::assertNothingQueued();
 });
 
+// ─── Two-step signup: per-role fields ────────────────────────────────────────
+
+it('stores a performer signup with the single represented world', function () {
+    Mail::fake();
+    $this->post('/interesse', [
+        'name' => 'Lia Estrela', 'email' => 'lia@example.com', 'role' => 'performer',
+        'world' => 'mulheres', 'age_confirmed' => true,
+    ])->assertSessionHasNoErrors()->assertSessionHas('success');
+
+    $entry = WaitlistEntry::firstWhere('email', 'lia@example.com');
+    expect($entry->world)->toBe('mulheres')
+        ->and($entry->world_preferences)->toBeNull()
+        ->and($entry->performer_kind)->toBeNull()
+        ->and($entry->tier_performer)->toBe(PerformerTier::Candidate);
+});
+
+it('requires a world for a performer signup', function () {
+    $this->post('/interesse', [
+        'name' => 'Lia', 'email' => 'lia@example.com', 'role' => 'performer', 'age_confirmed' => true,
+    ])->assertSessionHasErrors('world');
+    expect(WaitlistEntry::count())->toBe(0);
+});
+
+it('requires solo/casal when the performer world is casais', function () {
+    $this->post('/interesse', [
+        'name' => 'Duo', 'email' => 'duo@example.com', 'role' => 'performer',
+        'world' => 'casais', 'age_confirmed' => true,
+    ])->assertSessionHasErrors('performer_kind');
+    expect(WaitlistEntry::count())->toBe(0);
+});
+
+it('stores performer_kind for a casais performer', function () {
+    Mail::fake();
+    $this->post('/interesse', [
+        'name' => 'Duo', 'email' => 'duo@example.com', 'role' => 'performer',
+        'world' => 'casais', 'performer_kind' => 'casal', 'age_confirmed' => true,
+    ])->assertSessionHasNoErrors();
+
+    expect(WaitlistEntry::firstWhere('email', 'duo@example.com')->performer_kind)->toBe('casal');
+});
+
+it('stores the private world preferences for a member signup', function () {
+    Mail::fake();
+    $this->post('/interesse', [
+        'name' => 'Ana', 'email' => 'ana@example.com', 'role' => 'member',
+        'world_preferences' => ['mulheres', 'trans'], 'age_confirmed' => true,
+    ])->assertSessionHasNoErrors()->assertSessionHas('success');
+
+    $entry = WaitlistEntry::firstWhere('email', 'ana@example.com');
+    expect($entry->world_preferences)->toBe(['mulheres', 'trans'])
+        ->and($entry->world)->toBeNull()
+        ->and($entry->performer_kind)->toBeNull();
+});
+
+it('accepts a member signup with no world preferences', function () {
+    Mail::fake();
+    $this->post('/interesse', [
+        'name' => 'Simples', 'email' => 'simples@example.com', 'role' => 'member', 'age_confirmed' => true,
+    ])->assertSessionHasNoErrors()->assertSessionHas('success');
+
+    expect(WaitlistEntry::firstWhere('email', 'simples@example.com')->world_preferences)->toBeNull();
+});
+
+// ─── Two-step signup: server-side anti-forge (per-role field isolation) ───────
+
+it('rejects a member trying to forge a performer world', function () {
+    $this->post('/interesse', [
+        'name' => 'Sneaky', 'email' => 's@example.com', 'role' => 'member',
+        'world' => 'mulheres', 'age_confirmed' => true,
+    ])->assertSessionHasErrors('world');
+    expect(WaitlistEntry::count())->toBe(0);
+});
+
+it('rejects a performer trying to send member world preferences', function () {
+    $this->post('/interesse', [
+        'name' => 'Sneaky', 'email' => 'p@example.com', 'role' => 'performer',
+        'world' => 'mulheres', 'world_preferences' => ['homens'], 'age_confirmed' => true,
+    ])->assertSessionHasErrors('world_preferences');
+    expect(WaitlistEntry::count())->toBe(0);
+});
+
+it('rejects legacy worlds (gls/swing) on the waitlist for both roles', function () {
+    $this->post('/interesse', [
+        'name' => 'X', 'email' => 'x@example.com', 'role' => 'performer',
+        'world' => 'gls', 'age_confirmed' => true,
+    ])->assertSessionHasErrors('world');
+
+    $this->post('/interesse', [
+        'name' => 'Y', 'email' => 'y@example.com', 'role' => 'member',
+        'world_preferences' => ['swing'], 'age_confirmed' => true,
+    ])->assertSessionHasErrors('world_preferences.0');
+
+    expect(WaitlistEntry::count())->toBe(0);
+});
+
 // ─── Anti-fraud: disposable email domains ────────────────────────────────────
 
 it('rejects signups from disposable email domains (incl. subdomains and casing)', function () {
