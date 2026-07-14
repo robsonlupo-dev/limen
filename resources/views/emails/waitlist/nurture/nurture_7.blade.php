@@ -1,12 +1,18 @@
-{{-- PLACEHOLDER COPY — PO substitui. Beat: abertura se aproximando (dia 45). --}}
+{{-- Dia 45 — antecipação da abertura. --}}
 <x-mail.waitlist-nurture
-    title="A abertura está chegando"
-    preheader="Falta pouco para as portas abrirem."
-    :headline="$isPerformer ? 'Seu espaço está guardado.' : 'Seu lugar continua reservado.'"
-    :firstName="$firstName" :isPerformer="$isPerformer" :panelUrl="$panelUrl" :unsubscribeUrl="$unsubscribeUrl">
+    :title="$subject"
+    :preheader="$isPerformer ? 'Você vai ser das primeiras.' : 'Algumas coisas não se explicam — se experimentam.'"
+    :firstName="$firstName"
+    :ctaLabel="$isPerformer ? 'Ver meu painel de fundadora' : 'Acessar meu painel'"
+    :ctaUrl="$ctaUrl"
+    :unsubscribeUrl="$unsubscribeUrl">
     @if ($isPerformer)
-        [PLACEHOLDER] Estamos nos preparando para abrir. Quando chegar a hora, você será uma das primeiras a entrar — sem fila, sem espera.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Não sabemos o dia exato. Mas sabemos quem estará na frente.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Você já está lá.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Prepare-se.</p>
     @else
-        [PLACEHOLDER] Falta pouco. Quando o Limen abrir, você entra antes de todos. Fique de olho: o próximo e-mail pode ser o convite de entrada.
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Não vamos descrever o que você vai encontrar aqui.</p>
+        <p style="margin:0 0 16px 0; font-size:16px; line-height:1.65; color:#F5F0E8;">Palavras não fazem jus.</p>
+        <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">Prepare-se.</p>
     @endif
 </x-mail.waitlist-nurture>

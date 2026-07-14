@@ -1,16 +1,18 @@
 @props([
     'title',
     'preheader',
-    'headline',
     'firstName',
-    'isPerformer',
-    'panelUrl',
+    'ctaLabel',
+    'ctaUrl',
     'unsubscribeUrl',
 ])
-{{-- Message layout shared by every nurturing step: greeting → headline → body
-     (the slot) → discreet panel link. Wraps the limen-shell (portal mark +
-     footer/unsubscribe). Each step blade only supplies its title/preheader/
-     headline and the body copy, so the structure never drifts between steps. --}}
+{{-- Message layout shared by every nurturing step: greeting → body (the slot:
+     up to 3 short paragraphs) → a single gold CTA button. Wraps the limen-shell
+     (portal mark + footer/unsubscribe). Each step blade supplies its
+     title/preheader, the paragraph copy, and the CTA label/URL, so the
+     structure never drifts between steps. The CTA always points at the founder
+     panel (/f/{code}) with a role/day UTM — never a direct invite link (Limen
+     discretion rule); the referral mechanic lives only on the panel. --}}
 <x-mail.limen-shell :title="$title" :preheader="$preheader" :unsubscribeUrl="$unsubscribeUrl">
     <tr>
         <td align="center" style="padding:30px 40px 0 40px;">
@@ -18,26 +20,21 @@
         </td>
     </tr>
     <tr>
-        <td align="center" style="padding:10px 40px 0 40px;">
-            <h1 style="margin:0; font-size:26px; line-height:1.3; font-weight:normal; color:#F5F0E8;">
-                {{ $headline }}
-            </h1>
+        <td align="center" style="padding:22px 44px 0 44px;">
+            {{ $slot }}
         </td>
     </tr>
     <tr>
-        <td align="center" style="padding:26px 44px 0 44px;">
-            <div style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">
-                {{ $slot }}
-            </div>
-        </td>
-    </tr>
-    <tr>
-        <td style="padding:34px 44px 0 44px;">
-            <div style="border-top:1px solid #262626; padding-top:24px; text-align:center;">
-                <a href="{{ $panelUrl }}" style="font-size:14px; color:#9a938a; text-decoration:underline;">
-                    {{ $isPerformer ? 'Acessar meu painel de fundadora' : 'Acessar meu painel de fundador' }}
-                </a>
-            </div>
+        <td align="center" style="padding:32px 44px 0 44px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>
+                    <td style="border-radius:999px; background-color:#C9A84C;">
+                        <a href="{{ $ctaUrl }}" style="display:inline-block; padding:15px 44px; font-size:16px; letter-spacing:1px; color:#0a0a0a; text-decoration:none; font-family:Georgia,serif;">
+                            {{ $ctaLabel }}
+                        </a>
+                    </td>
+                </tr>
+            </table>
         </td>
     </tr>
 </x-mail.limen-shell>

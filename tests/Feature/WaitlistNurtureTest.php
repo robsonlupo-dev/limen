@@ -158,19 +158,46 @@ it('caps the number of emails queued per step per run', function () {
 
 // ─── Role-specific copy ──────────────────────────────────────────────────────
 
-it('renders the performer panel label for a performer entry', function () {
+it('renders performer-specific copy and subject for a performer entry', function () {
     $entry = confirmedEntry('performer', 'perf@example.com', daysAgo: 1);
+    $rendered = (new WaitlistNurtureMail($entry, 'nurture_1'))->render();
 
-    // Feminine label is unique to the performer copy (member never says "fundadora").
-    expect((new WaitlistNurtureMail($entry, 'nurture_1'))->render())->toContain('painel de fundadora');
+    expect($rendered)->toContain('Sua candidatura está guardada') // performer dia1 subject
+        ->and($rendered)->toContain('Sua reserva está ativa');    // performer dia1 body
 });
 
-it('renders the member panel label for a member entry', function () {
+it('renders member-specific copy and subject for a member entry', function () {
     $entry = confirmedEntry('member', 'memb@example.com', daysAgo: 1);
     $rendered = (new WaitlistNurtureMail($entry, 'nurture_1'))->render();
 
-    expect($rendered)->toContain('painel de fundador')
-        ->and($rendered)->not->toContain('fundadora'); // never the feminine label
+    expect($rendered)->toContain('Você está dentro')          // member dia1 subject
+        ->and($rendered)->toContain('Seu lugar está reservado'); // member dia1 body
+});
+
+// The feminine founder label appears only in the performer copy (dia 14/45).
+it('uses the feminine founder label only for performers', function () {
+    $perf = confirmedEntry('performer', 'pf@example.com', daysAgo: 1);
+    $memb = confirmedEntry('member', 'mb@example.com', daysAgo: 1);
+
+    expect((new WaitlistNurtureMail($perf, 'nurture_4'))->render())->toContain('painel de fundadora');
+    expect((new WaitlistNurtureMail($memb, 'nurture_4'))->render())->not->toContain('fundadora');
+});
+
+// ─── CTA link (panel + role/day UTM) ─────────────────────────────────────────
+
+it('points the CTA at the founder panel with a role- and day-specific UTM', function () {
+    $member = confirmedEntry('member', 'mutm@example.com', daysAgo: 1);
+    $perf = confirmedEntry('performer', 'putm@example.com', daysAgo: 1);
+
+    // Day is the configured cadence (nurture_2 → dia3, nurture_3 → dia7).
+    $memberHtml = (new WaitlistNurtureMail($member, 'nurture_2'))->render();
+    expect($memberHtml)->toContain('/f/' . $member->invite_code)
+        ->and($memberHtml)->toContain('utm_source=nurturing')
+        ->and($memberHtml)->toContain('utm_medium=email')
+        ->and($memberHtml)->toContain('utm_campaign=membro_dia3');
+
+    expect((new WaitlistNurtureMail($perf, 'nurture_3'))->render())
+        ->toContain('utm_campaign=performer_dia7');
 });
 
 // ─── Command wiring ──────────────────────────────────────────────────────────
