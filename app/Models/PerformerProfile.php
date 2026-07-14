@@ -53,6 +53,11 @@ class PerformerProfile extends Model
         return $this->hasMany(Follow::class);
     }
 
+    public function sentInterests(): HasMany
+    {
+        return $this->hasMany(PerformerInterest::class);
+    }
+
     public static function generateSlug(string $stageName): string
     {
         $base = Str::slug($stageName);
