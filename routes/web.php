@@ -11,8 +11,10 @@ use App\Http\Controllers\Web\PublicCatalogController;
 use App\Http\Controllers\Web\ConviteController;
 use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FounderPanelController;
+use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
+use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\LinksController;
@@ -142,10 +144,29 @@ Route::middleware('auth')->group(function () {
         ->name('performer.payouts.store')
         ->can('performer-active');
 
+    // Interesse Controlado — a performer ativa sinaliza interesse em um membro.
+    Route::post('/performer/interesses', [PerformerInterestController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('performer.interests.send')
+        ->can('performer-active');
+
     Route::middleware(['role:consumer'])->group(function () {
         Route::post('/gorjetas', [TipController::class, 'store'])
             ->middleware('throttle:10,1')
             ->name('tips.send');
+
+        // Interesse Controlado — caixa do membro, desbloqueio e opt-out.
+        Route::get('/interesses', [ConsumerInterestController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('interests.index');
+
+        Route::post('/interesses/{interest}/desbloquear', [ConsumerInterestController::class, 'unlock'])
+            ->middleware('throttle:10,1')
+            ->name('interests.unlock');
+
+        Route::patch('/interesses/opt-out', [ConsumerInterestController::class, 'optOut'])
+            ->middleware('throttle:30,1')
+            ->name('interests.opt-out');
 
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');

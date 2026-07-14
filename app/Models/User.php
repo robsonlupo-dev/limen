@@ -22,6 +22,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name', 'email', 'password', 'phone', 'birthdate',
         'lgpd_consent_at', 'terms_version', 'last_login_at', 'asaas_customer_id',
+        'interests_opt_out',
     ];
 
     protected $hidden = [
@@ -38,6 +39,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'lgpd_consent_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'interests_opt_out' => 'boolean',
         ];
     }
 
@@ -79,5 +81,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function follows(): HasMany
     {
         return $this->hasMany(Follow::class);
+    }
+
+    /** Interesses recebidos por este usuário enquanto membro (consumer). */
+    public function receivedInterests(): HasMany
+    {
+        return $this->hasMany(PerformerInterest::class, 'member_id');
     }
 }
