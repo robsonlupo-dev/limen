@@ -128,7 +128,22 @@ class AsaasHttpClient implements AsaasClientInterface
 
             // 5xx = Asaas-side failure; the request may have been processed →
             // ambiguous. 4xx = rejected/not processed → definitive.
-            throw $response->serverError()
+            //
+            // 408 e 429 são 4xx que NÃO significam "não processado", e por isso
+            // contam como ambíguos:
+            //  - 408: o servidor desistiu de esperar o request, sem dizer se já
+            //    tinha processado;
+            //  - 429: o rate limit pode vir do Asaas (rejeitou, não criou) mas
+            //    também de um proxy/WAF no meio do caminho — que responde DEPOIS
+            //    do Asaas ter aceitado a transferência.
+            // Classificá-los como definitivos estornava a reserva de um payout
+            // que talvez já esteja pagando o PIX, ou seja: pagamento em dobro.
+            // O preço de errar para "ambíguo" é só um payout que demora mais,
+            // resolvido pelo webhook ou pelo payouts:reconcile.
+            $ambiguous = $response->serverError()
+                || in_array($response->status(), [408, 429], true);
+
+            throw $ambiguous
                 ? new AsaasUnavailableException($message)
                 : new AsaasRequestException($message);
         }

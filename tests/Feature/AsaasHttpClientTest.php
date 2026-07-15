@@ -128,3 +128,45 @@ it('classifies a 5xx as an ambiguous AsaasUnavailableException', function () {
         'value' => 10.0,
     ]))->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
 });
+
+/**
+ * 408 e 429 são 4xx, mas não querem dizer "não processado" — um proxy pode
+ * devolvê-los depois de o Asaas já ter aceitado a transferência. Classificá-los
+ * como definitivos fazia o PayoutService estornar a reserva de um payout que
+ * talvez já estivesse pagando: pagamento em dobro.
+ */
+it('classifies a 429 as ambiguous, not a definitive rejection', function () {
+    Http::fake([
+        'sandbox.asaas.com/api/v3/transfers' => Http::response(['errors' => [['description' => 'rate limited']]], 429),
+    ]);
+
+    expect(fn () => (new AsaasHttpClient())->createTransfer([
+        'pix_key' => 'k@e.com',
+        'pix_key_type' => 'email',
+        'value' => 10.0,
+    ]))->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
+});
+
+it('classifies a 408 as ambiguous, not a definitive rejection', function () {
+    Http::fake([
+        'sandbox.asaas.com/api/v3/transfers' => Http::response('request timeout', 408),
+    ]);
+
+    expect(fn () => (new AsaasHttpClient())->createTransfer([
+        'pix_key' => 'k@e.com',
+        'pix_key_type' => 'email',
+        'value' => 10.0,
+    ]))->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
+});
+
+it('keeps a 400 definitive — only 408/429 are the 4xx exceptions', function () {
+    Http::fake([
+        'sandbox.asaas.com/api/v3/transfers' => Http::response(['errors' => [['description' => 'invalid pix key']]], 400),
+    ]);
+
+    expect(fn () => (new AsaasHttpClient())->createTransfer([
+        'pix_key' => 'k@e.com',
+        'pix_key_type' => 'email',
+        'value' => 10.0,
+    ]))->toThrow(\App\Services\Asaas\AsaasRequestException::class);
+});

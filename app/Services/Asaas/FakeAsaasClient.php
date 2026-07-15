@@ -128,8 +128,13 @@ class FakeAsaasClient implements AsaasClientInterface
     {
         if ($this->forceNextGetTransferFailure) {
             $this->forceNextGetTransferFailure = false;
-            // e.g. a 429/401 during a reconcile batch — an operational hiccup.
-            throw new AsaasRequestException('Asaas API error: HTTP 429 (rate limited)');
+            // e.g. um 429 no meio de um batch de reconcile — soluço operacional.
+            // Ambígua, e não definitiva: é assim que o AsaasHttpClient real
+            // classifica um 429 (ver handle()). O fake precisa espelhar o real —
+            // um fake que classifica errado esconde justamente o bug que ele
+            // deveria pegar, como já aconteceu com o random→EVP.
+            // (401 continua definitivo no real; o ramo definitivo aqui é o 404.)
+            throw new AsaasUnavailableException('Asaas API error: HTTP 429 (rate limited)');
         }
 
         if (isset($this->transfers[$transferId])) {
