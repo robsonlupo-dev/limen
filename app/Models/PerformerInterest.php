@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -23,6 +24,22 @@ class PerformerInterest extends Model
     public function isUnlocked(): bool
     {
         return $this->status === 'unlocked';
+    }
+
+    /**
+     * Interesse enviado a um membro que optou por sair. Existe apenas para que
+     * cooldown e limite diário contem (sem vazar o opt-out à performer) e é
+     * invisível ao membro — nunca listar nem permitir desbloqueio.
+     */
+    public function isSuppressed(): bool
+    {
+        return $this->status === 'suppressed';
+    }
+
+    /** Interesses que o membro pode de fato ver na caixa dele. */
+    public function scopeVisibleToMember(Builder $query): Builder
+    {
+        return $query->where('status', '!=', 'suppressed');
     }
 
     public function performerProfile(): BelongsTo

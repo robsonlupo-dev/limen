@@ -21,6 +21,7 @@ use App\Http\Controllers\Web\LinksController;
 use App\Http\Controllers\Web\UserPreferencesController;
 use App\Http\Controllers\Web\WaitlistController;
 use App\Http\Controllers\Web\Performer\DashboardController;
+use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
 use Illuminate\Support\Facades\Route;
@@ -129,6 +130,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/performer/dashboard', [DashboardController::class, 'index'])
         ->name('performer.dashboard')
+        ->can('performer-active');
+
+    // Origem do envio de Interesse Controlado: a performer escolhe entre quem
+    // já a segue. Ver Web\Performer\FollowersController.
+    Route::get('/performer/seguidores', [FollowersController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('performer.followers')
         ->can('performer-active');
 
     Route::get('/performer/payouts', [PayoutController::class, 'index'])

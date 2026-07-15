@@ -44,9 +44,16 @@ return [
         'performer.payouts.index',
         'performer.payouts.history',
         'performer.payouts.store',
+        'performer.followers',
+        'performer.interests.send',
 
         // Consumer tips
         'tips.send',
+
+        // Consumer interests (Interesse Controlado)
+        'interests.index',
+        'interests.unlock',
+        'interests.opt-out',
 
         // Consumer wallet
         'wallet.index',

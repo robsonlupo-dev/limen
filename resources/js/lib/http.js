@@ -31,6 +31,10 @@ export function postJson(url, body) {
     return request('POST', url, body)
 }
 
+export function patchJson(url, body) {
+    return request('PATCH', url, body)
+}
+
 export function getJson(url) {
     return request('GET', url)
 }

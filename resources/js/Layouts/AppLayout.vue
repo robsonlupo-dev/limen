@@ -13,10 +13,11 @@ const page = usePage()
 
 const isPerformer = computed(() => page.props.auth.user?.role === 'performer')
 const isConsumer = computed(() => page.props.auth.user?.role === 'consumer')
+// Espelha o gate 'performer-active' (AppServiceProvider): performer ainda em
+// onboarding não vê links que o gate recusaria com 403.
+const isActivePerformer = computed(() => isPerformer.value && page.props.auth.user?.status === 'active')
 const dashboardRoute = computed(() =>
-    page.props.auth.user?.status === 'active'
-        ? route('performer.dashboard')
-        : route('performer.onboarding'),
+    isActivePerformer.value ? route('performer.dashboard') : route('performer.onboarding'),
 )
 
 const showLogoutConfirm = ref(false)
@@ -45,13 +46,34 @@ function logout() {
                     >
                         Meu Painel
                     </Link>
-                    <Link
-                        v-if="isConsumer"
-                        :href="route('wallet.index')"
-                        class="text-gold/80 hover:text-gold transition-colors no-underline"
-                    >
-                        Carteira
-                    </Link>
+                    <template v-if="isActivePerformer">
+                        <Link
+                            :href="route('performer.followers')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Seguidores
+                        </Link>
+                        <Link
+                            :href="route('performer.payouts.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Saques
+                        </Link>
+                    </template>
+                    <template v-if="isConsumer">
+                        <Link
+                            :href="route('interests.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Interesses
+                        </Link>
+                        <Link
+                            :href="route('wallet.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Carteira
+                        </Link>
+                    </template>
                     <span class="text-cream">{{ page.props.auth.user?.name }}</span>
                     <button
                         class="hover:text-cream transition-colors"

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Follow;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\TokenLedger;
@@ -9,6 +10,7 @@ use App\Services\InterestService;
 use App\Services\TokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
@@ -30,6 +32,18 @@ function interestMember(int $balance = 0): User
     return $member;
 }
 
+/**
+ * Membro que já segue a performer. O envio de interesse só aceita seguidores
+ * (ver SendInterestRequest), então é este o alvo válido na maioria dos casos.
+ */
+function interestFollower(PerformerProfile $profile, int $balance = 0): User
+{
+    $member = interestMember($balance);
+    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
+
+    return $member;
+}
+
 function interestPerformer(): PerformerProfile
 {
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
@@ -46,7 +60,7 @@ function interestPerformer(): PerformerProfile
 
 it('lets an active performer send a binary interest without revealing or charging', function () {
     $profile = interestPerformer();
-    $member = interestMember();
+    $member = interestFollower($profile);
 
     $this->actingAs($profile->user)
         ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
@@ -129,7 +143,7 @@ it('rejects unlock with insufficient balance without touching the ledger', funct
 
 it('blocks a second send to the same member within the cooldown window', function () {
     $profile = interestPerformer();
-    $member = interestMember();
+    $member = interestFollower($profile);
 
     $this->actingAs($profile->user)
         ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
@@ -148,13 +162,13 @@ it('enforces the daily send limit per performer', function () {
 
     // Envia o teto (5) para membros distintos.
     foreach (range(1, 5) as $i) {
-        $member = interestMember();
+        $member = interestFollower($profile);
         $this->actingAs($profile->user)
             ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
             ->assertCreated();
     }
 
-    $extra = interestMember();
+    $extra = interestFollower($profile);
     $this->actingAs($profile->user)
         ->postJson(route('performer.interests.send'), ['member_id' => $extra->id])
         ->assertUnprocessable()
@@ -163,9 +177,9 @@ it('enforces the daily send limit per performer', function () {
     expect(PerformerInterest::count())->toBe(5);
 });
 
-it('silently drops interest to a member who opted out (no leak to the performer)', function () {
+it('suppresses interest to a member who opted out (no leak to the performer)', function () {
     $profile = interestPerformer();
-    $member = interestMember();
+    $member = interestFollower($profile);
     $member->update(['interests_opt_out' => true]);
 
     // Resposta idêntica ao sucesso — a performer não percebe o opt-out.
@@ -174,7 +188,98 @@ it('silently drops interest to a member who opted out (no leak to the performer)
         ->assertCreated()
         ->assertExactJson(['sent' => true]);
 
-    expect(PerformerInterest::count())->toBe(0);
+    // A linha existe (é o que faz cooldown/limite contarem), mas suprimida.
+    expect(PerformerInterest::sole()->status)->toBe('suppressed');
+});
+
+it('applies the cooldown to an opted-out member so the performer cannot detect the opt-out', function () {
+    $profile = interestPerformer();
+    $optedOut = interestFollower($profile);
+    $optedOut->update(['interests_opt_out' => true]);
+    $normal = interestFollower($profile);
+
+    foreach ([$optedOut, $normal] as $member) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->assertCreated();
+    }
+
+    // O reenvio precisa falhar IGUAL para os dois. Se o opt-out não gravasse
+    // linha, não haveria cooldown e a ausência do erro revelaria o opt-out.
+    foreach ([$optedOut, $normal] as $member) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('reason', 'cooldown');
+    }
+});
+
+it('counts a suppressed interest against the daily limit', function () {
+    $profile = interestPerformer();
+
+    // Cinco envios, todos a membros que optaram por sair, esgotam a cota do dia
+    // exatamente como envios normais — o contador não pode denunciar o opt-out.
+    foreach (range(1, 5) as $i) {
+        $member = interestFollower($profile);
+        $member->update(['interests_opt_out' => true]);
+
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->assertCreated();
+    }
+
+    $this->actingAs($profile->user)
+        ->postJson(route('performer.interests.send'), ['member_id' => interestFollower($profile)->id])
+        ->assertUnprocessable()
+        ->assertJsonPath('reason', 'daily_limit');
+});
+
+it('suppresses interest to an opted-out member even when they unlocked this performer before', function () {
+    $profile = interestPerformer();
+    $member = interestFollower($profile, 50);
+    PerformerInterest::create([
+        'performer_profile_id' => $profile->id,
+        'member_id' => $member->id,
+        'status' => 'unlocked',
+        'sent_at' => now()->subDays(60),
+        'unlocked_at' => now()->subDays(60),
+    ]);
+
+    $member->update(['interests_opt_out' => true]);
+
+    $this->actingAs($profile->user)
+        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->assertCreated();
+
+    // O opt-out vence o auto-unlock: quem optou por sair não recebe, mesmo já
+    // tendo pago por esta performer antes.
+    expect(PerformerInterest::latest('id')->first()->status)->toBe('suppressed');
+});
+
+it('hides suppressed interests from the member inbox', function () {
+    $profile = interestPerformer();
+    $member = interestMember();
+    $suppressed = PerformerInterest::create([
+        'performer_profile_id' => $profile->id,
+        'member_id' => $member->id,
+        'status' => 'suppressed',
+        'sent_at' => now(),
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('interests.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Consumer/Interests/Index')
+            ->has('interests.data', 0)
+        );
+
+    // E não pode ser desbloqueado: para o membro a linha não existe.
+    $this->actingAs($member)
+        ->postJson(route('interests.unlock', $suppressed))
+        ->assertNotFound();
+
+    expect(TokenLedger::where('entry_type', 'spend_interest_unlock')->count())->toBe(0);
 });
 
 it('never reveals the performer while the interest is locked', function () {
@@ -187,10 +292,14 @@ it('never reveals the performer while the interest is locked', function () {
         'sent_at' => now(),
     ]);
 
-    $response = $this->actingAs($member)->getJson(route('interests.index'));
+    $response = $this->actingAs($member)->get(route('interests.index'));
 
-    $response->assertOk()->assertJsonPath('interests.data.0.status', 'sent');
-    $response->assertJsonPath('interests.data.0.performer', null);
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->component('Consumer/Interests/Index')
+        ->where('interests.data.0.status', 'sent')
+        ->where('interests.data.0.performer', null)
+    );
+
     // A identidade não pode aparecer em lugar nenhum do payload.
     expect($response->getContent())->not->toContain($profile->stage_name);
     expect($response->getContent())->not->toContain($profile->slug);
@@ -213,6 +322,43 @@ it('returns 404 when unlocking an interest that belongs to someone else', functi
 
     expect(TokenLedger::where('entry_type', 'spend_interest_unlock')->count())->toBe(0);
     expect($interest->fresh()->status)->toBe('sent');
+});
+
+it('rejects interest aimed at a member who does not follow the performer', function () {
+    $profile = interestPerformer();
+    $stranger = interestMember();
+
+    $this->actingAs($profile->user)
+        ->postJson(route('performer.interests.send'), ['member_id' => $stranger->id])
+        ->assertNotFound();
+
+    expect(PerformerInterest::count())->toBe(0);
+});
+
+it('does not let a performer enumerate members through the send endpoint', function () {
+    $profile = interestPerformer();
+
+    // Esgota a cota do dia com seguidores legítimos.
+    foreach (range(1, 5) as $i) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => interestFollower($profile)->id])
+            ->assertCreated();
+    }
+
+    $activeStranger = interestMember();
+    $suspended = User::factory()->create(['role' => 'consumer', 'status' => 'suspended']);
+    $otherPerformer = interestPerformer();
+
+    // Todo id que não segue esta performer responde IGUAL — inclusive um id que
+    // nem existe. Sem isso, 404 (desconhecido) vs 422 (daily_limit) revelaria
+    // quais ids são membros ativos da plataforma, de graça e sem gastar cota.
+    foreach ([$activeStranger->id, $suspended->id, $otherPerformer->user_id, 99999999] as $probe) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $probe])
+            ->assertNotFound();
+    }
+
+    expect(PerformerInterest::count())->toBe(5);
 });
 
 it('rejects interest aimed at a non-member target', function () {
@@ -287,4 +433,112 @@ it('toggles the member opt-out preference', function () {
         ->assertJsonPath('interests_opt_out', true);
 
     expect($member->fresh()->interests_opt_out)->toBeTrue();
+});
+
+/*
+|--------------------------------------------------------------------------
+| Tela de seguidores — origem do envio de interesse
+|--------------------------------------------------------------------------
+| A performer só vê membros que já a seguem, sempre anonimizados. É a única
+| superfície de onde ela dispara o Interesse Controlado.
+*/
+
+it('lists the performer followers anonymised, without member PII', function () {
+    $profile = interestPerformer();
+    $member = interestMember();
+    $member->update(['name' => 'Fulano de Tal', 'email' => 'fulano@example.com']);
+    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
+
+    $response = $this->actingAs($profile->user)->get(route('performer.followers'));
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->component('Performer/Followers')
+        ->has('followers.data', 1)
+        ->where('followers.data.0.member_id', $member->id)
+        ->where('followers.data.0.label', 'Membro #' . $member->id)
+        ->where('followers.data.0.interest_sent', false)
+        ->where('remainingToday', 5)
+    );
+
+    // Nome e e-mail do membro nunca podem chegar à performer.
+    expect($response->getContent())->not->toContain('Fulano de Tal');
+    expect($response->getContent())->not->toContain('fulano@example.com');
+});
+
+it('marks a follower already in cooldown so the performer cannot resend', function () {
+    $profile = interestPerformer();
+    $member = interestMember();
+    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
+
+    $this->actingAs($profile->user)
+        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->assertCreated();
+
+    $this->actingAs($profile->user)
+        ->get(route('performer.followers'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('followers.data.0.interest_sent', true)
+            ->where('remainingToday', 4)
+        );
+});
+
+it('shows an opted-out follower exactly like any other follower', function () {
+    $profile = interestPerformer();
+    $optedOut = interestMember();
+    $optedOut->update(['interests_opt_out' => true]);
+    Follow::create(['user_id' => $optedOut->id, 'performer_profile_id' => $profile->id]);
+
+    $this->actingAs($profile->user)
+        ->postJson(route('performer.interests.send'), ['member_id' => $optedOut->id])
+        ->assertCreated();
+
+    // O interesse suprimido conta na lista e na cota: sem isso, o botão voltaria
+    // a "enviar" e o contador não cairia — denunciando o opt-out.
+    $this->actingAs($profile->user)
+        ->get(route('performer.followers'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('followers.data', 1)
+            ->where('followers.data.0.interest_sent', true)
+            ->where('remainingToday', 4)
+        );
+});
+
+it('leaves suspended and deleted members out of the followers list', function () {
+    $profile = interestPerformer();
+    $active = interestFollower($profile);
+
+    // status não é fillable (proteção de mass-assignment), então update() aqui
+    // seria um no-op silencioso — forceFill é o que de fato suspende.
+    $suspended = interestFollower($profile);
+    $suspended->forceFill(['status' => 'suspended'])->save();
+
+    $deleted = interestFollower($profile);
+    $deleted->delete();
+
+    // Quem apagou a conta não pode seguir visível à performer, e listar um id
+    // não-enviável viraria oráculo: o envio para ele dá 404 (igual a "não
+    // existe"), enquanto um seguidor normal dá 201 — o botão denunciaria a
+    // suspensão. Invariante: todo id listado tem que ser enviável.
+    $this->actingAs($profile->user)
+        ->get(route('performer.followers'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('followers.data', 1)
+            ->where('followers.data.0.member_id', $active->id)
+        );
+
+    foreach ([$suspended, $deleted] as $member) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->assertNotFound();
+    }
+});
+
+it('denies the followers page to a performer who is not active yet', function () {
+    $user = User::factory()->create(['role' => 'performer', 'status' => 'pending']);
+
+    $this->actingAs($user)->get(route('performer.followers'))->assertForbidden();
+});
+
+it('denies the followers page to a member', function () {
+    $this->actingAs(interestMember())->get(route('performer.followers'))->assertForbidden();
 });
