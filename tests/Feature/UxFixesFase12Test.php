@@ -16,7 +16,7 @@ uses(RefreshDatabase::class);
 function makePerformerProfile(User $user, array $attrs = []): void
 {
     $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Ana Lima',
+        'stage_name' => 'Ana Lima ' . Str::random(4),
         'slug' => 'ana-' . strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
