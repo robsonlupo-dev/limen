@@ -76,6 +76,41 @@ trait RefusesUnsafeEnvironment
     }
 
     /**
+     * Senha das contas sintéticas criadas por um seeder.
+     *
+     * O fallback conhecido (`Password1`) só é aceitável em ambientes
+     * descartáveis (local/testing, exigidos pela UNIÃO de sinais — ver
+     * isEnvironment). Em qualquer outro ambiente da allowlist — staging,
+     * development — exige SEED_ADMIN_PASSWORD explícita, senão aborta: nunca
+     * criar contas com credencial pública num ambiente alcançável (staging é
+     * exposto via túnel e pelo vhost thelimen.com.br).
+     *
+     * Vive na trait, e não em um seeder, porque a regra tem de valer para todos
+     * eles: um seeder com senha própria hardcoded reabre o buraco pelo lado —
+     * safeToSeed() libera staging, e a credencial publicada no repo vira login
+     * válido num host alcançável.
+     */
+    protected function seedPassword(): string
+    {
+        // Leitura bruta (imune a config:cache) com fallback para env().
+        $password = $this->rawEnv('SEED_ADMIN_PASSWORD') ?? env('SEED_ADMIN_PASSWORD');
+        if (is_string($password) && $password !== '') {
+            return $password;
+        }
+
+        if ($this->isEnvironment(['local', 'testing'])) {
+            return 'Password1';
+        }
+
+        throw new \RuntimeException(sprintf(
+            'SEED_ADMIN_PASSWORD é obrigatória fora de local/testing: %s recusa-se a '
+            . 'criar contas com senha default (sinais de APP_ENV: %s).',
+            class_basename(static::class),
+            implode(', ', $this->environmentSignals()) ?: 'nenhum',
+        ));
+    }
+
+    /**
      * Lê uma variável direto do ambiente do processo, sem passar pelo
      * env()/config do framework. Retorna null se ausente ou vazia.
      */

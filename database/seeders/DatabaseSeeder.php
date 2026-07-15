@@ -41,32 +41,6 @@ class DatabaseSeeder extends Seeder
         }
     }
 
-    /**
-     * Senha das contas base (admin/performer/consumer @limen.test). O fallback
-     * conhecido (`Password1`) só é aceitável em ambientes descartáveis
-     * (local/testing, exigidos pela UNIÃO de sinais — ver isEnvironment). Em
-     * qualquer outro ambiente da allowlist — staging, development — exige
-     * SEED_ADMIN_PASSWORD explícita, senão aborta: nunca criar contas reais com
-     * credencial pública num ambiente alcançável (staging é exposto via túnel).
-     */
-    private function seedPassword(): string
-    {
-        // Leitura bruta (imune a config:cache) com fallback para env().
-        $password = $this->rawEnv('SEED_ADMIN_PASSWORD') ?? env('SEED_ADMIN_PASSWORD');
-        if (is_string($password) && $password !== '') {
-            return $password;
-        }
-
-        if ($this->isEnvironment(['local', 'testing'])) {
-            return 'Password1';
-        }
-
-        throw new \RuntimeException(
-            'SEED_ADMIN_PASSWORD é obrigatória fora de local/testing: recuse-se a '
-            . 'criar contas base (admin/performer/consumer) com senha default.',
-        );
-    }
-
     private function seedUsers(): void
     {
         User::firstOrCreate(
