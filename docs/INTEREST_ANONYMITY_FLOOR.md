@@ -74,6 +74,32 @@ Mediana alta torna a opção 4 defensável; mediana 1–2 torna a opção 1 nece
   membro é correlacionável entre as duas telas, o que anula o mascaramento das gorjetas. Na
   prática o `% 10000` já era pouco efetivo — o id precisa ir no POST do interesse de
   qualquer forma. Convém unificar.
-- **Armadilha do auto-unlock.** Hoje o opt-out vence o auto-unlock e isso é inobservável.
-  Quando existir uma tela de "quem revelou você" para a performer, as linhas `suppressed`
-  vão precisar ser mascaradas ali também — senão o opt-out vaza retroativamente.
+- ~~**Armadilha do auto-unlock.**~~ **Fechada** na aba "Interesses enviados"
+  (`Web/Performer/SentInterestsController`). As linhas `suppressed` são mascaradas com o
+  status que teriam se o membro não tivesse optado por sair — ver
+  `PerformerInterest::scopeDisplayedAsUnlocked()` e a seção abaixo.
+
+## Canal residual da máscara de opt-out (aceito, PR da aba de interesses enviados)
+
+A aba de interesses enviados exibe cada linha `suppressed` com o status que ela teria sem o
+opt-out: `unlocked` se o par já tinha um desbloqueio **anterior ao envio**, senão `sent`. A
+reconstrução é ponto-no-tempo de propósito — mascarar com base em "já desbloqueou algum dia"
+faria o status virar `unlocked` no instante em que o membro pagasse por um interesse antigo,
+trocando um tell estático por um dinâmico (pior). Há teste travando as duas direções.
+
+Sobra um canal estatístico, sem correção conhecida que não piore o resto:
+
+> Par com um desbloqueio pago **e**, depois dele, uma linha ainda em `sent`.
+> Para um membro sem opt-out esse estado exige que ele tenha **recusado uma revelação
+> grátis** (desbloqueio prévio torna o próximo envio gratuito, mas o unlock continua sendo
+> clique explícito por linha). Cada linha é plausível isolada; a combinação é anômala.
+
+Explorar isso exige que a performer gaste cota, espere dois cooldowns de 30 dias e saiba
+interpretar o padrão. **Decisão:** aceitar e documentar. Se o opt-out virar comum, reavaliar
+junto do piso de anonimato acima — as duas questões têm a mesma raiz (o conjunto de
+candidatos é pequeno demais para esconder um sinal).
+
+**Consequência para o chat (Fase futura).** A linha mascarada como `unlocked` anuncia um
+canal aberto que não existe: o membro optou por sair e não deve receber a primeira mensagem
+grátis da performer. Quando o chat entrar, enviar para uma linha mascarada precisa parecer
+bem-sucedido e não entregar nada — senão o opt-out vaza no envio, não na listagem.
