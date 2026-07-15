@@ -72,6 +72,14 @@ Carta digital assinada por Robson e Bruno.
 - Diferenciação (o que a define)
 - Postura e elegância (no sentido de clareza, não vaidade)
 
+### Escalabilidade da Banca
+A partir do **6º mês de operação**, a Banca pode incluir um **Conselho Maison**:
+Robson + Bruno + 1 Curador contratado.
+
+- Depois dessa fase, **os fundadores não precisam estar presentes em todas as
+  entrevistas** — o Conselho conduz
+- O convite formal (Etapa 5) segue assinado por Robson e Bruno
+
 ---
 
 ## Exclusive Circle
@@ -91,7 +99,20 @@ A performer Maison cria para Black e FC:
 - 20 vagas
 - Apenas FC
 - Performer Maison escolhida pela plataforma
-- **Ephemeral:** sem gravação, por design
+- **Ephemeral para os membros:** sem replay, sem acesso posterior, por design
+
+### Cofre legal
+A sessão é efêmera para membros e performers — ninguém na plataforma assiste de novo.
+A plataforma, porém, mantém **gravação em cofre interno por 90 dias**:
+
+- **Único uso admitido:** investigação policial ou denúncia formal
+- **Nunca divulgada**, nunca usada para moderação de rotina, marketing, treinamento de
+  modelo, curadoria ou qualquer outro fim
+- Expurgo automático em 90 dias
+- Acesso registrado em audit log
+
+> A gravação existe para proteger a performer e a plataforma numa acusação — não para
+> assistir. "Ephemeral" descreve a experiência do membro, não a retenção técnica.
 
 ## FC Collection
 Conteúdo criado exclusivamente para a coleção FC. Nunca liberado, nunca reutilizado.
@@ -103,13 +124,30 @@ Conteúdo criado exclusivamente para a coleção FC. Nunca liberado, nunca reuti
 
 ## Limen Mementos (apenas Maison → membros FC)
 - A performer decide **espontaneamente** enviar — zero obrigação
-- O membro ativa "Aceito receber mimos físicos" + Locker/Caixa Postal (**nunca endereço real**)
+- O membro ativa "Aceito receber Mementos" + Locker/Caixa Postal (**nunca endereço real**)
 - A plataforma intermedeia: performer envia para o hub Limen → Limen fotografa/aprova → reenvia para o Locker
-- O membro desconta tokens de transporte automaticamente
 - Sem promessa sobre o que é enviado — é uma **lembrança, não produto**
-- Sem pedido do membro — é surpresa total da performer
 - Curadoria obrigatória pela plataforma antes do reenvio
 - Máximo **1 memo/mês** por performer
+
+### Elegibilidade
+- Apenas membros **FC** com **"Aceito receber Mementos"** ativado nas configurações
+- **Black e abaixo não recebem Mementos físicos** — em nenhuma hipótese
+- O toggle é o **único** sinal de disponibilidade do membro
+
+### O gesto nunca é transação
+- O membro **sinaliza disponibilidade, mas NUNCA solicita**
+- Não existe pedido, fila, catálogo ou insinuação de Memento
+- A performer decide espontaneamente quando (e se) enviar
+- **O gesto sempre é surpresa — nunca transação**
+
+### Custo logístico
+**50 tokens fixos** cobrados do membro FC para ativar o processo logístico de cada
+Memento. Cobre frete + operação do hub.
+
+- Valor **fixo**, independente do que foi enviado ou de onde
+- Retido **100% pela plataforma** — é custo operacional, não receita da performer
+- Não é preço do presente: o Memento em si não tem preço, e pagar não o compra
 
 ---
 
