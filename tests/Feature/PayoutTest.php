@@ -548,6 +548,229 @@ it('reconcile NAO estorna quando o lookup do transfer falha de forma definitiva 
         ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
 });
 
+/**
+ * A porta de saída do furo 1: o teste acima (20min) continua tentando, mas depois de
+ * RECONCILE_REVIEW_AFTER_HOURS não é mais atraso de indexação. Sem isto o payout era
+ * re-consultado a cada 10min para sempre e os tokens sumiam da carteira por tempo
+ * indeterminado, com um log como único sinal.
+ */
+it('payout irresolvivel ha mais de 2h vai para needs_review — sem estorno', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'processing',
+        'requested_at' => now()->subHours(3),
+        'unresolved_since' => now()->subHours(3), // 3h de buscas vazias, não só 3h de idade
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('needs_review');
+    // Continua sem saber se o PIX saiu: parar de tentar NÃO é licença para estornar.
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(0);
+    expect(TokenLedger::where('reference_type', 'payout')->where('reference_id', $payout->id)
+        ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
+    $this->assertDatabaseHas('audit_logs', ['action' => 'payout.needs_review']);
+});
+
+/**
+ * O prazo conta das buscas vazias, NÃO da idade do payout. Um outage do Asaas adia
+ * sem gastar lookup nenhum: se o prazo contasse de requested_at, a janela inteira
+ * queimaria durante o outage e o payout estacionaria na primeira busca limpa — com
+ * orçamento zero de tentativa, estacionando um lote inteiro de uma vez.
+ */
+it('payout velho mas ainda sem streak de buscas vazias ganha a janela inteira', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    // Nasceu há 3h (outage longo), mas nenhuma busca chegou a rodar: unresolved_since null.
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'processing',
+        'requested_at' => now()->subHours(3),
+        'unresolved_since' => null,
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('processing'); // primeira busca vazia: tenta de novo, não estaciona
+    expect($payout->unresolved_since)->not->toBeNull(); // streak começa agora
+});
+
+it('streak zera quando o lookup volta a resolver', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    $transfer = $fake->createTransfer(['value' => 64.35, 'external_reference' => 'payout_streak']);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'processing',
+        'asaas_transfer_id' => $transfer['id'], // agora encontrável, status PENDING
+        'requested_at' => now()->subHours(3),
+        'unresolved_since' => now()->subHours(1), // streak anterior, do tempo em que sumia
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('processing');
+    expect($payout->unresolved_since)->toBeNull();
+});
+
+/**
+ * Corrida estreita: um webhook NÃO-terminal (TRANSFER_CREATED) resolve pelo
+ * external_reference e grava o asaas_transfer_id sem mexer no status. Se isso cai
+ * entre a busca e o parque, estacionar tiraria do lote um payout que o getTransfer
+ * resolveria no run seguinte — e, se o DONE se perdesse depois, congelaria.
+ *
+ * O client aqui injeta o webhook DENTRO da busca, que é a única forma de fechar a
+ * janela de forma determinística.
+ */
+it('nao estaciona payout que ganhou asaas_transfer_id durante a corrida', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'processing',
+        'requested_at' => now()->subHours(3),
+        'unresolved_since' => now()->subHours(3), // prazo esgotado: sem a guarda, estacionaria
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app()->instance(AsaasClientInterface::class, new class extends FakeAsaasClient
+    {
+        public function findTransfersByExternalReference(string $externalReference): array
+        {
+            // O webhook TRANSFER_CREATED chega exatamente agora: grava o id, não mexe
+            // no status. A busca em si continua vazia (índice ainda frio).
+            Payout::where('id', (int) substr($externalReference, strlen('payout_')))
+                ->update(['asaas_transfer_id' => 'transfer_do_webhook']);
+
+            return ['data' => []];
+        }
+    });
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    expect($payout->refresh()->status)->toBe('processing'); // volta pro lote, não estaciona
+});
+
+it('payout em needs_review sai do lote do reconcile e nao e mais consultado', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    // A transferência existe e está DONE no provedor: se o reconcile ainda pegasse
+    // este payout, ele viraria 'paid'. Continuar em needs_review é a prova de que o
+    // lote não cresce mais com ele.
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    $transfer = $fake->createTransfer([
+        'value' => 64.35,
+        'external_reference' => 'payout_999',
+    ]);
+    $fake->simulateTransferPaid($transfer['id']);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'needs_review',
+        'asaas_transfer_id' => $transfer['id'],
+        'requested_at' => now()->subHours(3),
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    expect($payout->refresh()->status)->toBe('needs_review');
+});
+
+/**
+ * needs_review encerra as tentativas do reconcile, mas não pode congelar o payout:
+ * se o webhook chegar (mesmo dias depois), ele ainda manda.
+ */
+it('webhook TRANSFER_DONE ainda liquida um payout parado em needs_review', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'needs_review',
+        'asaas_transfer_id' => 'transfer_review_done',
+        'requested_at' => now()->subHours(3),
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->handleWebhook([
+        'id' => 'evt_review_done',
+        'event' => 'TRANSFER_DONE',
+        'transfer' => ['id' => 'transfer_review_done', 'status' => 'DONE'],
+    ]);
+
+    expect($payout->refresh()->status)->toBe('paid');
+});
+
+it('webhook TRANSFER_FAILED em needs_review estorna os tokens', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'needs_review',
+        'asaas_transfer_id' => 'transfer_review_failed',
+        'requested_at' => now()->subHours(3),
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->handleWebhook([
+        'id' => 'evt_review_failed',
+        'event' => 'TRANSFER_FAILED',
+        'transfer' => ['id' => 'transfer_review_failed', 'failReason' => 'Chave PIX inválida'],
+    ]);
+
+    $payout->refresh();
+    expect($payout->status)->toBe('failed');
+    // Estado terminal EXPLÍCITO do Asaas: aqui estornar é o certo.
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(1000);
+});
+
 // ─── Segurança ──────────────────────────────────────────────────────────────
 
 it('chave pix de outro performer nao e acessivel', function () {

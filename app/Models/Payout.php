@@ -10,6 +10,7 @@ class Payout extends Model
     protected $fillable = [
         'performer_id', 'tokens', 'amount_brl', 'pix_key', 'pix_key_type',
         'status', 'asaas_transfer_id', 'failure_reason', 'requested_at', 'processed_at',
+        'unresolved_since',
     ];
 
     protected function casts(): array
@@ -20,6 +21,7 @@ class Payout extends Model
             'pix_key' => 'encrypted',
             'requested_at' => 'datetime',
             'processed_at' => 'datetime',
+            'unresolved_since' => 'datetime',
         ];
     }
 

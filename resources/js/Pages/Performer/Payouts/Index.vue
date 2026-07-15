@@ -25,6 +25,7 @@ const statusLabels = {
     paid: 'Pago',
     failed: 'Falhou',
     cancelled: 'Cancelado',
+    needs_review: 'Em análise',
 }
 
 const statusClasses = {
@@ -33,6 +34,7 @@ const statusClasses = {
     paid: 'bg-success/10 text-success border-success/30',
     failed: 'bg-danger/10 text-danger border-danger/30',
     cancelled: 'bg-muted/10 text-muted border-frame',
+    needs_review: 'bg-gold/10 text-gold border-gold/30',
 }
 
 function statusLabel(status) {
