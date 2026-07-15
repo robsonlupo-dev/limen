@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Models\PerformerProfile;
 use Illuminate\Foundation\Http\FormRequest;
 
 class RegisterWebRequest extends FormRequest
@@ -45,7 +46,10 @@ class RegisterWebRequest extends FormRequest
             'role' => ['required', 'in:consumer,performer'],
 
             // Performer-only fields.
-            'stage_name' => ['required_if:role,performer', 'nullable', 'string', 'max:255'],
+            'stage_name' => array_merge(
+                ['required_if:role,performer', 'nullable'],
+                PerformerProfile::stageNameRules(),
+            ),
             'category' => ['required_if:role,performer', 'nullable', 'in:mulheres,homens,casais,trans,gls,swing'],
 
             // Member-only "world" preference. Optional server-side (defaults to

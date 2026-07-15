@@ -23,6 +23,7 @@ use App\Http\Controllers\Web\WaitlistController;
 use App\Http\Controllers\Web\Performer\DashboardController;
 use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
+use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\PayoutController;
 use Illuminate\Support\Facades\Route;
 
@@ -127,6 +128,27 @@ Route::middleware('auth')->group(function () {
             ->middleware('throttle:20,1')
             ->name('performer.onboarding.avatar');
     });
+
+    // Edição de perfil da performer já ativa. O onboarding continua sendo o
+    // caminho de quem ainda não entrou.
+    Route::get('/performer/perfil', [PerformerProfileController::class, 'edit'])
+        ->middleware('throttle:60,1')
+        ->name('performer.profile.edit')
+        ->can('performer-active');
+
+    // Nomes distintos dos da API de propósito: 'performer.profile.update' e
+    // 'performer.profile.avatar' já existem em routes/api.php. Nome repetido não
+    // dá erro — o último registrado vence no lookup, e route() no front passaria
+    // a apontar para a API (405, verbo diferente). Ver RouteNameCollisionTest.
+    Route::post('/performer/perfil', [PerformerProfileController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('performer.profile.save')
+        ->can('performer-active');
+
+    Route::post('/performer/perfil/foto', [PerformerProfileController::class, 'avatar'])
+        ->middleware('throttle:20,1')
+        ->name('performer.profile.photo')
+        ->can('performer-active');
 
     Route::get('/performer/dashboard', [DashboardController::class, 'index'])
         ->name('performer.dashboard')

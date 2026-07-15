@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
 use App\Http\Resources\PerformerPrivateResource;
-use App\Models\PerformerProfile;
+use App\Services\PerformerProfileService;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\URL;
 
 class PerformerProfileController extends Controller
 {
+    public function __construct(private PerformerProfileService $profileService) {}
+
     public function show(Request $request): PerformerPrivateResource
     {
         $profile = $request->user()->performerProfile;
@@ -34,12 +36,10 @@ class PerformerProfileController extends Controller
 
         $data = $request->validated();
 
-        if (! $profile->slug) {
-            $stageName = $data['stage_name'] ?? $profile->stage_name;
-            $data['slug'] = PerformerProfile::generateSlug($stageName);
-        }
-
-        $profile->update($data);
+        // Mesmo serviço do onboarding e da edição web: o slug regenera no rename
+        // em TODAS as superfícies. Duplicar a regra aqui era o que deixava esta
+        // rota renomear sem trocar a URL, preservando o nome antigo em público.
+        $this->profileService->update($profile, $data);
 
         Audit::log('performer_profile_updated', $profile, ['fields' => array_keys($data)], $request);
 

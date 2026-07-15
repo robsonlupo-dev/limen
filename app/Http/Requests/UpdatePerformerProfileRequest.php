@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PerformerProfile;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,7 +16,12 @@ class UpdatePerformerProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'stage_name' => ['sometimes', 'required', 'string', 'max:255'],
+            // ignore() no próprio perfil: salvar sem trocar o nome não pode
+            // colidir consigo mesmo.
+            'stage_name' => array_merge(
+                ['sometimes', 'required'],
+                PerformerProfile::stageNameRules($this->user()?->performerProfile?->id),
+            ),
             'bio'        => ['sometimes', 'nullable', 'string', 'max:5000'],
             'category'   => ['sometimes', 'required', 'in:mulheres,homens,casais,trans,gls,swing'],
             'work_modes'   => ['sometimes', 'nullable', 'array'],
