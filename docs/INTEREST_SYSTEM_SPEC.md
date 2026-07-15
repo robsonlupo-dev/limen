@@ -106,6 +106,10 @@ Performer                          Plataforma                        Membro
 
 ## 9. Questões em aberto (resolver na Sprint 3)
 
+- **Piso de anonimato:** o envio é restrito a seguidores (para fechar um oráculo
+  de enumeração de membros), então todo interesse vem de alguém que o membro já
+  segue — com poucos follows ele descobre o remetente sem pagar os 15 tokens.
+  Ver [INTEREST_ANONYMITY_FLOOR.md](INTEREST_ANONYMITY_FLOOR.md).
 - Tabela definitiva de limite diário por tier de performer.
 - O desbloqueio expira? (proposta: não expira; é permanente por par.)
 - Reembolso se a performer nunca responder após o desbloqueio? (proposta:
