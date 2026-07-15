@@ -13,7 +13,7 @@ function makeBackfillPerformerProfile(array $profileAttrs = [])
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Ana Lima',
+        'stage_name' => 'Ana Lima ' . Str::random(4),
         'slug' => 'ana-lima-' . strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,

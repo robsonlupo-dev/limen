@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Str;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
 use App\Models\User;
@@ -16,7 +17,7 @@ function makePerformer(array $userAttrs = [], array $profileAttrs = []): array
     ], $userAttrs));
 
     $profile = $user->performerProfile()->create(array_merge([
-        'stage_name'  => 'Ana Lima',
+        'stage_name' => 'Ana Lima ' . Str::random(4),
         'slug'        => 'ana-lima-' . strtolower(\Illuminate\Support\Str::random(4)),
         'category'    => 'mulheres',
         'is_verified' => true,

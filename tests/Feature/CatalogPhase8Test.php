@@ -19,7 +19,7 @@ function makeWebPerformer(array $userAttrs = [], array $profileAttrs = []): arra
     ], $userAttrs));
 
     $profile = $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Ana Lima',
+        'stage_name' => 'Ana Lima ' . Str::random(4),
         'slug' => 'ana-lima-' . strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
