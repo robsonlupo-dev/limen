@@ -14,6 +14,7 @@ use App\Services\FollowService;
 use App\Services\PaymentService;
 use App\Services\TipService;
 use App\Services\TokenService;
+use Database\Seeders\Concerns\RefusesUnsafeEnvironment;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
@@ -27,13 +28,15 @@ use Illuminate\Support\Facades\Storage;
  *  - Compras via PaymentService + FakeAsaasClient (webhook idempotente real).
  *  - Gorjetas via TipService (split real por nível).
  *  - Follows via FollowService (contadores consistentes).
- *  - Só placeholders de imagem (SVG gerado localmente); CPF fake com DV válido;
- *    e-mails @teste.limen.local; senha padrão documentada em docs/qa/TEST_ACCOUNTS.md.
+ *  - Só placeholders de imagem (SVG gerado localmente); CPF sintético com DV
+ *    válido; e-mails @teste.limen.local.
+ *  - Senha NUNCA no repo: vem de SEED_ADMIN_PASSWORD, com fallback conhecido só
+ *    em local/testing (ver RefusesUnsafeEnvironment::seedPassword).
  *  - Idempotente: re-rodar não duplica contas nem históricos.
  */
 class LimenTestSeeder extends Seeder
 {
-    public const PASSWORD = 'Limen@2026';
+    use RefusesUnsafeEnvironment;
 
     /** Distribuição dos 50 performers pelos 6 mundos. */
     private const WORLD_DISTRIBUTION = [
@@ -69,21 +72,32 @@ class LimenTestSeeder extends Seeder
 
     public function run(): void
     {
-        if (app()->environment('production')) {
-            $this->command?->error('LimenTestSeeder é proibido em produção.');
-
+        // Allowlist pela união dos sinais de APP_ENV (bruto + framework), igual
+        // ao DatabaseSeeder. O guard anterior era `if production return`: uma
+        // denylist fail-open que um typo em APP_ENV (`prod`, `Production`,
+        // vazio) atravessava, e que `config:cache` cegava — exatamente o que o
+        // PR #7 tinha eliminado do outro seeder.
+        if (! $this->safeToSeed()) {
             return;
         }
+
+        // Resolve a senha ANTES de criar qualquer coisa: fora de local/testing
+        // isto lança se SEED_ADMIN_PASSWORD não estiver setada, e é melhor
+        // abortar com o banco intocado do que na conta de número 87.
+        $password = $this->seedPassword();
 
         // Em `local` o container liga o AsaasHttpClient real; a massa de QA
         // exige o fake. Força o binding só para este processo de seed.
         app()->singleton(AsaasClientInterface::class, fn () => new FakeAsaasClient());
 
-        // Pacotes de tokens + contas base (idempotente).
+        // Pacotes de tokens + contas base (idempotente). Os dois seeders usam o
+        // mesmo guard, então não podem discordar sobre o ambiente ser seguro —
+        // antes, este aqui seguia em frente mesmo quando o DatabaseSeeder tinha
+        // recusado em silêncio.
         $this->call(DatabaseSeeder::class);
 
-        $performers = $this->seedPerformers();
-        $members = $this->seedMembers();
+        $performers = $this->seedPerformers($password);
+        $members = $this->seedMembers($password);
         $this->seedHistory($members, $performers);
 
         $this->command?->info(sprintf(
@@ -97,7 +111,7 @@ class LimenTestSeeder extends Seeder
     }
 
     /** @return \Illuminate\Support\Collection<int, PerformerProfile> */
-    private function seedPerformers()
+    private function seedPerformers(string $password)
     {
         $levels = array_keys(\Database\Factories\PerformerProfileFactory::LEVEL_SPLITS);
         $profiles = collect();
@@ -110,7 +124,7 @@ class LimenTestSeeder extends Seeder
 
                 $user = User::firstOrCreate(['email' => $email], [
                     'name' => fake('pt_BR')->name(),
-                    'password' => Hash::make(self::PASSWORD),
+                    'password' => Hash::make($password),
                     'role' => 'performer',
                     'status' => 'active',
                     'email_verified_at' => now(),
@@ -146,7 +160,7 @@ class LimenTestSeeder extends Seeder
     }
 
     /** @return \Illuminate\Support\Collection<int, User> */
-    private function seedMembers()
+    private function seedMembers(string $password)
     {
         $tokenService = app(TokenService::class);
         $worlds = array_keys(self::WORLD_DISTRIBUTION);
@@ -157,7 +171,7 @@ class LimenTestSeeder extends Seeder
 
             $user = User::firstOrCreate(['email' => $email], [
                 'name' => fake('pt_BR')->name(),
-                'password' => Hash::make(self::PASSWORD),
+                'password' => Hash::make($password),
                 'role' => 'consumer',
                 'status' => 'active',
                 'email_verified_at' => now(),
