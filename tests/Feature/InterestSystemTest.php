@@ -503,6 +503,36 @@ it('shows an opted-out follower exactly like any other follower', function () {
         );
 });
 
+it('leaves suspended and deleted members out of the followers list', function () {
+    $profile = interestPerformer();
+    $active = interestFollower($profile);
+
+    // status não é fillable (proteção de mass-assignment), então update() aqui
+    // seria um no-op silencioso — forceFill é o que de fato suspende.
+    $suspended = interestFollower($profile);
+    $suspended->forceFill(['status' => 'suspended'])->save();
+
+    $deleted = interestFollower($profile);
+    $deleted->delete();
+
+    // Quem apagou a conta não pode seguir visível à performer, e listar um id
+    // não-enviável viraria oráculo: o envio para ele dá 404 (igual a "não
+    // existe"), enquanto um seguidor normal dá 201 — o botão denunciaria a
+    // suspensão. Invariante: todo id listado tem que ser enviável.
+    $this->actingAs($profile->user)
+        ->get(route('performer.followers'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('followers.data', 1)
+            ->where('followers.data.0.member_id', $active->id)
+        );
+
+    foreach ([$suspended, $deleted] as $member) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->assertNotFound();
+    }
+});
+
 it('denies the followers page to a performer who is not active yet', function () {
     $user = User::factory()->create(['role' => 'performer', 'status' => 'pending']);
 

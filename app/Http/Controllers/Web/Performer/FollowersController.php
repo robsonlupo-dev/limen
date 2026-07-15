@@ -35,7 +35,14 @@ class FollowersController extends Controller
             return redirect()->route('performer.onboarding');
         }
 
+        // Só membros que ainda existem e estão ativos. Sem este filtro a lista
+        // mostrava suspensos e contas apagadas (whereHas respeita o SoftDeletes
+        // do User), o que (a) mantinha quem apagou a conta visível à performer e
+        // (b) virava oráculo de status: o envio para esse id dá 404, enquanto um
+        // seguidor normal dá 201/422 — clicar no botão revelava a suspensão.
+        // Todo id listado aqui precisa resolver em SendInterestRequest.
         $follows = Follow::where('performer_profile_id', $profile->id)
+            ->whereHas('user', fn ($query) => $query->where('role', 'consumer')->where('status', 'active'))
             ->orderByDesc('created_at')
             ->paginate(20);
 
