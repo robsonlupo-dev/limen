@@ -7,8 +7,10 @@ use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\Asaas\AsaasClientInterface;
+use App\Services\Asaas\AsaasHttpClient;
 use App\Services\Asaas\FakeAsaasClient;
 use App\Services\TokenService;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
@@ -391,6 +393,42 @@ it('falha ambigua (timeout) NAO estorna e deixa o payout em processing para reco
         ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
 });
 
+/**
+ * O furo achado na revisão do merge do hardening: o AsaasHttpClient devolvia um
+ * 429 como AsaasRequestException ("definitivo") e o PayoutService estornava a
+ * reserva — se o Asaas já tivesse aceitado a transferência, pagamento em dobro.
+ *
+ * Este teste atravessa o client HTTP REAL de propósito. O bug morava na
+ * fronteira entre classificar o erro e decidir estornar, e os testes que usam o
+ * FakeAsaasClient nunca a cruzavam: cada lado estava certo isoladamente.
+ */
+it('429 no createTransfer NAO estorna — atravessa o client HTTP real', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 2000);
+
+    config([
+        'asaas.base_url' => 'https://sandbox.asaas.com/api/v3',
+        'asaas.api_key' => 'sandbox-key',
+    ]);
+    app()->bind(AsaasClientInterface::class, fn () => new AsaasHttpClient());
+
+    Http::fake([
+        'sandbox.asaas.com/api/v3/transfers' => Http::response(['errors' => [['description' => 'rate limited']]], 429),
+    ]);
+
+    $this->actingAs($performer)->post('/performer/payouts', payoutPayload(['tokens' => 1000]))
+        ->assertSessionDoesntHaveErrors();
+
+    $payout = Payout::where('performer_id', $performer->id)->firstOrFail();
+
+    // Ambíguo: fica em processing e o reconcile resolve. Nada de estorno.
+    expect($payout->status)->toBe('processing');
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(1000);
+    expect(TokenLedger::where('reference_type', 'payout')->where('reference_id', $payout->id)
+        ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
+    $this->assertDatabaseHas('audit_logs', ['action' => 'payout.unconfirmed']);
+});
+
 it('reconcile confirma como paid um payout ambiguo cuja transferencia existe e foi concluida', function () {
     [$performer] = makeWebPerformer();
     fundPerformerWallet($performer, 2000);
@@ -469,6 +507,42 @@ it('reconcile NAO estorna quando o lookup do transfer falha (ex.: 429) — apena
 
     $payout->refresh();
     expect($payout->status)->toBe('processing'); // adiado, não estornado
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(0);
+    expect(TokenLedger::where('reference_type', 'payout')->where('reference_id', $payout->id)
+        ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
+});
+
+/**
+ * O irmão do teste acima, pelo ramo DEFINITIVO: um 404 no lookup também não pode
+ * estornar. Ter o asaas_transfer_id gravado prova que a transferência foi criada,
+ * então "não encontrada agora" é problema de leitura, não licença para devolver
+ * tokens de um PIX que pode ter saído.
+ *
+ * Este ramo ficou sem cobertura quando o FakeAsaasClient passou a classificar o
+ * 429 como ambíguo (espelhando o client real): o teste acima migrou de catch e
+ * deixou o `\Throwable` órfão.
+ */
+it('reconcile NAO estorna quando o lookup do transfer falha de forma definitiva (404)', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'processing',
+        // Id gravado, mas ausente no provedor → getTransfer lança AsaasRequestException.
+        'asaas_transfer_id' => 'transfer_que_o_asaas_nao_acha',
+        'requested_at' => now()->subMinutes(20),
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('processing');
     expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(0);
     expect(TokenLedger::where('reference_type', 'payout')->where('reference_id', $payout->id)
         ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
