@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class PerformerProfile extends Model
 {
@@ -56,6 +57,29 @@ class PerformerProfile extends Model
     public function sentInterests(): HasMany
     {
         return $this->hasMany(PerformerInterest::class);
+    }
+
+    /**
+     * Regras de validação do nome artístico, num só lugar porque três Form
+     * Requests o aceitam (cadastro web, cadastro API e edição de perfil) e a
+     * unicidade precisa valer nos três — um deles de fora reabre o clone.
+     *
+     * Único porque o nome é a identidade comercial: sem isso, uma performer
+     * verificada renomeia para o nome de outra, mantém o selo (o KYC valida a
+     * identidade legal, não o nome artístico) e recebe as gorjetas dela.
+     *
+     * A collation da tabela é utf8mb4_unicode_ci, então a comparação já é
+     * insensível a caixa e a acento ("Ana" == "ana" == "aná"). A regra unique
+     * consulta a tabela crua, incluindo perfis soft-deleted — mesma escolha do
+     * generateSlug(), para um nome não ser reciclado logo após uma saída.
+     *
+     * @return array<int, mixed>
+     */
+    public static function stageNameRules(?int $ignoreProfileId = null): array
+    {
+        $unique = Rule::unique('performer_profiles', 'stage_name');
+
+        return ['string', 'max:255', $ignoreProfileId ? $unique->ignore($ignoreProfileId) : $unique];
     }
 
     public static function generateSlug(string $stageName): string

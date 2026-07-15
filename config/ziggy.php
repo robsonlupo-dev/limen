@@ -46,6 +46,9 @@ return [
         'performer.payouts.store',
         'performer.followers',
         'performer.interests.send',
+        'performer.profile.edit',
+        'performer.profile.save',
+        'performer.profile.photo',
 
         // Consumer panel
         'consumer.dashboard',

@@ -48,6 +48,12 @@ function logout() {
                     </Link>
                     <template v-if="isActivePerformer">
                         <Link
+                            :href="route('performer.profile.edit')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Perfil
+                        </Link>
+                        <Link
                             :href="route('performer.followers')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
