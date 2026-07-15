@@ -14,15 +14,18 @@ class InterestController extends Controller
 
     public function store(SendInterestRequest $request): JsonResponse
     {
-        $member = $request->resolvedMember();
         $profile = $request->user()->performerProfile;
 
+        // Antes de resolver o alvo: resolvedMember() filtra pelos seguidores
+        // DESTE perfil, e sem perfil isso viraria um 404 enganoso.
         if (! $profile) {
             return response()->json([
                 'reason' => 'no_profile',
                 'message' => 'Complete seu perfil de performer antes de demonstrar interesse.',
             ], 422);
         }
+
+        $member = $request->resolvedMember();
 
         try {
             $this->interestService->send($profile, $member);
@@ -34,8 +37,8 @@ class InterestController extends Controller
         }
 
         // Corpo idêntico em todos os casos de sucesso — inclusive quando o
-        // membro optou por sair (send() retorna null e nada é criado) — para
-        // não vazar o comportamento/opt-out do membro à performer.
+        // membro optou por sair, caso em que send() grava a linha como
+        // 'suppressed' — para não vazar o comportamento/opt-out do membro.
         return response()->json(['sent' => true], 201);
     }
 }

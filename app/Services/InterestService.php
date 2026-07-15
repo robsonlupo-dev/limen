@@ -40,23 +40,20 @@ class InterestService
     /**
      * A performer envia interesse a um membro.
      *
-     * Retorna null quando o membro optou por sair (opt-out): por design o envio
-     * é silencioso — nada é criado e a performer não recebe sinal do opt-out.
+     * Opt-out do membro é silencioso: o envio percorre exatamente as mesmas
+     * checagens e persiste a linha, mas com status 'suppressed' — invisível na
+     * caixa do membro. Persistir é o que mantém o segredo: cooldown e limite
+     * diário passam a contar igual ao de um membro comum. Retornando null (sem
+     * linha), a performer detectava o opt-out reenviando e não tomando cooldown
+     * (docs/INTEREST_SYSTEM_SPEC.md, seção 6).
      *
      * @throws InterestException target inválido, cooldown ativo ou limite diário
      */
-    public function send(PerformerProfile $performerProfile, User $member): ?PerformerInterest
+    public function send(PerformerProfile $performerProfile, User $member): PerformerInterest
     {
         // Só é possível demonstrar interesse em um membro (consumer).
         if ($member->role !== 'consumer') {
             throw InterestException::invalidTarget();
-        }
-
-        // Opt-out é silencioso: aparenta sucesso, mas nada é persistido e a
-        // performer não recebe sinal de que o membro optou por sair. Checado
-        // ANTES do cooldown/limite para não vazar comportamento do membro.
-        if ($member->interests_opt_out) {
-            return null;
         }
 
         return DB::transaction(function () use ($performerProfile, $member) {
@@ -96,12 +93,23 @@ class InterestService
                 ->where('status', 'unlocked')
                 ->exists();
 
+            // Releitura travada: o opt-out pode ter sido ligado entre a carga do
+            // request e este ponto. Suprimir vence o auto-unlock — quem optou por
+            // sair não recebe, mesmo tendo desbloqueado esta performer antes.
+            $optOut = (bool) User::where('id', $member->id)->lockForUpdate()->value('interests_opt_out');
+
+            $status = match (true) {
+                $optOut => 'suppressed',
+                $alreadyUnlocked => 'unlocked',
+                default => 'sent',
+            };
+
             $interest = PerformerInterest::create([
                 'performer_profile_id' => $performerProfile->id,
                 'member_id' => $member->id,
-                'status' => $alreadyUnlocked ? 'unlocked' : 'sent',
+                'status' => $status,
                 'sent_at' => now(),
-                'unlocked_at' => $alreadyUnlocked ? now() : null,
+                'unlocked_at' => $status === 'unlocked' ? now() : null,
             ]);
 
             AuditLog::create([
@@ -112,7 +120,8 @@ class InterestService
                 'ip' => request()->ip(),
                 'metadata' => [
                     'member_id' => $member->id,
-                    'auto_unlocked' => $alreadyUnlocked,
+                    'auto_unlocked' => $status === 'unlocked',
+                    'suppressed' => $optOut,
                 ],
             ]);
 
@@ -153,6 +162,12 @@ class InterestService
             $locked = $pairRows->firstWhere('id', $interest->id);
             if (! $locked) {
                 throw new \InvalidArgumentException('Interest does not belong to this member.');
+            }
+
+            // Suprimido é invisível ao membro: para ele a linha não existe, então
+            // não há o que desbloquear. Guarda de defesa — o controller já 404.
+            if ($locked->isSuppressed()) {
+                throw new \InvalidArgumentException('Interest is not visible to this member.');
             }
 
             // Re-checagem de idempotência após adquirir o lock.

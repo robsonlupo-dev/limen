@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 
@@ -42,11 +43,14 @@ const canGoLive = computed(() => props.kycStatus === 'active')
 
             <!-- Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                <div class="rounded-xl border border-frame bg-surface p-5 space-y-1">
+                <Link
+                    :href="route('performer.payouts.index')"
+                    class="rounded-xl border border-frame bg-surface p-5 space-y-1 block no-underline hover:border-gold/40 transition-colors"
+                >
                     <p class="text-xs text-muted uppercase tracking-wide">Saldo</p>
                     <p class="font-serif text-3xl text-gold">{{ wallet }}</p>
-                    <p class="text-xs text-muted">tokens</p>
-                </div>
+                    <p class="text-xs text-gold/70">Sacar &rarr;</p>
+                </Link>
 
                 <div class="rounded-xl border border-frame bg-surface p-5 space-y-1">
                     <p class="text-xs text-muted uppercase tracking-wide">Total ganho</p>
@@ -54,10 +58,14 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     <p class="text-xs text-muted">tokens</p>
                 </div>
 
-                <div class="rounded-xl border border-frame bg-surface p-5 space-y-1">
+                <Link
+                    :href="route('performer.followers')"
+                    class="rounded-xl border border-frame bg-surface p-5 space-y-1 block no-underline hover:border-gold/40 transition-colors"
+                >
                     <p class="text-xs text-muted uppercase tracking-wide">Seguidores</p>
                     <p class="font-serif text-3xl text-cream">{{ followers }}</p>
-                </div>
+                    <p class="text-xs text-gold/70">Demonstrar interesse &rarr;</p>
+                </Link>
 
                 <div class="rounded-xl border border-frame bg-surface p-5 space-y-2">
                     <p class="text-xs text-muted uppercase tracking-wide">Status KYC</p>
