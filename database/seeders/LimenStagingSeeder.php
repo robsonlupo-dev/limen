@@ -18,8 +18,9 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Massa de STAGING: 50 performers + 100 membros com dados realistas PT-BR.
  *
- * SENHA PADRÃO DE TODAS AS CONTAS: Limen2026!
  * E-mails no domínio reservado @teste.limen.local (não entregável).
+ * Senha: vem de SEED_ADMIN_PASSWORD, nunca do repo — ver
+ * RefusesUnsafeEnvironment::seedPassword().
  *
  * Regras:
  *  - Saldos SEMPRE via TokenService (ledger append-only) — nunca UPDATE direto.
@@ -34,8 +35,6 @@ use Illuminate\Support\Facades\Storage;
 class LimenStagingSeeder extends Seeder
 {
     use RefusesUnsafeEnvironment;
-
-    public const PASSWORD = 'Limen2026!';
 
     /** Distribuição exata dos 50 performers por mundo. */
     private const WORLD_DISTRIBUTION = [
@@ -98,15 +97,21 @@ class LimenStagingSeeder extends Seeder
             return;
         }
 
-        $levelPool = $this->buildLevelPool();
-        $performerCount = $this->seedPerformers($levelPool);
-        $memberCount = $this->seedMembers();
+        // Antes de criar qualquer conta: fora de local/testing isto lança se
+        // SEED_ADMIN_PASSWORD não estiver setada, abortando com o banco intocado.
+        $password = $this->seedPassword();
 
+        $levelPool = $this->buildLevelPool();
+        $performerCount = $this->seedPerformers($levelPool, $password);
+        $memberCount = $this->seedMembers($password);
+
+        // A senha NÃO é ecoada: este comando roda no deploy, e o stdout vai para
+        // o log do CI/servidor. Imprimir a SEED_ADMIN_PASSWORD do operador seria
+        // trocar a credencial hardcoded do repo por uma credencial no log.
         $this->command?->info(sprintf(
-            'Staging povoado: %d performers, %d membros (senha padrão: %s).',
+            'Staging povoado: %d performers, %d membros (senha: SEED_ADMIN_PASSWORD do ambiente).',
             $performerCount,
             $memberCount,
-            self::PASSWORD,
         ));
     }
 
@@ -125,7 +130,7 @@ class LimenStagingSeeder extends Seeder
         return $pool;
     }
 
-    private function seedPerformers(array $levelPool): int
+    private function seedPerformers(array $levelPool, string $password): int
     {
         $i = 0;
 
@@ -137,7 +142,7 @@ class LimenStagingSeeder extends Seeder
 
                 $user = User::firstOrCreate(['email' => $email], [
                     'name' => $stageName,
-                    'password' => Hash::make(self::PASSWORD),
+                    'password' => Hash::make($password),
                     'role' => 'performer',
                     'status' => 'active',
                     'email_verified_at' => now(),
@@ -184,7 +189,7 @@ class LimenStagingSeeder extends Seeder
         return $i;
     }
 
-    private function seedMembers(): int
+    private function seedMembers(string $password): int
     {
         $tokenService = app(TokenService::class);
         $m = 0;
@@ -196,7 +201,7 @@ class LimenStagingSeeder extends Seeder
 
                 $user = User::firstOrCreate(['email' => $email], [
                     'name' => fake('pt_BR')->name(),
-                    'password' => Hash::make(self::PASSWORD),
+                    'password' => Hash::make($password),
                     'role' => 'consumer',
                     'status' => 'active',
                     'email_verified_at' => now(),
