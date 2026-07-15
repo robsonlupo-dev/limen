@@ -62,6 +62,12 @@ function logout() {
                     </template>
                     <template v-if="isConsumer">
                         <Link
+                            :href="route('consumer.dashboard')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Meu Painel
+                        </Link>
+                        <Link
                             :href="route('interests.index')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >

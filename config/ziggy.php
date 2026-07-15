@@ -47,6 +47,9 @@ return [
         'performer.followers',
         'performer.interests.send',
 
+        // Consumer panel
+        'consumer.dashboard',
+
         // Consumer tips
         'tips.send',
 

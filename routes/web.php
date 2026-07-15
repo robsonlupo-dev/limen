@@ -11,6 +11,7 @@ use App\Http\Controllers\Web\PublicCatalogController;
 use App\Http\Controllers\Web\ConviteController;
 use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FounderPanelController;
+use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
@@ -159,6 +160,11 @@ Route::middleware('auth')->group(function () {
         ->can('performer-active');
 
     Route::middleware(['role:consumer'])->group(function () {
+        // Home da área logada do membro.
+        Route::get('/painel', [ConsumerDashboardController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.dashboard');
+
         Route::post('/gorjetas', [TipController::class, 'store'])
             ->middleware('throttle:10,1')
             ->name('tips.send');
