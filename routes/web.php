@@ -26,6 +26,7 @@ use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\PayoutController;
+use App\Http\Controllers\Web\Performer\SentInterestsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -179,6 +180,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/performer/interesses', [PerformerInterestController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('performer.interests.send')
+        ->can('performer-active');
+
+    // Histórico dos envios desta performer (para quem, quem revelou, cota do dia).
+    Route::get('/performer/interesses', [SentInterestsController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('performer.interests.index')
         ->can('performer-active');
 
     Route::middleware(['role:consumer'])->group(function () {

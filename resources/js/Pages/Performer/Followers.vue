@@ -74,6 +74,12 @@ async function sendInterest(follower) {
                         Você só pode demonstrar interesse na mesma pessoa uma vez a cada {{ cooldownDays }} dias.
                     </p>
                 </div>
+                <Link
+                    :href="route('performer.interests.index')"
+                    class="text-sm text-gold hover:text-gold-light transition-colors shrink-0 no-underline"
+                >
+                    Interesses enviados &rarr;
+                </Link>
             </div>
 
             <div class="space-y-3">

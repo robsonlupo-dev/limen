@@ -60,6 +60,12 @@ function logout() {
                             Seguidores
                         </Link>
                         <Link
+                            :href="route('performer.interests.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Interesses
+                        </Link>
+                        <Link
                             :href="route('performer.payouts.index')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
