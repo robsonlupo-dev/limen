@@ -24,6 +24,17 @@ class PayoutService
     // in-progress transfer and its webhook have had time to arrive first.
     private const RECONCILE_MIN_AGE_MINUTES = 15;
 
+    // How long a payout may stay unresolvable before the reconcile stops retrying it
+    // and hands it to a human. The lookup search is not read-after-write, so an empty
+    // result right after createTransfer proves nothing — but hours later it is no
+    // longer indexing lag, and retrying forever is what stranded the tokens.
+    //
+    // Counted from unresolved_since (the start of the current streak of failed
+    // lookups), never from requested_at: while the gateway is unreachable we defer
+    // without spending a lookup at all, and a requested_at deadline would burn away
+    // during an outage and then park a whole batch on its first clean lookup.
+    private const RECONCILE_REVIEW_AFTER_HOURS = 2;
+
     public function __construct(
         private AsaasClientInterface $asaas,
         private TokenService $tokenService,
@@ -205,11 +216,37 @@ class PayoutService
             // doesn't exist — Asaas search is not read-after-write, and a 4xx like
             // 429/401 on the lookup is an operational hiccup, not "gone". Reversing
             // here could return tokens for a PIX that already went out (double pay),
-            // so never auto-reverse: flag it for manual review and move on.
-            Log::warning('Payout unresolved by reconcile — needs manual review', ['payout_id' => $payout->id]);
-            Audit::log('payout.reconcile_unresolved', $payout);
+            // so never auto-reverse.
+            //
+            // Retrying is right while the result may still be indexing lag, but past
+            // RECONCILE_REVIEW_AFTER_HOURS it is not lag anymore and the retry is
+            // pure cost: the payout is re-queried every run forever, the performer's
+            // tokens sit reserved with only a log line as the signal, and the batch
+            // grows monotonically (more requests → more rate limiting → more of
+            // these). Escalate to 'needs_review': a terminal state for automation
+            // only, which moves no money and still lets a webhook settle it.
+            $unresolvedSince = $payout->unresolved_since;
+
+            if ($unresolvedSince === null) {
+                $payout->update(['unresolved_since' => now()]);
+                $unresolvedSince = $payout->unresolved_since;
+            }
+
+            if ($unresolvedSince->gt(now()->subHours(self::RECONCILE_REVIEW_AFTER_HOURS))) {
+                Log::warning('Payout unresolved by reconcile — will retry', ['payout_id' => $payout->id]);
+                Audit::log('payout.reconcile_unresolved', $payout);
+
+                return;
+            }
+
+            $this->markNeedsReview($payout);
 
             return;
+        }
+
+        // Located: any earlier streak is over, so the next one starts from scratch.
+        if ($payout->unresolved_since !== null) {
+            $payout->update(['unresolved_since' => null]);
         }
 
         if (! $payout->asaas_transfer_id && ! empty($transfer['id'])) {
@@ -283,6 +320,41 @@ class PayoutService
         return $payload;
     }
 
+    /**
+     * Park a payout the reconcile cannot resolve. This moves NO money: the tokens
+     * stay reserved exactly as they were, because we still cannot tell "transfer
+     * never created" from "created and paying". All it does is stop the endless
+     * re-querying and give the row a status that is queryable instead of buried in
+     * a log line. Nothing alerts on it yet, and there is no admin requeue path —
+     * until there is, a parked payout waits on someone reading the audit log.
+     */
+    private function markNeedsReview(Payout $payout): void
+    {
+        DB::transaction(function () use ($payout) {
+            $locked = Payout::where('id', $payout->id)->lockForUpdate()->first();
+
+            // A webhook may have settled it between the lookup and this write.
+            if (! in_array($locked->status, ['processing', 'pending'], true)) {
+                return;
+            }
+
+            // Same window, quieter: a non-terminal webhook (TRANSFER_CREATED) resolves
+            // by externalReference and writes the id without touching the status. Only
+            // a payout we could never pin an id to belongs here — with an id, the next
+            // run resolves it with getTransfer, so parking would strand it instead.
+            if ($locked->asaas_transfer_id !== null) {
+                return;
+            }
+
+            // Drop the streak on the way out: an operator who requeues this payout to
+            // 'processing' must get a full retry budget, not re-park on the next run.
+            $locked->update(['status' => 'needs_review', 'unresolved_since' => null]);
+
+            Log::warning('Payout parked for manual review', ['payout_id' => $locked->id]);
+            Audit::log('payout.needs_review', $locked);
+        });
+    }
+
     private function markPaid(Payout $payout): void
     {
         DB::transaction(function () use ($payout) {
@@ -291,7 +363,9 @@ class PayoutService
             // Accept 'pending' too: a TRANSFER_PAID webhook can race ahead of our
             // own update to 'processing' (or the process may die right after
             // createTransfer). A paid transfer must not get stranded as unpaid.
-            if (! in_array($locked->status, ['processing', 'pending'], true)) {
+            // 'needs_review' is accepted for the same reason: parking a payout only
+            // ends the reconcile's retries, it must never block a real settlement.
+            if (! in_array($locked->status, ['processing', 'pending', 'needs_review'], true)) {
                 return;
             }
 
