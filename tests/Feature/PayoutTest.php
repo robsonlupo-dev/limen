@@ -209,6 +209,33 @@ it('transfer_paid marca payout como paid', function () {
     expect($payout->processed_at)->not->toBeNull();
 });
 
+it('webhook TRANSFER_DONE (evento real do Asaas) marca o payout como paid', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 2000);
+
+    $this->actingAs($performer)->post('/performer/payouts', payoutPayload(['tokens' => 1000]))
+        ->assertSessionDoesntHaveErrors();
+    $payout = Payout::where('performer_id', $performer->id)->firstOrFail();
+    expect($payout->status)->toBe('processing');
+
+    config(['asaas.webhook_token' => 'valid-token']);
+
+    // Payload real do Asaas: event=TRANSFER_DONE, status=DONE (não "TRANSFER_PAID").
+    $this->postJson('/api/webhooks/asaas/transfer', [
+        'id' => 'evt_transfer_done_real',
+        'event' => 'TRANSFER_DONE',
+        'transfer' => [
+            'id' => $payout->asaas_transfer_id,
+            'externalReference' => "payout_{$payout->id}",
+            'status' => 'DONE',
+        ],
+    ], ['asaas-access-token' => 'valid-token'])->assertOk();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('paid');
+    expect($payout->processed_at)->not->toBeNull();
+});
+
 it('transfer_paid marca como paid mesmo se o payout ainda estiver pending (webhook corre à frente)', function () {
     [$performer] = makeWebPerformer();
 
@@ -341,6 +368,110 @@ it('falha sincrona no asaas marca payout como failed e estorna imediatamente', f
     $payout = Payout::where('performer_id', $performer->id)->firstOrFail();
     expect($payout->status)->toBe('failed');
     expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(2000);
+});
+
+it('falha ambigua (timeout) NAO estorna e deixa o payout em processing para reconciliar', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 2000);
+
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    $fake->forceNextTransferUnavailable();
+
+    $this->actingAs($performer)->post('/performer/payouts', payoutPayload(['tokens' => 1000]))
+        ->assertSessionDoesntHaveErrors();
+
+    $payout = Payout::where('performer_id', $performer->id)->firstOrFail();
+
+    // Ambíguo: não estorna (senão pagaria em dobro se o Asaas mandou o PIX).
+    expect($payout->status)->toBe('processing');
+    expect($payout->asaas_transfer_id)->toBeNull();
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(1000);
+    expect(TokenLedger::where('reference_type', 'payout')->where('reference_id', $payout->id)
+        ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
+});
+
+it('reconcile confirma como paid um payout ambiguo cuja transferencia existe e foi concluida', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 2000);
+
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    $fake->forceNextTransferUnavailable(); // grava a transfer no fake mas lança (resposta "perdida")
+
+    $this->actingAs($performer)->post('/performer/payouts', payoutPayload(['tokens' => 1000]))
+        ->assertSessionDoesntHaveErrors();
+    $payout = Payout::where('performer_id', $performer->id)->firstOrFail();
+
+    // O Asaas conclui a transferência; resolvemos pelo externalReference.
+    $transferId = $fake->findTransfersByExternalReference("payout_{$payout->id}")['data'][0]['id'];
+    $fake->simulateTransferPaid($transferId);
+
+    $payout->update(['requested_at' => now()->subMinutes(20)]); // passa da janela de reconcile
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('paid');
+    expect($payout->asaas_transfer_id)->toBe($transferId);
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(1000); // sem estorno
+});
+
+it('reconcile NAO estorna automaticamente um payout ambiguo sem transferencia — sinaliza revisao manual', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    // Payout 'processing' sem transfer id e reserva debitada — como se o createTransfer
+    // tivesse dado timeout. NÃO sabemos se a transferência saiu, então estornar seria
+    // arriscar pagamento em dobro. Deve ficar para revisão manual, sem estorno.
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'processing',
+        'requested_at' => now()->subMinutes(20),
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('processing'); // não estornado
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(0); // tokens NÃO voltaram
+    expect(TokenLedger::where('reference_type', 'payout')->where('reference_id', $payout->id)
+        ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
+    $this->assertDatabaseHas('audit_logs', ['action' => 'payout.reconcile_unresolved']);
+});
+
+it('reconcile NAO estorna quando o lookup do transfer falha (ex.: 429) — apenas adia', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 1000);
+
+    $payout = Payout::create([
+        'performer_id' => $performer->id,
+        'tokens' => 1000,
+        'amount_brl' => '64.35',
+        'pix_key' => 'performer@example.com',
+        'pix_key_type' => 'email',
+        'status' => 'processing',
+        'asaas_transfer_id' => 'transfer_known_1', // temos o id: a transferência FOI criada
+        'requested_at' => now()->subMinutes(20),
+    ]);
+    app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
+
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    $fake->forceNextGetTransferFailure(); // getTransfer estoura (429), como num batch
+
+    app(\App\Services\PayoutService::class)->reconcile();
+
+    $payout->refresh();
+    expect($payout->status)->toBe('processing'); // adiado, não estornado
+    expect(TokenWallet::where('user_id', $performer->id)->value('balance'))->toBe(0);
+    expect(TokenLedger::where('reference_type', 'payout')->where('reference_id', $payout->id)
+        ->where('entry_type', 'payout_reversal')->exists())->toBeFalse();
 });
 
 // ─── Segurança ──────────────────────────────────────────────────────────────

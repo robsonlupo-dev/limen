@@ -13,4 +13,8 @@ interface AsaasClientInterface
     public function getPayment(string $chargeId): array;
 
     public function createTransfer(array $data): array;
+
+    public function getTransfer(string $transferId): array;
+
+    public function findTransfersByExternalReference(string $externalReference): array;
 }

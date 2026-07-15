@@ -442,6 +442,8 @@ it('leaves the event unprocessed when confirm fails at the gateway so reconcile 
         public function getPixQrCode(string $chargeId): array { return ['encodedImage' => '', 'payload' => '']; }
         public function getPayment(string $chargeId): array { throw new \RuntimeException('Asaas API error: HTTP 503'); }
         public function createTransfer(array $data): array { return ['id' => 'tr_x']; }
+        public function getTransfer(string $transferId): array { return ['id' => $transferId, 'status' => 'PENDING']; }
+        public function findTransfersByExternalReference(string $externalReference): array { return ['data' => []]; }
     };
     app()->instance(\App\Services\Asaas\AsaasClientInterface::class, $throwing);
 
