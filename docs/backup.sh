@@ -1,6 +1,7 @@
 #!/bin/bash
 #
-# Backup do Limen — banco MySQL + arquivos de storage (KYC, mídia).
+# Backup do Limen — banco MySQL + storage privado (mídia) + documentos KYC.
+# Cobre dois discos separados: storage/app/private e storage/app/kyc (.enc).
 # Instalar em /home/deploy/backup.sh no servidor e agendar via cron, ex.:
 #   0 3 * * * /home/deploy/backup.sh >> /home/deploy/backup.log 2>&1
 #
@@ -36,9 +37,15 @@ mysqldump --single-transaction --quick --lock-tables=false \
 
 unset MYSQL_PWD
 
-# ── Arquivos privados de storage (KYC, mídia, documentos) ───────────────────
-echo "▶ Backup de storage/app/private (criptografado)"
-tar -czf - -C "$APP_DIR" storage/app/private \
+# ── Arquivos privados de storage (mídia + documentos KYC) ───────────────────
+# Dois discos distintos: 'private' (storage/app/private) e 'kyc'
+# (storage/app/kyc, docs .enc). Ambos entram no mesmo tarball criptografado.
+echo "▶ Backup de storage/app/private + storage/app/kyc (criptografado)"
+# Garante que os diretórios existam: num servidor novo que ainda não
+# recebeu upload, o disco 'kyc' (ou 'private') pode não existir, e com
+# 'set -e' o tar abortaria o backup inteiro.
+mkdir -p "$APP_DIR/storage/app/private" "$APP_DIR/storage/app/kyc"
+tar -czf - -C "$APP_DIR" storage/app/private storage/app/kyc \
   | gpg --batch --yes --encrypt --recipient "$GPG_RECIPIENT" \
   > "$BACKUP_DIR/storage-$STAMP.tar.gz.gpg"
 
