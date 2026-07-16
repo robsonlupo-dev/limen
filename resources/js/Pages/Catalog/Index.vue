@@ -19,8 +19,6 @@ const worlds = [
     { value: 'homens', label: 'Homens' },
     { value: 'casais', label: 'Casais' },
     { value: 'trans', label: 'Trans' },
-    { value: 'gls', label: 'GLS' },
-    { value: 'swing', label: 'Swing' },
 ]
 
 const worldLabel = (v) => worlds.find((w) => w.value === v)?.label ?? v

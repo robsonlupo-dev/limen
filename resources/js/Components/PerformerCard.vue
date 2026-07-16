@@ -14,8 +14,6 @@ const categoryLabels = {
     homens: 'Homens',
     casais: 'Casais',
     trans: 'Trans',
-    gls: 'GLS',
-    swing: 'Swing',
 }
 </script>
 

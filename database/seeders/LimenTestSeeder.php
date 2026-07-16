@@ -38,14 +38,12 @@ class LimenTestSeeder extends Seeder
 {
     use RefusesUnsafeEnvironment;
 
-    /** Distribuição dos 50 performers pelos 6 mundos. */
+    /** Distribuição dos 50 performers pelos 4 mundos (gls→homens, swing→casais). */
     private const WORLD_DISTRIBUTION = [
         'mulheres' => 20,
-        'homens' => 8,
-        'casais' => 8,
+        'homens' => 13,
+        'casais' => 11,
         'trans' => 6,
-        'gls' => 5,
-        'swing' => 3,
     ];
 
     private const WORLD_COLORS = [
@@ -53,8 +51,6 @@ class LimenTestSeeder extends Seeder
         'homens' => ['#1e3a5f', '#c9a227'],
         'casais' => ['#5b2d7c', '#c9a227'],
         'trans' => ['#2d7c6b', '#c9a227'],
-        'gls' => ['#7c5e2d', '#c9a227'],
-        'swing' => ['#7c2d2d', '#c9a227'],
     ];
 
     private const STAGE_SUFFIXES = ['Luz', 'Bella', 'Rex', 'Nyx', 'Vip', 'Fox', 'Star', 'Lua', 'Real', 'Mel', 'Fire', 'Doce'];

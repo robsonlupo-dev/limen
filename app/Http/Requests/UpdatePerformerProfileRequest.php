@@ -23,7 +23,7 @@ class UpdatePerformerProfileRequest extends FormRequest
                 PerformerProfile::stageNameRules($this->user()?->performerProfile?->id),
             ),
             'bio'        => ['sometimes', 'nullable', 'string', 'max:5000'],
-            'category'   => ['sometimes', 'required', 'in:mulheres,homens,casais,trans,gls,swing'],
+            'category'   => ['sometimes', 'required', Rule::in(PerformerProfile::WORLDS)],
             'work_modes'   => ['sometimes', 'nullable', 'array'],
             'work_modes.*' => ['string', Rule::in(['live', 'video', 'chat', 'fotos', 'privado', 'exclusivo'])],
             'rate_public'  => ['sometimes', 'required', 'integer', 'min:0'],
