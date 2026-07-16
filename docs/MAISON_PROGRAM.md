@@ -149,6 +149,19 @@ Memento. Cobre frete + operação do hub.
 - Retido **100% pela plataforma** — é custo operacional, não receita da performer
 - Não é preço do presente: o Memento em si não tem preço, e pagar não o compra
 
+### Saldo insuficiente
+Antes de **qualquer** Memento ser processado, o sistema verifica se o membro FC
+destinatário tem **saldo >= 50 tokens**.
+
+- **Saldo < 50 tokens:** envio **bloqueado**. A performer recebe aviso discreto
+  — *"membro sem saldo disponível no momento"* — e o pacote **NÃO é enviado para
+  o hub**.
+- **Saldo >= 50 tokens:** fluxo normal. Os 50 tokens são debitados no **momento da
+  confirmação de recebimento no hub** (não no envio).
+
+O bloqueio protege o membro de um débito surpresa e a performer de um frete perdido:
+nada sai da casa dela antes da verificação passar.
+
 ---
 
 ## A Chave do Portal (6 meses de FC ativo)
