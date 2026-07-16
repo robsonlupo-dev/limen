@@ -10,6 +10,8 @@ class FakeAsaasClient implements AsaasClientInterface
 
     private array $transfers = [];
 
+    private array $subscriptions = [];
+
     private bool $forceNextTransferFailure = false;
 
     private bool $forceNextTransferUnavailable = false;
@@ -181,5 +183,151 @@ class FakeAsaasClient implements AsaasClientInterface
         if (isset($this->transfers[$transferId])) {
             $this->transfers[$transferId]['status'] = 'FAILED';
         }
+    }
+
+    // ── Subscriptions ────────────────────────────────────────────────────────
+
+    public function createSubscription(array $data): array
+    {
+        $id = 'sub_fake_' . uniqid();
+        $card = $data['creditCard'] ?? [];
+        $number = (string) ($card['number'] ?? '');
+        $last4 = $number !== '' ? substr($number, -4) : null;
+
+        // O primeiro charge nasce junto da assinatura. Devolvemos o id dele para
+        // que o SubscriptionService ancore o grant inicial nesse charge — o mesmo
+        // id que o webhook do primeiro pagamento vai trazer, fechando a dedupe.
+        $firstPaymentId = 'pay_fake_' . uniqid();
+
+        $this->subscriptions[$id] = [
+            'id' => $id,
+            'status' => 'ACTIVE',
+            'value' => $data['value'] ?? 0,
+            'cycle' => $data['cycle'] ?? 'MONTHLY',
+            'nextDueDate' => $data['nextDueDate'] ?? now()->format('Y-m-d'),
+            'externalReference' => $data['externalReference'] ?? null,
+            'payments' => [$firstPaymentId],
+        ];
+
+        // O primeiro charge é uma cobrança confirmada como qualquer outra — fica
+        // visível por getPayment(), como no Asaas real, para o serviço reconferir.
+        $this->charges[$firstPaymentId] = [
+            'id' => $firstPaymentId,
+            'status' => 'CONFIRMED',
+            'value' => $data['value'] ?? 0,
+            'billingType' => 'CREDIT_CARD',
+            'subscription' => $id,
+        ];
+
+        return [
+            'id' => $id,
+            'status' => 'ACTIVE',
+            'value' => $data['value'] ?? 0,
+            'cycle' => $data['cycle'] ?? 'MONTHLY',
+            'nextDueDate' => $data['nextDueDate'] ?? now()->format('Y-m-d'),
+            // NOTA: o Asaas real NÃO devolve o id do primeiro pagamento no create.
+            // O serviço não depende disto — busca via getSubscriptionPayments().
+            'creditCard' => [
+                'creditCardNumber' => $last4,
+                'creditCardBrand' => $card['brand'] ?? 'VISA',
+                'creditCardToken' => 'cctok_fake_' . uniqid(),
+            ],
+        ];
+    }
+
+    public function getSubscription(string $subscriptionId): array
+    {
+        if (isset($this->subscriptions[$subscriptionId])) {
+            return $this->subscriptions[$subscriptionId];
+        }
+
+        throw new AsaasRequestException('Asaas API error: HTTP 404 (subscription not found)');
+    }
+
+    public function getSubscriptionPayments(string $subscriptionId): array
+    {
+        $ids = $this->subscriptions[$subscriptionId]['payments'] ?? [];
+
+        return [
+            'data' => array_map(
+                fn (string $paymentId) => $this->charges[$paymentId]
+                    ?? ['id' => $paymentId, 'status' => 'CONFIRMED', 'subscription' => $subscriptionId],
+                $ids,
+            ),
+        ];
+    }
+
+    public function cancelSubscription(string $subscriptionId): array
+    {
+        if (isset($this->subscriptions[$subscriptionId])) {
+            $this->subscriptions[$subscriptionId]['status'] = 'INACTIVE';
+        }
+
+        return ['id' => $subscriptionId, 'deleted' => true];
+    }
+
+    /**
+     * Build the webhook payload for a renewal charge being confirmed on a
+     * subscription, as Asaas would POST it. Returns the payload so the test can
+     * feed it to SubscriptionService::handleWebhook.
+     */
+    public function simulateSubscriptionCharged(string $subscriptionId): array
+    {
+        $chargeId = 'pay_fake_' . uniqid();
+        if (isset($this->subscriptions[$subscriptionId])) {
+            $this->subscriptions[$subscriptionId]['payments'][] = $chargeId;
+        }
+
+        // Registra a cobrança como confirmada, para que a reconferência por
+        // getPayment() no serviço enxergue o mesmo que o Asaas real enxergaria.
+        $this->charges[$chargeId] = [
+            'id' => $chargeId,
+            'status' => 'CONFIRMED',
+            'value' => $this->subscriptions[$subscriptionId]['value'] ?? 0,
+            'billingType' => 'CREDIT_CARD',
+            'subscription' => $subscriptionId,
+        ];
+
+        return [
+            'event' => 'PAYMENT_CONFIRMED',
+            'id' => 'evt_fake_' . uniqid(),
+            'payment' => [
+                'id' => $chargeId,
+                'subscription' => $subscriptionId,
+                'value' => $this->subscriptions[$subscriptionId]['value'] ?? 0,
+                'status' => 'CONFIRMED',
+            ],
+        ];
+    }
+
+    public function simulateSubscriptionOverdue(string $subscriptionId): array
+    {
+        $chargeId = $this->subscriptions[$subscriptionId]['payments'][0] ?? ('pay_fake_' . uniqid());
+
+        return [
+            'event' => 'PAYMENT_OVERDUE',
+            'id' => 'evt_fake_' . uniqid(),
+            'payment' => [
+                'id' => $chargeId,
+                'subscription' => $subscriptionId,
+                'status' => 'OVERDUE',
+            ],
+        ];
+    }
+
+    public function simulateSubscriptionCanceled(string $subscriptionId): array
+    {
+        if (isset($this->subscriptions[$subscriptionId])) {
+            $this->subscriptions[$subscriptionId]['status'] = 'INACTIVE';
+        }
+
+        return [
+            'event' => 'SUBSCRIPTION_DELETED',
+            'id' => 'evt_fake_' . uniqid(),
+            'subscription' => [
+                'id' => $subscriptionId,
+                'status' => 'INACTIVE',
+            ],
+        ];
     }
 }

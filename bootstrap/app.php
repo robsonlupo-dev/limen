@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+            'circle' => \App\Http\Middleware\EnsureActiveCircle::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -88,4 +88,32 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(PerformerInterest::class, 'member_id');
     }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    /** The user's live subscription (active + inside the paid period), or null. */
+    public function activeSubscription(): ?Subscription
+    {
+        return $this->subscriptions()
+            ->where('status', 'active')
+            ->where('current_period_end', '>', now())
+            ->with('circle')
+            ->latest('id')
+            ->first();
+    }
+
+    /** The Círculo the user is currently subscribed to, or null. */
+    public function activeCircle(): ?Circle
+    {
+        return $this->activeSubscription()?->circle;
+    }
+
+    /** Slug of the active Círculo (for Inertia / gates), or null. */
+    public function activeCircleSlug(): ?string
+    {
+        return $this->activeCircle()?->slug;
+    }
 }

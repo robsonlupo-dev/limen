@@ -444,6 +444,10 @@ it('leaves the event unprocessed when confirm fails at the gateway so reconcile 
         public function createTransfer(array $data): array { return ['id' => 'tr_x']; }
         public function getTransfer(string $transferId): array { return ['id' => $transferId, 'status' => 'PENDING']; }
         public function findTransfersByExternalReference(string $externalReference): array { return ['data' => []]; }
+        public function createSubscription(array $data): array { return ['id' => 'sub_x']; }
+        public function getSubscription(string $subscriptionId): array { return ['id' => $subscriptionId]; }
+        public function getSubscriptionPayments(string $subscriptionId): array { return ['data' => []]; }
+        public function cancelSubscription(string $subscriptionId): array { return ['id' => $subscriptionId, 'deleted' => true]; }
     };
     app()->instance(\App\Services\Asaas\AsaasClientInterface::class, $throwing);
 
