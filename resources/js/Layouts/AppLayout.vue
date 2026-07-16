@@ -91,6 +91,12 @@ function logout() {
                         >
                             Carteira
                         </Link>
+                        <Link
+                            :href="route('subscribe.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Círculos
+                        </Link>
                     </template>
                     <span class="text-cream">{{ page.props.auth.user?.name }}</span>
                     <button

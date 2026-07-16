@@ -67,5 +67,10 @@ return [
         'wallet.history',
         'wallet.purchase',
         'wallet.pending',
+
+        // Consumer subscriptions (Círculos)
+        'subscribe.index',
+        'subscribe.store',
+        'subscribe.cancel',
     ],
 ];
