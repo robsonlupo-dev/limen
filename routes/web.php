@@ -13,6 +13,7 @@ use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
+use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
@@ -210,6 +211,16 @@ Route::middleware('auth')->group(function () {
         Route::patch('/interesses/opt-out', [ConsumerInterestController::class, 'optOut'])
             ->middleware('throttle:30,1')
             ->name('interests.opt-out');
+
+        // Assinaturas (Círculos) — escolha de tier + cartão + cancelamento.
+        Route::get('/assinar', [SubscriptionController::class, 'index'])->name('subscribe.index');
+        // throttle apertado: barra carding/BIN — poucas tentativas de cartão/min.
+        Route::post('/assinar', [SubscriptionController::class, 'store'])
+            ->middleware('throttle:3,1')
+            ->name('subscribe.store');
+        Route::post('/assinar/cancelar', [SubscriptionController::class, 'cancel'])
+            ->middleware('throttle:6,1')
+            ->name('subscribe.cancel');
 
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');
