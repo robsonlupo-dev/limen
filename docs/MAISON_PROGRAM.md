@@ -203,31 +203,6 @@ desativada, limite mensal. A performer **nunca descobre o motivo real**.
 
 ---
 
-## A Chave do Limen (12 meses de FC ativo)
-
-> Régua de marcos físicos definida em `CIRCLES_SYSTEM_V4.md` — não alterar aqui
-> sem atualizar os dois.
-
-- **Objeto físico:** chave banhada em ouro, gravada com o número FC, em caixa de veludo preto
-- **Frente:** símbolo do Limen (arco dourado) / **Verso:** FC-007 gravado
-- **Cartão interno:** apenas *"Bem-vindo ao Limen."* — sem mais texto
-- **Chegada surpresa** — o membro não sabe quando vem
-- Fica com o membro mesmo se cancelar (lembrete permanente do que perdeu)
-- Reposição possível, mas marcada como "FC-007 · Reposição"
-- É o **troféu máximo** da régua — entregue aos 12 meses, não aos 6
-
-### Régua completa de marcos físicos
-
-Alinhada com `CIRCLES_SYSTEM_V4.md` (autoritativo):
-
-- **Dia 1:** kit digital — wallpaper exclusivo + card FC numerado em PDF premium
-- **1 mês:** Carta dos Fundadores — carta física assinada por Robson e Bruno, com o número FC
-- **6 meses:** Placa Limen — placa preta com escrita dourada "FC-007 · Fundador desde 2027".
-  **É o gatilho de aposentadoria do número FC** (ver `CIRCLES_SYSTEM_V4.md`)
-- **12 meses:** A Chave do Limen — o troféu máximo (ver seção acima)
-
----
-
 ## Casais
 - **KYC:** os dois verificam identidade
 - **Contrato:** os dois assinam
