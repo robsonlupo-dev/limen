@@ -224,10 +224,9 @@ Todas as regras de §3.2 são documentais. A sprint de monetização precisa, no
 ### 4.5 Contradições entre specs
 - ✅ **"Círculos vs Planos" — RESOLVIDO.** `SUBSCRIPTION_TIERS.md` foi aposentado; a nomenclatura
   e a hierarquia oficiais são as de `CIRCLES_SYSTEM_V4.md`.
-- ⚠️ **Régua de marcos físicos divergente (nova).** `CIRCLES_SYSTEM_V4.md` diz Placa aos 6 meses
-  e **A Chave aos 12 meses**; `MAISON_PROGRAM.md` diz **A Chave do Portal aos 6 meses** e placa aos
-  2 anos. Os dois docs travados no mesmo dia se contradizem na régua e no divisor de aposentadoria.
-  Decidir antes de prometer marco físico.
+- ✅ **Régua de marcos físicos — RESOLVIDO (16/07).** Seção de marcos físicos removida do
+  `MAISON_PROGRAM.md`. A régua (Carta 1 mês, Placa 6 meses, Chave 12 meses) vive exclusivamente em
+  `CIRCLES_SYSTEM_V4.md`. Não havia conteúdo de membro FC no doc de performers.
 - ⚠️ **4 mundos vs 6 categorias — ainda em aberto.** `WORLDS_ARCHITECTURE.md` diz 4 mundos; o banco
   tem 6 (`enum('mulheres','homens','casais','trans','gls','swing')`). `CatalogController`/
   `RegisterWebRequest` aceitam 6; `PublicCatalogController` aceita 4 → `/performers?mundo=gls`
@@ -251,8 +250,8 @@ Ordem sugerida, do barato/risco para a feature.
    de KYC) e `feat/tip-on-public-profile` (gorjeta no perfil público). Ambos prontos e testados.
 2. **Fechar os follow-ups de payout** (§4.4): alerta/requeue de `needs_review` e a revisão do
    caminho 429/408. É dinheiro — vem antes de feature.
-3. **Decidir as contradições de spec do §4.5**: régua de marcos físicos (Chave 6m vs 12m) e
-   4-vs-6 mundos. As duas são decisão de PO e bloqueiam trabalho abaixo.
+3. **Decidir a contradição de spec restante do §4.5**: 4-vs-6 mundos (a régua de marcos físicos
+   já foi resolvida em 16/07). É decisão de PO e bloqueia trabalho abaixo.
 4. **Decidir o piso de anonimato** (§4.4) com o dado de follows por membro.
 5. **Iniciar a sprint de monetização (Círculos)** — agora destravada pela nomenclatura oficial,
    mas com três dependências reais (§4.3):
