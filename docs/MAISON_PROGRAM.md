@@ -114,6 +114,30 @@ A plataforma, porém, mantém **gravação em cofre interno por 90 dias**:
 > A gravação existe para proteger a performer e a plataforma numa acusação — não para
 > assistir. "Ephemeral" descreve a experiência do membro, não a retenção técnica.
 
+### ⛔ TRAVADO — decisão jurídica pendente
+**A gravação backend das FC Sessions exige decisão jurídica antes de qualquer código.
+NÃO implementar até aprovação jurídica.**
+
+O cofre acima descreve a **intenção**, não um sistema aprovado para construção.
+
+**Motivo — transparência:** é dado sensível de **vida sexual (art. 11, LGPD)** retido
+sem transparência explícita nos termos. Membro e performer entram na sessão hoje
+acreditando que nada é gravado; a ressalva vive neste doc interno, não nos termos.
+
+**Base legal:** consentimento provavelmente **não** é base suficiente — o titular pode
+revogar, e o cofre precisa **sobreviver à revogação** para servir de defesa numa
+acusação. A base correta é decisão jurídica, não de engenharia.
+
+**Infraestrutura necessária que não existe hoje:**
+- Criptografia de vídeo em **streaming** (o `Crypt`/`APP_KEY` do KYC carrega o arquivo
+  inteiro em memória — serve para JPEG, não para uma live de horas)
+- **Modelo de roles** que comporte o Curador (hoje `role` é `consumer|performer|admin`:
+  dar acesso ao Curador = dar `admin` = dar KYC + waitlist + cofre de brinde)
+- **Expurgo automático verificável** (não existe retenção em lugar nenhum, e o backup
+  guarda cópias que o dia 90 não alcança)
+- **Audit log de leitura** (o audit atual cobre escrita; no cofre a leitura é o evento
+  que importa)
+
 ## FC Collection
 Conteúdo criado exclusivamente para a coleção FC. Nunca liberado, nunca reutilizado.
 
@@ -142,25 +166,40 @@ Conteúdo criado exclusivamente para a coleção FC. Nunca liberado, nunca reuti
 - **O gesto sempre é surpresa — nunca transação**
 
 ### Custo logístico
-**50 tokens fixos** cobrados do membro FC para ativar o processo logístico de cada
+**800 tokens fixos** cobrados do membro FC para ativar o processo logístico de cada
 Memento. Cobre frete + operação do hub.
 
 - Valor **fixo**, independente do que foi enviado ou de onde
 - Retido **100% pela plataforma** — é custo operacional, não receita da performer
 - Não é preço do presente: o Memento em si não tem preço, e pagar não o compra
 
+### Reserva de tokens
+Os 800 tokens são **reservados (hold no ledger)** no momento em que o Limen
+**aprova a foto do item** — **não** na chegada ao hub.
+
+- O membro vê **imediatamente** o saldo comprometido
+- **Foto reprovada:** a reserva é **liberada automaticamente**
+- **Débito definitivo:** na confirmação de recebimento no hub
+
+A reserva na aprovação (e não no envio) fecha a janela em que o membro poderia
+gastar os tokens enquanto o pacote está a caminho — o frete só sai da casa da
+performer com o valor já comprometido.
+
 ### Saldo insuficiente
-Antes de **qualquer** Memento ser processado, o sistema verifica se o membro FC
-destinatário tem **saldo >= 50 tokens**.
+A verificação ocorre **antes de a performer submeter a foto** — nada é fotografado,
+aprovado ou enviado se o membro não tiver saldo.
 
-- **Saldo < 50 tokens:** envio **bloqueado**. A performer recebe aviso discreto
-  — *"membro sem saldo disponível no momento"* — e o pacote **NÃO é enviado para
-  o hub**.
-- **Saldo >= 50 tokens:** fluxo normal. Os 50 tokens são debitados no **momento da
-  confirmação de recebimento no hub** (não no envio).
+- **Saldo < 800 tokens:** a performer vê a mensagem genérica
+  *"Não é possível enviar para este membro no momento"*
 
-O bloqueio protege o membro de um débito surpresa e a performer de um frete perdido:
-nada sai da casa dela antes da verificação passar.
+**A mensagem é idêntica para qualquer tipo de bloqueio** — saldo, configuração
+desativada, limite mensal. A performer **nunca descobre o motivo real**.
+
+> Isto é deliberado: protege a **privacidade financeira do membro**. Uma mensagem
+> específica ("sem saldo") entregaria à performer o estado da carteira dele, e uma
+> mensagem distinta por motivo permitiria deduzir, por eliminação, que o membro
+> desligou o toggle. Mesma doutrina da máscara do opt-out no Interesse Controlado:
+> se os motivos são distinguíveis, o bloqueio vira um canal de informação.
 
 ---
 
