@@ -37,23 +37,20 @@ class LimenStagingSeeder extends Seeder
     use RefusesUnsafeEnvironment;
 
     /** Distribuição exata dos 50 performers por mundo. */
+    /** Distribuição dos 50 performers pelos 4 mundos (gls→homens, swing→casais). */
     private const WORLD_DISTRIBUTION = [
         'mulheres' => 15,
-        'homens' => 10,
-        'casais' => 8,
+        'homens' => 15,
+        'casais' => 13,
         'trans' => 7,
-        'gls' => 5,
-        'swing' => 5,
     ];
 
     /** Distribuição proporcional dos 100 membros por mundo (2× a de performers). */
     private const MEMBER_WORLDS = [
         'mulheres' => 30,
-        'homens' => 20,
-        'casais' => 16,
+        'homens' => 30,
+        'casais' => 26,
         'trans' => 14,
-        'gls' => 10,
-        'swing' => 10,
     ];
 
     /** Nível → [split_pct, quantidade]. Total: 50. */
@@ -71,23 +68,21 @@ class LimenStagingSeeder extends Seeder
             'Bianca Star', 'Larissa Mel', 'Duda Ferraz', 'Nina Castro', 'Isis Moreno',
             'Lívia Doce', 'Rafa Monteiro', 'Camila Lune', 'Yasmin Brava', 'Mel Rosado',
         ],
+        // homens = 10 originais + 5 remapeados de gls (total 15).
         'homens' => [
             'Thiago Bronze', 'Rafael Lobo', 'Diego Fera', 'Bruno Aço', 'Lucas Trovão',
             'Caio Marinho', 'Pedro Vulcão', 'Gustavo Rei', 'André Falcão', 'Matheus Ouro',
+            'Max Prisma', 'Lolo Neon', 'Teo Violeta', 'Kika Astral', 'Ravi Estelar',
         ],
+        // casais = 8 originais + 5 remapeados de swing (total 13).
         'casais' => [
             'Ana & Léo', 'Bia & Rafa', 'Carla & Dudu', 'Mel & Théo',
             'Ju & Vini', 'Paty & Gui', 'Lia & Marcos', 'Nanda & Caio',
+            'Casal Vênus', 'Duo Eclipse', 'Par Perfeito SP', 'Casal Liberté', 'Dupla Fogo',
         ],
         'trans' => [
             'Alexia Vale', 'Bruna Divine', 'Kim Valentti', 'Paola Sintra',
             'Vitória Reale', 'Samara Luz', 'Dani Monroe',
-        ],
-        'gls' => [
-            'Max Prisma', 'Lolo Neon', 'Teo Violeta', 'Kika Astral', 'Ravi Estelar',
-        ],
-        'swing' => [
-            'Casal Vênus', 'Duo Eclipse', 'Par Perfeito SP', 'Casal Liberté', 'Dupla Fogo',
         ],
     ];
 

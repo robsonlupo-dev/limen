@@ -4,6 +4,7 @@ namespace App\Http\Requests\Web;
 
 use App\Models\PerformerProfile;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class RegisterWebRequest extends FormRequest
 {
@@ -50,11 +51,11 @@ class RegisterWebRequest extends FormRequest
                 ['required_if:role,performer', 'nullable'],
                 PerformerProfile::stageNameRules(),
             ),
-            'category' => ['required_if:role,performer', 'nullable', 'in:mulheres,homens,casais,trans,gls,swing'],
+            'category' => ['required_if:role,performer', 'nullable', Rule::in(PerformerProfile::WORLDS)],
 
             // Member-only "world" preference. Optional server-side (defaults to
             // "mulheres" in the catalog), required in the UI.
-            'preferred_world' => ['nullable', 'in:mulheres,homens,casais,trans,gls,swing'],
+            'preferred_world' => ['nullable', Rule::in(PerformerProfile::WORLDS)],
         ];
     }
 

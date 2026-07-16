@@ -87,15 +87,6 @@ it('does not list unverified performers publicly', function () {
         );
 });
 
-it('does not list legacy non-public worlds (gls/swing) publicly', function () {
-    $gls = makePublicPerformer([], ['category' => 'gls', 'stage_name' => 'GLS C']);
-
-    $this->get('/performers')
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('performers.data', fn ($data) => ! $data->pluck('slug')->contains($gls->slug))
-        );
-});
-
 it('404s the public profile of a pending performer even with a known slug', function () {
     $pending = makePublicPerformer(['status' => 'pending']);
 

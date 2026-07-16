@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Models\PerformerProfile;
 use App\Rules\NotDisposableEmailDomain;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
@@ -9,8 +10,8 @@ use Illuminate\Validation\Rule;
 
 class WaitlistWebRequest extends FormRequest
 {
-    /** The four public worlds. Legacy gls/swing are intentionally not accepted here. */
-    private const WORLDS = ['mulheres', 'homens', 'trans', 'casais'];
+    /** The four official worlds (single source of truth: PerformerProfile::WORLDS). */
+    private const WORLDS = PerformerProfile::WORLDS;
 
     public function authorize(): bool
     {

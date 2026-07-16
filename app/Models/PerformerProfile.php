@@ -16,6 +16,13 @@ class PerformerProfile extends Model
     use HasFactory;
     use SoftDeletes;
 
+    /**
+     * The four official worlds (the `category` column). Single source of truth
+     * for validation, seeding and the catalog. gls/swing retired 16/07/2026 —
+     * see the retire_gls_swing_worlds migration.
+     */
+    public const WORLDS = ['mulheres', 'homens', 'casais', 'trans'];
+
     protected $fillable = [
         'stage_name', 'slug', 'bio', 'category', 'work_modes',
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',

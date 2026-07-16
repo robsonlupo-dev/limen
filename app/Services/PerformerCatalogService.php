@@ -8,11 +8,11 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 class PerformerCatalogService
 {
     /**
-     * The four public "worlds" surfaced on the unauthenticated catalog. Data may
-     * carry legacy categories (gls/swing); the public surface is constrained to
-     * these so a card never renders a world the guest UI has no label/icon for.
+     * The four public "worlds" surfaced on the catalog — the single source of
+     * truth is PerformerProfile::WORLDS. The whereIn stays as a defensive guard
+     * so a card never renders a world the UI has no label/icon for.
      */
-    public const PUBLIC_WORLDS = ['mulheres', 'homens', 'casais', 'trans'];
+    public const PUBLIC_WORLDS = PerformerProfile::WORLDS;
 
     /**
      * Public (no-auth) catalog listing. Unlike search(), it does not force a

@@ -18,7 +18,7 @@ class PerformerProfileFactory extends Factory
         'vip' => 80,
     ];
 
-    public const WORLDS = ['mulheres', 'homens', 'casais', 'trans', 'gls', 'swing'];
+    public const WORLDS = PerformerProfile::WORLDS;
 
     public function definition(): array
     {

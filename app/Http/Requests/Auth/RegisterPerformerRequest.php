@@ -5,6 +5,7 @@ namespace App\Http\Requests\Auth;
 use App\Http\Requests\RegisterConsumerRequest;
 use App\Models\PerformerProfile;
 use App\Rules\CpfValido;
+use Illuminate\Validation\Rule;
 
 class RegisterPerformerRequest extends RegisterConsumerRequest
 {
@@ -16,7 +17,7 @@ class RegisterPerformerRequest extends RegisterConsumerRequest
 
         return array_merge($parent, [
             'stage_name' => array_merge(['required'], PerformerProfile::stageNameRules()),
-            'category' => ['nullable', 'string', 'in:mulheres,homens,casais,trans,gls,swing'],
+            'category' => ['nullable', 'string', Rule::in(PerformerProfile::WORLDS)],
         ]);
     }
 }

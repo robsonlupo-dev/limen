@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Follow;
+use App\Models\PerformerProfile;
 use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,7 +23,7 @@ class CatalogController extends Controller
     public function index(Request $request): Response
     {
         $request->validate([
-            'category' => 'nullable|in:mulheres,homens,casais,trans,gls,swing',
+            'category' => ['nullable', Rule::in(PerformerProfile::WORLDS)],
             'search' => 'nullable|string|max:100',
             'sort' => 'nullable|in:rating_avg,followers_count,newest',
             'level' => 'nullable|in:iniciante,estrela,premium,vip',
