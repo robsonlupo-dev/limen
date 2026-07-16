@@ -72,6 +72,14 @@ Carta digital assinada por Robson e Bruno.
 - Diferenciação (o que a define)
 - Postura e elegância (no sentido de clareza, não vaidade)
 
+### Escalabilidade da Banca
+A partir do **6º mês de operação**, a Banca pode incluir um **Conselho Maison**:
+Robson + Bruno + 1 Curador contratado.
+
+- Depois dessa fase, **os fundadores não precisam estar presentes em todas as
+  entrevistas** — o Conselho conduz
+- O convite formal (Etapa 5) segue assinado por Robson e Bruno
+
 ---
 
 ## Exclusive Circle
@@ -91,7 +99,44 @@ A performer Maison cria para Black e FC:
 - 20 vagas
 - Apenas FC
 - Performer Maison escolhida pela plataforma
-- **Ephemeral:** sem gravação, por design
+- **Ephemeral para os membros:** sem replay, sem acesso posterior, por design
+
+### Cofre legal
+A sessão é efêmera para membros e performers — ninguém na plataforma assiste de novo.
+A plataforma, porém, mantém **gravação em cofre interno por 90 dias**:
+
+- **Único uso admitido:** investigação policial ou denúncia formal
+- **Nunca divulgada**, nunca usada para moderação de rotina, marketing, treinamento de
+  modelo, curadoria ou qualquer outro fim
+- Expurgo automático em 90 dias
+- Acesso registrado em audit log
+
+> A gravação existe para proteger a performer e a plataforma numa acusação — não para
+> assistir. "Ephemeral" descreve a experiência do membro, não a retenção técnica.
+
+### ⛔ TRAVADO — decisão jurídica pendente
+**A gravação backend das FC Sessions exige decisão jurídica antes de qualquer código.
+NÃO implementar até aprovação jurídica.**
+
+O cofre acima descreve a **intenção**, não um sistema aprovado para construção.
+
+**Motivo — transparência:** é dado sensível de **vida sexual (art. 11, LGPD)** retido
+sem transparência explícita nos termos. Membro e performer entram na sessão hoje
+acreditando que nada é gravado; a ressalva vive neste doc interno, não nos termos.
+
+**Base legal:** consentimento provavelmente **não** é base suficiente — o titular pode
+revogar, e o cofre precisa **sobreviver à revogação** para servir de defesa numa
+acusação. A base correta é decisão jurídica, não de engenharia.
+
+**Infraestrutura necessária que não existe hoje:**
+- Criptografia de vídeo em **streaming** (o `Crypt`/`APP_KEY` do KYC carrega o arquivo
+  inteiro em memória — serve para JPEG, não para uma live de horas)
+- **Modelo de roles** que comporte o Curador (hoje `role` é `consumer|performer|admin`:
+  dar acesso ao Curador = dar `admin` = dar KYC + waitlist + cofre de brinde)
+- **Expurgo automático verificável** (não existe retenção em lugar nenhum, e o backup
+  guarda cópias que o dia 90 não alcança)
+- **Audit log de leitura** (o audit atual cobre escrita; no cofre a leitura é o evento
+  que importa)
 
 ## FC Collection
 Conteúdo criado exclusivamente para a coleção FC. Nunca liberado, nunca reutilizado.
@@ -103,13 +148,58 @@ Conteúdo criado exclusivamente para a coleção FC. Nunca liberado, nunca reuti
 
 ## Limen Mementos (apenas Maison → membros FC)
 - A performer decide **espontaneamente** enviar — zero obrigação
-- O membro ativa "Aceito receber mimos físicos" + Locker/Caixa Postal (**nunca endereço real**)
+- O membro ativa "Aceito receber Mementos" + Locker/Caixa Postal (**nunca endereço real**)
 - A plataforma intermedeia: performer envia para o hub Limen → Limen fotografa/aprova → reenvia para o Locker
-- O membro desconta tokens de transporte automaticamente
 - Sem promessa sobre o que é enviado — é uma **lembrança, não produto**
-- Sem pedido do membro — é surpresa total da performer
 - Curadoria obrigatória pela plataforma antes do reenvio
 - Máximo **1 memo/mês** por performer
+
+### Elegibilidade
+- Apenas membros **FC** com **"Aceito receber Mementos"** ativado nas configurações
+- **Black e abaixo não recebem Mementos físicos** — em nenhuma hipótese
+- O toggle é o **único** sinal de disponibilidade do membro
+
+### O gesto nunca é transação
+- O membro **sinaliza disponibilidade, mas NUNCA solicita**
+- Não existe pedido, fila, catálogo ou insinuação de Memento
+- A performer decide espontaneamente quando (e se) enviar
+- **O gesto sempre é surpresa — nunca transação**
+
+### Custo logístico
+**800 tokens fixos** cobrados do membro FC para ativar o processo logístico de cada
+Memento. Cobre frete + operação do hub.
+
+- Valor **fixo**, independente do que foi enviado ou de onde
+- Retido **100% pela plataforma** — é custo operacional, não receita da performer
+- Não é preço do presente: o Memento em si não tem preço, e pagar não o compra
+
+### Reserva de tokens
+Os 800 tokens são **reservados (hold no ledger)** no momento em que o Limen
+**aprova a foto do item** — **não** na chegada ao hub.
+
+- O membro vê **imediatamente** o saldo comprometido
+- **Foto reprovada:** a reserva é **liberada automaticamente**
+- **Débito definitivo:** na confirmação de recebimento no hub
+
+A reserva na aprovação (e não no envio) fecha a janela em que o membro poderia
+gastar os tokens enquanto o pacote está a caminho — o frete só sai da casa da
+performer com o valor já comprometido.
+
+### Saldo insuficiente
+A verificação ocorre **antes de a performer submeter a foto** — nada é fotografado,
+aprovado ou enviado se o membro não tiver saldo.
+
+- **Saldo < 800 tokens:** a performer vê a mensagem genérica
+  *"Não é possível enviar para este membro no momento"*
+
+**A mensagem é idêntica para qualquer tipo de bloqueio** — saldo, configuração
+desativada, limite mensal. A performer **nunca descobre o motivo real**.
+
+> Isto é deliberado: protege a **privacidade financeira do membro**. Uma mensagem
+> específica ("sem saldo") entregaria à performer o estado da carteira dele, e uma
+> mensagem distinta por motivo permitiria deduzir, por eliminação, que o membro
+> desligou o toggle. Mesma doutrina da máscara do opt-out no Interesse Controlado:
+> se os motivos são distinguíveis, o bloqueio vira um canal de informação.
 
 ---
 

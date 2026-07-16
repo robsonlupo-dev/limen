@@ -1,5 +1,15 @@
 # Arquitetura de Planos de Assinatura
 
+> ⚠️ **SUPERSEDED** — Este documento foi substituído por
+> [docs/CIRCLES_SYSTEM_V4.md](CIRCLES_SYSTEM_V4.md) em 15/07/2026. Não usar como
+> referência.
+>
+> Atenção ao reaproveitar qualquer trecho daqui: **BLACK e PRESTIGE existem nos
+> dois documentos com preços diferentes e hierarquia invertida.** Aqui, PRESTIGE
+> é o topo (R$ 799,90) e custa mais que BLACK (R$ 349,90); na V4, BLACK
+> (R$ 749,90) custa quase o dobro de PRESTIGE (R$ 389,90). O nome SELECT não
+> existe mais — o tier de entrada é o Círculo Explorador.
+
 > **Status:** Especificação · Referência para a Sprint de monetização
 > Complementa [COMMUNICATION_ECONOMY.md](COMMUNICATION_ECONOMY.md).
 
