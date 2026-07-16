@@ -203,22 +203,6 @@ desativada, limite mensal. A performer **nunca descobre o motivo real**.
 
 ---
 
-## A Chave do Portal (6 meses de FC ativo)
-- **Objeto físico:** chave banhada em ouro, gravada com o número FC, em caixa de veludo preto
-- **Frente:** símbolo do Limen (arco dourado) / **Verso:** FC-007 gravado
-- **Cartão interno:** apenas *"Bem-vindo ao Portal."* — sem mais texto
-- **Chegada surpresa** — o membro não sabe quando vem
-- Fica com o membro mesmo se cancelar (lembrete permanente do que perdeu)
-- Reposição possível, mas marcada como "FC-007 · Reposição"
-
-### Régua completa de marcos físicos
-- **3 meses:** cartão físico com o símbolo Limen
-- **6 meses:** A Chave do Portal
-- **1 ano:** objeto surpresa
-- **2 anos:** placa numerada "Fundador FC-007 · Desde 2027"
-
----
-
 ## Casais
 - **KYC:** os dois verificam identidade
 - **Contrato:** os dois assinam

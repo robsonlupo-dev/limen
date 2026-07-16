@@ -1,288 +1,266 @@
 # LIMEN — RETOMADA EM CHAT NOVO
 
-> **Gerado em:** 15/07/2026 · **Base:** `main` em `a95226a` (Merge PR #29) · **Suíte:** 344 testes verdes
-> **Método:** este documento foi escrito a partir da inspeção do código real (`git log`,
-> `route:list`, `migrate:status`, leitura dos specs), não de memória. Onde o código contradiz
-> um doc antigo, o código venceu e a divergência está registrada.
+> **Gerado em:** 16/07/2026 · **Base:** `main` em `c7d9b24` (Merge PR #39) · **Suíte:** 380 testes verdes
+> **Método:** escrito a partir da inspeção do código real (`git log`, `route:list`,
+> `migrate:status`, leitura dos specs), não de memória. Onde o código contradiz um doc,
+> o código venceu e a divergência está registrada.
 >
-> **Substitui, para fins de retomada:** `CURRENT_ISSUES_AND_NEXT_ACTIONS.md` (02/07),
-> `TECHNICAL_HANDOFF_MASTER.md` (02/07) e `QA_HANDOFF_MASTER.md` (02/07). Aqueles três
-> descrevem um estado de duas semanas atrás e **têm afirmações hoje falsas** — ver §4.6.
+> **Substitui a RETOMADA de 15/07** (base `a95226a` / PR #29, 344 testes). As mudanças
+> materiais desde então: o **P0 de payout foi resolvido** (§4.1), o **Sprint 3 fechou**,
+> a **operação de QA foi arquivada** e as **decisões de Círculos/MAISON foram travadas**
+> (§3.2). Continua substituindo, para fins de retomada, os handoffs de 02/07
+> (`CURRENT_ISSUES_AND_NEXT_ACTIONS.md`, `TECHNICAL_HANDOFF_MASTER.md`,
+> `QA_HANDOFF_MASTER.md`), que descrevem um estado antigo e têm afirmações hoje falsas.
 
 ---
 
 ## 1. ESTADO ATUAL DO PRODUTO
 
 Limen é uma plataforma premium de conteúdo adulto verificado para o mercado brasileiro.
-Hoje ela está **pré-lançamento**: o produto logado funciona ponta a ponta em staging, e o
+Hoje está **pré-lançamento**: o produto logado funciona ponta a ponta em staging, e o
 domínio público serve apenas a captação de waitlist.
 
-### 1.1 Stack real (verificada, não a do CLAUDE.md)
+### 1.1 Stack real (verificada no código, não a do CLAUDE.md)
 
 | Item | Real | Observação |
 |---|---|---|
 | PHP | **8.4.22** | `composer.json` exige `^8.3`. O CLAUDE.md diz "PHP 8.5" — **está errado** |
-| Laravel | **13.17.0** | |
-| Front | Inertia 3.1 + Vue 3 + Tailwind v4 + Ziggy 2.6 | |
+| Laravel | **13** (`^13.8`) | |
+| Front | Inertia + Vue 3 + Tailwind v4 + Ziggy | frontend usa rotas **web** (sessão/CSRF), não Sanctum |
 | Banco | MySQL 8.4 (Docker) | Redis para cache/filas |
-| Mail | Resend (`resend/resend-laravel` 1.4) | |
-| Auth | Sanctum 4.3 (API) + **sessão/CSRF (web)** | o frontend usa rotas **web**, não Sanctum |
+| Mail | Resend (`resend/resend-laravel`) | webhook em `/resend/webhook` |
+| Auth | Sanctum (API v1) + **sessão/CSRF (web)** | as duas superfícies coexistem |
+| Rotas | **92** registradas (`route:list`) | |
 
 ### 1.2 O que está implementado e funcionando
 
-Tudo abaixo está na `main`, com teste. **91 rotas** registradas (`php artisan route:list`).
+Tudo abaixo está na `main`, com teste.
 
 **Fundação e dinheiro**
-- **Ledger append-only** (`token_ledger`): saldo é sempre a soma das linhas. Update/delete
-  bloqueados e testados. É o princípio nº 2 do CLAUDE.md e está de pé.
+- **Ledger append-only** (`token_ledger`): saldo é sempre a soma das linhas; update/delete
+  bloqueados e testados (princípio nº 2 do CLAUDE.md). Tipos de lançamento hoje:
+  `purchase, bonus, refund, adjustment, spend_tip, tip_credit, spend_private, spend_camera,
+  spend_interest_unlock, payout_reserve, payout_reversal, staging_seed_backfill`.
 - **Compra de tokens via PIX/Asaas** com webhook idempotente por id de evento + reconciliação
   agendada. Driver **Fake** por padrão (`ASAAS_DRIVER=fake`).
 - **Gorjetas** (`TipService`) com split por nível da performer, rate limit 10/min.
-- **Payouts** (saque PIX da performer) — `/performer/payouts`. ⚠️ ver §4.1, o hardening
-  anti-pagamento-em-dobro **não está na main**.
+- **Payouts** (saque PIX da performer) — `/performer/payouts`. O hardening anti-pagamento-em-dobro
+  **agora está na `main`** (§4.1); restam follow-ups menores (§4.4).
 
 **Identidade e acesso**
 - Cadastro/login/logout/me, verificação de e-mail, reset de senha, middleware de role,
   policies, audit log. Web (sessão) e API v1 (Sanctum) coexistem.
 - **KYC** de performer (webhook Didit, resubmissão). Documentos **criptografados em repouso**
   no disco isolado `kyc` via `APP_KEY`. Driver **Fake**.
-- Gate de idade (18+) e `SecurityHeaders` com **HSTS condicional por ambiente**.
+- Gate de idade (18+) e `SecurityHeaders` com HSTS condicional por ambiente.
 
 **Descoberta**
 - **Catálogo autenticado** `/catalogo` (por mundo) + **catálogo público** `/performers` com
-  meta OG renderizada no servidor (superfície de SEO, sem auth).
+  meta OG server-side (superfície de SEO, sem auth).
 - **Follows** (restrito a membros ativos).
-- Perfil de performer: onboarding e **edição pela performer ativa** (nome/bio/foto — PR #29).
+- Perfil de performer: onboarding e **edição pela performer ativa** (nome/bio/foto).
 
 **Waitlist (a superfície pública de hoje)**
 - Cadastro em 2 passos (membro/performer), double opt-in, Founding Members v3 com
   referrals/painel do fundador (`/f/{invite_code}`), convites (`/convite/{code}`).
-- **Drip de nurturing:** 7 e-mails. ⚠️ ver §4.4 — exige `WAITLIST_NURTURE_START_AT`.
+- **Drip de nurturing:** 7 e-mails. ⚠️ exige `WAITLIST_NURTURE_START_AT` (§4.4).
 - Descadastro com padrão GET-confirma / POST-executa (à prova de prefetch de mailbox).
 - Admin: `/admin/waitlist`.
 
-**Interesse Controlado (Sprint 3 — a entrega mais recente)**
+**Interesse Controlado (Sprint 3 — fechado)**
 - Performer envia sinal binário a um seguidor; membro paga **15 tokens** (100% plataforma,
   performer não é creditada) para revelar quem é.
 - Limite 5 envios/dia por performer, cooldown 30 dias por par, **opt-out silencioso** do membro.
-- Painel do membro `/interesses` (caixa, desbloqueio, opt-out) e `/painel` (dashboard do membro).
-- Envio a partir de `/performer/seguidores`, restrito a quem já segue (fecha o oráculo de
-  enumeração de membros).
+- Painel do membro `/interesses` e `/painel`; **aba "Interesses enviados"** no painel da
+  performer (PR #30). Envio a partir de `/performer/seguidores`, restrito a quem já segue.
 
 ### 1.3 O que **NÃO** existe (não reportar como bug)
 
-Verificado por `grep` no código, não por memória:
+Verificado por `grep` no código (`app/` + migrations), não por memória:
 
-- **Chat / mensagens** — não construído. É pré-requisito declarado da spec de Interesse (§5:
-  "canal de conversa", "1ª mensagem grátis"), e essa parte **não existe**. O desbloqueio hoje
+- **Assinaturas / Círculos** — `grep subscription|maison|memento` no `app/` volta **vazio**.
+  As decisões de produto estão travadas nos docs (§3.2), o código **não existe**.
+- **Limen Mementos / hold no ledger** — não implementado. Não há `entry_type` de reserva de
+  Memento; o único "reserve" existente é `payout_reserve` (payouts). O hold de 800 tokens
+  descrito na `MAISON_PROGRAM.md` é intenção documental (§4.3).
+- **Chat / mensagens** — não construído. É pré-requisito da spec de Interesse (canal + 1ª
+  mensagem grátis) **e** de vários Círculos (Explorador = "chat livre"). O desbloqueio hoje
   só revela identidade.
-- **Assinaturas / Círculos** — `grep` por `subscription` e `circle` no `app/` e nas migrations
-  volta **vazio**. Os specs existem; o código, não.
-- **Feed, conteúdo pago destravável, streaming (LiveKit)** — não construídos.
-- **Sistema de tiers de performer** — não existe. O "5 envios/dia" é o piso via config.
+- **Cofre das FC Sessions** — ⛔ TRAVADO por decisão jurídica (§4.3). Nada de código.
+- **Feed, conteúdo pago destravável, streaming (LiveKit), sistema de score/tiers de
+  performer** — não construídos.
 
 ---
 
-## 2. PRs MERGEADOS DESDE O ÚLTIMO HANDOFF (#16 → #29)
+## 2. PRs MERGEADOS DESDE A RETOMADA ANTERIOR (#30 → #39)
 
-O handoff anterior é de 02/07. Tudo abaixo entrou depois, entre 13 e 14/07.
+Todos mergeados em **15/07/2026**. A RETOMADA anterior entrou como PR #32.
 
-| PR | Data | Branch | O que entregou |
-|---|---|---|---|
-| #16, #17 | 13/07 | `feat/links-page` | Página pública `/links` (link-in-bio) + og-image PNG + handle X corrigido |
-| #18 | 13/07 | `feat/resend-mailer` | Resend como transporte de e-mail |
-| #19 | 13/07 | `feat/seo-titles` | Convenção de título `<página> · Limen`; meta OG do catálogo no servidor |
-| #20, #21 | 13/07 | `feat/waitlist-2-steps` | Waitlist em 2 passos (membro/performer) + spec §8 com decisões do PO |
-| #22, #23 | 13–14/07 | `feat/waitlist-nurturing` | Drip de 7 e-mails de nurturing + cobertura |
-| #24 | 14/07 | `feat/interest-system` | **Interesse Controlado** — backend + testes (ledger, idempotência, corridas) |
-| #25 | 14/07 | `feat/interest-ui-and-payouts` | UI do interesse + payouts no painel; lista de seguidores só com membros ativos |
-| #27 | 14/07 | `feat/member-dashboard` | Dashboard do membro em `/painel` |
-| #28 | 14/07 | `docs/interest-anonymity-floor` | Documenta o piso de anonimato como **decisão em aberto** |
-| #29 | 14/07 | `feat/performer-profile-edit` | Performer ativa edita nome artístico, bio e foto |
+| PR | Branch | O que entregou |
+|---|---|---|
+| **#30** | `feat/performer-interests-tab` | Aba "Interesses enviados" no painel da performer — fecha o Sprint 3 |
+| **#31** | `fix/unique-stage-name-index` | Índice único de `stage_name` no banco |
+| **#32** | `docs/retomada-chat-novo` | A RETOMADA anterior (handoff de 15/07) |
+| **#33** | `fix/payout-edge-cases` | Trata 408/429 como ambíguo e limita o lock do reconcile |
+| **#34, #35** | `feat/qa-seeder-and-tests` | Seeder de QA (50 performers / 100 membros) + `QaOperationTest` (login suspenso, limites, unicode, paginação) |
+| **#36** | `fix/payout-needs-review` | `needs_review` como porta de saída do reconcile para payouts irresolvíveis |
+| **#37** | `docs/qa-operation-reports` | Arquiva playbook da operação de QA, charters dos agentes e relatórios |
+| **#39** | `docs/circles-system-final` | **Trava as decisões dos Círculos** e aposenta `SUBSCRIPTION_TIERS.md`; adiciona cofre legal, Banca, elegibilidade/hold/mensagem-genérica dos Mementos |
 
-**Lacuna: o PR #26 não aparece no histórico da `main`.** Os merges saltam de #25 para #27.
-Foi fechado sem merge ou nunca existiu — sem o `gh` CLI não dá para confirmar daqui. Se ele
-continha algo que você julga entregue, **verifique**.
+> **Notas de numeração:**
+> - **#38 é uma _issue_, não um PR** — é o bug do backup de KYC (o `backup.sh` não cobria
+>   `storage/app/kyc`). Por isso o histórico salta de #37 para #39.
+> - **#40 e #41 ainda não existem como PR.** São duas branches já empurradas neste ciclo,
+>   aguardando abertura manual (não há `gh` CLI — §6.6):
+>   - `fix/kyc-backup` — corrige a issue #38 (adiciona `storage/app/kyc` ao tarball + guarda
+>     os diretórios com `mkdir -p`).
+>   - `feat/tip-on-public-profile` — habilita gorjeta no perfil **público** para membro logado
+>     (`role === 'consumer'`), reusando um `TipModal.vue` compartilhado com o catálogo.
+>   Ambas com testes verdes e, no caso da de gorjeta, `security-reviewer` aprovado.
 
 ---
 
-## 3. SPRINTS CONCLUÍDOS
+## 3. DECISÕES DE PRODUTO
 
-> Aviso de nomenclatura: o projeto tem **duas numerações sobrepostas** — "Fases 0–12" (o
-> vocabulário do CLAUDE.md e dos handoffs antigos) e "Sprints 1–3" (o vocabulário recente).
-> Elas não se alinham. Abaixo, o que o registro do git de fato mostra.
-
-### Fases 0–12 (fundação, até ~02/07)
-Fundação do repo/Docker → modelo de dados + `TokenService` → auth (Sanctum, verificação,
-reset, roles, policies, audit log) → tokens + Asaas/PIX (webhook idempotente, reconciliação)
-→ perfis, catálogo e follows → KYC (Didit, cripto em repouso) → gorjetas (split, ledger) →
-frontend Inertia/Vue/Tailwind (design system, gate de idade, Ziggy) → catálogo visual →
-FIXes de UX (Fase 12).
-
-⚠️ **O CLAUDE.md está desatualizado aqui.** Ele diz "Fase 7 … Próxima: Fase 8 (catálogo de
-performers no frontend)". A Fase 8 está entregue (`Performers/Index.vue`,
-`PublicCatalogController`, `docs/fase8-catalogo-visual.md`) e o projeto está muito além disso.
-
-### Sprint 1 (crescimento / waitlist)
-Waitlist, Founding Members v3, referrals, painel do fundador. Fechamento exigiu passos
-manuais de servidor (`ASAAS_DRIVER=fake` no staging, `performers:backfill-avatars`, sudoers
-do vendor).
-
-### Sprint 2 (superfície pública)
-`/links`, Resend, títulos de SEO, meta OG server-side, waitlist em 2 passos, drip de nurturing.
-O deploy do S2 quebrou por sudoers (`sudo mkdir` não é permitido) — ver §6.
-
-### Sprint 3 (Interesse Controlado) — **o último**
-Modelo escolhido: performer sinaliza (sem texto), membro paga 15 tokens para revelar.
-Entregue: backend + testes (#24), UI + payouts (#25), dashboard do membro (#27), doc do piso
-de anonimato (#28), edição de perfil (#29).
-
-**Decisões do PO travadas no Sprint 3:**
+### 3.1 Sprint 3 — Interesse Controlado (travadas)
 - 15 tokens de desbloqueio = **100% plataforma**; a performer **não** é creditada.
 - **Chat adiado explicitamente** — o desbloqueio revela identidade, não abre canal.
-- Opt-out do membro é **silencioso** (a performer não pode perceber).
-- Desbloqueio é permanente e pago **uma vez por performer**.
+- Opt-out do membro é **silencioso**; desbloqueio é permanente e pago **uma vez por performer**.
+- Segurança: `unlock()` trava todas as linhas do par (performer, membro) em leitura ordenada —
+  sem isso, dois interesses da mesma performer cobravam 15 tokens em dobro.
 
-**Segurança do Sprint 3 (corridas corrigidas):** `unlock()` trava todas as linhas do par
-(performer, membro) numa leitura ordenada — sem isso, dois interesses da mesma performer
-cobravam 15 tokens duas vezes. `send()` serializa na linha de `performer_profiles`.
+### 3.2 Sistema de Círculos / MAISON / Mementos (travadas em 15/07, PR #39)
 
-**O último item do Sprint 3 está pronto mas não mergeado:** aba "Interesses enviados"
-(`feat/performer-interests-tab`) — ver §4.2.
+> Documentos de referência: **`CIRCLES_SYSTEM_V4.md`** e **`MAISON_PROGRAM.md`**.
+> **"Círculos", nunca "Planos".** `SUBSCRIPTION_TIERS.md` está aposentado (superseded).
+> **Nada disto está no código** — é o alicerce da próxima sprint de monetização.
+
+**Os 4 Círculos + Founders Circle (5 tiers pagos):**
+
+| Tier | Preço/mês | Vagas | Marca |
+|---|---|---|---|
+| Explorador | R$ 89,90 | ilimitadas | 75 tokens/mês, chat livre, badge prata |
+| Insider | R$ 189,90 | ilimitadas | 200 tokens/mês, prioridade no Interesse, badge dourado |
+| Prestige | R$ 389,90 | ilimitadas | 500 tokens/mês, 1 live privada, Modo Discrição básico |
+| Black | R$ 749,90 | **máx. 500 globais** | 1.200 tokens/mês, Número BLACK (o membro não vê o nº), Exclusive/Maison |
+| **Founders Circle** | R$ 1.490,00 | **por convite, máx. 100** | categoria à parte; o membro **escolhe** o número FC (1–9999) |
+
+- **Invariante:** a assinatura **não substitui** tokens — tokens seguem sendo a moeda de toda
+  interação (PPV, 1:1, gorjeta, mensagem sem assinatura). O Círculo reduz **atrito** e **custo**.
+- **Número FC e aposentadoria:** o divisor é **6 meses de FC ativo** (o marco da Placa). Cancelou
+  antes → número volta ao pool. Cancelou com 6+ meses → número **aposentado para sempre** e vira
+  **FC Histórico** (número, badge histórico e "Fundador desde 2027" permanentes; benefícios de
+  membro ativo suspensos).
+- **Colecionáveis digitais somem ao cancelar** (decidido 15/07, sem exceção por tipo). O que
+  **sobrevive**: badges de antiguidade, número/badge FC aposentado e objetos físicos já entregues.
+- **Endereço de entrega dos marcos físicos é PII** (Locker/Caixa Postal, nunca residência):
+  mesma regra do CPF/KYC — tabela isolada, criptografado, nunca em log/URL.
+- **Hierarquia de performers (MAISON):** Verificada (20%) → Select (17%, score 70–84) →
+  **Maison (12%, convite + Banca, máx. 50)**. A Banca ganha um **Conselho** (Robson + Bruno +
+  Curador) a partir do 6º mês de operação.
+- **Lançamento:** semana grátis para waitlist que assinar qualquer Círculo; **Black e FC só
+  abrem** após 5–10 performers Exclusive cadastradas; tier abaixo de Explorador (R$ 39,90)
+  **rejeitado**.
+
+**Limen Mementos (Maison → membro FC) — regras já travadas, ainda sem código:**
+- Custo logístico **fixo de 800 tokens**, 100% plataforma, **hold no ledger** disparado na
+  **aprovação da foto** do item (não no envio); reprovada → libera; recebido no hub → débito.
+- Verificação de saldo **antes** de a performer submeter a foto. Se bloqueado (saldo,
+  toggle desativado ou limite), a performer vê **sempre a mesma mensagem genérica**
+  *"Não é possível enviar para este membro no momento"* — mesma doutrina da máscara do opt-out
+  do Interesse: motivos distinguíveis viram canal de vazamento.
 
 ---
 
 ## 4. PENDÊNCIAS E DECISÕES EM ABERTO
 
-### 4.1 🔴 P0 — Hardening de payout contra pagamento em dobro NÃO está na `main`
+### 4.1 ✅ RESOLVIDO — hardening de payout contra pagamento em dobro
+Era o P0 da RETOMADA anterior. **Está na `main` desde 15/07**: o reconcile só move dinheiro em
+estado terminal explícito, estado ambíguo (timeout/408/429) **não estorna**, e o `needs_review`
+virou a porta de saída para payouts irresolvíveis (#33, #36). O merge do
+`fix/payout-double-pay-hardening` também entrou. Não é mais bloqueador.
 
-O achado mais sério desta inspeção. A branch **`fix/payout-double-pay-hardening`**
-(commit `26cb784`, "Fase 0 · Etapa 7") existe no remoto e **nunca foi mergeada**.
-Confirmado: `grep TRANSFER_DONE app/` na `main` volta **vazio**.
+### 4.2 🔴 Bloqueio jurídico — cofre das FC Sessions
+`MAISON_PROGRAM.md` descreve gravação backend das FC Sessions em cofre por 90 dias para uso
+**exclusivamente** em investigação/denúncia. **⛔ TRAVADO: não implementar até aprovação
+jurídica.** É dado de vida sexual (art. 11, LGPD) retido sem transparência nos termos; a base
+legal não é consentimento (o titular revoga, e o cofre precisa sobreviver à revogação). Além
+disso, falta infraestrutura que **não existe hoje** (D1–D6):
+- criptografia de vídeo em **streaming** (o `Crypt`/`APP_KEY` do KYC carrega o arquivo inteiro
+  em memória — serve para JPEG, não para live de horas);
+- **modelo de roles** que comporte o Curador (hoje `consumer|performer|admin`: dar acesso ao
+  Curador = dar `admin` = dar KYC + waitlist + cofre de brinde — gap estrutural);
+- **expurgo automático verificável** (não há retenção em lugar nenhum; o backup guarda cópias
+  que o dia 90 não alcança);
+- **audit log de leitura** (o audit atual cobre escrita; no cofre a leitura é o evento crítico).
 
-Ela contém (404 linhas, 11 arquivos):
-- `PayoutService` — reconcile só move dinheiro em **estado terminal explícito**; estado
-  ambíguo (timeout/erro de rede) **nunca** estorna;
-- nome real do evento do webhook: **`TRANSFER_DONE`**, não `PAID`;
-- `AsaasUnavailableException` / `AsaasRequestException` e `ReconcilePayouts` endurecido;
-- +131 linhas de teste em `PayoutTest.php`.
-
-Ou seja: **a `main` de hoje tem o payout na versão sem esse endurecimento**, e o webhook de
-transferência escuta o nome de evento errado. Isso é dinheiro real saindo. Trate como o
-primeiro item do próximo sprint: revisar, rebasear na `main` e mergear.
-
-### 4.2 Trabalho pronto aguardando PR
-
-| Branch | Estado | Ação |
-|---|---|---|
-| `feat/performer-interests-tab` | Aba "Interesses enviados"; 353 testes verdes; revisão de segurança feita | Abrir PR |
-| `fix/unique-stage-name-index` | Índice único de `stage_name`; 344 verdes; migração verificada em `migrate:fresh --seed` | Abrir PR |
-| `fix/payout-double-pay-hardening` | Ver §4.1 | Revisar e mergear — **prioridade** |
-| `qa/pre-prod-operation` | **9 commits, 1851 linhas**: seeder de QA (50 performers/100 membros), `QaOperationTest`, script de carga k6, relatórios de QA/segurança/UX/growth e veredito de go-live | Decidir: mergear ou descartar |
-| `feat/performer-profile-edit` | Só o commit `4a2d46f`, já replicado em `fix/unique-stage-name-index` | Pode ser apagada após o merge |
-
-> **Como o `4a2d46f` ficou órfão:** o PR #29 mergeou em `8cbd934`, mas o commit seguinte da
-> branch (o índice único de `stage_name`) ficou para trás. Foi resgatado por cherry-pick em
-> `fix/unique-stage-name-index`. Lição: conferir se a branch avançou depois de abrir o PR.
-
-### 4.3 Decisão de produto em aberto: piso de anonimato do Interesse
-
-Documentada em `INTEREST_ANONYMITY_FLOOR.md` (PR #28) e **ainda não decidida**.
-
-Como o envio é restrito a seguidores, o conjunto de candidatos ao remetente **é** a lista de
-follows do membro. Com 1 follow, o membro acerta o remetente sem pagar (100%); com 2, 50%.
-Isso morde o membro novo — justamente quem se quer converter.
-
-Opções: (1) piso de N follows; (2) reabrir a não-seguidores com resposta uniforme;
-(3) ruído na contagem; (4) aceitar e documentar.
-
-**A sugestão do doc é decidir com dado**, medindo a distribuição de follows por membro:
-```sql
-SELECT follows_por_membro, COUNT(*) AS membros FROM (
-    SELECT user_id, COUNT(*) AS follows_por_membro FROM follows GROUP BY user_id
-) t GROUP BY follows_por_membro ORDER BY follows_por_membro;
-```
-Mediana alta → opção 4 é defensável. Mediana 1–2 → opção 1 é necessária.
+### 4.3 Assinaturas / Mementos ainda não implementados
+Todas as regras de §3.2 são documentais. A sprint de monetização precisa, no mínimo, de:
+- máquina de assinatura (cobrança recorrente Asaas, estados de Círculo, franquia mensal de
+  tokens, descontos por tier);
+- **hold/reserva no ledger** para os 800 tokens do Memento (novo `entry_type`, ex. `memento_hold`,
+  seguindo o padrão append-only — reservar não é `UPDATE saldo`);
+- **chat**, que é benefício de Círculo (Explorador = chat livre) e pré-requisito do Interesse.
 
 ### 4.4 Outras pendências abertas
-
-- **Drip de nurturing dispara em blast** se `WAITLIST_NURTURE_START_AT` não for setado na
-  ativação. Copy final e halt pós-launch continuam como follow-up.
-- **Tabela de limite diário por tier** (spec do Interesse §9) — o sistema de tiers não existe;
-  5/dia é o piso via `config/interest.php`.
-- **`unlock()` não revalida se a performer segue ativa** — o membro pode gastar 15 tokens para
-  revelar uma performer desativada depois do envio. Decisão de produto, não corrigido.
-- **Pseudônimos conflitantes:** o painel mostra gorjetas como `Fã #0042` (`id % 10000`) e a
-  lista de seguidores mostra `Membro #42` (id cru). O mesmo membro é correlacionável entre as
-  duas telas, o que anula o mascaramento. Convém unificar.
-- **Retenção/expurgo de documentos de KYC** — follow-up nunca feito. Rotacionar a `APP_KEY`
-  quebra a decodificação dos `.enc`.
+- **Drip de nurturing dispara em blast** se `WAITLIST_NURTURE_START_AT` não for setado na ativação.
+  Copy final e halt pós-launch seguem como follow-up.
+- **Payout — follow-ups menores** que sobraram do hardening: falta **alerta/requeue** para
+  `needs_review` (o reconcile para de tentar após 2h de buscas vazias, e o prazo conta de
+  `unresolved_since`); revisar se algum caminho de `createTransfer` com 429/408 ainda pode estornar.
+- **Piso de anonimato do Interesse** (`INTEREST_ANONYMITY_FLOOR.md`) — **ainda não decidido**.
+  Como o envio é restrito a seguidores, o conjunto de candidatos ao remetente é a lista de follows
+  do membro (1 follow → acerta sem pagar). Decidir com dado (distribuição de follows por membro).
+- **`unlock()` não revalida se a performer segue ativa** — membro pode gastar 15 tokens para
+  revelar performer desativada depois do envio. Decisão de produto.
+- **Pseudônimos correlacionáveis:** painel mostra `Fã #0042` (`id % 10000`) e a lista de
+  seguidores mostra `Membro #42` (id cru). O mesmo membro é correlacionável entre telas. Unificar.
+- **Retenção/expurgo de documentos de KYC** — follow-up nunca feito. Rotacionar `APP_KEY` quebra
+  a decodificação dos `.enc`.
 - **Integrações reais (Asaas/KYC) ainda em Fake** — pré-requisito de go-live.
-- **`.env.example` induz a SQLite** (`DB_CONNECTION=sqlite`), mas o projeto é MySQL. Rodar
-  `php artisan test` sem sobrescrever falha com "could not find driver". Ver §6.4.
+- **`.env.example` induz a SQLite**, mas o projeto é MySQL. `php artisan test` sem sobrescrever
+  falha com "could not find driver" (§6.4).
 
-### 4.5 Contradições entre specs (nenhuma decidida)
+### 4.5 Contradições entre specs
+- ✅ **"Círculos vs Planos" — RESOLVIDO.** `SUBSCRIPTION_TIERS.md` foi aposentado; a nomenclatura
+  e a hierarquia oficiais são as de `CIRCLES_SYSTEM_V4.md`.
+- ✅ **Régua de marcos físicos — RESOLVIDO (16/07).** Seção de marcos físicos removida do
+  `MAISON_PROGRAM.md`. A régua (Carta 1 mês, Placa 6 meses, Chave 12 meses) vive exclusivamente em
+  `CIRCLES_SYSTEM_V4.md`. Não havia conteúdo de membro FC no doc de performers.
+- ⚠️ **4 mundos vs 6 categorias — ainda em aberto.** `WORLDS_ARCHITECTURE.md` diz 4 mundos; o banco
+  tem 6 (`enum('mulheres','homens','casais','trans','gls','swing')`). `CatalogController`/
+  `RegisterWebRequest` aceitam 6; `PublicCatalogController` aceita 4 → `/performers?mundo=gls`
+  devolve 422 embora performers `gls`/`swing` apareçam no catálogo sem filtro. Decidir.
 
-Achadas ao ler os docs. **Nenhuma das duas está no código**, então ainda não custaram nada —
-mas o próximo sprint de monetização vai bater de frente com elas.
-
-1. **"Círculos" vs "Planos".** `CIRCLES_SYSTEM_V4.md` abre com *"Nomenclatura oficial: usamos
-   **Círculos**, nunca 'Planos'"* e define **5 Círculos** (Explorador R$ 89,90/mês …).
-   `SUBSCRIPTION_TIERS.md` define **4 planos** (FREE/SELECT/BLACK/PRESTIGE) e é o que
-   `INTEREST_SYSTEM_SPEC.md` §5 e `COMMUNICATION_ECONOMY.md` referenciam. **Os dois modelos
-   coexistem nos docs e se contradizem.** Decidir antes de implementar assinatura.
-
-2. **4 mundos vs 6 categorias.** `WORLDS_ARCHITECTURE.md` diz **4 mundos** (Mulheres, Homens,
-   Trans, Casais). O banco tem **6**: `enum('mulheres','homens','casais','trans','gls','swing')`.
-   Isso já vazou para o código de forma inconsistente:
-   - `CatalogController` (autenticado), `RegisterWebRequest`, `UserPreferencesController`: **6**;
-   - `PublicCatalogController`: **4** (`'mundo' => 'nullable|in:mulheres,homens,casais,trans'`).
-
-   **Efeito real:** o seeder cria performers de `gls` e `swing` (18 no banco de dev). Elas
-   **aparecem** no catálogo público sem filtro, mas `/performers?mundo=gls` devolve **422**.
-   Ou o doc está desatualizado, ou o catálogo público está errado. Decidir.
-
-### 4.6 Afirmações dos handoffs antigos que hoje são FALSAS
-
-Não confie em `CURRENT_ISSUES_AND_NEXT_ACTIONS.md` sem checar. Verificado:
-
-| Afirmação antiga | Realidade em 15/07 |
-|---|---|
-| "P0 — HSTS de 1 ano será restaurado pelo deploy" | **Resolvido.** `SecurityHeaders.php` já é condicional: `production` → 1 ano + preload; resto → `max-age=300` |
-| "173 testes verdes" | **344** na `main` |
-| "Domínios: limen.com.br (produção futura)" | O domínio de produção é **thelimen.com.br** (o vhost existe no repo) |
-| "Fases 1–12 entregues … próximo: QA + FIXes" | Vieram depois 3 sprints (waitlist, superfície pública, Interesse Controlado) |
-| CLAUDE.md: "PHP 8.5" | **PHP 8.4.22**; `composer.json` pede `^8.3` |
-| CLAUDE.md: "Próxima: Fase 8" | Fase 8 entregue há tempos |
-
-**Ainda válidas** (não mexer): ledger append-only; CPF só no checkout e PII isolada;
-`category` é o mundo (não criar coluna `world`); `/cadastro` reutilizada; catálogo autenticado
-é auth-gated; deploy por `reset --hard` (não editar arquivo no servidor); sudoers restrito;
-idempotência de pagamento por id de evento; stack Inertia/Vue/Tailwind só muda com o PO.
+### 4.6 Afirmações de handoffs antigos que hoje são FALSAS
+Não confie em `CURRENT_ISSUES_AND_NEXT_ACTIONS.md` / `TECHNICAL_HANDOFF_MASTER.md` sem checar:
+"HSTS será restaurado pelo deploy" (já é condicional no código), "173/344 testes" (**380** hoje),
+"domínio limen.com.br" (produção é **thelimen.com.br**), CLAUDE.md "PHP 8.5" (**8.4.22**) e
+"Próxima: Fase 8" (entregue há tempos). **Ainda válidas:** ledger append-only; CPF só no checkout
+e PII isolada; `category` é o mundo (não criar coluna `world`); deploy por `reset --hard`; sudoers
+restrito; idempotência de pagamento por id de evento; stack só muda com o PO.
 
 ---
 
 ## 5. PRÓXIMO SPRINT — O QUE ATACAR
 
-Ordem sugerida, do risco para a feature.
+Ordem sugerida, do barato/risco para a feature.
 
-1. **Mergear o hardening de payout (§4.1).** É dinheiro saindo com o webhook escutando o
-   evento errado. Revisar `fix/payout-double-pay-hardening`, rebasear, rodar
-   `security-reviewer`, mergear. **Nada de feature nova antes disso.**
-2. **Fechar o Sprint 3.** Abrir os PRs de `feat/performer-interests-tab` e
-   `fix/unique-stage-name-index` (§4.2).
-3. **Decidir o destino do `qa/pre-prod-operation`** (9 commits de seeder/carga/relatórios
-   apodrecendo). Mergear ou apagar — deixar assim é o pior dos mundos.
-4. **Decidir o piso de anonimato com o SQL do §4.3.** É barato e destrava a política do
-   Interesse.
-5. **Resolver as contradições de spec do §4.5** — "Círculos vs Planos" e "4 vs 6 mundos".
-   Ambas são decisão de PO e bloqueiam a sprint de monetização.
-6. **Aí sim, feature.** As duas candidatas naturais, ambas destravadas pelo Sprint 3:
-   - **Chat/mensagens** — é o pré-requisito que falta para o Interesse Controlado cumprir a
-     própria spec (canal + 1ª mensagem grátis). ⚠️ Ler antes o aviso no fim de
-     `INTEREST_ANONYMITY_FLOOR.md`: enviar mensagem para uma linha mascarada tem de parecer
-     bem-sucedido e não entregar nada, senão o opt-out vaza no envio.
-   - **Assinaturas/Círculos** — bloqueada pelo §4.5.1 até o PO decidir a nomenclatura.
+1. **Abrir os PRs pendentes deste ciclo** (§2): `fix/kyc-backup` (corrige a issue #38 de backup
+   de KYC) e `feat/tip-on-public-profile` (gorjeta no perfil público). Ambos prontos e testados.
+2. **Fechar os follow-ups de payout** (§4.4): alerta/requeue de `needs_review` e a revisão do
+   caminho 429/408. É dinheiro — vem antes de feature.
+3. **Decidir a contradição de spec restante do §4.5**: 4-vs-6 mundos (a régua de marcos físicos
+   já foi resolvida em 16/07). É decisão de PO e bloqueia trabalho abaixo.
+4. **Decidir o piso de anonimato** (§4.4) com o dado de follows por membro.
+5. **Iniciar a sprint de monetização (Círculos)** — agora destravada pela nomenclatura oficial,
+   mas com três dependências reais (§4.3):
+   - **chat/mensagens** (benefício de Círculo e pré-requisito do Interesse); ⚠️ ler o aviso de
+     `INTEREST_ANONYMITY_FLOOR.md` — enviar a uma linha mascarada tem de parecer sucesso e não
+     entregar nada, senão o opt-out vaza;
+   - **máquina de assinatura** (recorrência Asaas, estados de Círculo, franquia/descontos);
+   - **hold no ledger** para os 800 tokens do Memento (novo `entry_type`, append-only).
+6. **Não** iniciar o cofre das FC Sessions (§4.2) — bloqueio jurídico, não de engenharia.
 
 ---
 
@@ -295,62 +273,55 @@ Ordem sugerida, do risco para a feature.
 
 ### 6.2 Domínios
 - **`limen.dev.br`** — staging, ativo, app completo.
-- **`thelimen.com.br`** — produção. **É um portão de marketing, não o app.** O vhost
+- **`thelimen.com.br`** — produção. **Portão de marketing, não o app.** O vhost
   (`deploy/nginx/thelimen.com.br`) só deixa passar `/`, `/links`, `/interesse`, `/convite/`,
-  `/f/`, `/waitlist/`; todo o resto redireciona para `/`. O handler PHP é `internal`, então
-  não dá para furar o allowlist com `/index.php/catalogo`.
-  - **Estado:** o vhost está **HTTP-only (porta 80)** no repo. Rodar o certbot **só depois** do
-    DNS apontar para o box, senão o desafio ACME falha. Instalação manual (o arquivo não é
-    aplicado pelo deploy) — os comandos estão no cabeçalho do próprio vhost.
-  - ⚠️ `/performers` (catálogo público, superfície de SEO) **não está no allowlist** — no
-    domínio público ele redireciona para `/`. Intencional no pré-lançamento? Decidir.
+  `/f/`, `/waitlist/`; o resto redireciona para `/`. Handler PHP `internal` (não dá para furar
+  o allowlist com `/index.php/catalogo`). Está **HTTP-only** no repo; rodar certbot **só depois**
+  do DNS apontar. ⚠️ `/performers` (catálogo público de SEO) **não está no allowlist** — decidir
+  se entra no pré-lançamento.
 
 ### 6.3 CI/CD (`.github/workflows/deploy.yml`)
-- Dispara em **push/PR na `main`**.
-- **Testes:** `composer install` → `npm ci` → `npm run build` → `key:generate` →
-  `php artisan test` (MySQL de serviço). **Não roda lint** — não há `pint.json` e o código
-  mergeado reprova no Pint padrão; siga o estilo do arquivo vizinho.
+- Dispara em push/PR na `main`.
+- **Testes:** `composer install` → `npm ci` → `npm run build` → `key:generate` → `php artisan test`
+  (MySQL de serviço). **Não roda lint** (não há `pint.json`) — siga o estilo do arquivo vizinho.
 - **Deploy (SSH):** `git fetch` + `reset --hard origin/main` → `composer install --no-dev` →
   `npm ci && npm run build` → `migrate --force` → `config/route/view:cache` → restart do worker.
-- **Secrets:** `HETZNER_HOST`, `HETZNER_SSH_KEY`.
-- **Armadilhas conhecidas do deploy:**
-  - `composer install --no-dev` morre se algum arquivo em `vendor/` ficar com dono != `deploy`;
-  - o sudoers (`/etc/sudoers.d/deploy-limen`) só libera **chown / supervisorctl / nginx** sem
-    senha — **`sudo mkdir` não é permitido** e já quebrou o deploy do Sprint 2. Não ampliar o
-    sudoers; ajustar o passo.
+- **Armadilhas conhecidas:** `composer install --no-dev` morre se algo em `vendor/` ficar com dono
+  != `deploy`; o sudoers (`/etc/sudoers.d/deploy-limen`) só libera **chown / supervisorctl / nginx**
+  sem senha — **`sudo mkdir` não é permitido** (já quebrou o deploy do Sprint 2). Ajustar o passo,
+  não ampliar o sudoers.
 
 ### 6.4 Desenvolvimento local
-- Docker: `limen-mysql` (3306), `limen-redis` (6379), `limen-adminer` (8080).
-  Root do MySQL: `root_dev_pw`; app: `limen` / `limen_dev_pw`. Bancos: `limen` (dev),
-  `limen_test`, `limen_growth`.
-- **Não há SQLite local.** `phpunit.xml` força `DB_CONNECTION=sqlite` e as vars de CLI vencem,
-  então o comando que funciona é:
+- Docker: `limen-mysql` (3306), `limen-redis` (6379), `limen-adminer` (8080). App: `limen` /
+  `limen_dev_pw`. Bancos: `limen` (dev), **`limen_test`** (usar este nos testes p/ não zerar o dev).
+- **Não há SQLite local.** `phpunit.xml` força `DB_CONNECTION=sqlite` e as vars de CLI vencem:
   ```bash
-  DB_CONNECTION=mysql DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD=limen_dev_pw \
-    php artisan test
+  DB_CONNECTION=mysql DB_DATABASE=limen_test DB_HOST=127.0.0.1 DB_PORT=3306 \
+    DB_USERNAME=limen DB_PASSWORD=limen_dev_pw php artisan test
   ```
-- **VM de trabalho:** VirtualBox Ubuntu dentro da rede Verallia. O Zscaler bloqueia
-  `limen.dev.br` (categoria de domínio novo + conteúdo adulto) — **não é bug do site**.
-  Acesso por túnel SSH `:8443`. ⚠️ Origem `:8443` ≠ `APP_URL :443` quebra POST do Inertia
-  (logout); o backend está OK.
+- **VM de trabalho:** VirtualBox Ubuntu na rede Verallia. Zscaler bloqueia `limen.dev.br` (domínio
+  novo + adulto) — **não é bug do site**. Acesso por túnel SSH `:8443`. ⚠️ Origem `:8443` ≠
+  `APP_URL :443` quebra POST do Inertia (logout); o backend está OK.
 
 ### 6.5 Integrações
 | Serviço | Estado |
 |---|---|
-| **Asaas / PIX** | `ASAAS_DRIVER=fake` (default e no staging). `config/asaas.php` aceita `http`. Bootar produção com `fake` lança por design |
+| **Asaas / PIX** | `ASAAS_DRIVER=fake` (default e staging). Bootar produção com `fake` lança por design |
 | **KYC (Didit)** | Fake. Documentos cifrados em repouso no disco `kyc` via `APP_KEY` |
 | **Resend (e-mail)** | Configurado; webhook em `/resend/webhook` |
 | **LiveKit** | Não integrado |
-| ⚠️ `ASAAS_API_KEY` | Começa com `$` — **precisa de aspas simples no `.env`**, senão o shell interpola, vira vazia e dá 401 |
+| ⚠️ `ASAAS_API_KEY` | Começa com `$` — **precisa de aspas simples no `.env`**, senão o shell interpola e dá 401 |
 
 ### 6.6 Ferramental do agente
-- **Não há `gh` CLI nem token** no ambiente: **não dá para abrir PR por código**. O `push`
-  devolve a URL `pull/new/...` para o PO abrir no navegador.
-- Subagente **`security-reviewer`** é obrigatório antes de qualquer coisa sensível (cadastro,
-  KYC, pagamento, payout, PII) — CLAUDE.md.
+- **Não há `gh` CLI nem token:** não dá para abrir PR por código. O `push` devolve a URL
+  `pull/new/...` para o PO abrir no navegador.
+- Subagente **`security-reviewer`** é obrigatório antes de qualquer coisa sensível (cadastro, KYC,
+  pagamento, payout, PII) — CLAUDE.md.
 - **Toda rota nova usada no front precisa entrar em `config/ziggy.php`** (allowlist `only`).
-  Esquecer = o Ziggy lança na montagem do Vue e **o site inteiro fica em tela preta**. É o bug
-  histórico de referência do projeto.
+  Esquecer = Ziggy lança na montagem do Vue e **o site inteiro fica em tela preta**.
+- **Backup** (`docs/backup.sh`): dump MySQL + tar de storage, tudo cifrado por GPG. ⚠️ até a
+  issue #38 ser mergeada, o tarball **não cobre `storage/app/kyc`** (só `storage/app/private`) —
+  ver a branch `fix/kyc-backup`.
 
 ---
 
@@ -360,13 +331,14 @@ Ordem sugerida, do risco para a feature.
 cd /home/robson/teste
 git fetch origin && git checkout main && git reset --hard origin/main
 docker ps                       # limen-mysql / limen-redis / limen-adminer no ar?
-DB_CONNECTION=mysql DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD=limen_dev_pw \
-  php artisan test              # esperado: 344 verdes
+DB_CONNECTION=mysql DB_DATABASE=limen_test DB_HOST=127.0.0.1 DB_PORT=3306 \
+  DB_USERNAME=limen DB_PASSWORD=limen_dev_pw php artisan test   # esperado: 380 verdes
 ```
 
-Leia, nesta ordem: `CLAUDE.md` (princípios — mas ignore o "Estado atual", está velho) →
-este arquivo → `INTEREST_SYSTEM_SPEC.md` + `INTEREST_ANONYMITY_FLOOR.md` (a sprint mais
-recente e a decisão pendente).
+Leia, nesta ordem: `CLAUDE.md` (princípios — ignore o "Estado atual", está velho) → este arquivo →
+`CIRCLES_SYSTEM_V4.md` + `MAISON_PROGRAM.md` (as decisões travadas da próxima sprint) →
+`INTEREST_SYSTEM_SPEC.md` + `INTEREST_ANONYMITY_FLOOR.md` (a sprint entregue e a decisão pendente).
 
-**A primeira coisa a fazer é o §4.1** (payout sem hardening na `main`). Não é feature: é
-dinheiro.
+**Primeiras ações sugeridas:** abrir os PRs de `fix/kyc-backup` e `feat/tip-on-public-profile`
+(§2, §5.1), depois fechar os follow-ups de payout (§4.4). Nenhuma feature de monetização antes de
+decidir as contradições de spec (§4.5) e sem chat + hold no ledger (§4.3).
