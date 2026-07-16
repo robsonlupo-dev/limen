@@ -1,14 +1,25 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
+import { computed, ref } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
+import TipModal from '@/Components/TipModal.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
 
 const props = defineProps({
     performer: { type: Object, required: true },
     meta: { type: Object, default: () => ({ title: 'Limen', description: '' }) },
 })
+
+// Página pública (GuestLayout), mas acessível também por usuário logado. Só um
+// membro (role:consumer) pode gorjetar — é o que o backend exige em
+// POST /gorjetas (auth + role:consumer). Performer/admin logados e visitante
+// deslogado caem no mesmo caminho: link para o cadastro.
+const page = usePage()
+const canTip = computed(() => page.props.auth?.user?.role === 'consumer')
+
+const showTipModal = ref(false)
 
 const workModeLabels = {
     live: 'Show ao vivo',
@@ -71,15 +82,26 @@ const lockedTiles = 6
                         </p>
                     </div>
 
-                    <!-- Interaction requires an account: both actions route to signup. -->
                     <div class="flex items-center gap-3">
+                        <!-- Seguir ainda exige conta: leva ao cadastro. -->
                         <Link
                             :href="route('entrada')"
                             class="no-underline border border-gold text-gold px-5 py-2 rounded-lg text-sm hover:bg-gold/10 transition-colors"
                         >
                             Seguir
                         </Link>
+                        <!-- Gorjeta: só membro (role:consumer) abre o modal;
+                             performer/admin/visitante vão ao cadastro. -->
+                        <button
+                            v-if="canTip"
+                            type="button"
+                            class="border border-frame text-muted px-5 py-2 rounded-lg text-sm hover:text-cream hover:border-gold/40 transition-colors"
+                            @click="showTipModal = true"
+                        >
+                            Enviar gorjeta
+                        </button>
                         <Link
+                            v-else
                             :href="route('entrada')"
                             class="no-underline border border-frame text-muted px-5 py-2 rounded-lg text-sm hover:text-cream hover:border-gold/40 transition-colors"
                         >
@@ -151,5 +173,15 @@ const lockedTiles = 6
                 </div>
             </div>
         </div>
+
+        <!-- Tip modal (componente compartilhado com Catalog/Show.vue). Só é
+             montado para membro (role:consumer); os demais nem o abrem. -->
+        <TipModal
+            v-if="canTip"
+            :show="showTipModal"
+            :performer-slug="performer.slug"
+            :performer-name="performer.stage_name"
+            @close="showTipModal = false"
+        />
     </GuestLayout>
 </template>
