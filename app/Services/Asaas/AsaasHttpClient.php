@@ -52,6 +52,29 @@ class AsaasHttpClient implements AsaasClientInterface
         return $this->get('/transfers?externalReference=' . urlencode($externalReference));
     }
 
+    public function createSubscription(array $data): array
+    {
+        // $data traz billingType=CREDIT_CARD, customer, value, cycle, nextDueDate
+        // e, na primeira vez, creditCard + creditCardHolderInfo. O post() já não
+        // loga o payload (PII + cartão) — ver handle().
+        return $this->post('/subscriptions', $data);
+    }
+
+    public function getSubscription(string $subscriptionId): array
+    {
+        return $this->get("/subscriptions/{$subscriptionId}");
+    }
+
+    public function getSubscriptionPayments(string $subscriptionId): array
+    {
+        return $this->get("/subscriptions/{$subscriptionId}/payments");
+    }
+
+    public function cancelSubscription(string $subscriptionId): array
+    {
+        return $this->delete("/subscriptions/{$subscriptionId}");
+    }
+
     // Maps our internal pix_key_type values to Asaas's pixAddressKeyType enum.
     // Note a random ("chave aleatória") key is EVP in Asaas — NOT "RANDOM", which
     // a naive strtoupper() would produce and Asaas would reject.
@@ -104,6 +127,19 @@ class AsaasHttpClient implements AsaasClientInterface
             ])->timeout(self::TIMEOUT_SECONDS)->get($this->baseUrl . $path);
         } catch (ConnectionException $e) {
             throw new AsaasUnavailableException("Asaas unreachable on GET {$path}: {$e->getMessage()}", previous: $e);
+        }
+
+        return $this->handle($path, $response);
+    }
+
+    private function delete(string $path): array
+    {
+        try {
+            $response = Http::withHeaders([
+                'access_token' => $this->apiKey,
+            ])->timeout(self::TIMEOUT_SECONDS)->delete($this->baseUrl . $path);
+        } catch (ConnectionException $e) {
+            throw new AsaasUnavailableException("Asaas unreachable on DELETE {$path}: {$e->getMessage()}", previous: $e);
         }
 
         return $this->handle($path, $response);

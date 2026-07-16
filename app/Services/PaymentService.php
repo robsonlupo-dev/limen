@@ -23,10 +23,15 @@ class PaymentService
     {
         $this->ensureAsaasCustomer($user, $cpf);
 
+        // Desconto do Círculo ativo incide sobre o PREÇO do pacote, nunca sobre a
+        // quantidade de tokens creditada (o cliente paga menos pelos mesmos tokens).
+        $discountPct = $user->activeCircle()?->discount_pct ?? 0;
+        $amountCents = (int) round($package->price_cents * (100 - $discountPct) / 100);
+
         $payload = [
             'customer' => $user->asaas_customer_id,
             'billingType' => 'PIX',
-            'value' => $package->price_cents / 100,
+            'value' => $amountCents / 100,
             'dueDate' => now()->addDay()->format('Y-m-d'),
             'externalReference' => "user_{$user->id}_pkg_{$package->id}",
         ];
@@ -41,7 +46,7 @@ class PaymentService
             'provider' => 'asaas',
             'provider_charge_id' => $charge['id'],
             'method' => 'pix',
-            'amount_cents' => $package->price_cents,
+            'amount_cents' => $amountCents,
             'tokens' => $package->tokens,
             'status' => 'pending',
             'pix_qr_code' => $qr['encodedImage'],
@@ -51,7 +56,8 @@ class PaymentService
 
         Audit::log('payment.created', $payment, [
             'tokens' => $package->tokens,
-            'amount_cents' => $package->price_cents,
+            'amount_cents' => $amountCents,
+            'discount_pct' => $discountPct,
         ]);
 
         return $payment;

@@ -25,6 +25,9 @@ class HandleInertiaRequests extends Middleware
                     'role' => $request->user()->role,
                     'status' => $request->user()->status,
                     'email_verified_at' => $request->user()->email_verified_at,
+                    // Slug do Círculo ativo (ou null). O front usa para gating de UI;
+                    // a autoridade real continua sendo o middleware `circle`.
+                    'circle' => $request->user()->activeCircleSlug(),
                 ] : null,
             ],
             'flash' => [

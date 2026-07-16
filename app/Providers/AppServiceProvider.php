@@ -57,6 +57,25 @@ class AppServiceProvider extends ServiceProvider
             return $user->role === 'performer' && $user->status === 'active';
         });
 
+        // circle-active: true when the user has any live Círculo. With an
+        // optional $minTier ('circle-active', 'prestige') it means "that tier or
+        // higher", matching the `circle` middleware.
+        Gate::define('circle-active', function (User $user, ?string $minTier = null) {
+            $circle = $user->activeCircle();
+
+            if (! $circle) {
+                return false;
+            }
+
+            if ($minTier === null) {
+                return true;
+            }
+
+            $required = array_search($minTier, \App\Models\Circle::TIER_ORDER, true);
+
+            return $required !== false && $circle->tierRank() >= $required;
+        });
+
         WaitlistEntry::observe(WaitlistEntryObserver::class);
         WaitlistReferral::observe(WaitlistReferralObserver::class);
     }
