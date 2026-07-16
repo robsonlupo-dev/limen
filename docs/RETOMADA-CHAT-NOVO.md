@@ -227,10 +227,9 @@ Todas as regras de §3.2 são documentais. A sprint de monetização precisa, no
 - ✅ **Régua de marcos físicos — RESOLVIDO (16/07).** Seção de marcos físicos removida do
   `MAISON_PROGRAM.md`. A régua (Carta 1 mês, Placa 6 meses, Chave 12 meses) vive exclusivamente em
   `CIRCLES_SYSTEM_V4.md`. Não havia conteúdo de membro FC no doc de performers.
-- ⚠️ **4 mundos vs 6 categorias — ainda em aberto.** `WORLDS_ARCHITECTURE.md` diz 4 mundos; o banco
-  tem 6 (`enum('mulheres','homens','casais','trans','gls','swing')`). `CatalogController`/
-  `RegisterWebRequest` aceitam 6; `PublicCatalogController` aceita 4 → `/performers?mundo=gls`
-  devolve 422 embora performers `gls`/`swing` apareçam no catálogo sem filtro. Decidir.
+- ✅ **4 vs 6 mundos — RESOLVIDO (16/07).** 4 mundos oficiais: mulheres, homens, casais, trans.
+  GLS migrado para homens, Swing migrado para casais. Migration production-safe aplicada. Single
+  source of truth em `PerformerProfile::WORLDS`.
 
 ### 4.6 Afirmações de handoffs antigos que hoje são FALSAS
 Não confie em `CURRENT_ISSUES_AND_NEXT_ACTIONS.md` / `TECHNICAL_HANDOFF_MASTER.md` sem checar:
@@ -250,17 +249,16 @@ Ordem sugerida, do barato/risco para a feature.
    de KYC) e `feat/tip-on-public-profile` (gorjeta no perfil público). Ambos prontos e testados.
 2. **Fechar os follow-ups de payout** (§4.4): alerta/requeue de `needs_review` e a revisão do
    caminho 429/408. É dinheiro — vem antes de feature.
-3. **Decidir a contradição de spec restante do §4.5**: 4-vs-6 mundos (a régua de marcos físicos
-   já foi resolvida em 16/07). É decisão de PO e bloqueia trabalho abaixo.
-4. **Decidir o piso de anonimato** (§4.4) com o dado de follows por membro.
-5. **Iniciar a sprint de monetização (Círculos)** — agora destravada pela nomenclatura oficial,
+3. **Decidir o piso de anonimato** (§4.4) com o dado de follows por membro. As contradições de
+   spec do §4.5 já estão todas resolvidas (Círculos vs Planos, régua de marcos físicos, 4 mundos).
+4. **Iniciar a sprint de monetização (Círculos)** — agora destravada pela nomenclatura oficial,
    mas com três dependências reais (§4.3):
    - **chat/mensagens** (benefício de Círculo e pré-requisito do Interesse); ⚠️ ler o aviso de
      `INTEREST_ANONYMITY_FLOOR.md` — enviar a uma linha mascarada tem de parecer sucesso e não
      entregar nada, senão o opt-out vaza;
    - **máquina de assinatura** (recorrência Asaas, estados de Círculo, franquia/descontos);
    - **hold no ledger** para os 800 tokens do Memento (novo `entry_type`, append-only).
-6. **Não** iniciar o cofre das FC Sessions (§4.2) — bloqueio jurídico, não de engenharia.
+5. **Não** iniciar o cofre das FC Sessions (§4.2) — bloqueio jurídico, não de engenharia.
 
 ---
 
