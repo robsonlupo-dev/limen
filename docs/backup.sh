@@ -41,6 +41,10 @@ unset MYSQL_PWD
 # Dois discos distintos: 'private' (storage/app/private) e 'kyc'
 # (storage/app/kyc, docs .enc). Ambos entram no mesmo tarball criptografado.
 echo "▶ Backup de storage/app/private + storage/app/kyc (criptografado)"
+# Garante que os diretórios existam: num servidor novo que ainda não
+# recebeu upload, o disco 'kyc' (ou 'private') pode não existir, e com
+# 'set -e' o tar abortaria o backup inteiro.
+mkdir -p "$APP_DIR/storage/app/private" "$APP_DIR/storage/app/kyc"
 tar -czf - -C "$APP_DIR" storage/app/private storage/app/kyc \
   | gpg --batch --yes --encrypt --recipient "$GPG_RECIPIENT" \
   > "$BACKUP_DIR/storage-$STAMP.tar.gz.gpg"
