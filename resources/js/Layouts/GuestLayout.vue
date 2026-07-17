@@ -32,7 +32,7 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
             <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
                 <Link :href="route('landing')" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
-                    <span class="font-serif text-xl tracking-widest text-gold uppercase">Limen</span>
+                    <img :src="'/images/limen-wordmark.png'" alt="Limen" class="h-6 object-contain" />
                 </Link>
                 <nav class="flex items-center gap-6 text-sm text-muted">
                     <Link :href="route('login')" class="hover:text-cream transition-colors">Entrar</Link>
