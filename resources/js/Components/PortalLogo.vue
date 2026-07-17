@@ -22,15 +22,15 @@ const uid = computed(() => `portal-${(counter += 1)}-${Math.random().toString(36
             xmlns="http://www.w3.org/2000/svg"
         >
             <defs>
-                <!-- Vertical gold gradient: dark → light → dark -->
+                <!-- Metallic gold gradient: shadow → highlight → shadow -->
                 <linearGradient :id="`grad-${uid}`" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#C9A24B" />
-                    <stop offset="50%" stop-color="#F0D080" />
-                    <stop offset="100%" stop-color="#C9A24B" />
+                    <stop offset="0%" stop-color="#8B6914" />
+                    <stop offset="50%" stop-color="#F5E098" />
+                    <stop offset="100%" stop-color="#8B6914" />
                 </linearGradient>
                 <!-- Soft golden glow simulating the 3D lighting -->
                 <filter :id="`glow-${uid}`" x="-40%" y="-40%" width="180%" height="180%">
-                    <feGaussianBlur stdDeviation="3.2" result="blur" />
+                    <feGaussianBlur stdDeviation="3" result="blur" />
                     <feMerge>
                         <feMergeNode in="blur" />
                         <feMergeNode in="SourceGraphic" />
@@ -78,12 +78,12 @@ const uid = computed(() => `portal-${(counter += 1)}-${Math.random().toString(36
                 transform="translate(0 1)"
             />
         </svg>
-        <img
+        <span
             v-if="showText"
-            :src="'/images/limen-wordmark.png'"
-            alt="Limen"
-            class="mt-2 object-contain"
-            :style="{ height: size * 0.3 + 'px' }"
-        />
+            class="font-serif tracking-[0.2em] text-gold uppercase"
+            :style="{ fontSize: size * 0.22 + 'px' }"
+        >
+            Limen
+        </span>
     </div>
 </template>

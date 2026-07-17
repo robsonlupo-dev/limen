@@ -36,7 +36,7 @@ function logout() {
             <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
                 <Link :href="route('catalog')" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
-                    <img :src="'/images/limen-wordmark.png'" alt="Limen" class="h-6 object-contain" />
+                    <span class="font-serif text-[#C9A24B] tracking-widest">Limen</span>
                 </Link>
                 <nav class="flex items-center gap-6 text-sm text-muted">
                     <Link
