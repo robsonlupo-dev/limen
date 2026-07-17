@@ -78,12 +78,12 @@ const uid = computed(() => `portal-${(counter += 1)}-${Math.random().toString(36
                 transform="translate(0 1)"
             />
         </svg>
-        <span
+        <img
             v-if="showText"
-            class="font-serif tracking-[0.2em] text-gold uppercase"
-            :style="{ fontSize: size * 0.22 + 'px' }"
-        >
-            Limen
-        </span>
+            :src="'/images/limen-wordmark.png'"
+            alt="Limen"
+            class="mt-2 object-contain"
+            :style="{ height: size * 0.3 + 'px' }"
+        />
     </div>
 </template>
