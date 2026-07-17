@@ -3,6 +3,7 @@
 use App\Models\Follow;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
+use App\Models\Subscription;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
@@ -75,9 +76,9 @@ it('lets an active performer send a binary interest without revealing or chargin
     expect(TokenLedger::count())->toBe(0);
 });
 
-it('debits exactly 15 tokens (100% platform) and reveals the performer on unlock', function () {
+it('debits exactly 15 tokens from a non-subscriber (100% platform) and reveals the performer on unlock', function () {
     $profile = interestPerformer();
-    $member = interestMember(50);
+    $member = interestMember(50); // sem assinatura
 
     $interest = PerformerInterest::create([
         'performer_profile_id' => $profile->id,
@@ -103,6 +104,56 @@ it('debits exactly 15 tokens (100% platform) and reveals the performer on unlock
     $interest->refresh();
     expect($interest->status)->toBe('unlocked');
     expect($interest->unlock_ledger_id)->toBe($entry->id);
+});
+
+it('reveals the performer for free (no debit) when the member has an active subscription', function () {
+    $profile = interestPerformer();
+    // Saldo 0 de propósito: o assinante desbloqueia sem depender de tokens.
+    $member = interestMember(0);
+    Subscription::factory()->create(['user_id' => $member->id]); // Círculo ativo
+
+    $interest = PerformerInterest::create([
+        'performer_profile_id' => $profile->id,
+        'member_id' => $member->id,
+        'status' => 'sent',
+        'sent_at' => now(),
+    ]);
+
+    $this->actingAs($member)
+        ->postJson(route('interests.unlock', $interest))
+        ->assertOk()
+        ->assertJsonPath('status', 'unlocked')
+        ->assertJsonPath('performer.stage_name', $profile->stage_name)
+        ->assertJsonPath('new_balance', 0);
+
+    // Nenhum débito: sem lançamento de desbloqueio e sem vínculo de ledger.
+    expect(TokenLedger::where('entry_type', 'spend_interest_unlock')->count())->toBe(0);
+    expect(TokenWallet::where('user_id', $member->id)->value('balance') ?? 0)->toBe(0);
+
+    $interest->refresh();
+    expect($interest->status)->toBe('unlocked');
+    expect($interest->unlock_ledger_id)->toBeNull(); // revelado de graça
+});
+
+it('does not grant a free unlock when the subscription has lapsed', function () {
+    $profile = interestPerformer();
+    $member = interestMember(50);
+    // Assinatura vencida (status 'active' mas fora do período pago) NÃO conta.
+    Subscription::factory()->expired()->create(['user_id' => $member->id]);
+
+    $interest = PerformerInterest::create([
+        'performer_profile_id' => $profile->id,
+        'member_id' => $member->id,
+        'status' => 'sent',
+        'sent_at' => now(),
+    ]);
+
+    $this->actingAs($member)
+        ->postJson(route('interests.unlock', $interest))
+        ->assertOk()
+        ->assertJsonPath('new_balance', 35); // debitou 15
+
+    expect(TokenLedger::where('entry_type', 'spend_interest_unlock')->sole()->amount)->toBe(-15);
 });
 
 it('is idempotent — unlocking twice never double-charges', function () {
