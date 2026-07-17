@@ -66,6 +66,12 @@ function logout() {
                             Interesses
                         </Link>
                         <Link
+                            :href="route('chat.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Mensagens
+                        </Link>
+                        <Link
                             :href="route('performer.payouts.index')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
@@ -84,6 +90,12 @@ function logout() {
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
                             Interesses
+                        </Link>
+                        <Link
+                            :href="route('chat.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Mensagens
                         </Link>
                         <Link
                             :href="route('wallet.index')"

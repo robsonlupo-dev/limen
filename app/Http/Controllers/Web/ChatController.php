@@ -7,6 +7,7 @@ use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OpenChatAccessRequest;
 use App\Http\Requests\SendMessageRequest;
+use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerInterest;
@@ -39,28 +40,69 @@ class ChatController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $viewerIsPerformer = $user->role === 'performer' && $user->performerProfile;
 
         $query = Conversation::query()
             ->with('performerProfile:id,user_id,stage_name,slug,avatar_path')
             ->orderByDesc('last_message_at')
             ->orderByDesc('id');
 
-        if ($user->role === 'performer' && $user->performerProfile) {
+        if ($viewerIsPerformer) {
             $query->where('performer_profile_id', $user->performerProfile->id);
         } else {
             $query->where('member_id', $user->id);
         }
 
-        $conversations = $query->paginate(20)->through(fn (Conversation $c) => [
-            'id' => $c->id,
-            'status' => $c->status,
-            'last_message_at' => $c->last_message_at,
-            'performer' => [
-                'stage_name' => $c->performerProfile->stage_name,
-                'slug' => $c->performerProfile->slug,
-                'avatar_path' => $c->performerProfile->avatar_path,
-            ],
-        ]);
+        $page = $query->paginate(20);
+
+        // Preview da última mensagem respeita o MESMO paywall do show(): a
+        // performer sempre lê; o membro só com Círculo ativo (global) ou janela
+        // paga vigente para AQUELE par. Sem isso, preview vem null (a UI mostra
+        // "bloqueado") — nunca vazamos o corpo na listagem.
+        $isSubscriber = ! $viewerIsPerformer && $user->activeSubscription() !== null;
+        $activePerformerIds = [];
+        if (! $viewerIsPerformer && ! $isSubscriber) {
+            $performerIds = collect($page->items())->pluck('performer_profile_id');
+            $activePerformerIds = ChatAccess::where('member_id', $user->id)
+                ->whereIn('performer_profile_id', $performerIds)
+                ->get()
+                ->filter(fn (ChatAccess $a) => $a->hasFullAccess())
+                ->pluck('performer_profile_id')
+                ->all();
+        }
+
+        $conversations = $page->through(function (Conversation $c) use ($user, $viewerIsPerformer, $isSubscriber, $activePerformerIds) {
+            $canRead = $viewerIsPerformer
+                || $isSubscriber
+                || in_array($c->performer_profile_id, $activePerformerIds, true);
+
+            $last = $c->messages()->latest('id')->first();
+
+            return [
+                'id' => $c->id,
+                'status' => $c->status,
+                'last_message_at' => $c->last_message_at,
+                // Não lidas = mensagens do OUTRO participante ainda sem read_at.
+                // Só conta quando há leitura: sem acesso o cadeado já sinaliza —
+                // não vazamos a CONTAGEM atrás do paywall (mesma regra do show()).
+                'unread_count' => $canRead
+                    ? $c->messages()
+                        ->whereNull('read_at')
+                        ->where('sender_id', '!=', $user->id)
+                        ->count()
+                    : 0,
+                'last_message_preview' => ($canRead && $last)
+                    ? str($last->body)->limit(60)->value()
+                    : null,
+                // Há mensagem, mas sem leitura: a UI mostra cadeado no lugar do preview.
+                'locked' => ! $canRead && $c->last_message_at !== null,
+                'performer' => [
+                    'stage_name' => $c->performerProfile->stage_name,
+                    'slug' => $c->performerProfile->slug,
+                    'avatar_path' => $c->performerProfile->avatar_path,
+                ],
+            ];
+        });
 
         return Inertia::render('Chat/Index', [
             'conversations' => $conversations,
@@ -79,6 +121,16 @@ class ChatController extends Controller
 
         $conversation->loadMissing('performerProfile');
         $state = $this->stateFor($request, $conversation);
+
+        // Ler = marcar como lida: só quando o corpo é DE FATO entregue (leitura
+        // plena e destravada). Em grace o corpo é retido, então não marca. Zera
+        // as não-lidas do OUTRO participante; idempotente.
+        if ($state['can_read'] && ! $state['locked']) {
+            $conversation->messages()
+                ->whereNull('read_at')
+                ->where('sender_id', '!=', $request->user()->id)
+                ->update(['read_at' => now()]);
+        }
 
         // Sem leitura (nunca comprou ou já passou a carência): não expõe nem os
         // metadados NEM A CONTAGEM — paginador vazio de fato (total 0). Blanquear
