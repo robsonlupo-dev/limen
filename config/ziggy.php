@@ -77,6 +77,7 @@ return [
         'chat.index',
         'chat.show',
         'chat.messages.store',
+        'chat.access.open',
         'chat.performer.start',
     ],
 ];

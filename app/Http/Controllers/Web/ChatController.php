@@ -5,34 +5,37 @@ namespace App\Http\Controllers\Web;
 use App\Exceptions\ChatException;
 use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\OpenChatAccessRequest;
 use App\Http\Requests\SendMessageRequest;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerInterest;
+use App\Services\ChatAccessService;
 use App\Services\ChatService;
 use App\Services\TokenService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
  * Chat pós-desbloqueio de Interesse. Membro e performer usam as mesmas telas; a
  * ConversationPolicy garante que só participantes entrem. NÃO há endpoint de
- * abertura de conversa pelo membro — o canal nasce no desbloqueio
- * (ver InterestService::unlock e docs/INTEREST_SYSTEM_SPEC.md §4-5).
+ * abertura de conversa pelo membro — o canal nasce no desbloqueio.
+ *
+ * Cobrança é por ACESSO (ChatAccessService): assinante tem chat livre; membro
+ * sem assinatura paga uma janela por performer.
  */
 class ChatController extends Controller
 {
     public function __construct(
         private ChatService $chatService,
+        private ChatAccessService $chatAccessService,
         private TokenService $tokenService,
     ) {}
 
-    /**
-     * Lista as conversas do usuário. Para o membro, as suas; para a performer, as
-     * do perfil dela. Nunca mistura os dois lados.
-     */
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -61,31 +64,42 @@ class ChatController extends Controller
 
         return Inertia::render('Chat/Index', [
             'conversations' => $conversations,
-            'balance' => $this->tokenService->balance($user),
-            'messageCost' => (int) config('chat.message_cost'),
-            'freeChat' => $user->activeCircle() !== null,
+            'accessCost' => (int) config('chat.access_cost'),
         ]);
     }
 
     /**
-     * Mensagens paginadas (20/página), mais recentes primeiro.
+     * Mensagens paginadas (20/página). O CORPO só é entregue quando o leitor tem
+     * leitura plena: withhold do body na carência (grace) — a tarja "Pague para
+     * ler" é UI, mas o gate real é NÃO enviar o texto para quem não pagou.
      */
     public function show(Request $request, Conversation $conversation): Response
     {
-        // 404 (não 403) para não-participante: um id existente-mas-alheio e um
-        // inexistente respondem igual, sem revelar a existência da conversa.
         abort_if($request->user()->cannot('view', $conversation), 404);
 
-        $messages = $conversation->messages()
-            ->orderByDesc('id')
-            ->paginate(20)
-            ->through(fn (Message $m) => [
-                'id' => $m->id,
-                'sender_id' => $m->sender_id,
-                'body' => $m->body,
-                'read_at' => $m->read_at,
-                'created_at' => $m->created_at,
-            ]);
+        $conversation->loadMissing('performerProfile');
+        $state = $this->stateFor($request, $conversation);
+
+        // Sem leitura (nunca comprou ou já passou a carência): não expõe nem os
+        // metadados NEM A CONTAGEM — paginador vazio de fato (total 0). Blanquear
+        // só a collection deixaria total() revelar quantas mensagens existem
+        // atrás do paywall.
+        if (! $state['can_read']) {
+            $messages = new LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url()]);
+        } else {
+            // Com leitura bloqueada (grace): metadados + locked, sem corpo.
+            $messages = $conversation->messages()
+                ->orderByDesc('id')
+                ->paginate(20)
+                ->through(fn (Message $m) => [
+                    'id' => $m->id,
+                    'sender_id' => $m->sender_id,
+                    'created_at' => $m->created_at,
+                    'locked' => $state['locked'],
+                    // Corpo só quando há leitura plena e destravada.
+                    'body' => (! $state['locked']) ? $m->body : null,
+                ]);
+        }
 
         return Inertia::render('Chat/Show', [
             'conversation' => [
@@ -97,19 +111,14 @@ class ChatController extends Controller
                 ],
             ],
             'messages' => $messages,
+            'access' => $state,
+            'accessCost' => (int) config('chat.access_cost'),
             'balance' => $this->tokenService->balance($request->user()),
-            'messageCost' => (int) config('chat.message_cost'),
-            'freeChat' => $request->user()->activeCircle() !== null,
         ]);
     }
 
-    /**
-     * Envia uma mensagem numa conversa aberta (resposta de qualquer lado).
-     */
     public function storeMessage(SendMessageRequest $request, Conversation $conversation): JsonResponse
     {
-        // Não-participante → 404 (não revela existência). Conversa arquivada é
-        // tratada pelo ChatService (422), pois o participante já a conhece.
         abort_if($request->user()->cannot('view', $conversation), 404);
 
         try {
@@ -118,11 +127,6 @@ class ChatController extends Controller
                 $request->user(),
                 $request->validated('body'),
             );
-        } catch (InsufficientBalanceException) {
-            return response()->json([
-                'reason' => 'insufficient_balance',
-                'message' => 'Saldo de tokens insuficiente. Compre mais tokens para enviar a mensagem.',
-            ], 422);
         } catch (ChatException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         }
@@ -130,23 +134,52 @@ class ChatController extends Controller
         return response()->json([
             'message_id' => $message->id,
             'created_at' => $message->created_at,
-            'new_balance' => $this->tokenService->balance($request->user()),
         ], 201);
     }
 
     /**
-     * A performer manda a primeira mensagem a partir de uma linha de Interesse.
-     *
-     * A resposta é DELIBERADAMENTE uniforme: se o membro optou por sair, o envio
-     * parece bem-sucedido e não entrega nada (máscara de opt-out,
-     * INTEREST_ANONYMITY_FLOOR.md). Nunca devolvemos o id da mensagem aqui — isso
-     * distinguiria o caso mascarado (sem mensagem) do real e vazaria o opt-out.
+     * Compra ou renova o acesso ao chat desta conversa (membro sem assinatura).
+     * Idempotente por idempotency_key.
      */
+    public function openAccess(OpenChatAccessRequest $request, Conversation $conversation): JsonResponse
+    {
+        abort_if($request->user()->cannot('view', $conversation), 404);
+
+        // Só o membro dono compra acesso; a performer não. 404 para não revelar.
+        abort_if($request->user()->id !== $conversation->member_id, 404);
+
+        try {
+            $this->chatAccessService->openOrRenew(
+                $conversation,
+                $request->user(),
+                $request->validated('idempotency_key'),
+            );
+        } catch (InsufficientBalanceException) {
+            return response()->json([
+                'reason' => 'insufficient_balance',
+                'message' => 'Saldo de tokens insuficiente para abrir o chat.',
+            ], 422);
+        } catch (UniqueConstraintViolationException) {
+            // Corrida de dois opens simultâneos do mesmo par: o outro venceu e já
+            // criou a linha (cobrando uma vez). DB::transaction reverteu o débito
+            // desta requisição no rollback, então NÃO houve cobrança dupla. Cai no
+            // retorno de sucesso abaixo com o estado vigente — open é idempotente
+            // por par: o membro fica com acesso, cobrado 1x.
+        } catch (\InvalidArgumentException $e) {
+            // Assinante (já tem chat livre) ou caso inválido.
+            return response()->json(['reason' => 'not_applicable', 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'access' => $this->chatAccessService->accessState($conversation, $request->user()),
+            'new_balance' => $this->tokenService->balance($request->user()),
+        ], 201);
+    }
+
     public function performerStart(SendMessageRequest $request, PerformerInterest $interest): JsonResponse
     {
         $performerProfile = $request->user()->performerProfile;
 
-        // Sem perfil, ou interesse de outra performer: 404 (não revela a linha).
         if (! $performerProfile || $interest->performer_profile_id !== $performerProfile->id) {
             abort(404);
         }
@@ -161,7 +194,30 @@ class ChatController extends Controller
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         }
 
-        // Idêntico para suppressed (nada entregue) e unlocked (entregue).
         return response()->json(['status' => 'sent'], 202);
+    }
+
+    /**
+     * Estado de acesso do ponto de vista do requisitante. A performer sempre lê a
+     * própria conversa (não passa pela cobrança de acesso do membro).
+     *
+     * @return array{state:string,can_send:bool,can_read:bool,locked:bool,days_remaining:?int,expires_at:?string}
+     */
+    private function stateFor(Request $request, Conversation $conversation): array
+    {
+        $isPerformer = $request->user()->id === $conversation->performerProfile->user_id;
+
+        if ($isPerformer) {
+            return [
+                'state' => 'performer',
+                'can_send' => true,
+                'can_read' => true,
+                'locked' => false,
+                'days_remaining' => null,
+                'expires_at' => null,
+            ];
+        }
+
+        return $this->chatAccessService->accessState($conversation, $request->user());
     }
 }

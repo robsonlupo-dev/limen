@@ -41,8 +41,12 @@ class MessageSent implements ShouldBroadcast
     }
 
     /**
-     * Payload enxuto: nada de PII, nada de dados de saldo. O corpo já é público
-     * para os dois participantes do canal.
+     * Só metadados — o CORPO nunca vai no broadcast. Os dois participantes do
+     * canal têm estados de acesso diferentes (a performer lê sempre; o membro só
+     * com acesso pago em dia), e um payload de canal é único para todos os
+     * inscritos. Mandar o corpo aqui entregaria o texto em tempo real a um membro
+     * em carência/sem acesso, furando o paywall de leitura que o show() aplica.
+     * O cliente recebe o "ping" e busca o corpo pelo show() (gateado por acesso).
      *
      * @return array<string, mixed>
      */
@@ -52,7 +56,6 @@ class MessageSent implements ShouldBroadcast
             'message_id' => $this->message->id,
             'conversation_id' => $this->message->conversation_id,
             'sender_id' => $this->message->sender_id,
-            'body' => $this->message->body,
             'created_at' => $this->message->created_at?->toIso8601String(),
         ];
     }

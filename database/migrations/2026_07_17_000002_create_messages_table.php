@@ -14,13 +14,12 @@ return new class extends Migration
             $table->foreignId('sender_id')->constrained('users')->restrictOnDelete();
             $table->text('body');
             $table->timestamp('read_at')->nullable();
-            // Débito do remetente (membro sem Círculo) — 1 linha no ledger
-            // append-only. Null quando a mensagem foi grátis (assinante ou
-            // performer). Amarra a mensagem paga ao débito, como a gorjeta.
-            $table->foreignId('spend_ledger_id')->nullable()->constrained('token_ledger')->restrictOnDelete();
-            // Crédito à performer (split do custo). Null quando grátis.
-            $table->foreignId('credit_ledger_id')->nullable()->constrained('token_ledger')->restrictOnDelete();
+            // A cobrança do chat é por ACESSO (tabela chat_access), não por
+            // mensagem — a mensagem em si não carrega lançamento de ledger.
             $table->timestamps();
+            // Soft delete: ao vencer a carência, a mensagem é ocultada da UI mas
+            // RETIDA no servidor (trilha de abuso/legal). Nunca hard-delete aqui.
+            $table->softDeletes();
 
             // Paginação de mensagens de uma conversa em ordem cronológica.
             $table->index(['conversation_id', 'created_at']);

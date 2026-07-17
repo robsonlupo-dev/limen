@@ -10,7 +10,6 @@ use App\Models\Message;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Chat pós-desbloqueio de Interesse. Ver docs/INTEREST_SYSTEM_SPEC.md §4-5 e
@@ -19,21 +18,16 @@ use Illuminate\Support\Facades\DB;
  * Invariantes:
  * - A conversa NÃO é aberta pelo membro. Ela nasce no desbloqueio do Interesse
  *   (openConversationForUnlock, chamado de InterestService::unlock).
- * - A performer manda de graça; o membro paga por mensagem, exceto se tiver um
- *   Círculo ativo (chat livre). Débito/crédito sempre via token_ledger
- *   append-only (princípio nº 2 do CLAUDE.md), com split como a gorjeta.
+ * - A performer manda de graça. O membro conversa de graça se tiver Círculo
+ *   ativo; senão precisa de um ACESSO pago em dia (ChatAccessService) — a
+ *   cobrança é por acesso/janela, não por mensagem.
  * - Enviar para um membro que optou por sair do Interesse precisa PARECER
  *   sucesso e não entregar nada — senão o opt-out vaza no envio
  *   (INTEREST_ANONYMITY_FLOOR.md, "Consequência para o chat").
  */
 class ChatService
 {
-    public function __construct(private TokenService $tokenService) {}
-
-    private function messageCost(): int
-    {
-        return (int) config('chat.message_cost');
-    }
+    public function __construct(private ChatAccessService $chatAccessService) {}
 
     /**
      * Abre (ou recupera) o canal do par no desbloqueio do Interesse. Idempotente:
@@ -53,12 +47,14 @@ class ChatService
     }
 
     /**
-     * Envia uma mensagem dentro de uma conversa já aberta (resposta de qualquer
-     * um dos lados). O remetente precisa participar da conversa — o controller e
-     * a policy já garantem; aqui é guarda de defesa.
+     * Envia uma mensagem numa conversa aberta. O remetente precisa participar; o
+     * controller e a policy já garantem — aqui é guarda de defesa.
      *
-     * @throws ChatException não-participante ou conversa arquivada
-     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente do membro
+     * Cobrança é por ACESSO, não por mensagem: a performer sempre pode enviar;
+     * o membro só envia com Círculo ativo OU acesso pago em dia (can_send). Sem
+     * isso, ChatException::accessRequired — o controller mostra o CTA de compra.
+     *
+     * @throws ChatException não-participante, conversa arquivada, ou sem acesso
      */
     public function sendMessage(Conversation $conversation, User $sender, string $body): Message
     {
@@ -74,69 +70,20 @@ class ChatService
 
         $senderIsPerformer = $sender->id === $conversation->performerProfile->user_id;
 
-        // Performer nunca paga. Membro com Círculo ativo tem chat livre.
-        $free = $senderIsPerformer || $sender->activeCircle() !== null;
+        // A performer sempre pode enviar (grátis). O membro depende do acesso.
+        if (! $senderIsPerformer) {
+            $state = $this->chatAccessService->accessState($conversation, $sender);
 
-        if ($free) {
-            $message = Message::forceCreate([
-                'conversation_id' => $conversation->id,
-                'sender_id' => $sender->id,
-                'body' => $body,
-            ]);
-
-            $this->finalize($conversation, $message);
-
-            return $message;
+            if (! $state['can_send']) {
+                throw ChatException::accessRequired();
+            }
         }
 
-        // Membro sem Círculo: paga por mensagem. Cria a mensagem primeiro (para o
-        // ledger apontar de volta via reference_id), depois debita/credita, e por
-        // fim amarra os ids de ledger — tudo numa transação. Se o débito falhar
-        // por saldo, o rollback descarta a mensagem: nunca cobra sem entregar
-        // nem entrega sem cobrar.
-        $message = DB::transaction(function () use ($conversation, $sender, $body) {
-            $performerProfile = $conversation->performerProfile;
-            $performerUser = $performerProfile->user;
-            $cost = $this->messageCost();
-
-            $message = Message::forceCreate([
-                'conversation_id' => $conversation->id,
-                'sender_id' => $sender->id,
-                'body' => $body,
-            ]);
-
-            $spendEntry = $this->tokenService->debit(
-                $sender,
-                $cost,
-                'spend_message',
-                Message::class,
-                $message->id,
-                "Mensagem para {$performerProfile->stage_name}",
-            );
-
-            // Split como a gorjeta: a performer recebe split_pct%; o resto é
-            // retenção da plataforma. Só credita se sobrar ao menos 1 token.
-            // Descrição genérica — o id do membro não vai para o ledger da
-            // performer (o vínculo já existe via reference_id / credit_ledger_id).
-            $performerAmount = (int) floor($cost * $performerProfile->split_pct / 100);
-            $creditEntry = $performerAmount > 0
-                ? $this->tokenService->credit(
-                    $performerUser,
-                    $performerAmount,
-                    'message_credit',
-                    Message::class,
-                    $message->id,
-                    'Mensagem recebida no chat',
-                )
-                : null;
-
-            $message->forceFill([
-                'spend_ledger_id' => $spendEntry->id,
-                'credit_ledger_id' => $creditEntry?->id,
-            ])->save();
-
-            return $message;
-        });
+        $message = Message::forceCreate([
+            'conversation_id' => $conversation->id,
+            'sender_id' => $sender->id,
+            'body' => $body,
+        ]);
 
         $this->finalize($conversation, $message);
 
@@ -151,7 +98,7 @@ class ChatService
      * A resposta é observável pela performer, então os três caminhos precisam ser
      * indistinguíveis do lado dela quanto a "deu certo":
      * - suppressed (membro optou por sair): NÃO persiste nada, NÃO transmite,
-     *   devolve null. O controller responde 200 igual ao sucesso real.
+     *   devolve null. O controller responde 202 igual ao sucesso real.
      * - unlocked: abre/recupera a conversa e entrega a mensagem (grátis).
      * - sent (ainda não revelou): canal não aberto — a performer vê 'sent' de
      *   forma honesta e não deveria tentar; erro de guarda.
@@ -206,8 +153,7 @@ class ChatService
 
     /**
      * Pós-persistência comum: carimba last_message_at e transmite o evento no
-     * canal privado. Fora da transação de cobrança — broadcast não deve reter o
-     * lock do wallet.
+     * canal privado.
      */
     private function finalize(Conversation $conversation, Message $message): void
     {

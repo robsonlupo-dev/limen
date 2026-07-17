@@ -136,6 +136,12 @@ Route::middleware('auth')->group(function () {
         ->whereNumber('conversation')
         ->name('chat.messages.store');
 
+    // Compra/renova o acesso ao chat desta conversa (membro sem assinatura).
+    Route::post('/chat/{conversation}/acesso', [ChatController::class, 'openAccess'])
+        ->middleware('throttle:10,1')
+        ->whereNumber('conversation')
+        ->name('chat.access.open');
+
     // A performer manda a 1ª mensagem a partir de uma linha de Interesse. Resposta
     // uniforme por design (máscara de opt-out) — ver ChatController::performerStart.
     Route::post('/chat/interesse/{interest}/mensagem', [ChatController::class, 'performerStart'])

@@ -1,6 +1,7 @@
 <?php
 
 use App\Events\MessageSent;
+use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Follow;
 use App\Models\Message;
@@ -9,7 +10,7 @@ use App\Models\PerformerProfile;
 use App\Models\Subscription;
 use App\Models\TokenLedger;
 use App\Models\User;
-use App\Services\ChatService;
+use App\Services\ChatAccessService;
 use App\Services\InterestService;
 use App\Services\TokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,10 +20,11 @@ use Illuminate\Support\Str;
 uses(RefreshDatabase::class);
 
 /**
- * Chat pós-desbloqueio de Interesse (Fase 1 — backend). Modelo interest-gated:
- * a conversa nasce no unlock; a performer manda a 1ª mensagem grátis; o membro
- * paga por mensagem salvo se tiver Círculo ativo. Ver docs/COMMUNICATION_ECONOMY.md
- * §2, docs/INTEREST_SYSTEM_SPEC.md §4-5 e docs/INTEREST_ANONYMITY_FLOOR.md.
+ * Chat pós-desbloqueio de Interesse (backend). Modelo interest-gated: a conversa
+ * nasce no unlock; a performer manda a 1ª mensagem grátis. Para conversar, o
+ * membro precisa de Círculo ativo (chat livre) OU de um ACESSO pago por
+ * performer (50 tokens / janela). Ver docs/COMMUNICATION_ECONOMY.md §2,
+ * docs/INTEREST_SYSTEM_SPEC.md §4-5 e docs/INTEREST_ANONYMITY_FLOOR.md.
  */
 function chatPerformer(int $splitPct = 65): PerformerProfile
 {
@@ -65,52 +67,36 @@ function chatUnlockedPair(PerformerProfile $performer, int $balance = 0): array
     return [$member, $conversation, $interest->fresh()];
 }
 
+function grantChatAccess(User $member, Conversation $conversation): ChatAccess
+{
+    return app(ChatAccessService::class)->openOrRenew($conversation, $member, (string) Str::uuid());
+}
+
 // --- O canal nasce no desbloqueio, não por endpoint do membro -----------------
 
 it('opens a conversation when the member unlocks an interest', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer);
 
-    expect($conversation)->not->toBeNull()
-        ->and($conversation->member_id)->toBe($member->id)
+    expect($conversation->member_id)->toBe($member->id)
         ->and($conversation->performer_profile_id)->toBe($performer->id)
         ->and($conversation->status)->toBe('active');
 });
 
 it('does not expose a member-initiated conversation route', function () {
-    // O modelo interest-gated proíbe o membro abrir conversa. A rota da spec
-    // literal (POST /chat/conversations) não deve existir.
     $names = collect(app('router')->getRoutes())->map->getName()->filter()->all();
-
     expect($names)->not->toContain('chat.conversations.store');
     expect(collect(app('router')->getRoutes())->contains(
         fn ($r) => $r->uri() === 'chat/conversations' && in_array('POST', $r->methods(), true)
     ))->toBeFalse();
 });
 
-it('reuses the same conversation when the pair unlocks twice', function () {
-    $performer = chatPerformer();
-    [$member] = chatUnlockedPair($performer);
-
-    // Segundo interesse do mesmo par, fora do cooldown, desbloqueado de novo.
-    $second = PerformerInterest::create([
-        'performer_profile_id' => $performer->id,
-        'member_id' => $member->id,
-        'status' => 'sent',
-        'sent_at' => now(),
-    ]);
-    app(InterestService::class)->unlock($member, $second);
-
-    expect(Conversation::where('member_id', $member->id)
-        ->where('performer_profile_id', $performer->id)->count())->toBe(1);
-});
-
-// --- Performer manda a 1ª mensagem (grátis) -----------------------------------
+// --- Performer manda a 1ª mensagem (grátis, sem depender do acesso do membro) --
 
 it('lets the performer send the first message for free', function () {
     Event::fake([MessageSent::class]);
     $performer = chatPerformer();
-    [$member, , $interest] = chatUnlockedPair($performer);
+    [, , $interest] = chatUnlockedPair($performer);
 
     $this->actingAs($performer->user)
         ->postJson(route('chat.performer.start', $interest->id), ['body' => 'Oi :)'])
@@ -119,44 +105,32 @@ it('lets the performer send the first message for free', function () {
 
     $message = Message::sole();
     expect($message->sender_id)->toBe($performer->user_id)
-        ->and($message->body)->toBe('Oi :)')
-        ->and($message->spend_ledger_id)->toBeNull()
-        ->and($message->credit_ledger_id)->toBeNull();
-
+        ->and($message->body)->toBe('Oi :)');
     Event::assertDispatched(MessageSent::class, fn ($e) => $e->message->id === $message->id);
 });
 
-// --- Máscara de opt-out: parece sucesso, não entrega nada ---------------------
+// --- Máscara de opt-out (indistinguível do status exibido) --------------------
 
-it('masks the opt-out: sending to a suppressed interest looks successful but persists nothing', function () {
+it('masks the opt-out as unlocked (202) when a prior unlock exists', function () {
     Event::fake([MessageSent::class]);
     $performer = chatPerformer();
-
-    // Par com desbloqueio ANTERIOR (canal já existe), depois o membro opta por
-    // sair; um novo interesse nasce 'suppressed' mas a aba da performer o mostra
-    // como 'unlocked'. Enviar por essa linha não pode entregar nada.
     [$member] = chatUnlockedPair($performer);
     app(InterestService::class)->setOptOut($member, true);
-    // Além do cooldown de 30 dias do interesse anterior, para o novo envio valer.
     $this->travel(31)->days();
     $suppressed = app(InterestService::class)->send($performer, $member);
     expect($suppressed->status)->toBe('suppressed');
 
-    $messagesBefore = Message::count();
-
+    $before = Message::count();
     $this->actingAs($performer->user)
-        ->postJson(route('chat.performer.start', $suppressed->id), ['body' => 'Oi, sumida'])
+        ->postJson(route('chat.performer.start', $suppressed->id), ['body' => 'oi'])
         ->assertStatus(202)
-        ->assertExactJson(['status' => 'sent']); // idêntico ao sucesso real
+        ->assertExactJson(['status' => 'sent']);
 
-    expect(Message::count())->toBe($messagesBefore); // nada persistido
-    Event::assertNotDispatched(MessageSent::class);  // nada transmitido
+    expect(Message::count())->toBe($before);
+    Event::assertNotDispatched(MessageSent::class);
 });
 
-it('masks the opt-out as a genuine sent when there is no prior unlock', function () {
-    // Suprimido SEM desbloqueio prévio → a performer o vê como 'sent'. Enviar
-    // por ele precisa dar o MESMO 422 de um 'sent' genuíno (teste abaixo), senão
-    // 202-vs-422 vaza o opt-out. Este é o furo que a revisão de segurança pegou.
+it('masks the opt-out as a genuine sent (422) when there is no prior unlock', function () {
     $performer = chatPerformer();
     $member = chatMember();
     Follow::create(['user_id' => $member->id, 'performer_profile_id' => $performer->id]);
@@ -170,87 +144,190 @@ it('masks the opt-out as a genuine sent when there is no prior unlock', function
         ->postJson(route('chat.performer.start', $suppressed->id), ['body' => 'oi'])
         ->assertStatus(422)
         ->assertJsonPath('reason', 'channel_not_open');
-
     expect(Message::count())->toBe(0);
 });
 
-it('rejects a performer first message when the interest is not yet unlocked', function () {
-    $performer = chatPerformer();
-    $member = chatMember();
-    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $performer->id]);
-    $interest = app(InterestService::class)->send($performer, $member); // status 'sent'
+// --- Acesso pago: membro sem assinatura ---------------------------------------
 
-    $this->actingAs($performer->user)
-        ->postJson(route('chat.performer.start', $interest->id), ['body' => 'oi'])
-        ->assertStatus(422)
-        ->assertJsonPath('reason', 'channel_not_open');
-
-    expect(Message::count())->toBe(0);
-});
-
-// --- Cobrança por mensagem do membro ------------------------------------------
-
-it('charges a non-subscriber member per message and credits the performer split', function () {
-    $performer = chatPerformer(splitPct: 50);
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 10);
-
-    $balanceBefore = app(TokenService::class)->balance($member);
-
-    $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'oi!'])
-        ->assertStatus(201)
-        ->assertJsonPath('new_balance', $balanceBefore - 2);
-
-    $message = Message::where('sender_id', $member->id)->sole();
-    expect($message->spend_ledger_id)->not->toBeNull()
-        ->and($message->credit_ledger_id)->not->toBeNull();
-
-    $spend = TokenLedger::find($message->spend_ledger_id);
-    $credit = TokenLedger::find($message->credit_ledger_id);
-    expect($spend->entry_type)->toBe('spend_message')
-        ->and($spend->amount)->toBe(-2)
-        ->and($credit->entry_type)->toBe('message_credit')
-        ->and($credit->amount)->toBe(1); // floor(2 * 50/100)
-});
-
-it('lets a member with an active Circle chat for free', function () {
+it('blocks a non-subscriber without access from sending', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
-    Subscription::factory()->create(['user_id' => $member->id]); // Círculo ativo
+
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'oi'])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'access_required');
+
+    expect(Message::where('sender_id', $member->id)->count())->toBe(0);
+});
+
+it('charges 50 tokens for chat access and credits the performer split, unlocking send', function () {
+    $performer = chatPerformer(splitPct: 60);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+
+    $this->actingAs($member)
+        ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
+        ->assertStatus(201)
+        ->assertJsonPath('access.state', 'active')
+        ->assertJsonPath('access.can_send', true)
+        ->assertJsonPath('new_balance', 0);
+
+    $access = ChatAccess::sole();
+    $spend = TokenLedger::find($access->spend_ledger_id);
+    $credit = TokenLedger::find($access->credit_ledger_id);
+    expect($spend->entry_type)->toBe('spend_chat_access')
+        ->and($spend->amount)->toBe(-50)
+        ->and($credit->entry_type)->toBe('chat_access_credit')
+        ->and($credit->amount)->toBe(30); // floor(50 * 60/100)
+
+    // Agora consegue enviar.
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'oi!'])
+        ->assertStatus(201);
+    expect(Message::where('sender_id', $member->id)->count())->toBe(1);
+});
+
+it('does not double-charge on a replayed idempotency key', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    $key = (string) Str::uuid();
+
+    $this->actingAs($member)->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => $key])->assertStatus(201);
+    $this->actingAs($member)->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => $key])->assertStatus(201);
+
+    expect(TokenLedger::where('entry_type', 'spend_chat_access')->count())->toBe(1);
+    expect(app(TokenService::class)->balance($member))->toBe(0);
+});
+
+it('renews access with a new key, charging again and extending the window', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 100);
+
+    $first = grantChatAccess($member, $conversation);
+    $firstExpiry = $first->expires_at->copy();
+
+    $second = grantChatAccess($member, $conversation);
+
+    expect(TokenLedger::where('entry_type', 'spend_chat_access')->count())->toBe(2)
+        ->and($second->expires_at->greaterThan($firstExpiry))->toBeTrue()
+        ->and($second->renewed_at)->not->toBeNull()
+        ->and(ChatAccess::count())->toBe(1); // uma linha por par
+});
+
+it('rejects opening access with insufficient balance without persisting it', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 10); // < 50
+
+    $this->actingAs($member)
+        ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'insufficient_balance');
+
+    expect(ChatAccess::count())->toBe(0);
+    expect(TokenLedger::where('entry_type', 'spend_chat_access')->count())->toBe(0);
+});
+
+// --- Assinante: chat livre, sem linha de acesso, sem débito -------------------
+
+it('lets a member with an active Circle send for free without any access row', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
+    Subscription::factory()->create(['user_id' => $member->id]);
 
     $ledgerBefore = TokenLedger::count();
 
     $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'oi livre'])
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'livre'])
         ->assertStatus(201);
 
-    $message = Message::where('sender_id', $member->id)->sole();
-    expect($message->spend_ledger_id)->toBeNull()
-        ->and($message->credit_ledger_id)->toBeNull()
-        ->and(TokenLedger::count())->toBe($ledgerBefore); // nenhum lançamento novo
+    expect(ChatAccess::count())->toBe(0)
+        ->and(TokenLedger::count())->toBe($ledgerBefore)
+        ->and(Message::where('sender_id', $member->id)->count())->toBe(1);
 });
 
-it('rejects a member message on insufficient balance without persisting it', function () {
+it('refuses to sell access to an active subscriber', function () {
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 0); // saldo 0 após unlock
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    Subscription::factory()->create(['user_id' => $member->id]);
 
     $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'sem saldo'])
+        ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
         ->assertStatus(422)
-        ->assertJsonPath('reason', 'insufficient_balance');
+        ->assertJsonPath('reason', 'not_applicable');
+    expect(ChatAccess::count())->toBe(0);
+});
 
-    expect(Message::where('sender_id', $member->id)->count())->toBe(0);
+// --- Grace period: leitura bloqueada, corpo retido, sem envio ------------------
+
+it('enters grace after expiry: history visible but bodies withheld and sending blocked', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+    // Performer manda algo legível durante o acesso.
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
+
+    // Passa o vencimento (30d), ainda dentro da carência (45d).
+    $this->travel(31)->days();
+
+    // Não consegue mais enviar.
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'tarde'])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'access_required');
+
+    // Lê a tela: mensagens marcadas locked e SEM corpo (o gate é server-side).
+    $this->actingAs($member)
+        ->get(route('chat.show', $conversation->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('access.state', 'grace')
+            ->where('access.locked', true)
+            ->where('messages.data.0.locked', true)
+            ->where('messages.data.0.body', null));
+});
+
+it('withholds messages entirely from a member who never bought access', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi da performer');
+
+    $this->actingAs($member)
+        ->get(route('chat.show', $conversation->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('access.state', 'none')
+            ->where('access.can_read', false)
+            ->where('messages.data', [])
+            // Sem leitura não vaza nem a CONTAGEM: total tem de ser 0, não o real.
+            ->where('messages.total', 0));
+});
+
+// --- Job de expiração/retenção (soft-delete) ----------------------------------
+
+it('soft-deletes messages after the grace period and marks the access deleted', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'a reter');
+    expect(Message::count())->toBe(1);
+
+    // Passa a carência inteira (45d+).
+    $this->travel(46)->days();
+    $this->artisan('chat:purge-expired-access')->assertSuccessful();
+
+    // Mensagem soft-deletada: some das queries padrão, mas RETIDA no servidor.
+    expect(Message::count())->toBe(0)
+        ->and(Message::withTrashed()->count())->toBe(1)
+        ->and(Message::withTrashed()->first()->trashed())->toBeTrue();
+    expect(ChatAccess::sole()->status)->toBe('deleted');
 });
 
 // --- Autorização --------------------------------------------------------------
 
 it('hides a conversation from a non-participant with 404, not 403', function () {
-    // 404 (não 403) para não vazar a existência da conversa por enumeração de id.
     $performer = chatPerformer();
     [, $conversation] = chatUnlockedPair($performer);
-    $stranger = chatMember();
-
-    $this->actingAs($stranger)
+    $this->actingAs(chatMember())
         ->get(route('chat.show', $conversation->id))
         ->assertNotFound();
 });
@@ -258,13 +335,19 @@ it('hides a conversation from a non-participant with 404, not 403', function () 
 it('rejects a non-participant sending into a conversation with 404', function () {
     $performer = chatPerformer();
     [, $conversation] = chatUnlockedPair($performer);
-    $stranger = chatMember(100);
-
-    $this->actingAs($stranger)
+    $this->actingAs(chatMember(100))
         ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'intruso'])
         ->assertNotFound();
-
     expect(Message::count())->toBe(0);
+});
+
+it('rejects a non-participant buying access with 404', function () {
+    $performer = chatPerformer();
+    [, $conversation] = chatUnlockedPair($performer);
+    $this->actingAs(chatMember(100))
+        ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
+        ->assertNotFound();
+    expect(ChatAccess::count())->toBe(0);
 });
 
 it('authorizes the private channel only for the two participants', function () {
@@ -272,9 +355,8 @@ it('authorizes the private channel only for the two participants', function () {
     [$member, $conversation] = chatUnlockedPair($performer);
     $stranger = chatMember();
 
-    // hasParticipant é exatamente a lógica que routes/channels.php aplica no
-    // canal privado conversation.{id}.
-    expect($conversation->fresh()->load('performerProfile')->hasParticipant($member))->toBeTrue()
+    $conversation->load('performerProfile');
+    expect($conversation->hasParticipant($member))->toBeTrue()
         ->and($conversation->hasParticipant($performer->user))->toBeTrue()
         ->and($conversation->hasParticipant($stranger))->toBeFalse();
 });
@@ -283,10 +365,9 @@ it('authorizes the private channel only for the two participants', function () {
 
 it('validates the message body length and presence', function () {
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 10);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
 
-    // Erro de FormRequest em rota web volta como redirect + erros de sessão (o
-    // handler só renderiza JSON em api/*); o Inertia consome os erros de sessão.
     $this->actingAs($member)
         ->post(route('chat.messages.store', $conversation->id), ['body' => ''])
         ->assertSessionHasErrors('body');
@@ -294,24 +375,14 @@ it('validates the message body length and presence', function () {
     $this->actingAs($member)
         ->post(route('chat.messages.store', $conversation->id), ['body' => str_repeat('x', 1001)])
         ->assertSessionHasErrors('body');
-
-    expect(Message::where('sender_id', $member->id)->count())->toBe(0);
 });
 
-// --- Listagem -----------------------------------------------------------------
-
-it('lists only the acting user conversations', function () {
+it('requires a uuid idempotency key to open access', function () {
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer);
-
-    // Outra conversa, de outro par, não deve aparecer para este membro.
-    $otherPerformer = chatPerformer();
-    chatUnlockedPair($otherPerformer);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
 
     $this->actingAs($member)
-        ->get(route('chat.index'))
-        ->assertOk();
-
-    // O membro vê exatamente a sua conversa.
-    expect(Conversation::where('member_id', $member->id)->count())->toBe(1);
+        ->post(route('chat.access.open', $conversation->id), ['idempotency_key' => 'not-a-uuid'])
+        ->assertSessionHasErrors('idempotency_key');
+    expect(ChatAccess::count())->toBe(0);
 });

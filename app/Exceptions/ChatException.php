@@ -17,6 +17,7 @@ class ChatException extends DomainException
     public const CHANNEL_NOT_OPEN = 'channel_not_open';
     public const NOT_A_PARTICIPANT = 'not_a_participant';
     public const CONVERSATION_ARCHIVED = 'conversation_archived';
+    public const ACCESS_REQUIRED = 'access_required';
 
     public function __construct(public readonly string $reason, string $message)
     {
@@ -44,6 +45,14 @@ class ChatException extends DomainException
         return new self(
             self::CONVERSATION_ARCHIVED,
             'Esta conversa foi arquivada.',
+        );
+    }
+
+    public static function accessRequired(): self
+    {
+        return new self(
+            self::ACCESS_REQUIRED,
+            'Seu acesso ao chat expirou. Renove por tokens ou assine um Círculo.',
         );
     }
 }

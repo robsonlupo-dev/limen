@@ -27,7 +27,7 @@ descontos (coluna à direita).
 
 | Funcionalidade | Custo (gratuito) | Assinante |
 |---|---|---|
-| Mensagem de chat (texto) | 2 tokens/msg | **Grátis** (chat livre) |
+| Acesso ao chat (por performer) | 50 tokens / janela de 30 dias | **Grátis** (chat livre, histórico permanente) |
 | Gorjeta (tip) | Valor livre (mín. 5 tokens) | Igual |
 | Desbloqueio de Interesse Controlado | 15 tokens | **Gratuito** (qualquer Círculo ativo); BLACK+ também tem prioridade no envio |
 | Assistir live pública | Grátis | Grátis |
@@ -37,6 +37,29 @@ descontos (coluna à direita).
 | Conteúdo desbloqueável no perfil (PPV) | Preço definido pela performer | Igual |
 | Assinatura de performer individual | Preço definido pela performer | Igual |
 | Mimo recorrente (gorjeta mensal) | Valor definido pelo membro | Igual |
+
+### 2.1 Chat — modelo definitivo (interest-gated + janela de acesso)
+
+O chat é **interest-gated**: a conversa nasce quando a **performer envia um
+Interesse** e o **membro o desbloqueia** — não existe endpoint de membro
+iniciando chat frio. A performer sempre envia de graça. A cobrança do lado do
+membro é **por acesso/janela por performer**, nunca por mensagem.
+
+- **Membro sem assinatura:** paga **50 tokens uma vez por performer** e ganha
+  **30 dias** de acesso total (texto livre dentro da janela, sem custo por
+  mensagem). Renovar cobra os mesmos 50 tokens e estende a janela. O débito é
+  uma linha no `token_ledger` append-only; a performer é creditada pelo split do
+  nível dela (como a gorjeta — ver §7).
+- **Carência (grace):** vencidos os 30 dias, há mais **15 dias** (45 no total)
+  em que o **histórico fica visível porém bloqueado** — sem envio e sem entrega
+  do corpo das mensagens (o gate é server-side, não só UI). Renovar durante a
+  carência reabre o acesso.
+- **Após 45 dias sem renovar:** as mensagens da conversa recebem `deleted_at`
+  (**soft-delete**) — somem da UI mas **permanecem no banco** para fins legais
+  (LGPD art. 11 / trilha de abuso). **Nunca há hard-delete.** Um job diário
+  (`chat:purge-expired-access`) executa a transição.
+- **Assinante de qualquer Círculo ativo:** chat **livre e permanente** — não
+  paga acesso, não gera linha de `chat_access` e o histórico não expira.
 
 ## 3. Lives públicas
 
@@ -89,7 +112,7 @@ Além dos planos da plataforma, o membro pode assinar uma **performer específic
 | Interação | Retenção da plataforma |
 |---|---|
 | Gorjeta / tip | **20%** (padrão) |
-| Mensagem paga | 20% |
+| Acesso ao chat (janela de 30 dias) | split por nível do performer (como a gorjeta) |
 | Conteúdo desbloqueável (PPV) | 20% |
 | Assinatura de performer individual | 20% |
 | Videochamada 1:1 | 20% |
