@@ -29,7 +29,7 @@ descontos (coluna à direita).
 |---|---|---|
 | Mensagem de chat (texto) | 2 tokens/msg | **Grátis** (chat livre) |
 | Gorjeta (tip) | Valor livre (mín. 5 tokens) | Igual |
-| Desbloqueio de Interesse Controlado | 15 tokens | Igual (BLACK+ tem prioridade no envio) |
+| Desbloqueio de Interesse Controlado | 15 tokens | **Gratuito** (qualquer Círculo ativo); BLACK+ também tem prioridade no envio |
 | Assistir live pública | Grátis | Grátis |
 | Conteúdo desbloqueável (PPV) durante live | Preço definido pela performer | Igual |
 | Live privada (pré-paga) | Por duração — ver §4 | 15% desc. (BLACK), 30min/mês incluída (PRESTIGE) |
