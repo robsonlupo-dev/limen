@@ -32,3 +32,9 @@ Schedule::command('payouts:reconcile')->everyTenMinutes()->withoutOverlapping(15
 // Nurturing drip: hourly is fine — cadence is measured in days, and the sender
 // is idempotent, so a step goes out at most once regardless of how often it runs.
 Schedule::command('waitlist:send-nurture')->hourly();
+
+// Expiração/retenção do chat: diário. Marca acessos vencidos e, passada a
+// carência, soft-deleta as mensagens (retidas no servidor). Prazos em dias, então
+// diário basta; withoutOverlapping evita duas varreduras concorrentes soft-
+// deletando o mesmo lote.
+Schedule::command('chat:purge-expired-access')->dailyAt('03:30')->withoutOverlapping(10);

@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\PublicCatalogController;
 use App\Http\Controllers\Web\ConviteController;
 use App\Http\Controllers\Web\EntradaController;
@@ -117,6 +118,37 @@ Route::middleware('auth')->group(function () {
     Route::patch('/preferencias', [UserPreferencesController::class, 'update'])
         ->middleware('throttle:30,1')
         ->name('preferences.update');
+
+    // Chat pós-desbloqueio de Interesse. Membro e performer compartilham as
+    // telas; a ConversationPolicy garante que só participantes entrem. Não há
+    // rota de abertura pelo membro — o canal nasce no desbloqueio.
+    Route::get('/chat', [ChatController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('chat.index');
+
+    Route::get('/chat/{conversation}', [ChatController::class, 'show'])
+        ->middleware('throttle:60,1')
+        ->whereNumber('conversation')
+        ->name('chat.show');
+
+    Route::post('/chat/{conversation}/mensagens', [ChatController::class, 'storeMessage'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('conversation')
+        ->name('chat.messages.store');
+
+    // Compra/renova o acesso ao chat desta conversa (membro sem assinatura).
+    Route::post('/chat/{conversation}/acesso', [ChatController::class, 'openAccess'])
+        ->middleware('throttle:10,1')
+        ->whereNumber('conversation')
+        ->name('chat.access.open');
+
+    // A performer manda a 1ª mensagem a partir de uma linha de Interesse. Resposta
+    // uniforme por design (máscara de opt-out) — ver ChatController::performerStart.
+    Route::post('/chat/interesse/{interest}/mensagem', [ChatController::class, 'performerStart'])
+        ->middleware('throttle:10,1')
+        ->whereNumber('interest')
+        ->can('performer-active')
+        ->name('chat.performer.start');
 
     Route::middleware(['role:consumer', 'throttle:30,1'])->group(function () {
         Route::post('/catalogo/{slug}/seguir', [FollowController::class, 'store'])->name('catalog.follow');

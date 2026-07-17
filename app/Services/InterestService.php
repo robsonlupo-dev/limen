@@ -20,7 +20,10 @@ use Illuminate\Support\Facades\DB;
  */
 class InterestService
 {
-    public function __construct(private TokenService $tokenService) {}
+    public function __construct(
+        private TokenService $tokenService,
+        private ChatService $chatService,
+    ) {}
 
     private function unlockCost(): int
     {
@@ -133,10 +136,11 @@ class InterestService
      * O membro paga para desbloquear (revelar) a performer.
      *
      * Idempotente: reprocessar nunca cobra em dobro — o débito só ocorre se a
-     * linha ainda estiver 'sent' após travá-la. Um desbloqueio prévio do mesmo
-     * par revela de graça (paga uma vez por performer).
+     * linha ainda estiver 'sent' após travá-la. Revela de graça (sem débito)
+     * quando: já houve desbloqueio prévio do par (paga uma vez por performer),
+     * OU o membro tem um Círculo ativo (benefício de assinatura).
      *
-     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente
+     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente (só membro sem assinatura)
      */
     public function unlock(User $member, PerformerInterest $interest): PerformerInterest
     {
@@ -179,9 +183,17 @@ class InterestService
             // o conjunto já travado — visão consistente e serializada.
             $priorUnlock = $pairRows->contains(fn (PerformerInterest $r) => $r->status === 'unlocked');
 
+            // Assinante de Círculo revela sem pagar os 15 tokens. activeSubscription()
+            // exige status 'active' E dentro do período pago (não basta status cru):
+            // o mesmo critério do chat livre e do middleware de Círculo, então uma
+            // assinatura vencida não concede desbloqueio grátis.
+            $hasActiveSubscription = $member->activeSubscription() !== null;
+
+            $freeReveal = $priorUnlock || $hasActiveSubscription;
+
             $ledgerId = null;
 
-            if (! $priorUnlock) {
+            if (! $freeReveal) {
                 $cost = $this->unlockCost();
 
                 $entry = $this->tokenService->debit(
@@ -202,6 +214,11 @@ class InterestService
                 'unlock_ledger_id' => $ledgerId,
             ]);
 
+            // O canal de conversa nasce aqui — não há endpoint de abertura pelo
+            // membro. Idempotente: reusa a conversa se o par já a tinha (ex.:
+            // desbloqueio anterior). Ver docs/INTEREST_SYSTEM_SPEC.md §4-5.
+            $this->chatService->openConversationForUnlock($locked);
+
             AuditLog::create([
                 'user_id' => $member->id,
                 'action' => 'interest.unlocked',
@@ -210,8 +227,13 @@ class InterestService
                 'ip' => request()->ip(),
                 'metadata' => [
                     'performer_profile_id' => $locked->performer_profile_id,
-                    'cost' => $priorUnlock ? 0 : $this->unlockCost(),
-                    'free_reveal' => $priorUnlock,
+                    'cost' => $freeReveal ? 0 : $this->unlockCost(),
+                    'free_reveal' => $freeReveal,
+                    'free_reason' => match (true) {
+                        $priorUnlock => 'prior_unlock',
+                        $hasActiveSubscription => 'subscription',
+                        default => null,
+                    },
                 ],
             ]);
 

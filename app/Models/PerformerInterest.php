@@ -96,6 +96,18 @@ class PerformerInterest extends Model
         });
     }
 
+    /**
+     * Esta linha aparece como REVELADA para a performer? Reusa exatamente
+     * scopeDisplayedAsUnlocked (fonte única do status exibido) — não reimplementa
+     * a regra. O chat depende disto: enviar por uma linha 'suppressed' precisa se
+     * comportar como o status que a performer vê, senão a resposta (202 vs 422)
+     * vaza o opt-out. Ver INTEREST_ANONYMITY_FLOOR.md "Consequência para o chat".
+     */
+    public function isDisplayedAsUnlocked(): bool
+    {
+        return static::query()->whereKey($this->getKey())->displayedAsUnlocked()->exists();
+    }
+
     public function performerProfile(): BelongsTo
     {
         return $this->belongsTo(PerformerProfile::class);
