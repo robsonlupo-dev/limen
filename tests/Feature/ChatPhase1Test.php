@@ -386,3 +386,130 @@ it('requires a uuid idempotency key to open access', function () {
         ->assertSessionHasErrors('idempotency_key');
     expect(ChatAccess::count())->toBe(0);
 });
+
+// --- Lista de conversas: preview gateado + badge de não lidas -----------------
+
+it('shows unread count and a readable preview to a member with active access', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'primeira');
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'ultima visivel');
+
+    $this->actingAs($member)
+        ->get(route('chat.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Chat/Index')
+            ->where('conversations.data.0.unread_count', 2)
+            ->where('conversations.data.0.last_message_preview', 'ultima visivel')
+            ->where('conversations.data.0.locked', false));
+});
+
+it('withholds the list preview and unread count from a member without access', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
+
+    $this->actingAs($member)
+        ->get(route('chat.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('conversations.data.0.last_message_preview', null)
+            ->where('conversations.data.0.locked', true)
+            // Não vaza nem a contagem atrás do paywall.
+            ->where('conversations.data.0.unread_count', 0));
+});
+
+it('always shows the preview to the performer regardless of member access', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi membro');
+
+    $this->actingAs($performer->user)
+        ->get(route('chat.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('conversations.data.0.last_message_preview', 'oi membro')
+            ->where('conversations.data.0.locked', false));
+});
+
+// --- Read receipts (marca ao abrir com leitura plena) -------------------------
+
+it('marks the counterpart messages as read when opened with full access', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi');
+
+    expect(Message::whereNull('read_at')->count())->toBe(1);
+    $this->actingAs($member)->get(route('chat.show', $conversation->id))->assertOk();
+    expect(Message::whereNull('read_at')->count())->toBe(0);
+});
+
+it('does not mark messages read while in grace (body withheld)', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi');
+    $this->travel(31)->days(); // grace: leitura bloqueada, corpo retido
+
+    $this->actingAs($member)->get(route('chat.show', $conversation->id))->assertOk();
+    expect(Message::whereNull('read_at')->count())->toBe(1);
+});
+
+it('marks only the counterpart messages, never the reader own', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'da performer');
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'do membro'])
+        ->assertStatus(201);
+
+    // Performer abre: marca a do membro; a própria (ainda não vista pelo membro) fica.
+    $this->actingAs($performer->user)->get(route('chat.show', $conversation->id))->assertOk();
+
+    expect(Message::where('sender_id', $member->id)->sole()->read_at)->not->toBeNull()
+        ->and(Message::where('sender_id', $performer->user_id)->sole()->read_at)->toBeNull();
+});
+
+// --- Botão de chat no perfil público da performer (interest-gated) ------------
+
+it('exposes chat state to a member who already has a conversation and access', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+
+    $this->actingAs($member)
+        ->get(route('performers.public.show', $performer->slug))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Performers/Show')
+            ->where('chat.conversation_id', $conversation->id)
+            ->where('chat.can_access', true)
+            ->where('chat.cost', 50));
+});
+
+it('flags chat as needing access when a conversation exists without an active window', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
+
+    $this->actingAs($member)
+        ->get(route('performers.public.show', $performer->slug))
+        ->assertInertia(fn ($page) => $page
+            ->where('chat.conversation_id', $conversation->id)
+            ->where('chat.can_access', false));
+});
+
+it('does not expose chat state without a conversation (no cold-start)', function () {
+    $performer = chatPerformer();
+
+    // Membro sem conversa: nada de botão (não dá para iniciar chat a frio).
+    $this->actingAs(chatMember())
+        ->get(route('performers.public.show', $performer->slug))
+        ->assertInertia(fn ($page) => $page->where('chat', null));
+
+    // Visitante deslogado: idem.
+    $this->get(route('performers.public.show', $performer->slug))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('chat', null));
+});

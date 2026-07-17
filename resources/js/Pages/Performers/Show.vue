@@ -1,14 +1,21 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import TipModal from '@/Components/TipModal.vue'
+import Modal from '@/Components/Modal.vue'
+import Button from '@/Components/Button.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
+import { postJson } from '@/lib/http'
 
 const props = defineProps({
     performer: { type: Object, required: true },
+    // Chat é interest-gated: só vem preenchido para um membro que JÁ tem conversa
+    // com esta performer (a performer mandou Interesse + o membro desbloqueou).
+    // Null = guest / performer / membro sem conversa → sem botão de chat aqui.
+    chat: { type: Object, default: null },
     meta: { type: Object, default: () => ({ title: 'Limen', description: '' }) },
 })
 
@@ -20,6 +27,30 @@ const page = usePage()
 const canTip = computed(() => page.props.auth?.user?.role === 'consumer')
 
 const showTipModal = ref(false)
+
+// Acesso ao chat (só quando há conversa aberta — ver prop `chat`).
+const showChatAccessModal = ref(false)
+const unlockingChat = ref(false)
+const chatError = ref('')
+
+async function unlockChat() {
+    if (unlockingChat.value) return
+    unlockingChat.value = true
+    chatError.value = ''
+    try {
+        await postJson(route('chat.access.open', props.chat.conversation_id), {
+            idempotency_key: crypto.randomUUID(),
+        })
+        // Acesso comprado → vai direto para a conversa.
+        router.visit(route('chat.show', props.chat.conversation_id))
+    } catch (e) {
+        chatError.value = e.status === 422 && e.data?.reason === 'insufficient_balance'
+            ? 'Saldo insuficiente. Compre tokens na sua carteira.'
+            : (e.data?.message ?? 'Não foi possível desbloquear o chat.')
+    } finally {
+        unlockingChat.value = false
+    }
+}
 
 const workModeLabels = {
     live: 'Show ao vivo',
@@ -82,7 +113,27 @@ const lockedTiles = 6
                         </p>
                     </div>
 
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <!-- Chat: só aparece para membro que já desbloqueou o Interesse
+                             desta performer (prop `chat`). Com acesso em dia → link;
+                             sem acesso → modal de compra. Não há chat iniciado a frio. -->
+                        <template v-if="chat">
+                            <Link
+                                v-if="chat.can_access"
+                                :href="route('chat.show', chat.conversation_id)"
+                                class="no-underline bg-gold text-background px-5 py-2 rounded-lg text-sm hover:bg-gold-light transition-colors"
+                            >
+                                Enviar mensagem
+                            </Link>
+                            <button
+                                v-else
+                                type="button"
+                                class="bg-gold text-background px-5 py-2 rounded-lg text-sm hover:bg-gold-light transition-colors"
+                                @click="showChatAccessModal = true"
+                            >
+                                Enviar mensagem
+                            </button>
+                        </template>
                         <!-- Seguir ainda exige conta: leva ao cadastro. -->
                         <Link
                             :href="route('entrada')"
@@ -183,5 +234,27 @@ const lockedTiles = 6
             :performer-name="performer.stage_name"
             @close="showTipModal = false"
         />
+
+        <!-- Modal de desbloqueio do chat: só montado quando há conversa sem acesso
+             em dia (chat && !chat.can_access). Compra a janela de acesso (50t/30d). -->
+        <Modal
+            v-if="chat && !chat.can_access"
+            :show="showChatAccessModal"
+            max-width="sm"
+            @close="showChatAccessModal = false"
+        >
+            <h2 class="font-serif text-xl text-cream mb-2">Desbloquear o chat</h2>
+            <p class="text-muted text-sm mb-4">
+                {{ chat.cost }} tokens dão <span class="text-cream">30 dias</span> de acesso ao chat com
+                {{ performer.stage_name }} — texto livre dentro da janela.
+            </p>
+            <p v-if="chatError" class="text-xs text-danger mb-3">{{ chatError }}</p>
+            <div class="flex gap-3 justify-end">
+                <Button variant="ghost" size="sm" @click="showChatAccessModal = false">Cancelar</Button>
+                <Button variant="primary" size="sm" :loading="unlockingChat" @click="unlockChat">
+                    {{ chat.cost }} tokens / 30 dias
+                </Button>
+            </div>
+        </Modal>
     </GuestLayout>
 </template>

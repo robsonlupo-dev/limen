@@ -2,6 +2,7 @@ import { createApp, h } from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { route as ziggyRoute } from '../../vendor/tightenco/ziggy'
+import './bootstrap'
 import '../css/app.css'
 
 // route() com URLs relativas: o staging é acessado por túnel em porta alternativa
