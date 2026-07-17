@@ -19,7 +19,7 @@
         $ogDescription = $meta['og_description'] ?? $metaDescription;
         $ogType = $meta['og_type'] ?? 'website';
         $ogUrl = $meta['og_url'] ?? url()->current();
-        $ogImage = $meta['og_image'] ?? url('/images/limen-social.png');
+        $ogImage = $meta['og_image'] ?? url('/og-image.png');
         $canonical = $meta['canonical'] ?? null;
     @endphp
     <title inertia>{{ $metaTitle }}</title>
