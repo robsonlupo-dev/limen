@@ -52,6 +52,17 @@ server {
         access_log off;
         expires 7d;
     }
+    # Brand images (logo, og:image). Required on this gate: PortalLogo renders
+    # <img src="/images/limen-icon.png"> and the default og:image is
+    # /images/limen-social.png — without this block both fall through to the
+    # catch-all `location /` below and 302 to /, so the logo and social preview
+    # break on the public domain.
+    location ^~ /images/ {
+        try_files $uri =404;
+        access_log off;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
     location = /favicon.ico { try_files $uri =404; access_log off; log_not_found off; }
     location = /favicon.svg { try_files $uri =404; access_log off; log_not_found off; }
     location = /robots.txt  { try_files $uri =404; access_log off; log_not_found off; }
