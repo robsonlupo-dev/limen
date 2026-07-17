@@ -20,7 +20,10 @@ use Illuminate\Support\Facades\DB;
  */
 class InterestService
 {
-    public function __construct(private TokenService $tokenService) {}
+    public function __construct(
+        private TokenService $tokenService,
+        private ChatService $chatService,
+    ) {}
 
     private function unlockCost(): int
     {
@@ -201,6 +204,11 @@ class InterestService
                 'unlocked_at' => now(),
                 'unlock_ledger_id' => $ledgerId,
             ]);
+
+            // O canal de conversa nasce aqui — não há endpoint de abertura pelo
+            // membro. Idempotente: reusa a conversa se o par já a tinha (ex.:
+            // desbloqueio anterior). Ver docs/INTEREST_SYSTEM_SPEC.md §4-5.
+            $this->chatService->openConversationForUnlock($locked);
 
             AuditLog::create([
                 'user_id' => $member->id,

@@ -72,5 +72,11 @@ return [
         'subscribe.index',
         'subscribe.store',
         'subscribe.cancel',
+
+        // Chat (canal aberto pós-desbloqueio de Interesse)
+        'chat.index',
+        'chat.show',
+        'chat.messages.store',
+        'chat.performer.start',
     ],
 ];
