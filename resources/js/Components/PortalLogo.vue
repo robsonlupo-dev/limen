@@ -14,70 +14,97 @@ const uid = computed(() => `portal-${(counter += 1)}-${Math.random().toString(36
 
 <template>
     <div class="flex flex-col items-center gap-2">
+        <!--
+            3D metallic gold arch, rebuilt from the brand reference.
+            Geometry (viewBox 200×240): outer radius 80 / inner radius 40,
+            centred at (100,100). Band thickness 40 per side → the two pillars
+            together span ~40% of the width. Pillars run straight down to the
+            base at y=210; light pools sit under each foot.
+        -->
         <svg
             :width="size"
-            :height="size * 1.18"
-            viewBox="0 0 100 118"
+            :height="size * 1.2"
+            viewBox="0 0 200 240"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
         >
             <defs>
-                <!-- Metallic gold gradient: shadow → highlight → shadow -->
-                <linearGradient :id="`grad-${uid}`" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#8B6914" />
-                    <stop offset="50%" stop-color="#F5E098" />
-                    <stop offset="100%" stop-color="#8B6914" />
+                <!-- Cylinder shading across a pillar's own width (objectBoundingBox):
+                     dark edge → light highlight → medium → dark edge. -->
+                <linearGradient :id="`pillar-${uid}`" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#3D2800" />
+                    <stop offset="33%" stop-color="#F5E098" />
+                    <stop offset="66%" stop-color="#C9A24B" />
+                    <stop offset="100%" stop-color="#3D2800" />
                 </linearGradient>
-                <!-- Soft golden glow simulating the 3D lighting -->
-                <filter :id="`glow-${uid}`" x="-40%" y="-40%" width="180%" height="180%">
-                    <feGaussianBlur stdDeviation="3" result="blur" />
+
+                <!-- Curvature of the top: radial from the arch centre so the band
+                     is dark at both edges (inner r=40, outer r=80) and bright in
+                     the middle of its thickness. -->
+                <radialGradient
+                    :id="`crown-${uid}`"
+                    gradientUnits="userSpaceOnUse"
+                    cx="100" cy="100" r="80"
+                >
+                    <stop offset="50%" stop-color="#3D2800" />
+                    <stop offset="66%" stop-color="#F5E098" />
+                    <stop offset="83%" stop-color="#C9A24B" />
+                    <stop offset="100%" stop-color="#3D2800" />
+                </radialGradient>
+
+                <!-- Golden light pooling on the floor under each foot. -->
+                <radialGradient :id="`pool-${uid}`" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#F5E098" stop-opacity="0.65" />
+                    <stop offset="60%" stop-color="#C9A24B" stop-opacity="0.28" />
+                    <stop offset="100%" stop-color="#C9A24B" stop-opacity="0" />
+                </radialGradient>
+
+                <!-- Soft metallic bloom around the whole arch. -->
+                <filter :id="`glow-${uid}`" x="-25%" y="-25%" width="150%" height="150%">
+                    <feGaussianBlur stdDeviation="3" result="b" />
                     <feMerge>
-                        <feMergeNode in="blur" />
+                        <feMergeNode in="b" />
                         <feMergeNode in="SourceGraphic" />
                     </feMerge>
                 </filter>
-                <!-- Radial glow for the subtle light pooling at the feet -->
-                <radialGradient :id="`feet-${uid}`" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#F0D080" stop-opacity="0.55" />
-                    <stop offset="100%" stop-color="#F0D080" stop-opacity="0" />
-                </radialGradient>
             </defs>
 
-            <!-- Blurred halo behind the arch -->
-            <path
-                d="M 13,109 L 13,48 A 37,37 0 0 1 87,48 L 87,109"
-                :stroke="`url(#grad-${uid})`"
-                stroke-width="13"
-                stroke-linecap="round"
-                fill="none"
-                :filter="`url(#glow-${uid})`"
-                opacity="0.5"
-            />
+            <!-- Reflection pools first, so the feet sit on top of them. -->
+            <ellipse cx="40" cy="216" rx="36" ry="11" :fill="`url(#pool-${uid})`" />
+            <ellipse cx="160" cy="216" rx="36" ry="11" :fill="`url(#pool-${uid})`" />
 
-            <!-- Subtle light pooling at the feet -->
-            <ellipse cx="13" cy="112" rx="15" ry="6" :fill="`url(#feet-${uid})`" />
-            <ellipse cx="87" cy="112" rx="15" ry="6" :fill="`url(#feet-${uid})`" />
+            <g :filter="`url(#glow-${uid})`">
+                <!-- Top band (half annulus): outer semicircle over the top, then
+                     the inner semicircle back, leaving the opening transparent. -->
+                <path
+                    d="M 20,100 A 80,80 0 0 1 180,100 L 140,100 A 40,40 0 0 0 60,100 Z"
+                    :fill="`url(#crown-${uid})`"
+                />
 
-            <!-- Main thick arch -->
-            <path
-                d="M 13,109 L 13,48 A 37,37 0 0 1 87,48 L 87,109"
-                :stroke="`url(#grad-${uid})`"
-                stroke-width="13"
-                stroke-linecap="round"
-                fill="none"
-            />
+                <!-- Left pillar -->
+                <path
+                    d="M 20,100 L 60,100 L 60,210 L 20,210 Z"
+                    :fill="`url(#pillar-${uid})`"
+                />
+                <!-- Right pillar (same objectBoundingBox gradient → shades on its
+                     own width, keeping the light source consistent). -->
+                <path
+                    d="M 140,100 L 180,100 L 180,210 L 140,210 Z"
+                    :fill="`url(#pillar-${uid})`"
+                />
 
-            <!-- Thin inner arch line, echoing the recessed edge of the reference -->
-            <path
-                d="M 13,109 L 13,48 A 37,37 0 0 1 87,48 L 87,109"
-                stroke="#F0D080"
-                stroke-width="1.2"
-                stroke-linecap="round"
-                fill="none"
-                opacity="0.4"
-                transform="translate(0 1)"
-            />
+                <!-- Thin recessed line along the inner edge, echoing the reference. -->
+                <path
+                    d="M 60,210 L 60,100 A 40,40 0 0 1 140,100 L 140,210"
+                    stroke="#F5E098"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    fill="none"
+                    opacity="0.35"
+                />
+            </g>
         </svg>
+
         <span
             v-if="showText"
             class="font-serif tracking-[0.2em] text-gold uppercase"
