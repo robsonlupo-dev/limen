@@ -10,8 +10,8 @@ use RuntimeException;
 /**
  * Real KYC provider: Didit (https://docs.didit.me).
  *
- * Auth is OAuth2 client_credentials against the Keycloak realm on auth.didit.me;
- * verification sessions live on apx.didit.me. The performer is redirected to the
+ * Auth is OAuth2 client_credentials against the token endpoint on apx.didit.me;
+ * verification sessions live on apx.didit.me too. The performer is redirected to the
  * session `url`; Didit posts the decision back to our webhook (callback_url) and
  * we can also poll GET /v2/session/{id}/decision/.
  */
@@ -28,15 +28,12 @@ class DiditKycClient implements KycClientInterface
             return $this->accessToken;
         }
 
-        $response = Http::asForm()->post(
-            rtrim((string) config('kyc.auth_url'), '/')
-                . '/auth/realms/didit-essentials/protocol/openid-connect/token',
-            [
-                'grant_type' => 'client_credentials',
-                'client_id' => config('kyc.client_id'),
-                'client_secret' => config('kyc.client_secret'),
-            ],
-        );
+        // kyc.auth_url is the full OAuth2 token endpoint (see config/kyc.php).
+        $response = Http::asForm()->post((string) config('kyc.auth_url'), [
+            'grant_type' => 'client_credentials',
+            'client_id' => config('kyc.client_id'),
+            'client_secret' => config('kyc.client_secret'),
+        ]);
 
         $this->ensureOk($response, 'token');
 

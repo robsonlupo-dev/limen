@@ -16,14 +16,14 @@ function diditConfig(): void
         'kyc.client_secret' => 'secret-xyz',
         'kyc.workflow_id' => 'wf-123',
         'kyc.base_url' => 'https://apx.didit.me',
-        'kyc.auth_url' => 'https://auth.didit.me',
+        'kyc.auth_url' => 'https://apx.didit.me/auth/v2/oauth2/token',
     ]);
 }
 
 function fakeDiditToken(): void
 {
     Http::fake([
-        'auth.didit.me/*' => Http::response(['access_token' => 'tok_live_123'], 200),
+        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
     ]);
 }
 
@@ -60,7 +60,7 @@ function diditSignature(array $payload): string
 it('submitVerification returns reference, url and pending status', function () {
     diditConfig();
     Http::fake([
-        'auth.didit.me/*' => Http::response(['access_token' => 'tok_live_123'], 200),
+        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
         'apx.didit.me/v2/session/' => Http::response([
             'session_id' => 'sess_abc',
             'url' => 'https://verify.didit.me/sess_abc',
@@ -86,7 +86,7 @@ it('submitVerification returns reference, url and pending status', function () {
 it('getVerification maps Approved to approved', function () {
     diditConfig();
     Http::fake([
-        'auth.didit.me/*' => Http::response(['access_token' => 'tok_live_123'], 200),
+        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
         'apx.didit.me/v2/session/*/decision/' => Http::response(['status' => 'Approved'], 200),
     ]);
 
@@ -101,7 +101,7 @@ it('getVerification maps Approved to approved', function () {
 it('getVerification maps Declined to rejected', function () {
     diditConfig();
     Http::fake([
-        'auth.didit.me/*' => Http::response(['access_token' => 'tok_live_123'], 200),
+        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
         'apx.didit.me/v2/session/*/decision/' => Http::response(['status' => 'Declined'], 200),
     ]);
 
@@ -115,7 +115,7 @@ it('getVerification maps Declined to rejected', function () {
 it('getVerification maps an unknown status to pending', function () {
     diditConfig();
     Http::fake([
-        'auth.didit.me/*' => Http::response(['access_token' => 'tok_live_123'], 200),
+        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
         'apx.didit.me/v2/session/*/decision/' => Http::response(['status' => 'In Review'], 200),
     ]);
 
@@ -129,7 +129,7 @@ it('getVerification maps an unknown status to pending', function () {
 it('throws a body-free exception when Didit returns an error', function () {
     diditConfig();
     Http::fake([
-        'auth.didit.me/*' => Http::response(['access_token' => 'tok_live_123'], 200),
+        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
         // Body carries PII/error detail that must never surface in the exception.
         'apx.didit.me/v2/session/*/decision/' => Http::response(
             ['full_legal_name' => 'Maria Teste Silva', 'error' => 'boom'],
