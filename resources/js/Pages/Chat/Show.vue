@@ -183,7 +183,7 @@ watch(() => props.messages.data.length, scrollToBottom)
             <!-- Lista de mensagens: min-h-0 é essencial num flex-col — sem ele o
                  flex-1 NÃO encolhe e o overflow-y-auto não rola (o compositor
                  seria empurrado p/ fora da viewport em vez de a área rolar). -->
-            <div ref="scroller" class="flex-1 min-h-0 overflow-y-auto py-4 space-y-3">
+            <div ref="scroller" class="messages-area flex-1 min-h-0 overflow-y-auto py-4 space-y-3">
                 <div v-if="hasOlder" class="text-center">
                     <button class="text-xs text-gold/70 hover:text-gold transition-colors" @click="loadOlder">
                         Carregar mensagens anteriores
@@ -251,3 +251,26 @@ watch(() => props.messages.data.length, scrollToBottom)
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+/* Scrollbar escura/discreta na área de mensagens — o padrão do SO (clara)
+   destoa do tema. Chromium/Safari via ::-webkit-scrollbar; Firefox via as
+   propriedades padrão scrollbar-width/scrollbar-color. */
+.messages-area {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(201, 162, 75, 0.2) transparent; /* gold/20 sobre trilho transparente */
+}
+.messages-area::-webkit-scrollbar {
+    width: 4px;
+}
+.messages-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+.messages-area::-webkit-scrollbar-thumb {
+    background: rgba(201, 162, 75, 0.2);
+    border-radius: 2px;
+}
+.messages-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(201, 162, 75, 0.4);
+}
+</style>
