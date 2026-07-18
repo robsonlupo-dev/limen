@@ -58,6 +58,13 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
+      # Reports known CVEs in production dependencies. --no-dev ignores
+      # dev-only packages that never ship to prod; "|| true" keeps the audit
+      # informational (a fresh advisory should not block a hotfix deploy) —
+      # tighten to a hard fail once the advisory noise is triaged.
+      - name: Security audit
+        run: composer audit --no-dev 2>&1 || true
+
       - name: Install Node dependencies
         run: npm ci
 

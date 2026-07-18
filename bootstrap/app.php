@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
             'circle' => \App\Http\Middleware\EnsureActiveCircle::class,
+            'asaas.webhook_ip' => \App\Http\Middleware\VerifyAsaasWebhookIp::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
