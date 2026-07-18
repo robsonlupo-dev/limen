@@ -1,6 +1,9 @@
 <?php
 
+use App\Models\IdentityVerification;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /*
@@ -44,7 +47,78 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Persists a pending performer + KYC verification keyed on a Didit session ref,
+ * so webhook tests have a row to transition. Shared across the KYC test files.
+ */
+function makePendingVerification(string $reference): IdentityVerification
 {
-    // ..
+    $user = User::factory()->create(['role' => 'performer', 'status' => 'pending']);
+    $user->performerProfile()->create([
+        'stage_name' => 'Didit Performer',
+        'slug' => 'didit-' . strtolower(Str::random(6)),
+        'category' => 'mulheres',
+        'is_verified' => false,
+    ]);
+
+    return $user->identityVerifications()->create([
+        'document_type' => 'rg',
+        'document_number' => '52998224725',
+        'full_legal_name' => 'Maria Teste Silva',
+        'date_of_birth' => '1998-01-01',
+        'provider' => 'didit',
+        'provider_reference' => $reference,
+        'provider_status' => 'pending',
+        'status' => 'pending',
+    ]);
+}
+
+/**
+ * Canonicalizes a payload exactly like KycWebhookController: recursively sorted
+ * keys, integer-valued floats collapsed to int, unescaped unicode/slashes.
+ */
+function kycCanonicalize(mixed $value): mixed
+{
+    if (is_array($value)) {
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return array_map('kycCanonicalize', $value);
+    }
+
+    if (is_float($value) && is_finite($value) && floor($value) === $value) {
+        return (int) $value;
+    }
+
+    return $value;
+}
+
+/** Headers for a Didit v3 webhook signed with X-Signature-V2 (canonical HMAC). */
+function kycV3Headers(array $payload, ?int $timestamp = null): array
+{
+    $timestamp ??= now()->getTimestamp();
+    $canonical = json_encode(kycCanonicalize($payload), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    return [
+        'X-Timestamp' => (string) $timestamp,
+        'X-Signature-V2' => hash_hmac('sha256', $canonical, (string) config('kyc.webhook_secret')),
+    ];
+}
+
+/** Headers for the X-Signature-Simple fallback: HMAC over a compact field string. */
+function kycV3SimpleHeaders(array $payload, ?int $timestamp = null): array
+{
+    $timestamp ??= now()->getTimestamp();
+    $base = implode(':', [
+        $timestamp,
+        $payload['session_id'] ?? '',
+        $payload['status'] ?? '',
+        $payload['webhook_type'] ?? '',
+    ]);
+
+    return [
+        'X-Timestamp' => (string) $timestamp,
+        'X-Signature-Simple' => hash_hmac('sha256', $base, (string) config('kyc.webhook_secret')),
+    ];
 }
