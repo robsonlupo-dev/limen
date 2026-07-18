@@ -1,14 +1,15 @@
 # LIMEN — RETOMADA EM CHAT NOVO
 
-> **Gerado em:** 16/07/2026 (fim do dia) · **Base:** `main` em `a07a8c5` (Merge PR #44) · **Suíte:** 396 testes verdes
+> **Gerado em:** 17/07/2026 · **Base:** `main` em `edbb1c1` · **Suíte:** 440 testes verdes (2066 asserts)
 > **Método:** escrito a partir da inspeção do código real (`git log`, `route:list`,
-> `migrate:status`, leitura dos specs), não de memória. Onde o código contradiz um doc,
+> `migrate:status`, `php artisan test`), não de memória. Onde o código contradiz um doc,
 > o código venceu e a divergência está registrada.
 >
-> **Substitui a RETOMADA anterior de 16/07** (base `c7d9b24` / PR #39, 380 testes). O que
-> mudou hoje: **4 mundos** entraram no código (§3.3), a **Fase A das assinaturas (Círculos)**
-> foi mergeada — billing recorrente por cartão + middleware de Círculo (§1.2) —, gorjeta no
-> perfil público e o backup do KYC corrigido. Continua substituindo os handoffs de 02/07
+> **Substitui a RETOMADA de 16/07** (base `a07a8c5` / PR #44, 396 testes). O que mudou desde
+> então: o **chat interest-gated ganhou tempo real de ponta a ponta** (Reverb) e está **no ar em
+> staging** (§1.2, §2); o **frontend das assinaturas** foi mergeado (PR #46), tornando os
+> Círculos Fase A **usáveis** (§1.2); e a **infra de WebSocket** (Reverb + `setup-reverb-server.sh`)
+> entrou (§6). Continua substituindo os handoffs de 02/07
 > (`CURRENT_ISSUES_AND_NEXT_ACTIONS.md`, `TECHNICAL_HANDOFF_MASTER.md`, `QA_HANDOFF_MASTER.md`).
 
 ---
@@ -16,8 +17,9 @@
 ## 1. ESTADO ATUAL DO PRODUTO
 
 Limen é uma plataforma premium de conteúdo adulto verificado para o mercado brasileiro.
-Hoje está **pré-lançamento**: o produto logado funciona ponta a ponta em staging, e o
-domínio público serve apenas a captação de waitlist.
+Hoje está **pré-lançamento**: o produto logado funciona ponta a ponta em staging
+(`limen.dev.br`), e o domínio público (`thelimen.com.br`) serve só a captação de waitlist
+(portão de marketing, **não o app** — §6.2).
 
 ### 1.1 Stack real (verificada no código, não a do CLAUDE.md)
 
@@ -25,12 +27,14 @@ domínio público serve apenas a captação de waitlist.
 |---|---|---|
 | PHP | **8.4.22** | `composer.json` exige `^8.3`. O CLAUDE.md diz "PHP 8.5" — **está errado** |
 | Laravel | **13** (`^13.8`) | |
-| Front | Inertia + Vue 3 + Tailwind v4 + Ziggy | frontend usa rotas **web** (sessão/CSRF), não Sanctum |
-| Banco | MySQL 8.4 (Docker) | Redis para cache/filas |
+| Front | Inertia + Vue 3 (`^3.5.39`) + Tailwind v4 + Ziggy | usa rotas **web** (sessão/CSRF), não Sanctum |
+| Tempo real | **Laravel Reverb `^1.10`** + `laravel-echo ^2.1` + `pusher-js ^8.4` | transporte WebSocket do chat (§6.7) |
+| Banco | MySQL 8.4 (Docker) | Redis para cache/**filas/sessão/broadcast** |
 | Mail | Resend (`resend/resend-laravel`) | webhook em `/resend/webhook` |
 | Auth | Sanctum (API v1) + **sessão/CSRF (web)** | as duas superfícies coexistem |
-| Rotas | **92** registradas (`route:list`) | |
-| Testes | **396** verdes (1803 asserts) | |
+| Rotas | **101** registradas (`route:list`) | +9 desde o RETOMADA anterior (chat + subscribe) |
+| Migrations | **48** arquivos, todas `Ran` | últimas 4 são do chat (17/07) |
+| Testes | **440** verdes (2066 asserts) | `php artisan test` |
 
 ### 1.2 O que está implementado e funcionando
 
@@ -38,194 +42,193 @@ Tudo abaixo está na `main`, com teste.
 
 **Fundação e dinheiro**
 - **Ledger append-only** (`token_ledger`): saldo é sempre a soma das linhas; update/delete
-  bloqueados e testados (princípio nº 2 do CLAUDE.md). Tipos de lançamento hoje:
+  bloqueados e testados (princípio nº 2 do CLAUDE.md). Tipos de lançamento hoje incluem:
   `purchase, bonus, refund, adjustment, spend_tip, tip_credit, spend_private, spend_camera,
-  spend_interest_unlock, payout_reserve, payout_reversal, staging_seed_backfill, subscription_grant`.
+  spend_interest_unlock, payout_reserve, payout_reversal, staging_seed_backfill,
+  subscription_grant, spend_chat_access, chat_access_credit`.
 - **Compra de tokens via PIX/Asaas** com webhook idempotente por id de evento + reconciliação
   agendada. Driver **Fake** por padrão (`ASAAS_DRIVER=fake`). O preço aplica o **desconto do
   Círculo ativo** do usuário (sobre o preço, nunca sobre a quantidade de tokens).
 - **Gorjetas** (`TipService`) com split por nível da performer, rate limit 10/min. Enviável
-  também do **perfil público** por membro logado (PR #41, `TipModal.vue` compartilhado).
+  também do **perfil público** por membro logado (`TipModal.vue` compartilhado).
 - **Payouts** (saque PIX da performer) — `/performer/payouts`. Hardening anti-pagamento-em-dobro
-  na `main`; restam follow-ups menores (§4.4).
+  na `main`; restam follow-ups menores (§4.4, §5).
 
-**Assinaturas / Círculos — Fase A (billing backend, PR #44) — NOVO**
-- **Só backend.** Não há tela nem endpoint de assinatura ainda (§1.3). É a infraestrutura de
-  cobrança e a autorização por Círculo.
-- Tabelas: **`circles`** (5 tiers seedados com preço/tokens/desconto/vagas/invite), **`subscriptions`**
-  (uma ativa por usuário via índice único em `active_lock`, mantido pelo model), **`subscription_charges`**
-  (âncora de idempotência do grant mensal).
-- **`SubscriptionService`**: `subscribe` (cartão tokenizado no Asaas — **PAN nunca armazenado**,
-  só `card_token` cifrado em repouso + last4 + brand), `cancel` (`cancel_at_period_end`), e
-  `handleWebhook` idempotente que credita a franquia mensal de tokens pelo ledger append-only
-  (`subscription_grant`). O grant inicial é ancorado no **id real da primeira cobrança** (buscado
-  no Asaas), então o mês 1 não duplica em produção; o webhook **reconsulta o gateway** antes de conceder.
-- **Asaas**: `createSubscription/getSubscription/getSubscriptionPayments/cancelSubscription`
-  (billingType CREDIT_CARD) nos clients HTTP e Fake.
-- **Middleware `circle`** (`->middleware('circle:prestige')` = Prestige **ou superior**) + gate
-  `circle-active`; `auth.user.circle` (slug do Círculo ativo) exposto ao Inertia. Ordem dos tiers
-  em `Circle::TIER_ORDER`.
-- `security-reviewer` aprovado (um crítico de double-grant + 3 alertas corrigidos antes do merge).
+**Chat interest-gated — tempo real (Sprint 4, PRs #55/#56/#58/#59) — NOVO**
+- **Modelo:** a conversa **nasce no desbloqueio do Interesse** (não há endpoint de abertura pelo
+  membro). A performer manda a **1ª mensagem grátis**; o membro conversa de graça com **Círculo
+  ativo** OU precisa de um **ACESSO pago por performer** — janela de **50 tokens / 30 dias + 15
+  de carência** (`CHAT_ACCESS_COST`, `config/chat.php`). Cobrança é por **janela**, não por mensagem.
+- **Paywall de leitura real:** em carência (grace) o **corpo é retido no servidor** (não é só UI);
+  o membro sem janela vigente vê metadados/cadeado, nunca o texto. A performer sempre lê.
+- **Máscara de opt-out:** enviar para uma linha de Interesse mascarada **parece sucesso e não
+  entrega nada** (`INTEREST_ANONYMITY_FLOOR.md`) — testado.
+- **Soft-delete LGPD** nas mensagens; unread por participante; preview da lista gateado igual ao `show()`.
+- **Tempo real (Reverb):**
+  - `MessageSent` → canal privado **`conversation.{id}`** (só metadados, o corpo nunca vai no
+    broadcast — respeita o paywall). O `Show.vue` recebe o "ping" e busca o corpo pelo `show()`.
+  - `NewMessage` → canal privado **`user.{id}`** de cada participante: atualiza **preview + badge +
+    timestamp** da **lista** (`Chat/Index.vue`) em tempo real, sem reload; o preview do membro
+    respeita o paywall (sem leitura → cadeado). Autorização em `routes/channels.php`
+    (`conversation.{id}` = participantes; `user.{id}` = só o próprio).
+  - Sem Reverb configurado o chat **degrada limpo**: histórico via Inertia, só sem push.
+- **Frontend:** `Chat/Index.vue` (lista, tempo real), `Chat/Show.vue` (thread, timer de acesso,
+  banner de expiração/renovação, scrollbar escura). `bootstrap.js` instancia o Echo só com
+  `VITE_REVERB_APP_KEY` presente.
+- **Rotas:** `chat` (index), `chat/{conversation}` (show), `chat/{conversation}/mensagens` (store),
+  `chat/{conversation}/acesso` (open/renova acesso), `chat/interesse/{interest}/mensagem` (1ª msg da performer).
+
+**Assinaturas / Círculos — Fase A completa (backend #44 + frontend #46) — usável**
+- Billing recorrente por cartão (Asaas), **PAN nunca armazenado** (só `card_token` cifrado + last4
+  + brand). Tabelas `circles` (5 tiers), `subscriptions` (uma ativa por usuário, índice único
+  `active_lock`), `subscription_charges` (idempotência do grant mensal). `subscription_grant`
+  credita a franquia mensal pelo ledger append-only, ancorado no id real da 1ª cobrança.
+- **Frontend (PR #46):** telas `assinar` (`subscribe.index/store/cancel`), coleta de cartão,
+  subscribe/cancel, Círculo ativo exposto ao Inertia (`auth.user.circle`). Middleware `circle:` +
+  gate `circle-active`. ⚠️ tokenização do cartão ainda é **server-side** — mover p/ client-side é
+  a **issue #47** (§5).
 
 **Identidade e acesso**
-- Cadastro/login/logout/me, verificação de e-mail, reset de senha, middleware de role,
-  policies, audit log. Web (sessão) e API v1 (Sanctum) coexistem.
-- **KYC** de performer (webhook Didit, resubmissão). Documentos **criptografados em repouso**
-  no disco isolado `kyc` via `APP_KEY`. Driver **Fake**.
+- Cadastro/login/logout/me, verificação de e-mail, reset de senha, middleware de role, policies,
+  audit log. Web (sessão) e API v1 (Sanctum) coexistem.
+- **KYC** de performer (webhook Didit, resubmissão). Documentos **criptografados em repouso** no
+  disco isolado `kyc` via `APP_KEY`. Driver **Fake**.
 - Gate de idade (18+) e `SecurityHeaders` com HSTS condicional por ambiente.
 
-**Descoberta**
-- **Catálogo autenticado** `/catalogo` (por mundo) + **catálogo público** `/performers` com
-  meta OG server-side (SEO, sem auth). **4 mundos** oficiais: mulheres, homens, casais, trans
-  (§3.3). Follows (restrito a membros ativos). Onboarding + edição de perfil pela performer ativa.
-
-**Waitlist (a superfície pública de hoje)**
-- Cadastro em 2 passos (membro/performer), double opt-in, Founding Members v3 com
-  referrals/painel do fundador (`/f/{invite_code}`), convites (`/convite/{code}`).
-- **Drip de nurturing:** 7 e-mails. ⚠️ exige `WAITLIST_NURTURE_START_AT` (§4.4).
-- Descadastro GET-confirma / POST-executa (à prova de prefetch de mailbox). Admin: `/admin/waitlist`.
+**Descoberta e waitlist**
+- Catálogo autenticado `/catalogo` + catálogo público `/performers` (OG server-side). **4 mundos**:
+  mulheres, homens, casais, trans (SSOT `PerformerProfile::WORLDS`). Follows (membros ativos).
+- Waitlist em 2 passos, double opt-in, Founding Members v3 (referrals, `/f/{invite_code}`,
+  `/convite/{code}`), drip de 7 e-mails (⚠️ `WAITLIST_NURTURE_START_AT`, §4.4). Admin `/admin/waitlist`.
 
 **Interesse Controlado (Sprint 3 — fechado)**
 - Performer sinaliza a um seguidor; membro paga **15 tokens** (100% plataforma) para revelar quem é.
-- Limite 5 envios/dia, cooldown 30 dias por par, **opt-out silencioso**. Painéis `/interesses`,
-  `/painel` e aba "Interesses enviados" na performer. Envio restrito a quem já segue.
+  Limite 5/dia, cooldown 30 dias/par, **opt-out silencioso**. O desbloqueio agora **abre o chat**.
 
 ### 1.3 O que **NÃO** existe (não reportar como bug)
 
 Verificado por `grep` no código, não por memória:
 
-- **Frontend das assinaturas** — a Fase A é **só backend**. Não há endpoint HTTP de `subscribe`,
-  Form Request de cartão, nem tela Vue. O `SubscriptionService` é chamável, mas nada o expõe ao
-  usuário ainda. ⚠️ Quando o endpoint entrar: adicionar `number`/`ccv`/`expiryMonth`/`expiryYear`/
-  `holderName` ao `dontFlash` e validar via Form Request (achado não-bloqueante da revisão do #44).
-- **Chat / mensagens** — não construído. É benefício do **Explorador** ("chat livre", hoje **oco**)
-  e pré-requisito da spec de Interesse (canal + 1ª mensagem grátis). O desbloqueio só revela identidade.
-- **Fase B dos Círculos** — **Black e FC não abrem** (regra: só após 5–10 performers Exclusive).
-  `seat_limit` existe na tabela `circles` mas **não é aplicado** (nenhum cap de vagas Black/FC);
-  não há **`fc_numbers`** (pool 1–9999 + aposentadoria aos 6 meses), Halls, nem número BLACK.
-- **Hold de tokens no ledger (Mementos)** — não implementado. Não há `entry_type` de reserva; o
-  hold de 800 tokens do Memento (`MAISON_PROGRAM.md`) segue documental (§4.3).
+- **Fase B dos Círculos** — Black e FC **não abrem** (regra: só após 5–10 performers Exclusive).
+  `seat_limit` existe em `circles` mas **não é aplicado**; não há **`fc_numbers`** (pool 1–9999 +
+  aposentadoria aos 6 meses), Halls, nem número BLACK.
+- **Hold de tokens no ledger (Mementos)** — sem `entry_type` de reserva; hold de 800 tokens segue documental.
 - **Cofre das FC Sessions** — ⛔ TRAVADO por decisão jurídica (§4.2). Nada de código.
-- **Trial de 7 dias dos Founding Members** — a "semana grátis de lançamento" (assinar qualquer
-  Círculo → 7 dias grátis) está travada no doc, **sem código**.
+- **Trial de 7 dias dos Founding Members** — "semana grátis de lançamento" travada no doc, **sem código**.
+- **Tokenização de cartão client-side (PCI)** — hoje o cartão é tokenizado server-side; issue **#47**.
 - **Feed, conteúdo pago destravável, streaming (LiveKit), score/tiers de performer** — não construídos.
 
 ---
 
-## 2. PRs MERGEADOS HOJE (16/07 — #40 → #44)
+## 2. PRs MERGEADOS DESDE O ÚLTIMO RETOMADA (#46 → #59 + commits diretos)
 
-A RETOMADA anterior (de manhã) entrou como PR #42.
+O RETOMADA anterior cobriu até #44. Desde então (o `gh` CLI não existe — §6.6 — PRs abertos pela URL do `push`):
 
 | PR | Branch | O que entregou |
 |---|---|---|
-| **#40** | `fix/kyc-backup` | Corrige a **issue #38**: `docs/backup.sh` agora cobre `storage/app/kyc` (docs KYC cifrados) além de `storage/app/private`, com `mkdir -p` de guarda. Squash-merge (`0609b58`) |
-| **#41** | `feat/tip-on-public-profile` | Gorjeta no **perfil público** para membro logado (`role === 'consumer'`), reusando `TipModal.vue` compartilhado com o catálogo |
-| **#42** | `docs/retomada-16-07` | RETOMADA da manhã + alinhamento/remoção da régua de marcos físicos no `MAISON_PROGRAM.md` |
-| **#43** | `feat/4-worlds` | **4 mundos** (gls→homens, swing→casais); migration production-safe; SSOT em `PerformerProfile::WORLDS` (§3.3) |
-| **#44** | `feat/subscriptions-phase-a` | **Círculos Fase A** — billing recorrente por cartão (Asaas) + middleware de Círculo (§1.2) |
+| **#46** | `feat/subscriptions-frontend` | **Frontend das assinaturas** — fecha o loop dos Círculos Fase A (telas subscribe/cancel, cartão, Círculo ativo) |
+| **#48–#52** | `feat/new-logo`, `feat/logo-fix`, `fix/optimize-logo-images` | Marca: arco 3D dourado, wordmark, imagens de OG; `limen-icon.png` de 745KB→49KB |
+| **#51/#53/#54** | `fix/thelimen-serve-images`, `fix/og-image-nginx` | nginx do portão `thelimen.com.br` passa a servir `/images/` e `/og-image.png` |
+| **#55** | `feat/chat-reverb` | **Backend do chat interest-gated** (Reverb-ready): conversa no unlock, janela de acesso paga, eventos de broadcast |
+| **#56** | `feat/chat-frontend` | **Frontend do chat** — Vue + Echo + Reverb, timer de acesso, banner de expiração |
+| **#58** | `feat/add-reverb-dependency` | Adiciona `laravel/reverb` como **dependência de produção** + `config/reverb.php` (faltava: `reverb:start` não existia no servidor) |
+| **#59** | `feat/chat-ui-fixes` | **Lista de conversas em tempo real** (canal `user.{id}` + `NewMessage`) + fix de scroll do `Show.vue` |
 
-> **`gh` CLI não existe** no ambiente (§6.6) — PRs são abertos manualmente pela URL que o `push` devolve.
-> Numeração antiga: **#38 foi issue** (backup KYC), não PR; #39 travou os Círculos nos docs.
+**Commits diretos na `main` (17/07):**
+- `0876b6c` — `scripts/setup-reverb-server.sh` idempotente (provisiona o Reverb no servidor).
+- `13fa09b` — `package-lock.json` com `laravel-echo`/`pusher-js`.
+- `435d336` — **fix de deploy-ordering:** o `setup-reverb-server.sh` roda `queue:restart` **após**
+  `config:cache` (workers precisam recarregar `BROADCAST_CONNECTION=reverb`, senão descartam broadcasts).
+- `edbb1c1` — scrollbar escura na área de mensagens.
+- `8c5a543` — `scripts/create-sprint5-issues.sh` (as 4 issues de follow-up do chat, §5).
+
+> **#47 é uma ISSUE** (tokenização client-side PCI), não PR. **#57** não foi mergeado (o
+> `feat/chat-frontend` teve dois pushes; o que entrou foi o #56).
 
 ---
 
-## 3. DECISÕES DE PRODUTO
+## 3. DECISÕES DE PRODUTO (travadas)
 
-### 3.1 Sprint 3 — Interesse Controlado (travadas)
-- 15 tokens de desbloqueio = **100% plataforma**; performer não é creditada.
-- **Chat adiado explicitamente**; opt-out do membro **silencioso**; desbloqueio permanente, pago uma vez por performer.
+### 3.1 Interesse Controlado + Chat
+- 15 tokens de desbloqueio = **100% plataforma**; performer não creditada. Desbloqueio **abre o chat**.
+- Chat: cobrança por **janela de acesso** (50t/30d + 15 grace), **não** por mensagem; performer manda
+  grátis; assinante ativo tem chat livre. **Máscara de opt-out** vale no chat (sucesso vazio).
+- **Broadcast não carrega o corpo** — o paywall de leitura é server-side.
 
-### 3.2 Sistema de Círculos / MAISON / Mementos (travadas, PR #39)
-
-> Docs: **`CIRCLES_SYSTEM_V4.md`** e **`MAISON_PROGRAM.md`**. **"Círculos", nunca "Planos".**
-> A **Fase A já é código** (§1.2); Black/FC/Mementos/Trial ainda são só spec (§1.3).
+### 3.2 Círculos / MAISON / Mementos (PR #39/#44)
+> Docs: `CIRCLES_SYSTEM_V4.md`, `MAISON_PROGRAM.md`. **"Círculos", nunca "Planos".** Fase A é código
+> (backend #44 + frontend #46); Black/FC/Mementos/Trial ainda são só spec (§1.3).
 
 | Tier | Preço/mês | Vagas | Marca |
 |---|---|---|---|
 | Explorador | R$ 89,90 | ilimitadas | 75 tokens/mês, chat livre, badge prata |
 | Insider | R$ 189,90 | ilimitadas | 200 tokens/mês, prioridade no Interesse |
-| Prestige | R$ 389,90 | ilimitadas | 500 tokens/mês, 1 live privada, Modo Discrição básico |
+| Prestige | R$ 389,90 | ilimitadas | 500 tokens/mês, 1 live privada, Discrição básico |
 | Black | R$ 749,90 | **máx. 500** | 1.200 tokens/mês, Número BLACK, Exclusive/Maison |
 | **Founders Circle** | R$ 1.490,00 | **convite, máx. 100** | escolhe o número FC (1–9999) |
 
-- **Invariante:** assinatura **não substitui** tokens — reduz atrito e custo. (Já refletido: desconto
-  por Círculo no `PaymentService`; franquia mensal via `subscription_grant`.)
-- **Número FC / aposentadoria** (divisor: 6 meses de FC ativo), **colecionáveis somem ao cancelar**,
-  **endereço de entrega é PII** (Locker, nunca residência), hierarquia MAISON (Verificada 20% →
-  Select 17% → Maison 12%, máx. 50; Conselho a partir do 6º mês). Lançamento: semana grátis;
-  Black/FC só após 5–10 Exclusive; tier abaixo do Explorador rejeitado.
-- **Limen Mementos:** custo logístico fixo **800 tokens** (100% plataforma) via **hold no ledger** na
-  aprovação da foto; mensagem de bloqueio **sempre genérica** (mesma doutrina da máscara do opt-out).
+- **Invariante:** assinatura **não substitui** tokens — reduz atrito/custo. Número FC aposenta aos
+  6 meses; colecionáveis somem ao cancelar; endereço de entrega é PII (Locker). Black/FC só após 5–10 Exclusive.
 
-### 3.3 4 mundos (travada e implementada, PR #43)
-4 mundos oficiais: **mulheres, homens, casais, trans**. GLS→homens, Swing→casais (migration
-production-safe; remapeou `performer_profiles.category`, `users.preferred_world` e `waitlist_entries.world`).
-SSOT em **`PerformerProfile::WORLDS`**.
+### 3.3 4 mundos (implementada, PR #43)
+mulheres, homens, casais, trans. GLS→homens, Swing→casais. SSOT `PerformerProfile::WORLDS`.
 
 ---
 
 ## 4. PENDÊNCIAS E DECISÕES EM ABERTO
 
-### 4.1 ✅ Resolvidos recentemente
-- **Hardening de payout** contra pagamento em dobro (na `main` desde 15/07).
-- **4 vs 6 mundos**, **régua de marcos físicos**, **Círculos vs Planos** — todas as contradições de
-  spec fechadas (§3.3 e histórico).
-- **Backup do KYC** (issue #38) — o tarball agora cobre `storage/app/kyc` (PR #40).
+### 4.1 ✅ Resolvidos desde o último RETOMADA
+- **Chat/mensagens** — entregue e no ar (tempo real em staging). Era o benefício "oco" do Explorador
+  e o pré-requisito da spec de Interesse.
+- **Frontend das assinaturas** — entregue (PR #46); Círculos Fase A agora usável.
+- **`laravel/reverb` como dependência** — faltava no composer; `reverb:start` não existia no servidor (PR #58).
+- **Deploy-ordering do broadcast** — workers recarregam o driver reverb após `config:cache` (`435d336`).
 
 ### 4.2 🔴 Bloqueio jurídico — cofre das FC Sessions
-`MAISON_PROGRAM.md` descreve gravação backend por 90 dias para uso **exclusivo** em investigação.
-**⛔ TRAVADO até aprovação jurídica** — dado de vida sexual (art. 11, LGPD) sem transparência nos
-termos; consentimento não é base suficiente (o cofre precisa sobreviver à revogação). Falta infra
-que **não existe** (D1–D6): cripto de vídeo em streaming, modelo de roles para o Curador (hoje
-`consumer|performer|admin`), expurgo automático verificável, audit log de **leitura**.
+`MAISON_PROGRAM.md` descreve gravação backend por 90 dias para investigação. **⛔ TRAVADO até
+aprovação jurídica** — dado de vida sexual (art. 11, LGPD). Falta infra que não existe (D1–D6):
+cripto de vídeo em streaming, roles p/ o Curador (hoje `consumer|performer|admin`), expurgo
+verificável, audit log de **leitura**.
 
-### 4.3 Monetização — o que falta além da Fase A
-A Fase A entregou o **billing** dos Círculos. Ainda falta:
-- **Frontend das assinaturas** — tela de escolha de Círculo, coleta de cartão (Form Request +
-  `dontFlash`), fluxo de subscribe/cancel, exibição do Círculo ativo. É a próxima entrega natural.
-- **Chat** — benefício do Explorador (hoje oco) e pré-requisito do Interesse. ⚠️ ler o aviso de
-  `INTEREST_ANONYMITY_FLOOR.md`: mensagem a uma linha mascarada tem de **parecer sucesso e não
-  entregar nada**, senão o opt-out vaza.
-- **Fase B — Black/FC:** enforcement de `seat_limit` (vagas), `fc_numbers` (pool 1–9999 +
-  aposentadoria aos 6 meses), Halls, número BLACK. Gate de lançamento: 5–10 Exclusive antes de abrir.
-- **Hold no ledger (Mementos)** — novo `entry_type` (ex. `memento_hold`), reserva na aprovação da
-  foto, append-only (reservar não é `UPDATE saldo`).
-- **Trial de 7 dias dos Founding Members** — semana grátis ao assinar qualquer Círculo no lançamento.
+### 4.3 Follow-ups do chat (as 4 issues do `create-sprint5-issues.sh`)
+1. **Idempotência não-permanente no `chat_access`** permite recobrança em replay tardio.
+2. **Opt-out de Interesse não congela** conversa de chat já aberta.
+3. **Broadcast entrega metadados a membro em grace/expired** (revisar o piso vs. o ping).
+4. **Lançamento do ledger não referencia o `ChatAccess`** no primeiro open.
 
 ### 4.4 Outras pendências abertas
 - **Drip de nurturing dispara em blast** se `WAITLIST_NURTURE_START_AT` não for setado na ativação.
-- **Payout — follow-ups menores:** falta **alerta/requeue** para `needs_review`; revisar 429/408 no `createTransfer`.
-- **Piso de anonimato do Interesse** (`INTEREST_ANONYMITY_FLOOR.md`) — **não decidido**; decidir com
-  dado (distribuição de follows por membro).
+- **Payout — follow-ups:** falta **alerta/requeue** para `needs_review`; revisar 429/408 no `createTransfer`.
+- **Piso de anonimato do Interesse** — **não decidido**; decidir com dado (distribuição de follows/membro).
 - **`unlock()` não revalida se a performer segue ativa** — decisão de produto.
-- **Pseudônimos correlacionáveis** entre o painel (`Fã #0042`) e a lista de seguidores (`Membro #42`).
-- **Retenção/expurgo de documentos de KYC** — nunca feito; rotacionar `APP_KEY` quebra os `.enc`.
+- **Pseudônimos correlacionáveis** entre painel (`Fã #0042`) e seguidores (`Membro #42`).
+- **Retenção/expurgo de KYC** — nunca feito; rotacionar `APP_KEY` quebra os `.enc`.
 - **Integrações reais (Asaas/KYC) ainda em Fake** — pré-requisito de go-live.
 - **`.env.example` induz a SQLite**, mas o projeto é MySQL (§6.4).
 
 ### 4.5 Afirmações de handoffs antigos que hoje são FALSAS
-Não confie em `CURRENT_ISSUES_AND_NEXT_ACTIONS.md` / `TECHNICAL_HANDOFF_MASTER.md` sem checar:
-"173/344 testes" (**396** hoje), "domínio limen.com.br" (produção é **thelimen.com.br**), CLAUDE.md
-"PHP 8.5" (**8.4.22**) e "Próxima: Fase 8" (entregue há tempos). **Ainda válidas:** ledger append-only;
-CPF só no checkout e PII isolada; `category` é o mundo (não criar coluna `world`); deploy por
-`reset --hard`; sudoers restrito; idempotência de pagamento por id de evento; stack só muda com o PO.
+Não confie sem checar: contagens de teste antigas (**440** hoje), "limen.com.br" (produção é
+**thelimen.com.br**), CLAUDE.md "PHP 8.5" (**8.4.22**) e "Próxima: Fase 8" (entregue). **Ainda
+válidas:** ledger append-only; CPF só no checkout e PII isolada; `category` é o mundo (não criar
+`world`); deploy por `reset --hard`; sudoers restrito; idempotência de pagamento por id de evento.
 
 ---
 
-## 5. PRÓXIMO SPRINT — O QUE ATACAR
+## 5. PRÓXIMO SPRINT (SPRINT 5) — O QUE ATACAR
 
-Ordem sugerida.
+Rodar primeiro **`scripts/create-sprint5-issues.sh`** (cria a milestone "Sprint 5" + as 4 issues do
+chat §4.3). Ordem sugerida:
 
-1. **Frontend das assinaturas (Círculos Fase A → usável).** A infra de billing está pronta e testada;
-   falta a experiência: tela de Círculos, coleta de cartão via Form Request (+ `dontFlash` dos campos
-   de cartão), subscribe/cancel, e exibir o Círculo ativo (`auth.user.circle` já está no Inertia).
-   Passa pelo `security-reviewer` (cartão/PCI).
-2. **Chat/mensagens.** Destrava o benefício do Explorador e cumpre a spec do Interesse. ⚠️ respeitar
-   o aviso do piso de anonimato (mensagem a linha mascarada = sucesso vazio).
-3. **Follow-ups de payout** (§4.4) — alerta/requeue de `needs_review`.
-4. **Decidir o piso de anonimato** (§4.4) com dado.
-5. **Depois:** Fase B (Black/FC + vagas + `fc_numbers` + Halls), hold do Memento, trial de 7 dias.
-6. **Não** iniciar o cofre das FC Sessions (§4.2) — bloqueio jurídico.
+1. **Asaas/KYC fora do modo Fake** — **bloqueia o go-live**. Validar em sandbox, cuidar do
+   `ASAAS_API_KEY` com `$` (§6.5), conferir webhooks idempotentes em produção.
+2. **Issue #47 — tokenização de cartão client-side (PCI).** Hoje o PAN passa pelo servidor; mover
+   p/ tokenização no cliente (Asaas) para tirar o cartão do escopo. **Passa pelo `security-reviewer`.**
+3. **Fase B — Black/FC:** enforcement de `seat_limit` (vagas), **`fc_numbers`** (pool 1–9999 +
+   aposentadoria aos 6 meses), Halls, número BLACK. Gate: 5–10 Exclusive antes de abrir.
+4. **Payout — alerta/requeue de `needs_review`** (§4.4).
+5. **Trial de 7 dias dos Founding Members** — semana grátis ao assinar qualquer Círculo no lançamento.
+6. Follow-ups do chat (§4.3), à medida que doerem.
+7. **Não** iniciar o cofre das FC Sessions (§4.2) — bloqueio jurídico.
 
 ---
 
@@ -234,50 +237,67 @@ Ordem sugerida.
 ### 6.1 Servidor
 - **Hetzner `limen-dev-01`**, IP **62.238.46.212**, Ubuntu 24.04.
 - Projeto em `/var/www/limen`; nginx + `php8.4-fpm`; SSL Let's Encrypt (ECDSA) via Certbot.
-- Usuários SSH: `deploy` e `root`. **Não rodar git como root lá.**
+- Usuários SSH: `deploy` e `root`. **Não rodar git como root lá** (deploys usam `sudo -u deploy`).
 
 ### 6.2 Domínios
-- **`limen.dev.br`** — staging, ativo, app completo.
-- **`thelimen.com.br`** — produção. **Portão de marketing, não o app.** O vhost só deixa passar
-  `/`, `/links`, `/interesse`, `/convite/`, `/f/`, `/waitlist/`; o resto redireciona para `/`. Handler
-  PHP `internal`. Está **HTTP-only** no repo; rodar certbot **só depois** do DNS apontar. ⚠️
-  `/performers` (catálogo público) **não está no allowlist** — decidir se entra no pré-lançamento.
+- **`limen.dev.br`** — staging, ativo, **app completo** (chat em tempo real inclusive).
+- **`thelimen.com.br`** — produção, **portão de marketing, NÃO o app**. O vhost só passa `/`,
+  `/links`, `/interesse`, `/convite/`, `/f/`, `/waitlist/`; o resto redireciona. `/chat` e
+  `/performers` **não** estão no allowlist — mesmo host e mesmo banco, mas o app logado não é servido lá.
 
 ### 6.3 CI/CD (`.github/workflows/deploy.yml`)
 - Dispara em push/PR na `main`. **Testes:** `composer install` → `npm ci` → `npm run build` →
-  `key:generate` → `php artisan test` (MySQL de serviço). **Não roda lint** (não há `pint.json`).
+  `key:generate` → `php artisan test`. Não roda lint.
 - **Deploy (SSH):** `reset --hard origin/main` → `composer install --no-dev` → `npm ci && build` →
-  `migrate --force` → `config/route/view:cache` → restart do worker.
-- **Armadilhas:** `composer install --no-dev` morre se algo em `vendor/` ficar com dono != `deploy`;
-  o sudoers só libera **chown / supervisorctl / nginx** sem senha — **`sudo mkdir` não é permitido**.
+  `migrate --force` → `config/route/view:cache` → restart do worker. **Rodar `artisan` como `deploy`**
+  (senão os caches ficam com dono `root` e o próximo deploy quebra).
+- **Armadilhas:** `composer install --no-dev` morre se `vendor/` tiver dono != `deploy`; o sudoers
+  só libera **chown / supervisorctl / nginx** sem senha — **`sudo mkdir` não é permitido**.
 
 ### 6.4 Desenvolvimento local
 - Docker: `limen-mysql` (3306), `limen-redis` (6379), `limen-adminer` (8080). App: `limen` /
-  `limen_dev_pw`. Bancos: `limen` (dev), **`limen_test`** (usar nos testes p/ não zerar o dev).
-- **Não há SQLite local.** `phpunit.xml` força `DB_CONNECTION=sqlite` e as vars de CLI vencem:
+  `limen_dev_pw`. Bancos: `limen` (dev), **`limen_test`** (testes).
+- **Não há SQLite local.** `phpunit.xml` força `DB_CONNECTION=sqlite`; as vars de CLI vencem:
   ```bash
   DB_CONNECTION=mysql DB_DATABASE=limen_test DB_HOST=127.0.0.1 DB_PORT=3306 \
     DB_USERNAME=limen DB_PASSWORD=limen_dev_pw php artisan test
   ```
-- **VM de trabalho:** VirtualBox Ubuntu na rede Verallia. Zscaler bloqueia `limen.dev.br` — **não é
-  bug do site**. Túnel SSH `:8443`. ⚠️ Origem `:8443` ≠ `APP_URL :443` quebra POST do Inertia (logout).
+- **`npm` local:** node não valida o cert do registry (proxy TLS). Use
+  `NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt npm ...` (não desligar `strict-ssl`).
+- **VM de trabalho:** VirtualBox na rede Verallia; Zscaler bloqueia `limen.dev.br` (não é bug).
+  Túnel `:8443` — origem `:8443` ≠ `APP_URL :443` quebra POST do Inertia (logout).
 
 ### 6.5 Integrações
 | Serviço | Estado |
 |---|---|
-| **Asaas / PIX + cartão** | `ASAAS_DRIVER=fake` (default e staging). Fase A usa `createSubscription` (CREDIT_CARD) — validar em sandbox antes de produção. Bootar produção com `fake` lança por design |
+| **Asaas / PIX + cartão** | `ASAAS_DRIVER=fake` (default e staging). Fase A usa `createSubscription` (CREDIT_CARD). Tirar do Fake é go-live (§5) |
 | **KYC (Didit)** | Fake. Documentos cifrados em repouso no disco `kyc` via `APP_KEY` |
 | **Resend (e-mail)** | Configurado; webhook em `/resend/webhook` |
 | **LiveKit** | Não integrado |
-| ⚠️ `ASAAS_API_KEY` | Começa com `$` — **precisa de aspas simples no `.env`**, senão vira variável e dá 401 |
+| ⚠️ `ASAAS_API_KEY` | Começa com `$` — **aspas simples no `.env`**, senão vira variável e dá 401 |
 
 ### 6.6 Ferramental do agente
-- **Não há `gh` CLI nem token:** não dá para abrir PR por código. O `push` devolve a URL `pull/new/...`.
-- Subagente **`security-reviewer`** é obrigatório antes de qualquer coisa sensível (cadastro, KYC,
-  pagamento, payout, **cartão/PCI**, PII) — CLAUDE.md.
-- **Toda rota nova usada no front precisa entrar em `config/ziggy.php`** (allowlist `only`), senão o
-  Ziggy lança na montagem do Vue e o site inteiro fica em tela preta.
-- **Backup** (`docs/backup.sh`): dump MySQL + tar de storage (`private` **e** `kyc`), cifrado por GPG.
+- **Não há `gh` CLI nem token:** PRs abertos manualmente pela URL do `push`.
+- Subagente **`security-reviewer`** obrigatório antes de qualquer coisa sensível (cadastro, KYC,
+  pagamento, payout, **cartão/PCI**, PII).
+- **Toda rota nova usada no front entra em `config/ziggy.php`** (allowlist `only`), senão o Ziggy
+  lança na montagem do Vue e o site fica preto.
+
+### 6.7 Reverb / WebSocket (NOVO)
+- **`laravel/reverb` rodando** no servidor via supervisor (`limen-reverb`, `reverb:start
+  --host=0.0.0.0 --port=8080`). `BROADCAST_CONNECTION=reverb`; `REVERB_*` reais no `.env`;
+  `VITE_REVERB_*` apontam p/ **wss/443** via proxy nginx.
+- **nginx:** bloco `location /app/` **dentro** do server 443 faz proxy p/ `127.0.0.1:8080` com
+  upgrade de WebSocket. Handshake confirmado (`GET /app/... 101` + `POST /broadcasting/auth 200`).
+- **`scripts/setup-reverb-server.sh`** (idempotente) provisiona tudo pós-deploy: verifica que o
+  `reverb:start` existe (aborta se não), liga `BROADCAST_CONNECTION=reverb` + `VITE_REVERB_*`
+  (wss/443) no `.env` in-place, `config:cache`, escreve o programa do supervisor, insere o
+  `location /app/` no bloco 443 (parser de chaves, valida com `nginx -t`), `npm run build`, e
+  **`queue:restart`** (workers precisam recarregar o driver de broadcast — senão descartam eventos).
+- **Gotcha permanente:** filas/broadcast são **Redis**. Um worker que sobe **antes** do
+  `config:cache` com o driver novo fica com o broadcast antigo em memória e **descarta os eventos
+  em silêncio** (mensagem persiste, mas não chega ao outro lado). Reiniciar `limen-worker` **depois**
+  do `config:cache`.
 
 ---
 
@@ -288,12 +308,12 @@ cd /home/robson/teste
 git fetch origin && git checkout main && git reset --hard origin/main
 docker ps                       # limen-mysql / limen-redis / limen-adminer no ar?
 DB_CONNECTION=mysql DB_DATABASE=limen_test DB_HOST=127.0.0.1 DB_PORT=3306 \
-  DB_USERNAME=limen DB_PASSWORD=limen_dev_pw php artisan test   # esperado: 396 verdes
+  DB_USERNAME=limen DB_PASSWORD=limen_dev_pw php artisan test   # esperado: 440 verdes
 ```
 
 Leia, nesta ordem: `CLAUDE.md` (princípios — ignore o "Estado atual", está velho) → este arquivo →
-`CIRCLES_SYSTEM_V4.md` + `MAISON_PROGRAM.md` (as decisões da monetização) →
-`INTEREST_SYSTEM_SPEC.md` + `INTEREST_ANONYMITY_FLOOR.md` (sprint entregue + decisão pendente).
+`CIRCLES_SYSTEM_V4.md` + `MAISON_PROGRAM.md` (monetização) → `INTEREST_SYSTEM_SPEC.md` +
+`INTEREST_ANONYMITY_FLOOR.md` (Interesse + chat) → `COMMUNICATION_ECONOMY.md` (economia do chat).
 
-**Primeira ação sugerida:** o **frontend das assinaturas** (§5.1) — a Fase A de billing está na `main`,
-falta a experiência do usuário. Depois, **chat** (§5.2). Nada de cartão/PCI sem `security-reviewer`.
+**Primeira ação sugerida:** rodar `scripts/create-sprint5-issues.sh` e atacar **Asaas/KYC fora do
+Fake** (§5.1, go-live) — depois **issue #47 (PCI client-side)**. Nada de cartão/PCI sem `security-reviewer`.
