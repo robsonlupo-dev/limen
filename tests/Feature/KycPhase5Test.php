@@ -190,10 +190,13 @@ it('webhook approved transitions performer to active and verified and logs audit
 
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
-    $this->postJson('/api/v1/webhooks/kyc', [
-        'reference' => $verification->provider_reference,
-        'status'    => 'approved',
-    ], ['X-Kyc-Secret' => config('kyc.webhook_secret')]);
+    $payload = [
+        'session_id'   => $verification->provider_reference,
+        'status'       => 'Approved',
+        'webhook_type' => 'status.updated',
+        'event_id'     => 'evt_' . uniqid(),
+    ];
+    $this->postJson('/api/v1/webhooks/kyc', $payload, kycV3Headers($payload));
 
     $user->refresh();
     expect($user->status)->toBe('active');
@@ -221,11 +224,14 @@ it('webhook rejected keeps performer pending and logs audit', function () {
 
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
-    $this->postJson('/api/v1/webhooks/kyc', [
-        'reference' => $verification->provider_reference,
-        'status'    => 'rejected',
-        'reason'    => 'Document unclear',
-    ], ['X-Kyc-Secret' => config('kyc.webhook_secret')]);
+    $payload = [
+        'session_id'   => $verification->provider_reference,
+        'status'       => 'Declined',
+        'webhook_type' => 'status.updated',
+        'event_id'     => 'evt_' . uniqid(),
+        'decision'     => ['reason' => 'Document unclear'],
+    ];
+    $this->postJson('/api/v1/webhooks/kyc', $payload, kycV3Headers($payload));
 
     $user->refresh();
     expect($user->status)->toBe('pending');
@@ -236,9 +242,9 @@ it('webhook rejected keeps performer pending and logs audit', function () {
     $this->assertDatabaseHas('audit_logs', ['action' => 'kyc.rejected']);
 });
 
-// ─── Test 7: Webhook with wrong secret → 401, nothing changed ────────────────
+// ─── Test 7: Webhook with invalid signature → 401, nothing changed ───────────
 
-it('webhook with wrong secret returns 401 and leaves verification unchanged', function () {
+it('webhook with invalid signature returns 401 and leaves verification unchanged', function () {
     Storage::fake('kyc');
     Queue::fake();
 
@@ -248,11 +254,16 @@ it('webhook with wrong secret returns 401 and leaves verification unchanged', fu
 
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
-    $this->postJson('/api/v1/webhooks/kyc', [
-        'reference' => $verification->provider_reference,
-        'status'    => 'approved',
-    ], ['X-Kyc-Secret' => 'wrong-secret'])
-        ->assertStatus(401);
+    $payload = [
+        'session_id'   => $verification->provider_reference,
+        'status'       => 'Approved',
+        'webhook_type' => 'status.updated',
+        'event_id'     => 'evt_' . uniqid(),
+    ];
+    $this->postJson('/api/v1/webhooks/kyc', $payload, [
+        'X-Timestamp'    => (string) now()->getTimestamp(),
+        'X-Signature-V2' => 'wrong-signature',
+    ])->assertStatus(401);
 
     $verification->refresh();
     expect($verification->status)->toBe('pending');
@@ -272,11 +283,16 @@ it('sending the same webhook twice processes only once (idempotent)', function (
     postKyc($this, validKycPayload(), kycFiles(), $token)->assertStatus(201);
 
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
-    $secret = config('kyc.webhook_secret');
-    $payload = ['reference' => $verification->provider_reference, 'status' => 'approved'];
+    $payload = [
+        'session_id'   => $verification->provider_reference,
+        'status'       => 'Approved',
+        'webhook_type' => 'status.updated',
+        'event_id'     => 'evt_idem_once',
+    ];
+    $headers = kycV3Headers($payload);
 
-    $this->postJson('/api/v1/webhooks/kyc', $payload, ['X-Kyc-Secret' => $secret]);
-    $this->postJson('/api/v1/webhooks/kyc', $payload, ['X-Kyc-Secret' => $secret]);
+    $this->postJson('/api/v1/webhooks/kyc', $payload, $headers);
+    $this->postJson('/api/v1/webhooks/kyc', $payload, $headers);
 
     $this->assertDatabaseCount('audit_logs', 2); // kyc.submitted + kyc.approved (once)
 
@@ -380,10 +396,13 @@ it('performer appears in public catalog after KYC approval', function () {
 
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
-    $this->postJson('/api/v1/webhooks/kyc', [
-        'reference' => $verification->provider_reference,
-        'status'    => 'approved',
-    ], ['X-Kyc-Secret' => config('kyc.webhook_secret')]);
+    $payload = [
+        'session_id'   => $verification->provider_reference,
+        'status'       => 'Approved',
+        'webhook_type' => 'status.updated',
+        'event_id'     => 'evt_' . uniqid(),
+    ];
+    $this->postJson('/api/v1/webhooks/kyc', $payload, kycV3Headers($payload));
 
     // Now in catalog
     $slugsAfter = collect($this->getJson('/api/v1/performers')->json('data'))->pluck('slug')->all();
