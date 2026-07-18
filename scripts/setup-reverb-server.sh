@@ -90,6 +90,21 @@ as_app "${PHP_BIN}" "${APP_DIR}/artisan" config:clear
 as_app "${PHP_BIN}" "${APP_DIR}/artisan" config:cache
 
 # ---------------------------------------------------------------------------
+# 4b. Reinicia os workers p/ recarregarem BROADCAST_CONNECTION=reverb.
+#     Os workers são long-running e leem o config UMA vez, no boot. Se subiram
+#     ANTES deste config:cache (ex.: no passo de deploy, que reinicia os workers
+#     antes deste script rodar), seguem com o driver de broadcast antigo
+#     (null/log) em memória e DESCARTAM os eventos MessageSent em silêncio — a
+#     mensagem persiste (201) mas nunca chega ao Reverb, então o outro lado não
+#     recebe nada em tempo real. queue:restart sinaliza cada worker p/ sair
+#     graciosamente após o job atual; o supervisor os sobe de novo já com o
+#     config novo. (Usamos queue:restart, não supervisorctl: o nome do programa
+#     do worker não é de responsabilidade deste script.)
+# ---------------------------------------------------------------------------
+log "4b/8 Reiniciando workers (queue:restart) p/ recarregar o broadcast driver…"
+as_app "${PHP_BIN}" "${APP_DIR}/artisan" queue:restart
+
+# ---------------------------------------------------------------------------
 # 5. Supervisor — programa limen-reverb (sobrescreve o conf; idempotente)
 # ---------------------------------------------------------------------------
 log "5/8 Escrevendo ${SUPERVISOR_CONF}…"
