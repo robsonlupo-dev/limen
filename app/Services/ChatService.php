@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\MessageSent;
+use App\Events\NewMessage;
 use App\Exceptions\ChatException;
 use App\Models\AuditLog;
 use App\Models\Conversation;
@@ -162,5 +163,41 @@ class ChatService
         // event() (não broadcast()) porque MessageSent é ShouldBroadcast: o
         // dispatcher transmite igual, e fica interceptável por Event::fake().
         event(new MessageSent($message));
+
+        $this->broadcastListUpdate($conversation, $message);
+    }
+
+    /**
+     * Empurra a atualização da LISTA (Chat/Index) para os DOIS participantes, cada
+     * um no seu canal privado user.{id}. O preview do membro respeita o paywall
+     * (mesma regra do ChatController::index): sem leitura plena, vai null e a UI
+     * mostra o cadeado — nunca vaza o corpo. A performer lê sempre.
+     */
+    private function broadcastListUpdate(Conversation $conversation, Message $message): void
+    {
+        $preview = str($message->body)->limit(60)->value();
+        $occurredAt = $message->created_at->toIso8601String();
+        $performerUserId = $conversation->performerProfile->user_id;
+
+        event(new NewMessage(
+            recipientUserId: $performerUserId,
+            conversationId: $conversation->id,
+            occurredAt: $occurredAt,
+            incrementsUnread: $message->sender_id !== $performerUserId,
+            preview: $preview,
+        ));
+
+        $member = $conversation->member;
+        if ($member !== null) {
+            $memberCanRead = $this->chatAccessService->accessState($conversation, $member)['can_read'];
+
+            event(new NewMessage(
+                recipientUserId: $member->id,
+                conversationId: $conversation->id,
+                occurredAt: $occurredAt,
+                incrementsUnread: $message->sender_id !== $member->id,
+                preview: $memberCanRead ? $preview : null,
+            ));
+        }
     }
 }
