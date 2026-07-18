@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\AsaasHttpClient;
 use App\Services\Asaas\FakeAsaasClient;
+use App\Services\Kyc\DiditKycClient;
 use App\Services\Kyc\FakeKycClient;
 use App\Services\Kyc\KycClientInterface;
 use App\Services\Kyc\KycHttpClient;
@@ -40,7 +41,10 @@ class AppServiceProvider extends ServiceProvider
                 return new FakeKycClient();
             }
 
-            return new KycHttpClient();
+            return match (config('kyc.provider')) {
+                'didit' => new DiditKycClient(),
+                default => new KycHttpClient(),
+            };
         });
     }
 
