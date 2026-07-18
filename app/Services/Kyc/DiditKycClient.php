@@ -2,7 +2,10 @@
 
 namespace App\Services\Kyc;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 /**
  * Real KYC provider: Didit (https://docs.didit.me).
@@ -35,7 +38,7 @@ class DiditKycClient implements KycClientInterface
             ],
         );
 
-        $response->throw();
+        $this->ensureOk($response, 'token');
 
         return $this->accessToken = (string) $response->json('access_token');
     }
@@ -52,7 +55,7 @@ class DiditKycClient implements KycClientInterface
             'vendor_data' => (string) ($data['vendor_data'] ?? $data['performer_id'] ?? ''),
         ]);
 
-        $response->throw();
+        $this->ensureOk($response, 'session');
 
         return [
             'reference' => $response->json('session_id'),
@@ -66,14 +69,32 @@ class DiditKycClient implements KycClientInterface
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->getAccessToken(),
             'x-client-id' => config('kyc.client_id'),
-        ])->get(rtrim((string) config('kyc.base_url'), '/') . '/v2/session/' . $ref . '/decision/');
+        ])->get(rtrim((string) config('kyc.base_url'), '/') . '/v2/session/' . rawurlencode($ref) . '/decision/');
 
-        $response->throw();
+        $this->ensureOk($response, 'decision');
 
         return [
             'reference' => $ref,
             'status' => $this->mapStatus($response->json('status')),
         ];
+    }
+
+    /**
+     * Fails loudly on a non-2xx response without ever surfacing the body. Didit
+     * responses carry PII (the decision endpoint) and secrets (the token
+     * endpoint), so — unlike Response::throw() — we log the status code only and
+     * raise a body-free exception, honoring "PII/segredos nunca em log".
+     */
+    private function ensureOk(Response $response, string $context): void
+    {
+        if ($response->failed()) {
+            Log::warning('didit request failed', [
+                'context' => $context,
+                'status' => $response->status(),
+            ]);
+
+            throw new RuntimeException("Didit {$context} request failed with status {$response->status()}.");
+        }
     }
 
     /**

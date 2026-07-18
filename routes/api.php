@@ -60,7 +60,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 });
 
 Route::post('v1/webhooks/asaas', AsaasWebhookController::class)->name('webhooks.asaas');
-Route::post('v1/webhooks/kyc', KycWebhookController::class)->name('webhooks.kyc');
+// Generous throttle caps the log/audit-flood vector from unauthenticated hits
+// while staying well above any real Didit webhook burst (retries survive a 429).
+Route::post('v1/webhooks/kyc', KycWebhookController::class)
+    ->middleware('throttle:120,1')
+    ->name('webhooks.kyc');
 // Generous throttle: caps the log/audit-flood vector from unauthenticated hits
 // while staying well above any real Asaas webhook burst (retries survive a 429).
 Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 'handle'])

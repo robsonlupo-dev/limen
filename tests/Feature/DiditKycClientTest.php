@@ -124,6 +124,30 @@ it('getVerification maps an unknown status to pending', function () {
     expect($result['status'])->toBe('pending');
 });
 
+// ─── 4b. Failed decision fetch throws without leaking the response body ───────
+
+it('throws a body-free exception when Didit returns an error', function () {
+    diditConfig();
+    Http::fake([
+        'auth.didit.me/*' => Http::response(['access_token' => 'tok_live_123'], 200),
+        // Body carries PII/error detail that must never surface in the exception.
+        'apx.didit.me/v2/session/*/decision/' => Http::response(
+            ['full_legal_name' => 'Maria Teste Silva', 'error' => 'boom'],
+            500,
+        ),
+    ]);
+
+    expect(fn () => (new DiditKycClient())->getVerification('sess_abc'))
+        ->toThrow(RuntimeException::class);
+
+    try {
+        (new DiditKycClient())->getVerification('sess_abc');
+    } catch (RuntimeException $e) {
+        expect($e->getMessage())->not->toContain('Maria');
+        expect($e->getMessage())->toContain('500');
+    }
+});
+
 // ─── 5. Webhook Approved → KycService::approve ────────────────────────────────
 
 it('webhook with status Approved calls KycService::approve', function () {
