@@ -59,12 +59,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
 });
 
-Route::post('v1/webhooks/asaas', AsaasWebhookController::class)->name('webhooks.asaas');
+Route::post('v1/webhooks/asaas', AsaasWebhookController::class)
+    ->middleware('asaas.webhook_ip')
+    ->name('webhooks.asaas');
 Route::post('v1/webhooks/kyc', KycWebhookController::class)->name('webhooks.kyc');
 // Generous throttle: caps the log/audit-flood vector from unauthenticated hits
 // while staying well above any real Asaas webhook burst (retries survive a 429).
 Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 'handle'])
-    ->middleware('throttle:120,1')
+    ->middleware(['asaas.webhook_ip', 'throttle:120,1'])
     ->name('webhooks.asaas.transfer');
 
 // Performer profile management + KYC
