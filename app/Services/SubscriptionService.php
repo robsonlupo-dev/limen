@@ -90,6 +90,15 @@ class SubscriptionService
             throw $e;
         }
 
+        // PCI SAQ-D: record that a reusable card token was stored, for the audit
+        // trail — never the token value itself (only the non-sensitive last4/brand).
+        if ($subscription->card_token !== null) {
+            Audit::log('card_token.stored', $subscription, [
+                'card_last4' => $subscription->card_last4,
+                'card_brand' => $subscription->card_brand,
+            ]);
+        }
+
         // Grant the first month anchored on the REAL first charge id (from Asaas,
         // not the create response — which doesn't carry it in production). The
         // first renewal webhook carries the same id, so it dedupes there. If we
@@ -269,7 +278,23 @@ class SubscriptionService
         $subscription = Subscription::where('asaas_subscription_id', $asaasSubId)->first();
 
         if ($subscription && $subscription->status !== 'canceled') {
-            $subscription->update(['status' => 'canceled', 'canceled_at' => now()]);
+            // PCI SAQ-D data minimization: once the subscription is terminated at
+            // the gateway, our stored card token can never be charged again, so we
+            // purge it (Asaas keeps its own copy for any dispute). last4/brand stay
+            // for the member's history — they are not the reusable credential.
+            $hadToken = $subscription->card_token !== null;
+
+            $subscription->update([
+                'status' => 'canceled',
+                'canceled_at' => now(),
+                'card_token' => null,
+            ]);
+
+            if ($hadToken) {
+                Audit::log('card_token.purged', $subscription, [
+                    'reason' => 'subscription_terminated',
+                ]);
+            }
         }
     }
 
