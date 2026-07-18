@@ -12,18 +12,9 @@ function diditConfig(): void
 {
     config([
         'kyc.provider' => 'didit',
-        'kyc.client_id' => 'client-abc',
-        'kyc.client_secret' => 'secret-xyz',
+        'kyc.api_key' => 'test-api-key',
         'kyc.workflow_id' => 'wf-123',
-        'kyc.base_url' => 'https://apx.didit.me',
-        'kyc.auth_url' => 'https://apx.didit.me/auth/v2/oauth2/token',
-    ]);
-}
-
-function fakeDiditToken(): void
-{
-    Http::fake([
-        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
+        'kyc.base_url' => 'https://verification.didit.me',
     ]);
 }
 
@@ -60,8 +51,7 @@ function diditSignature(array $payload): string
 it('submitVerification returns reference, url and pending status', function () {
     diditConfig();
     Http::fake([
-        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
-        'apx.didit.me/v2/session/' => Http::response([
+        'verification.didit.me/v3/session/' => Http::response([
             'session_id' => 'sess_abc',
             'url' => 'https://verify.didit.me/sess_abc',
         ], 201),
@@ -73,12 +63,12 @@ it('submitVerification returns reference, url and pending status', function () {
     expect($result['status'])->toBe('pending');
     expect($result['url'])->toBe('https://verify.didit.me/sess_abc');
 
-    // Session request carries the bearer token, client-id header and workflow.
-    Http::assertSent(fn ($req) => str_contains($req->url(), '/v2/session/')
-        && $req->hasHeader('Authorization', 'Bearer tok_live_123')
-        && $req->hasHeader('x-client-id', 'client-abc')
+    // Session request authenticates with the API key and carries workflow + vendor data.
+    Http::assertSent(fn ($req) => str_contains($req->url(), '/v3/session/')
+        && $req->hasHeader('x-api-key', 'test-api-key')
         && $req['workflow_id'] === 'wf-123'
-        && $req['vendor_data'] === '42');
+        && $req['vendor_data'] === '42'
+        && str_contains((string) $req['callback'], '/api/v1/webhooks/kyc'));
 });
 
 // ─── 2. getVerification maps Approved → approved ──────────────────────────────
@@ -86,14 +76,15 @@ it('submitVerification returns reference, url and pending status', function () {
 it('getVerification maps Approved to approved', function () {
     diditConfig();
     Http::fake([
-        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
-        'apx.didit.me/v2/session/*/decision/' => Http::response(['status' => 'Approved'], 200),
+        'verification.didit.me/v3/session/*/decision/' => Http::response(['status' => 'Approved'], 200),
     ]);
 
     $result = (new DiditKycClient())->getVerification('sess_abc');
 
     expect($result['reference'])->toBe('sess_abc');
     expect($result['status'])->toBe('approved');
+
+    Http::assertSent(fn ($req) => $req->hasHeader('x-api-key', 'test-api-key'));
 });
 
 // ─── 3. getVerification maps Declined → rejected ──────────────────────────────
@@ -101,8 +92,7 @@ it('getVerification maps Approved to approved', function () {
 it('getVerification maps Declined to rejected', function () {
     diditConfig();
     Http::fake([
-        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
-        'apx.didit.me/v2/session/*/decision/' => Http::response(['status' => 'Declined'], 200),
+        'verification.didit.me/v3/session/*/decision/' => Http::response(['status' => 'Declined'], 200),
     ]);
 
     $result = (new DiditKycClient())->getVerification('sess_abc');
@@ -115,8 +105,7 @@ it('getVerification maps Declined to rejected', function () {
 it('getVerification maps an unknown status to pending', function () {
     diditConfig();
     Http::fake([
-        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
-        'apx.didit.me/v2/session/*/decision/' => Http::response(['status' => 'In Review'], 200),
+        'verification.didit.me/v3/session/*/decision/' => Http::response(['status' => 'In Review'], 200),
     ]);
 
     $result = (new DiditKycClient())->getVerification('sess_abc');
@@ -129,9 +118,8 @@ it('getVerification maps an unknown status to pending', function () {
 it('throws a body-free exception when Didit returns an error', function () {
     diditConfig();
     Http::fake([
-        'apx.didit.me/auth/v2/oauth2/token' => Http::response(['access_token' => 'tok_live_123'], 200),
         // Body carries PII/error detail that must never surface in the exception.
-        'apx.didit.me/v2/session/*/decision/' => Http::response(
+        'verification.didit.me/v3/session/*/decision/' => Http::response(
             ['full_legal_name' => 'Maria Teste Silva', 'error' => 'boom'],
             500,
         ),
