@@ -24,3 +24,12 @@ Broadcast::channel('conversation.{conversation}', function (User $user, int $con
 
     return $model !== null && $model->hasParticipant($user);
 });
+
+/*
+| user.{id}: canal PESSOAL do usuário. A lista de conversas (Chat/Index) o assina
+| p/ atualizar preview/badge/timestamp em tempo real (evento NewMessage). Cada um
+| só assina o próprio id — nunca o de outro.
+*/
+Broadcast::channel('user.{id}', function (User $user, int $id) {
+    return $user->id === $id;
+});

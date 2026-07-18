@@ -180,8 +180,10 @@ watch(() => props.messages.data.length, scrollToBottom)
                 <p v-if="renewError" class="text-xs text-danger">{{ renewError }}</p>
             </div>
 
-            <!-- Lista de mensagens -->
-            <div ref="scroller" class="flex-1 overflow-y-auto py-4 space-y-3">
+            <!-- Lista de mensagens: min-h-0 é essencial num flex-col — sem ele o
+                 flex-1 NÃO encolhe e o overflow-y-auto não rola (o compositor
+                 seria empurrado p/ fora da viewport em vez de a área rolar). -->
+            <div ref="scroller" class="flex-1 min-h-0 overflow-y-auto py-4 space-y-3">
                 <div v-if="hasOlder" class="text-center">
                     <button class="text-xs text-gold/70 hover:text-gold transition-colors" @click="loadOlder">
                         Carregar mensagens anteriores

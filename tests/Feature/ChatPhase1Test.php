@@ -1,6 +1,7 @@
 <?php
 
 use App\Events\MessageSent;
+use App\Events\NewMessage;
 use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Follow;
@@ -11,6 +12,7 @@ use App\Models\Subscription;
 use App\Models\TokenLedger;
 use App\Models\User;
 use App\Services\ChatAccessService;
+use App\Services\ChatService;
 use App\Services\InterestService;
 use App\Services\TokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -107,6 +109,43 @@ it('lets the performer send the first message for free', function () {
     expect($message->sender_id)->toBe($performer->user_id)
         ->and($message->body)->toBe('Oi :)');
     Event::assertDispatched(MessageSent::class, fn ($e) => $e->message->id === $message->id);
+});
+
+// --- Atualização da LISTA em tempo real (canal user.{id}, paywall no preview) --
+
+it('broadcasts NewMessage to both participants with a paywalled preview', function () {
+    Event::fake([MessageSent::class, NewMessage::class]);
+    $performer = chatPerformer();
+    [$member, $conversation, $interest] = chatUnlockedPair($performer);
+
+    // A performer manda a 1ª mensagem. O membro (sem Círculo nem janela paga)
+    // NÃO pode ler → preview null (cadeado). A performer lê sempre → preview.
+    app(ChatService::class)->performerMessageFromInterest($performer, $interest, 'Olá, tudo bem?');
+
+    // Destinatário performer: preview com corpo; não incrementa não-lidas (é ela quem manda).
+    Event::assertDispatched(NewMessage::class, fn ($e) => $e->recipientUserId === $performer->user_id
+        && $e->conversationId === $conversation->id
+        && $e->preview === 'Olá, tudo bem?'
+        && $e->incrementsUnread === false);
+
+    // Destinatário membro: SEM corpo (paywall) e incrementa não-lidas.
+    Event::assertDispatched(NewMessage::class, fn ($e) => $e->recipientUserId === $member->id
+        && $e->conversationId === $conversation->id
+        && $e->preview === null
+        && $e->incrementsUnread === true);
+});
+
+it('includes the body preview for a member with paid access', function () {
+    Event::fake([MessageSent::class, NewMessage::class]);
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation); // janela paga vigente → leitura plena
+
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'mensagem visível');
+
+    Event::assertDispatched(NewMessage::class, fn ($e) => $e->recipientUserId === $member->id
+        && $e->preview === 'mensagem visível'
+        && $e->incrementsUnread === true);
 });
 
 // --- Máscara de opt-out (indistinguível do status exibido) --------------------
