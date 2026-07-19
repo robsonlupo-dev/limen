@@ -18,6 +18,8 @@ class FakeAsaasClient implements AsaasClientInterface
 
     private bool $forceNextGetTransferFailure = false;
 
+    private bool $forceNextSubscriptionCancelFailure = false;
+
     public function createCustomer(array $data): array
     {
         $customer = [
@@ -257,8 +259,20 @@ class FakeAsaasClient implements AsaasClientInterface
         ];
     }
 
+    /** Faz o próximo cancelamento de assinatura falhar (gateway fora do ar). */
+    public function forceNextSubscriptionCancelFailure(): void
+    {
+        $this->forceNextSubscriptionCancelFailure = true;
+    }
+
     public function cancelSubscription(string $subscriptionId): array
     {
+        if ($this->forceNextSubscriptionCancelFailure) {
+            $this->forceNextSubscriptionCancelFailure = false;
+
+            throw new AsaasUnavailableException('Simulated Asaas subscription cancel failure.');
+        }
+
         if (isset($this->subscriptions[$subscriptionId])) {
             $this->subscriptions[$subscriptionId]['status'] = 'INACTIVE';
         }

@@ -33,6 +33,13 @@ Schedule::command('payouts:reconcile')->everyTenMinutes()->withoutOverlapping(15
 // is idempotent, so a step goes out at most once regardless of how often it runs.
 Schedule::command('waitlist:send-nurture')->hourly();
 
+// Aplica o cancel_at_period_end: encerra no Asaas e aqui as assinaturas cujo
+// período pago acabou. De hora em hora porque o atraso custa dinheiro do membro —
+// enquanto a assinatura viver no gateway, ela cobra o ciclo seguinte.
+// withoutOverlapping: uma rodada lenta (lote grande, Asaas devagar) não pode
+// empilhar com a próxima e mandar dois cancelamentos da mesma linha.
+Schedule::command('subscriptions:expire')->hourly()->withoutOverlapping(10);
+
 // Expiração/retenção do chat: diário. Marca acessos vencidos e, passada a
 // carência, soft-deleta as mensagens (retidas no servidor). Prazos em dias, então
 // diário basta; withoutOverlapping evita duas varreduras concorrentes soft-

@@ -151,6 +151,91 @@ class SubscriptionService
     }
 
     /**
+     * Encerra de fato as assinaturas que o membro cancelou e cujo período pago já
+     * acabou. Sem isto a flag cancel_at_period_end era decorativa: a assinatura
+     * seguia 'active' para sempre aqui e viva no Asaas, cobrando o próximo ciclo.
+     *
+     * Roda de hora em hora (subscriptions:expire). Cada linha é independente —
+     * uma falha de gateway não contamina as outras.
+     *
+     * @return array{expired: int, failed: int}
+     */
+    public function expireCanceled(): array
+    {
+        $due = Subscription::where('cancel_at_period_end', true)
+            ->where('status', 'active')
+            ->whereNotNull('current_period_end')
+            ->where('current_period_end', '<=', now())
+            ->get();
+
+        $expired = 0;
+        $failed = 0;
+
+        foreach ($due as $subscription) {
+            try {
+                if ($this->expireOne($subscription)) {
+                    $expired++;
+                }
+            } catch (\Throwable $e) {
+                // Gateway fora do ar / rejeição: não mexe no estado local e deixa
+                // para a próxima rodada. Marcar cancelado aqui sem ter cancelado
+                // lá é o pior desfecho possível — o membro perderia o acesso e
+                // continuaria sendo cobrado.
+                $failed++;
+
+                Log::error('Failed to expire canceled subscription', [
+                    'subscription_id' => $subscription->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return ['expired' => $expired, 'failed' => $failed];
+    }
+
+    /** @return bool true se esta rodada foi quem encerrou a assinatura. */
+    private function expireOne(Subscription $subscription): bool
+    {
+        // O gateway vem PRIMEIRO, e fora da transação: é a chamada que pode
+        // falhar ou demorar, e não se desfaz com rollback. Se ela estourar, a
+        // exceção sobe antes de qualquer escrita local. Manter a rede dentro da
+        // transação só prenderia o lock da linha pela latência do Asaas.
+        if ($subscription->asaas_subscription_id) {
+            $this->asaas->cancelSubscription($subscription->asaas_subscription_id);
+        }
+
+        return DB::transaction(function () use ($subscription) {
+            $locked = Subscription::where('id', $subscription->id)->lockForUpdate()->first();
+
+            // Recheca sob lock: um webhook (SUBSCRIPTION_DELETED, renovação) pode
+            // ter mudado o estado entre a query do lote e este ponto.
+            if ($locked->status !== 'active' || ! $locked->cancel_at_period_end) {
+                return false;
+            }
+
+            // PCI SAQ-D: encerrada no gateway, o token do cartão nunca mais pode
+            // ser cobrado — expurga. last4/brand ficam para o histórico.
+            $hadToken = $locked->card_token !== null;
+
+            $locked->update([
+                'status' => 'canceled',
+                'canceled_at' => now(),
+                'card_token' => null,
+            ]);
+
+            Audit::log('subscription.expired', $locked, [
+                'period_end' => $locked->current_period_end?->toIso8601String(),
+            ]);
+
+            if ($hadToken) {
+                Audit::log('card_token.purged', $locked, ['reason' => 'subscription_expired']);
+            }
+
+            return true;
+        });
+    }
+
+    /**
      * Handle an Asaas webhook for a subscription. Idempotent per charge via
      * subscription_charges.provider_event_id.
      */
