@@ -204,9 +204,16 @@ class SubscriptionService
     }
 
     /**
-     * Encerra de fato as assinaturas que o membro cancelou e cujo período pago já
-     * acabou. Sem isto a flag cancel_at_period_end era decorativa: a assinatura
-     * seguia 'active' para sempre aqui e viva no Asaas, cobrando o próximo ciclo.
+     * Encerra de fato as assinaturas que o membro cancelou, quando chega a data da
+     * PRÓXIMA COBRANÇA. Sem isto a flag cancel_at_period_end era decorativa: a
+     * assinatura seguia 'active' para sempre aqui e viva no Asaas, cobrando.
+     *
+     * O corte é next_due_date, não current_period_end. Numa assinatura normal os
+     * dois são a mesma data e nada muda. No trial eles divergem: a cobrança cai no
+     * dia 7 e o período pago vai até o dia 37. Cortar pelo período deixaria o
+     * founder que cancelou no dia 3 ser debitado no dia 7 — exatamente o que o
+     * cancelamento prometeu evitar. Quem cancela no trial perde o acesso no dia 7:
+     * nunca pagou nada, e os tokens do primeiro mês não são estornados.
      *
      * Roda de hora em hora (subscriptions:expire). Cada linha é independente —
      * uma falha de gateway não contamina as outras.
@@ -217,8 +224,8 @@ class SubscriptionService
     {
         $due = Subscription::where('cancel_at_period_end', true)
             ->where('status', 'active')
-            ->whereNotNull('current_period_end')
-            ->where('current_period_end', '<=', now())
+            ->whereNotNull('next_due_date')
+            ->where('next_due_date', '<=', now())
             ->get();
 
         $expired = 0;
@@ -277,7 +284,9 @@ class SubscriptionService
             ]);
 
             Audit::log('subscription.expired', $locked, [
+                'next_due_date' => $locked->next_due_date?->toDateString(),
                 'period_end' => $locked->current_period_end?->toIso8601String(),
+                'in_trial' => $locked->isInTrial(),
             ]);
 
             if ($hadToken) {

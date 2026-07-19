@@ -41,6 +41,7 @@ it('encerra a assinatura cancelada cujo periodo pago ja acabou', function () {
         'cancel_at_period_end' => true,
         'status' => 'active',
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
     ]);
 
     runExpiry();
@@ -60,11 +61,12 @@ it('NAO encerra enquanto o periodo pago nao terminou', function () {
         'cancel_at_period_end' => true,
         'status' => 'active',
         'current_period_end' => now()->addDays(10),
+        'next_due_date' => now()->addDays(10),
     ]);
 
     runExpiry();
 
-    // Cancelou, mas pagou até lá: o acesso é dele até o fim do período.
+    // Cancelou, mas pagou até lá: o acesso é dele até a próxima cobrança.
     expect($sub->fresh()->status)->toBe('active');
     expect(expiryFake()->getSubscription($sub->asaas_subscription_id)['status'])->toBe('ACTIVE');
 });
@@ -76,6 +78,7 @@ it('NAO toca em assinatura sem cancel_at_period_end mesmo com periodo vencido', 
         'cancel_at_period_end' => false,
         'status' => 'active',
         'current_period_end' => now()->subDays(3),
+        'next_due_date' => now()->subDays(3),
     ]);
 
     runExpiry();
@@ -93,6 +96,7 @@ it('nao reprocessa assinatura ja cancelada', function () {
         'cancel_at_period_end' => true,
         'status' => 'active',
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
     ]);
 
     runExpiry();
@@ -116,6 +120,7 @@ it('falha no Asaas nao cancela localmente e a rodada seguinte resolve', function
         'cancel_at_period_end' => true,
         'status' => 'active',
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
     ]);
 
     expiryFake()->forceNextSubscriptionCancelFailure();
@@ -139,10 +144,12 @@ it('uma linha com erro nao impede as outras do lote', function () {
     $bad = subscriptionAtGateway([
         'cancel_at_period_end' => true,
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
     ]);
     $good = subscriptionAtGateway([
         'cancel_at_period_end' => true,
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
     ]);
 
     expiryFake()->forceNextSubscriptionCancelFailure(); // derruba só a primeira
@@ -162,6 +169,7 @@ it('registra o audit log subscription.expired', function () {
     $sub = subscriptionAtGateway([
         'cancel_at_period_end' => true,
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
     ]);
 
     runExpiry();
@@ -179,6 +187,7 @@ it('expurga o token do cartao ao encerrar', function () {
     $sub = subscriptionAtGateway([
         'cancel_at_period_end' => true,
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
         'card_token' => 'cctok_fake_expiry',
     ]);
 
@@ -202,11 +211,60 @@ it('encerra localmente quando nao ha assinatura no Asaas para cancelar', functio
         'asaas_subscription_id' => null,
         'cancel_at_period_end' => true,
         'current_period_end' => now()->subDay(),
+        'next_due_date' => now()->subDay(),
     ]);
 
     runExpiry();
 
     expect($sub->fresh()->status)->toBe('canceled');
+});
+
+// ─── Trial: o motivo de o corte ser next_due_date ────────────────────────────
+
+it('founder que cancela no trial e encerrado na data da cobranca, nao no fim do periodo', function () {
+    // Assinatura de founder no dia 0: cobrança no dia 7, período pago até o 37.
+    $sub = subscriptionAtGateway([
+        'trial_ends_at' => now()->addDays(7),
+        'next_due_date' => now()->addDays(7),
+        'current_period_end' => now()->addDays(7)->addMonthNoOverflow(),
+        'cancel_at_period_end' => true, // cancelou no dia 0
+    ]);
+
+    // Dia 6: ainda não é a data da cobrança, nada acontece.
+    $this->travelTo(now()->addDays(6));
+    runExpiry();
+    expect($sub->fresh()->status)->toBe('active');
+
+    // Dia 8: passou a data da cobrança. Tem de estar morta no gateway — se
+    // esperássemos o current_period_end (dia 37), o cartão já teria sido debitado.
+    $this->travelTo(now()->addDays(2));
+    runExpiry();
+
+    expect($sub->fresh()->status)->toBe('canceled');
+    expect(expiryFake()->getSubscription($sub->asaas_subscription_id)['status'])->toBe('INACTIVE');
+
+    $this->travelBack();
+});
+
+it('assinatura normal nao muda de comportamento: as duas datas coincidem', function () {
+    // Fora do trial next_due_date == current_period_end, então o corte novo é o
+    // mesmo que o antigo. Este teste existe para travar essa equivalência.
+    $sub = subscriptionAtGateway([
+        'trial_ends_at' => null,
+        'current_period_end' => now()->addDays(30),
+        'next_due_date' => now()->addDays(30),
+        'cancel_at_period_end' => true,
+    ]);
+
+    $this->travelTo(now()->addDays(29));
+    runExpiry();
+    expect($sub->fresh()->status)->toBe('active');
+
+    $this->travelTo(now()->addDays(2));
+    runExpiry();
+    expect($sub->fresh()->status)->toBe('canceled');
+
+    $this->travelBack();
 });
 
 // ─── Fim a fim: cancelar e ver a assinatura morrer ───────────────────────────
@@ -216,6 +274,7 @@ it('fluxo completo: membro cancela, mantem acesso, e o periodo vira encerramento
     $sub = subscriptionAtGateway([
         'user_id' => $user->id,
         'current_period_end' => now()->addDays(5),
+        'next_due_date' => now()->addDays(5),
     ]);
 
     app(SubscriptionService::class)->cancel($sub);
