@@ -204,6 +204,100 @@ class SubscriptionService
     }
 
     /**
+     * Encerra de fato as assinaturas que o membro cancelou, quando chega a data da
+     * PRÓXIMA COBRANÇA. Sem isto a flag cancel_at_period_end era decorativa: a
+     * assinatura seguia 'active' para sempre aqui e viva no Asaas, cobrando.
+     *
+     * O corte é next_due_date, não current_period_end. Numa assinatura normal os
+     * dois são a mesma data e nada muda. No trial eles divergem: a cobrança cai no
+     * dia 7 e o período pago vai até o dia 37. Cortar pelo período deixaria o
+     * founder que cancelou no dia 3 ser debitado no dia 7 — exatamente o que o
+     * cancelamento prometeu evitar. Quem cancela no trial perde o acesso no dia 7:
+     * nunca pagou nada, e os tokens do primeiro mês não são estornados.
+     *
+     * Roda de hora em hora (subscriptions:expire). Cada linha é independente —
+     * uma falha de gateway não contamina as outras.
+     *
+     * @return array{expired: int, failed: int}
+     */
+    public function expireCanceled(): array
+    {
+        $due = Subscription::where('cancel_at_period_end', true)
+            ->where('status', 'active')
+            ->whereNotNull('next_due_date')
+            ->where('next_due_date', '<=', now())
+            ->get();
+
+        $expired = 0;
+        $failed = 0;
+
+        foreach ($due as $subscription) {
+            try {
+                if ($this->expireOne($subscription)) {
+                    $expired++;
+                }
+            } catch (\Throwable $e) {
+                // Gateway fora do ar / rejeição: não mexe no estado local e deixa
+                // para a próxima rodada. Marcar cancelado aqui sem ter cancelado
+                // lá é o pior desfecho possível — o membro perderia o acesso e
+                // continuaria sendo cobrado.
+                $failed++;
+
+                Log::error('Failed to expire canceled subscription', [
+                    'subscription_id' => $subscription->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return ['expired' => $expired, 'failed' => $failed];
+    }
+
+    /** @return bool true se esta rodada foi quem encerrou a assinatura. */
+    private function expireOne(Subscription $subscription): bool
+    {
+        // O gateway vem PRIMEIRO, e fora da transação: é a chamada que pode
+        // falhar ou demorar, e não se desfaz com rollback. Se ela estourar, a
+        // exceção sobe antes de qualquer escrita local. Manter a rede dentro da
+        // transação só prenderia o lock da linha pela latência do Asaas.
+        if ($subscription->asaas_subscription_id) {
+            $this->asaas->cancelSubscription($subscription->asaas_subscription_id);
+        }
+
+        return DB::transaction(function () use ($subscription) {
+            $locked = Subscription::where('id', $subscription->id)->lockForUpdate()->first();
+
+            // Recheca sob lock: um webhook (SUBSCRIPTION_DELETED, renovação) pode
+            // ter mudado o estado entre a query do lote e este ponto.
+            if ($locked->status !== 'active' || ! $locked->cancel_at_period_end) {
+                return false;
+            }
+
+            // PCI SAQ-D: encerrada no gateway, o token do cartão nunca mais pode
+            // ser cobrado — expurga. last4/brand ficam para o histórico.
+            $hadToken = $locked->card_token !== null;
+
+            $locked->update([
+                'status' => 'canceled',
+                'canceled_at' => now(),
+                'card_token' => null,
+            ]);
+
+            Audit::log('subscription.expired', $locked, [
+                'next_due_date' => $locked->next_due_date?->toDateString(),
+                'period_end' => $locked->current_period_end?->toIso8601String(),
+                'in_trial' => $locked->isInTrial(),
+            ]);
+
+            if ($hadToken) {
+                Audit::log('card_token.purged', $locked, ['reason' => 'subscription_expired']);
+            }
+
+            return true;
+        });
+    }
+
+    /**
      * Handle an Asaas webhook for a subscription. Idempotent per charge via
      * subscription_charges.provider_event_id.
      */
