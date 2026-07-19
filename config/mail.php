@@ -115,4 +115,16 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Alert Address
+    |--------------------------------------------------------------------------
+    |
+    | Destino dos alertas operacionais (ex.: payout em needs_review). Fica
+    | separado do "from" porque é uma caixa interna monitorada por humanos.
+    |
+    */
+
+    'admin_address' => env('ADMIN_EMAIL'),
+
 ];
