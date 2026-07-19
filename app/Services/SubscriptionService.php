@@ -8,6 +8,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionCharge;
 use App\Models\TokenLedger;
 use App\Models\User;
+use App\Models\WaitlistEntry;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Support\Audit;
 use Illuminate\Support\Facades\DB;
@@ -26,12 +27,20 @@ class SubscriptionService
      * brand — never the PAN. The first month's tokens are granted immediately,
      * anchored on the first charge id so the first renewal webhook can't
      * double-grant it.
+     *
+     * Founding Members (waitlist confirmada) ganham 7 dias grátis na PRIMEIRA
+     * assinatura. O trial é feito do jeito que o Asaas documenta: adiando o
+     * nextDueDate — não existe campo de trial na API de assinaturas, então
+     * qualquer flag só nossa deixaria o cartão sendo cobrado no dia 0 enquanto a
+     * UI promete 7 dias grátis. trial_ends_at guarda essa mesma data.
      */
     public function subscribe(User $user, Circle $circle, array $cardData): Subscription
     {
         if ($user->activeSubscription() !== null) {
             throw new AlreadySubscribedException();
         }
+
+        $trialEndsAt = $this->trialEndsAtFor($user);
 
         $this->ensureAsaasCustomer($user, $cardData);
 
@@ -40,7 +49,8 @@ class SubscriptionService
             'billingType' => 'CREDIT_CARD',
             'value' => $circle->price_cents / 100,
             'cycle' => 'MONTHLY',
-            'nextDueDate' => now()->format('Y-m-d'),
+            // Primeira cobrança: hoje, ou no fim do trial para Founding Members.
+            'nextDueDate' => ($trialEndsAt ?? now())->format('Y-m-d'),
             'externalReference' => "user_{$user->id}_circle_{$circle->id}",
             'creditCard' => [
                 'holderName' => $cardData['holderName'] ?? null,
@@ -55,7 +65,12 @@ class SubscriptionService
         $card = $asaasSub['creditCard'] ?? [];
         $asaasSubId = $asaasSub['id'] ?? null;
         $periodStart = now();
-        $periodEnd = now()->addMonthNoOverflow();
+
+        // Os tokens do primeiro mês entram agora, inclusive no trial. O período
+        // pago começa a contar do fim do trial, senão haveria um buraco entre o
+        // fim do mês concedido e a primeira renovação (que só vem 1 mês depois da
+        // primeira cobrança) — e isActive() derrubaria o acesso nesses dias.
+        $periodEnd = ($trialEndsAt ?? now())->copy()->addMonthNoOverflow();
 
         try {
             $subscription = Subscription::create([
@@ -65,8 +80,9 @@ class SubscriptionService
                 'status' => 'active',
                 'current_period_start' => $periodStart,
                 'current_period_end' => $periodEnd,
-                'next_due_date' => $periodEnd->toDateString(),
+                'next_due_date' => ($trialEndsAt ?? $periodEnd)->toDateString(),
                 'cancel_at_period_end' => false,
+                'trial_ends_at' => $trialEndsAt,
                 'price_cents' => $circle->price_cents,
                 'card_token' => $card['creditCardToken'] ?? null,
                 'card_last4' => $card['creditCardNumber'] ?? null,
@@ -112,9 +128,46 @@ class SubscriptionService
             'circle' => $circle->slug,
             'price_cents' => $circle->price_cents,
             'granted_first_month' => $firstChargeId !== null,
+            'trial_ends_at' => $trialEndsAt?->toIso8601String(),
         ]);
 
         return $subscription->refresh();
+    }
+
+    /**
+     * Fim do trial de 7 dias, ou null se este usuário não tem direito.
+     *
+     * Founding Member = entrada de waitlist confirmada ATÉ o corte de lançamento,
+     * com o email (verificado) do usuário. Três travas, cada uma fechando uma
+     * forma de se auto-promover a founder:
+     *
+     * 1. Corte por data — entrar na waitlist é público e o link de confirmação
+     *    chega na caixa de quem se cadastrou; sem o corte, N emails descartáveis
+     *    viram N trials. Sem FOUNDER_CUTOFF_AT configurado, ninguém ganha.
+     * 2. Email verificado — só casar users.email com waitlist_entries.email
+     *    deixaria alguém registrar com o email de um founder e levar o trial dele
+     *    sem nunca provar posse da caixa (nenhuma rota web exige `verified`).
+     * 3. Primeira assinatura — qualquer assinatura anterior, mesmo cancelada, já
+     *    consumiu o trial; senão bastaria cancelar e reassinar para nunca pagar.
+     */
+    private function trialEndsAtFor(User $user): ?\Illuminate\Support\Carbon
+    {
+        $cutoff = config('waitlist.founder_cutoff_at');
+
+        if (! $cutoff || ! $user->hasVerifiedEmail()) {
+            return null;
+        }
+
+        if (Subscription::where('user_id', $user->id)->exists()) {
+            return null;
+        }
+
+        $isFounder = WaitlistEntry::where('email', $user->email)
+            ->whereNotNull('confirmed_at')
+            ->where('confirmed_at', '<=', $cutoff)
+            ->exists();
+
+        return $isFounder ? now()->addDays(7) : null;
     }
 
     /** The id of the subscription's first Asaas charge, or null if unavailable. */
@@ -202,8 +255,55 @@ class SubscriptionService
 
             $this->recordChargeAndGrant($subscription, $chargeId, $subscription->price_cents);
         } elseif ($eventType === 'PAYMENT_OVERDUE') {
+            // Cobrança do trial que não passou: os tokens do primeiro mês já foram
+            // creditados no dia 0 contra ESTA cobrança. O que já foi gasto não
+            // volta (o ledger é append-only e os tokens podem ter virado gorjeta),
+            // mas dá para fechar a torneira — encerra em vez de deixar em past_due,
+            // que sobreviveria para renovar. Cancelar também impede novo grant.
+            if ($this->isFailedTrialCharge($subscription)) {
+                $this->cancelFailedTrial($subscription);
+
+                return;
+            }
+
             $subscription->update(['status' => 'past_due']);
         }
+    }
+
+    /**
+     * A cobrança vencida é a do próprio trial? Durante o trial existe uma única
+     * subscription_charge: a que ancorou o grant antecipado do primeiro mês. Uma
+     * renovação normal (mês 2 em diante) já tem outras e segue o caminho padrão
+     * de past_due, que pode se recuperar sozinho.
+     */
+    private function isFailedTrialCharge(Subscription $subscription): bool
+    {
+        return $subscription->trial_ends_at !== null
+            && $subscription->charges()->count() <= 1;
+    }
+
+    /** Encerra assinatura cujo trial não converteu, no gateway e localmente. */
+    private function cancelFailedTrial(Subscription $subscription): void
+    {
+        if ($subscription->asaas_subscription_id) {
+            try {
+                $this->asaas->cancelSubscription($subscription->asaas_subscription_id);
+            } catch (\Throwable $e) {
+                // Cancelar localmente é o que protege o saldo; se o gateway não
+                // respondeu, o pior caso é uma assinatura viva lá que nunca mais
+                // concede tokens aqui (o guard de 'canceled' barra).
+                Log::error('Failed to cancel subscription after trial payment failed', [
+                    'subscription_id' => $subscription->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Audit::log('subscription.trial_payment_failed', $subscription, [
+            'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
+        ]);
+
+        $this->markCanceled($subscription->asaas_subscription_id);
     }
 
     /**
@@ -228,6 +328,16 @@ class SubscriptionService
 
             if (! $charge->wasRecentlyCreated) {
                 return; // already granted for this charge/period
+            }
+
+            // Assinatura encerrada não ressuscita nem concede: 'canceled' é
+            // terminal (cancelamento no gateway, ou trial que não converteu). Sem
+            // isto, uma confirmação atrasada devolveria status 'active' e um mês
+            // de tokens a quem já foi cortado.
+            if ($subscription->status === 'canceled') {
+                $charge->update(['status' => 'superseded', 'processed_at' => now()]);
+
+                return;
             }
 
             // Se esta assinatura lapsou (past_due/expired) e o usuário já migrou
@@ -258,11 +368,20 @@ class SubscriptionService
             );
 
             // Keep the paid window current and recover from past_due on renewal.
+            // Durante o trial este grant é o do primeiro mês, concedido no dia 0
+            // enquanto a cobrança só cai em trial_ends_at: ancorar a janela em
+            // now() a encerraria no dia 30 e deixaria o founder sem acesso até a
+            // renovação do dia 37. O ciclo pago conta do fim do trial.
+            $inTrial = $subscription->isInTrial();
+            $cycleStart = $inTrial ? $subscription->trial_ends_at->copy() : now();
+
             $subscription->update([
                 'status' => 'active',
                 'current_period_start' => now(),
-                'current_period_end' => now()->addMonthNoOverflow(),
-                'next_due_date' => now()->addMonthNoOverflow()->toDateString(),
+                'current_period_end' => $cycleStart->copy()->addMonthNoOverflow(),
+                // No trial a próxima cobrança é o fim do trial (ainda não pagou);
+                // fora dele, a renovação do mês seguinte, como sempre foi.
+                'next_due_date' => ($inTrial ? $cycleStart : $cycleStart->copy()->addMonthNoOverflow())->toDateString(),
             ]);
 
             $charge->update(['processed_at' => now()]);

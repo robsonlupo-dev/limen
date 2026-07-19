@@ -43,6 +43,8 @@ class SubscriptionController extends Controller
                 'status' => $subscription->status,
                 'current_period_end' => $subscription->current_period_end?->format('d/m/Y'),
                 'cancel_at_period_end' => $subscription->cancel_at_period_end,
+                'trial_ends_at' => $subscription->trial_ends_at?->toISOString(),
+                'is_in_trial' => $subscription->isInTrial(),
             ] : null,
         ]);
     }

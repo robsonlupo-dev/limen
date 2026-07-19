@@ -15,7 +15,7 @@ class Subscription extends Model
     protected $fillable = [
         'user_id', 'circle_id', 'asaas_subscription_id', 'status',
         'current_period_start', 'current_period_end', 'next_due_date',
-        'cancel_at_period_end', 'price_cents',
+        'cancel_at_period_end', 'trial_ends_at', 'price_cents',
         'card_token', 'card_last4', 'card_brand', 'canceled_at',
     ];
 
@@ -26,6 +26,7 @@ class Subscription extends Model
             'current_period_end' => 'datetime',
             'next_due_date' => 'date',
             'canceled_at' => 'datetime',
+            'trial_ends_at' => 'datetime',
             'cancel_at_period_end' => 'boolean',
             'price_cents' => 'integer',
             // Token reusável do Asaas: cifrado em repouso. Nunca é o PAN.
@@ -61,6 +62,17 @@ class Subscription extends Model
     public function charges(): HasMany
     {
         return $this->hasMany(SubscriptionCharge::class);
+    }
+
+    /**
+     * Dentro do trial de 7 dias do Founding Member: o Asaas ainda não cobrou nada
+     * (a primeira cobrança está agendada para trial_ends_at), embora os tokens do
+     * primeiro mês já estejam na carteira.
+     */
+    public function isInTrial(): bool
+    {
+        return $this->trial_ends_at !== null
+            && $this->trial_ends_at->isFuture();
     }
 
     /** Active and still inside the paid period. */
