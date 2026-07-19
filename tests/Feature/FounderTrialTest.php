@@ -3,11 +3,19 @@
 use App\Exceptions\AlreadySubscribedException;
 use App\Models\Circle;
 use App\Models\Subscription;
+use App\Models\SubscriptionCharge;
+use App\Models\TokenLedger;
 use App\Models\User;
 use App\Models\WaitlistEntry;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\FakeAsaasClient;
 use App\Services\SubscriptionService;
+
+// O corte de founder é fail-closed: sem data configurada ninguém ganha trial.
+// As entradas dos helpers confirmam 30 dias atrás, portanto dentro do corte.
+beforeEach(function () {
+    config(['waitlist.founder_cutoff_at' => now()->subDay()->toIso8601String()]);
+});
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 // Nomes próprios do arquivo: os helpers de SubscriptionTest são funções globais
@@ -189,6 +197,112 @@ it('waitlist confirmada de OUTRO email nao da trial', function () {
     $sub = app(SubscriptionService::class)->subscribe($user, trialCircle(), founderCard());
 
     expect($sub->trial_ends_at)->toBeNull();
+});
+
+// ─── Travas anti-fraude (revisão de segurança) ───────────────────────────────
+
+it('sem FOUNDER_CUTOFF_AT configurado ninguem ganha trial', function () {
+    config(['waitlist.founder_cutoff_at' => null]);
+
+    $user = User::factory()->create();
+    waitlistEntryFor($user);
+
+    $sub = app(SubscriptionService::class)->subscribe($user, trialCircle(), founderCard());
+
+    // Fail-closed: melhor não dar o brinde do que abrir torneira de tokens.
+    expect($sub->trial_ends_at)->toBeNull();
+});
+
+it('quem confirmou a waitlist DEPOIS do corte nao e founder', function () {
+    $user = User::factory()->create();
+    $entry = waitlistEntryFor($user);
+    $entry->confirmed_at = now(); // depois do corte (ontem)
+    $entry->save();
+
+    $sub = app(SubscriptionService::class)->subscribe($user, trialCircle(), founderCard());
+
+    expect($sub->trial_ends_at)->toBeNull();
+    expect(lastSubscriptionPayload()['nextDueDate'])->toBe(now()->format('Y-m-d'));
+});
+
+it('email nao verificado nao ganha o trial do founder', function () {
+    $user = User::factory()->unverified()->create();
+    waitlistEntryFor($user);
+
+    $sub = app(SubscriptionService::class)->subscribe($user, trialCircle(), founderCard());
+
+    // Sem isto, registrar com o email de um founder levaria o trial dele.
+    expect($sub->trial_ends_at)->toBeNull();
+});
+
+// ─── Trial que não converte ──────────────────────────────────────────────────
+
+it('cobranca do trial vencida cancela a assinatura em vez de deixar past_due', function () {
+    $user = User::factory()->create();
+    waitlistEntryFor($user);
+
+    $sub = app(SubscriptionService::class)->subscribe($user, trialCircle(), founderCard());
+    $granted = $user->fresh()->tokenWallet->balance;
+
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    app(SubscriptionService::class)->handleWebhook(
+        $fake->simulateSubscriptionOverdue($sub->asaas_subscription_id),
+    );
+
+    $sub->refresh();
+    expect($sub->status)->toBe('canceled')
+        ->and($sub->canceled_at)->not->toBeNull()
+        // PCI: o token reusável do cartão é expurgado no encerramento.
+        ->and($sub->card_token)->toBeNull();
+
+    $this->assertDatabaseHas('audit_logs', ['action' => 'subscription.trial_payment_failed']);
+
+    // Os tokens do dia 0 não voltam (ledger append-only), mas não vêm mais.
+    expect($user->fresh()->tokenWallet->balance)->toBe($granted);
+});
+
+it('confirmacao atrasada NAO ressuscita assinatura cancelada nem concede tokens', function () {
+    $user = User::factory()->create();
+    waitlistEntryFor($user);
+
+    $sub = app(SubscriptionService::class)->subscribe($user, trialCircle(), founderCard());
+    $granted = $user->fresh()->tokenWallet->balance;
+
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    app(SubscriptionService::class)->handleWebhook(
+        $fake->simulateSubscriptionOverdue($sub->asaas_subscription_id),
+    );
+
+    // Cobrança confirmada chegando depois do corte: não pode reabrir a torneira.
+    app(SubscriptionService::class)->handleWebhook(
+        $fake->simulateSubscriptionCharged($sub->asaas_subscription_id),
+    );
+
+    expect($sub->fresh()->status)->toBe('canceled');
+    expect($user->fresh()->tokenWallet->balance)->toBe($granted);
+
+    $late = SubscriptionCharge::where('subscription_id', $sub->id)->latest('id')->first();
+    expect($late->status)->toBe('superseded');
+
+    // Um único grant no ledger: o do dia 0.
+    expect(TokenLedger::where('wallet_id', $user->fresh()->tokenWallet->id)
+        ->where('entry_type', 'subscription_grant')->count())->toBe(1);
+});
+
+it('renovacao vencida fora do trial continua indo para past_due', function () {
+    $user = User::factory()->create(); // não-founder: sem trial
+    $sub = app(SubscriptionService::class)->subscribe($user, trialCircle(), founderCard());
+
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
+    app(SubscriptionService::class)->handleWebhook(
+        $fake->simulateSubscriptionOverdue($sub->asaas_subscription_id),
+    );
+
+    // Comportamento pré-existente preservado: past_due se recupera na renovação.
+    expect($sub->fresh()->status)->toBe('past_due');
 });
 
 // ─── Janela de acesso durante o trial ────────────────────────────────────────

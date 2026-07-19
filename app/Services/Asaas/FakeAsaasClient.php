@@ -194,7 +194,14 @@ class FakeAsaasClient implements AsaasClientInterface
     public function createSubscription(array $data): array
     {
         $id = 'sub_fake_' . uniqid();
-        $this->subscriptionPayloads[] = $data;
+
+        // Guarda o payload SEM os campos sensíveis do cartão: os testes só aferem
+        // termos de cobrança (nextDueDate, value, cycle) e não há razão para PAN e
+        // CCV ficarem parados em memória, nem para vazarem num dump de falha.
+        $recorded = $data;
+        unset($recorded['creditCard']['number'], $recorded['creditCard']['ccv'], $recorded['creditCardHolderInfo']);
+        $this->subscriptionPayloads[] = $recorded;
+
         $card = $data['creditCard'] ?? [];
         $number = (string) ($card['number'] ?? '');
         $last4 = $number !== '' ? substr($number, -4) : null;

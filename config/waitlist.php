@@ -107,6 +107,25 @@ return [
     // launch. null enrolls everyone — only safe on a fresh/empty waitlist.
     'nurture_start_at' => env('WAITLIST_NURTURE_START_AT'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Founding Member cutoff
+    |--------------------------------------------------------------------------
+    |
+    | Só entradas confirmadas ATÉ este instante contam como Founding Member (7
+    | dias grátis na primeira assinatura — ver SubscriptionService::trialEndsAtFor).
+    | O corte existe porque entrar na waitlist é público e confirmar é clicar num
+    | link que chega na própria caixa: sem uma data congelada, qualquer pessoa se
+    | promove a founder com um e-mail descartável e saca tokens de graça.
+    |
+    | Fail-closed de propósito: sem FOUNDER_CUTOFF_AT no .env ninguém ganha trial.
+    | Preferimos deixar de dar um brinde a abrir uma torneira de tokens. Setar na
+    | data de lançamento, junto com WAITLIST_NURTURE_START_AT.
+    |
+    */
+
+    'founder_cutoff_at' => env('FOUNDER_CUTOFF_AT'),
+
     // Safety throttle: max emails queued per step per run. The command runs hourly
     // and is idempotent, so anything over the cap simply goes out the next run.
     // null = no cap.
