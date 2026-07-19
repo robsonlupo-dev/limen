@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\PayoutNotAllowedException;
+use App\Mail\PayoutNeedsReviewMail;
 use App\Models\PaymentEvent;
 use App\Models\Payout;
 use App\Models\TokenLedger;
@@ -13,6 +14,7 @@ use App\Support\Audit;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class PayoutService
 {
@@ -325,8 +327,9 @@ class PayoutService
      * stay reserved exactly as they were, because we still cannot tell "transfer
      * never created" from "created and paying". All it does is stop the endless
      * re-querying and give the row a status that is queryable instead of buried in
-     * a log line. Nothing alerts on it yet, and there is no admin requeue path —
-     * until there is, a parked payout waits on someone reading the audit log.
+     * a log line. It alerts the admin by email (PayoutNeedsReviewMail) and the row
+     * can be reprocessed via the admin requeue endpoint, which flips it back to
+     * 'processing' so the next reconcile run picks it up again.
      */
     private function markNeedsReview(Payout $payout): void
     {
@@ -352,6 +355,16 @@ class PayoutService
 
             Log::warning('Payout parked for manual review', ['payout_id' => $locked->id]);
             Audit::log('payout.needs_review', $locked);
+
+            // Alerta o admin fora de banda: sem isto, o único sinal é o audit log.
+            // queue (não send) para não bloquear a transação na entrega do email, e
+            // afterCommit para o job só existir se o parking realmente persistir —
+            // enfileirar aqui dentro deixaria um alerta órfão se a transação abortasse.
+            if ($adminAddress = config('mail.admin_address')) {
+                DB::afterCommit(function () use ($locked, $adminAddress) {
+                    Mail::to($adminAddress)->queue(new PayoutNeedsReviewMail($locked));
+                });
+            }
         });
     }
 

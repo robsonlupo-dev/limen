@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AsaasTransferWebhookController;
 use App\Http\Controllers\Api\V1\AdminKycController;
+use App\Http\Controllers\Api\V1\AdminPayoutController;
 use App\Http\Controllers\Api\V1\AsaasWebhookController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -93,6 +94,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'role:admin'])->group(function 
     Route::get('admin/kyc', [AdminKycController::class, 'index'])->name('admin.kyc.index');
     Route::post('admin/kyc/{verification}/approve', [AdminKycController::class, 'approve'])->name('admin.kyc.approve');
     Route::post('admin/kyc/{verification}/reject', [AdminKycController::class, 'reject'])->name('admin.kyc.reject');
+
+    Route::post('admin/payouts/{payout}/requeue', [AdminPayoutController::class, 'requeue'])
+        ->name('admin.payouts.requeue');
 });
 
 // Follow system (consumer only)
