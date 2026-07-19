@@ -12,6 +12,10 @@ class FakeAsaasClient implements AsaasClientInterface
 
     private array $subscriptions = [];
 
+    /** Payloads crus de createSubscription, na ordem — para os testes conferirem
+     *  o que foi enviado ao gateway (ex.: o nextDueDate adiado do trial). */
+    private array $subscriptionPayloads = [];
+
     private bool $forceNextTransferFailure = false;
 
     private bool $forceNextTransferUnavailable = false;
@@ -190,6 +194,7 @@ class FakeAsaasClient implements AsaasClientInterface
     public function createSubscription(array $data): array
     {
         $id = 'sub_fake_' . uniqid();
+        $this->subscriptionPayloads[] = $data;
         $card = $data['creditCard'] ?? [];
         $number = (string) ($card['number'] ?? '');
         $last4 = $number !== '' ? substr($number, -4) : null;
@@ -233,6 +238,12 @@ class FakeAsaasClient implements AsaasClientInterface
                 'creditCardToken' => 'cctok_fake_' . uniqid(),
             ],
         ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function getCreatedSubscriptionPayloads(): array
+    {
+        return $this->subscriptionPayloads;
     }
 
     public function getSubscription(string $subscriptionId): array
