@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # LIMEN — MASTER HANDOFF (Sprint 5)
 
 > **Gerado em:** 18/07/2026 · **Base:** `main` em `edbb1c1` (+ RETOMADA `ee3a1b6`)

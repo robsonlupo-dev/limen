@@ -75,9 +75,10 @@ exposto ao front. Dois dos três 🟡 foram corrigidos no próprio PR; o terceir
 | MySQL | 8.4 (Docker) | `CLAUDE.md` + `docker` |
 | Redis | via Docker | cache/filas |
 
-> ⚠️ **`CLAUDE.md` está desatualizado:** diz "PHP 8.5" (real: 8.4.22) e "Próxima: Fase 8"
-> (entregue há tempo). O handoff do Sprint 5 já tinha registrado essa divergência e ela
-> continua aberta. Vale corrigir o `CLAUDE.md` no Sprint 6 — ele é lido em toda sessão.
+> ✅ **`CLAUDE.md` corrigido em 20/07/2026** (`f0ee686` + `c51cee3`). Dizia "PHP 8.5"
+> (real: 8.4.22), "Blade + Tailwind" (real: Inertia + Vue 3) e "Próxima: Fase 8"
+> (entregue há tempo). Também passou a registrar as decisões locked de privacidade,
+> as duas portas de auth (Sanctum na API, sessão no front) e as limitações do dev box.
 
 ### 2.1 Servidor e domínios
 
@@ -215,7 +216,9 @@ hang** (300s+), não erro. Rode `php artisan migrate:fresh` sozinho para ver a e
 
 ## 8. CHECKLIST DE ABERTURA DO SPRINT 6
 
-- [ ] Corrigir `CLAUDE.md` (PHP 8.5 → 8.4.22; "Próxima: Fase 8" → estado real)
+- [x] ~~Corrigir `CLAUDE.md`~~ — feito em 20/07/2026 (`f0ee686`, `c51cee3`)
+- [x] ~~Unificar vocabulário Fase/Sprint~~ — `CLAUDE.md` usa só "Sprint N"; os docs
+      legados em `docs/` ganharam cabeçalho avisando que "Fase N" **não** é "Sprint N"
 - [ ] Abrir a issue do `Fã #` no GitHub a partir de `docs/SECURITY_ISSUES.md`
 - [ ] Confirmar encoding do `X-Signature-V2` com a Didit (bloqueante #3)
 - [ ] Setar `FOUNDER_CUTOFF_AT` no `.env` de produção (bloqueante #4)

@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # LIMEN — PROBLEMAS ATUAIS E PRÓXIMAS AÇÕES
 
 > Gerado em 02/07/2026 (commit `afa2e5e`). Lista os problemas conhecidos, o que o próximo

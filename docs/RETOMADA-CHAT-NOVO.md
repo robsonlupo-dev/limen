@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # LIMEN — RETOMADA EM CHAT NOVO
 
 > **Gerado em:** 17/07/2026 · **Base:** `main` em `edbb1c1` · **Suíte:** 440 testes verdes (2066 asserts)

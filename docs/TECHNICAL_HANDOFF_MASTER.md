@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # LIMEN — TECHNICAL HANDOFF MASTER
 
 > Documento de transferência técnica para uma instância do Claude (ou dev humano) que nunca

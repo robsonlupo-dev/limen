@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # LIMEN — SECURITY REPORT (Operação de QA · 02/07/2026)
 
 > ⚠️ **Retrato de 02/07/2026, arquivado em 15/07.** Vários achados já foram corrigidos —

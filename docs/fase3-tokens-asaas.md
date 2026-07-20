@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # Fase 3 — Compra de Tokens + Asaas/PIX (Limen)
 
 O motor de receita. Encaixa nas tabelas da Fase 1 (payments, payment_events,

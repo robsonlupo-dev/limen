@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # Fase 1 — Modelo de Dados + Segurança de Base (Limen)
 
 Fundação do banco. Tudo que vem depois (cadastro, KYC, tokens, pagamento) se apoia aqui.

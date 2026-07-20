@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # Fase 2 — Autenticação + Cadastro (API com Sanctum) — Limen
 
 API-first. Constrói o cadastro e o login em cima do modelo de dados da Fase 1.

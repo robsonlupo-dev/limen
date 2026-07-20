@@ -1,3 +1,7 @@
+<!-- Vocabulário: "Fase N" neste doc é LEGADO (ciclo da fundação) e NÃO
+     corresponde ao "Sprint N" atual. Ex.: Fase 4 = perfis/catálogo;
+     Sprint 4 = chat. O ciclo de entrega vigente é "Sprint N" — ver CLAUDE.md. -->
+
 # WAITLIST — Cadastro em 2 etapas (Membro / Performer)
 
 > **STATUS: APROVADO — decisões fechadas pelo PO em 2026-07-13 (ver seção 8). Em implementação.**
