@@ -121,32 +121,50 @@ o escopo dele é mais largo que o da varredura manual que escreveu este doc.
    `<a href>` externo não conta: é navegação que o usuário escolhe, não
    requisição automática.
 
-## Flanco conhecido: componentes `.vue` não são cobertos
+## Cobertura do teste: Blade **e** Vue/JS
 
-`ExternalAssetPolicyTest` varre **apenas** `resources/views/**.blade.php`. Um
-`<img src="https://...">`, um `<iframe>` ou um `import` de CDN dentro de um
-componente Vue **passa sem falhar o teste**.
+`ExternalAssetPolicyTest` varre os dois lados — `resources/views/**.blade.php`
+e `resources/js/**` (`.vue` e `.js`, recursivo). O flanco do Vue era o mais
+provável de abrir, já que é onde a Limen mais cresce; virou invariante em vez de
+item de checklist de review.
 
-Hoje não existe nenhum caso — verificado nesta auditoria em todo
-`resources/js/`, incluindo `src`/`href` remotos em template e dependências de
-CDN. Mas a superfície onde a Limen mais cresce é justamente Vue, então é o
-flanco mais provável de abrir.
+Idiomas cobertos, cada um verificado com injeção temporária de violação:
 
-**Mitigação atual: revisão manual em code review.** Todo PR que toque
-`resources/js/` deve ser lido procurando origem externa — `<img>`, `<iframe>`,
-`<script>`, `url()` em `<style scoped>`, `import` de URL, `fetch`/`axios` para
-host de terceiro. Na dúvida, self-host o arquivo (o padrão está em
-`public/fonts/` + `resources/css/fonts.css`).
+| Idioma | Pego |
+|---|---|
+| `<img src="https://…">` | ✓ |
+| `<iframe src="https://…">` | ✓ |
+| `<script src="https://…">` | ✓ |
+| `url("https://…")` em CSS / `<style scoped>` | ✓ |
+| `import x from "https://…"` (CDN) | ✓ |
+| `fetch("https://…")`, `axios.*`, `sendBeacon`, `EventSource` | ✓ |
+| `new Image().src = "https://…"` (pixel disparado por JS) | ✓ |
+| `new WebSocket("wss://…")` | ✓ |
+| `location.href = "https://…"` | ✗ **por design** |
 
-Vale registrar o limite dessa mitigação: revisão manual é controle humano, e foi
-exatamente o que falhou no item 5 — a varredura manual não olhou `<img>` e só o
-teste automatizado pegou. Estender o teste a `resources/js/` (mesmo regex, outro
-diretório) trocaria esse controle por um automático e é a correção de verdade.
+A última linha não é falha: atribuir `location.href` é **navegação**, não
+requisição automática de asset. É o que o "sair" do gate de idade
+(`AgeGateModal.vue:27`) e o Panic Button fazem. A primeira versão do padrão
+casava `.src|.href` e acusou o gate de idade — corrigido para só `.src`.
+
+Duas limitações que o teste tem por construção, e que continuam valendo:
+
+1. **Só pega URL literal.** Endereço montado em variável, vindo de
+   `import.meta.env` ou concatenado em runtime não aparece. É o que permite o
+   host do Reverb (`VITE_REVERB_HOST`) conviver com allowlist vazia — mas
+   também significa que `fetch(BASE + path)` com `BASE` externo passaria.
+2. **Não olha `node_modules`.** Um pacote npm que chame um CDN em runtime não é
+   detectado por varredura de fonte. Auditar dependência nova continua sendo
+   trabalho de review.
+
+As allowlists (`ALLOWED_BLADE_ORIGINS` e `ALLOWED_JS_ORIGINS`) estão **vazias**,
+separadas de propósito: liberar um host em e-mail não é a mesma decisão que
+liberar no bundle da área logada. Há ainda um teste-sentinela que conta os
+arquivos varridos — se um glob quebrar por rename de diretório, a suíte acusa em
+vez de ficar verde sem ter lido nada.
 
 ## Follow-ups remanescentes
 
-1. **Estender `ExternalAssetPolicyTest` a `resources/js/`** — fecha o flanco
-   acima e substitui a revisão manual por invariante.
-2. **`.env` local do dev ainda tem `APP_NAME=Laravel`.** O `.env.example` foi
+1. **`.env` local do dev ainda tem `APP_NAME=Laravel`.** O `.env.example` foi
    corrigido para `Limen`; ambientes já provisionados não herdam isso e precisam
    de ajuste manual (o `.env` não é versionado).
