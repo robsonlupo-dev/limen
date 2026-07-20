@@ -121,11 +121,32 @@ o escopo dele é mais largo que o da varredura manual que escreveu este doc.
    `<a href>` externo não conta: é navegação que o usuário escolhe, não
    requisição automática.
 
+## Flanco conhecido: componentes `.vue` não são cobertos
+
+`ExternalAssetPolicyTest` varre **apenas** `resources/views/**.blade.php`. Um
+`<img src="https://...">`, um `<iframe>` ou um `import` de CDN dentro de um
+componente Vue **passa sem falhar o teste**.
+
+Hoje não existe nenhum caso — verificado nesta auditoria em todo
+`resources/js/`, incluindo `src`/`href` remotos em template e dependências de
+CDN. Mas a superfície onde a Limen mais cresce é justamente Vue, então é o
+flanco mais provável de abrir.
+
+**Mitigação atual: revisão manual em code review.** Todo PR que toque
+`resources/js/` deve ser lido procurando origem externa — `<img>`, `<iframe>`,
+`<script>`, `url()` em `<style scoped>`, `import` de URL, `fetch`/`axios` para
+host de terceiro. Na dúvida, self-host o arquivo (o padrão está em
+`public/fonts/` + `resources/css/fonts.css`).
+
+Vale registrar o limite dessa mitigação: revisão manual é controle humano, e foi
+exatamente o que falhou no item 5 — a varredura manual não olhou `<img>` e só o
+teste automatizado pegou. Estender o teste a `resources/js/` (mesmo regex, outro
+diretório) trocaria esse controle por um automático e é a correção de verdade.
+
 ## Follow-ups remanescentes
 
-1. **`APP_NAME=Laravel` no `.env.example`.** Não é mais vetor de pixel (item 5
-   corrigido), mas segue como default que vaza para assunto de e-mail e título
-   de página em ambiente mal configurado.
-2. **O teste cobre Blade, não Vue.** Um `<img src="https://...">` dentro de um
-   `.vue` passaria. Hoje não existe nenhum (verificado nesta auditoria), mas
-   estender a varredura a `resources/js/` fecharia o flanco.
+1. **Estender `ExternalAssetPolicyTest` a `resources/js/`** — fecha o flanco
+   acima e substitui a revisão manual por invariante.
+2. **`.env` local do dev ainda tem `APP_NAME=Laravel`.** O `.env.example` foi
+   corrigido para `Limen`; ambientes já provisionados não herdam isso e precisam
+   de ajuste manual (o `.env` não é versionado).
