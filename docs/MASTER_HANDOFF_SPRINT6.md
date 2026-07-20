@@ -195,6 +195,27 @@ produto antes de virar código; não são tarefas de implementação ainda.
 administrativos e **não avançam com trabalho de código**. Começar cedo — eles governam a data
 de go-live, não o backlog técnico.
 
+### UX — Itens abertos (verificados contra `main` em 20/07/2026)
+
+- [ ] **Verificar e-mail** — Reenvio sem feedback visual (`resend()` posta e não retorna mensagem) [P2]
+- [ ] **Painel performer** — Botão "Ir ao vivo" habilitado após KYC mas sem implementação (LiveKit ausente); performer clica e não acontece nada — piorou desde 02/07 [P2 → considerar P1]
+- [ ] **Entrada + Catálogo** — Emojis genéricos (👤/🌟/🌐) sem identidade visual [P3]
+- [ ] **Landing** — Sem prova social (contadores reais de performers/membros)
+- [ ] **Cadastro performer** — Fluxo sem stepper de progresso
+- [ ] **Esqueci minha senha** — Não informa prazo de expiração do link de reset
+- [ ] **Catálogo (Index)** — Mundo atual visível só em `text-xs` no header
+- [ ] **Histórico da carteira** — Paginação sem loading state
+- [ ] **Payouts (History)** — Sem filtro por período
+
+> Fonte: `qa/UX_REPORT.md` (QA de 02/07/2026, reverificado em 20/07/2026).
+> 1 item resolvido (gorjeta — PR #41), 2 não procediam (login CTA, avatar preview).
+> Notas 0–10 do relatório original não foram recalculadas.
+
+> **Ressalva de método (herdada do relatório):** a avaliação é por leitura de código e
+> sinais estáticos, **sem navegação em browser** (VM sem display). Espaçamento, contraste
+> real e quebras responsivas continuam dependendo da validação manual tela a tela do PO —
+> item que já está pendente desde o ciclo de FIXes de UX (ver `QA_HANDOFF_MASTER.md`).
+
 ---
 
 ## 7. COMO RODAR A SUÍTE NESTA MÁQUINA
