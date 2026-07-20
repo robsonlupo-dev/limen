@@ -164,3 +164,80 @@ Decisão do PO.
   registrado que recusou.
 
 **Cobertura:** `tests/Feature/PerformerDocumentAcceptanceTest.php` — 27 testes.
+
+---
+
+## Flag de IP de cadastro compartilhado — limites e decisões pendentes
+
+**Severidade:** 🟡 Médio · Sinal implementado e sinalizando; três decisões são do
+PO e uma é armadilha de infra. Abrir issue para os itens 1 e 2.
+
+Performers cadastradas do mesmo IP recebem flag na fila de KYC do admin
+(`GET /api/v1/admin/kyc` → `shared_registration_ip`). O IP entra como HMAC da
+`APP_KEY` em `users.registration_ip_hash`; membro fica NULL (finalidade LGPD
+declarada: proteger quem é recrutado para produzir conteúdo).
+
+**Sinaliza, nunca bloqueia** — e essa parte é deliberada: bloquear puniria o
+caso legítimo sem ninguém olhar.
+
+### 1. Limiar de 1 conta + CGNAT = risco de afogar o sinal real
+
+Hoje **uma** outra conta no mesmo IP já acende a luz (`others > 0`). No Brasil,
+Vivo/Claro/TIM colocam milhares de assinantes móveis atrás de um mesmo IPv4
+(CGNAT), e IPv4 residencial é rotativo — duas performers sem relação nenhuma
+pegam o mesmo IP em semanas diferentes.
+
+Consequência na direção contrária à finalidade: performers sem vínculo chegam à
+fila rotuladas como possível rede de exploração, a revisora aprende a ignorar o
+rótulo, e quando a rede real aparecer o sinal estará afogado em ruído. **Quem
+paga o falso positivo é a pessoa que o recurso deveria proteger.**
+
+O limiar de 1 foi especificado pelo jurídico (`count > 1`) e por isso está como
+pedido. Mitigações possíveis, todas decisão do PO:
+- janela temporal nos totais (mesmo IP com 6 meses de distância é DHCP, não rede);
+- limiar configurável, 2+ outras contas como padrão;
+- graduar o rótulo (2 = "possível", 4+ = "provável") em vez de booleano.
+
+### 2. Entrar CDN na frente quebra a feature em silêncio
+
+Não há `TrustProxies` no projeto e o nginx de produção fala direto com o php-fpm
+por socket unix, então `$request->ip()` é o cliente real e `X-Forwarded-For`
+enviado pelo cliente é ignorado (há teste travando isso).
+
+Se um dia entrar Cloudflare/CDN, `ip()` passa a devolver o IP da borda **para
+todo mundo**: 100% das performers colidem num hash só e a fila inteira nasce
+sinalizada. E o "conserto" intuitivo (`trustProxies(at: '*')`) é pior — aí o
+`X-Forwarded-For` vira campo escolhido pelo cliente, que passa a poder escapar do
+flag ou apontar para o IP de outra performer e incriminá-la.
+
+**Se a borda mudar:** `trustProxies` com lista explícita de faixas, nunca `'*'`.
+
+### 3. `audit_logs` guarda o IP do cadastro em texto puro
+
+`Audit::log('auth.register_performer')` roda no mesmo request e grava
+`audit_logs.ip` cru. Quem tiver leitura do banco correlaciona performers por IP
+**sem precisar da APP_KEY** — exatamente o que o HMAC existe para impedir. Mesma
+lacuna já registrada na seção do aceite de documentos; aqui pesa mais, porque o
+dado correlacionado é a hipótese de coerção.
+
+### 4. Retenção não definida
+
+O hash fica indefinidamente e não há expurgo. LGPD pede retenção limitada à
+finalidade. Não tem conserto óbvio: apagar após a aprovação mata a detecção de
+cadastros futuros contra contas já aprovadas. Precisa virar decisão registrada.
+
+### 5. Conta já aprovada não é reavaliada
+
+O flag só aparece na fila `pending`/`review`. Uma performer nova do mesmo IP de
+uma já aprovada é sinalizada (o total varre a base toda), mas a **já aprovada**
+não volta para revisão. Se a rede se forma depois, metade dela fica invisível.
+Falta a contrapartida: alerta ou relatório periódico para o time de confiança.
+
+### 6. Consultar o sinal não gera audit log
+
+É um dado de suspeita sobre uma pessoa. Registrar quem olhou — e que a aprovação
+foi decidida com o flag aceso — protege a performer e a plataforma numa disputa.
+
+**Cobertura:** `tests/Feature/SharedRegistrationIpTest.php` — 13 testes, incluindo
+soft delete não apagando o flag, `X-Forwarded-For` ignorado, membro no mesmo IP
+não sinalizando, e o hash fora da serialização do usuário.

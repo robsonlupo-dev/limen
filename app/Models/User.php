@@ -27,6 +27,12 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected $hidden = [
         'password', 'remember_token',
+        // Digest do IP de cadastro. Hoje nenhuma serialização é automática (os
+        // resources montam array explícito), então não vaza — mas um
+        // `response()->json($user)` futuro exporia o identificador que permite
+        // dizer "esta conta veio do mesmo IP que aquela". Uma linha fecha a
+        // classe inteira de regressão.
+        'registration_ip_hash',
     ];
 
     protected function casts(): array
