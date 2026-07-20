@@ -4,10 +4,26 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('code') — Limen</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    {{-- Sem CDN e sem @vite: página de erro tem que renderizar mesmo com o
+         manifest do build ausente ou quebrado — é justamente o cenário em que
+         ela aparece. Por isso os @font-face vêm inline aqui, apontando direto
+         para public/fonts (self-hosted). Só o subset latin: o texto é fixo, em
+         português. Ver docs/PIXEL_AUDIT.md. --}}
     <style>
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 100 900;
+            font-display: swap;
+            src: url('/fonts/inter-latin.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Cormorant Garamond';
+            font-style: normal;
+            font-weight: 300 700;
+            font-display: swap;
+            src: url('/fonts/cormorant-garamond-latin.woff2') format('woff2');
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; }
         body {

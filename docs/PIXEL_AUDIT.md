@@ -3,6 +3,8 @@
 **Escopo:** `resources/js/`, `resources/views/`, `public/`, `package.json`,
 seeders e comandos que produzem URLs renderizadas no browser.
 **Base auditada:** branch `age-verification`, commit `0372e1e`.
+**Atualizado em 20/07/2026:** os itens 1, 2 e 3 foram fechados e um achado novo
+(item 5) entrou — ver "Correções aplicadas" no fim.
 **Regra sob teste:** zero pixels de terceiros em área logada (decisão
 arquitetural inviolável — ver `CLAUDE.md`, princípio 1).
 
@@ -27,6 +29,7 @@ decisão do PO.
 | 2 | `resources/views/errors/layout.blade.php:7-9` | idem, nas páginas de erro (403/404/419/500) | **ATENÇÃO — área logada** |
 | 3 | `resources/views/welcome.blade.php` | skeleton do Laravel, links para `laravel.com`, `github.com`, `laracasts.com` | OK — arquivo morto |
 | 4 | `database/seeders/LimenStagingSeeder.php:251` | `i.pravatar.cc` para avatar de staging | OK — server-side |
+| 5 | `resources/views/vendor/mail/html/header.blade.php:6` | `<img>` hospedado em `laravel.com` no header de e-mail | **CORRIGIDO** |
 
 ### 1 e 2 — Google Fonts (ATENÇÃO, não BLOQUEANTE)
 
@@ -43,20 +46,16 @@ a origem (`https://thelimen.com.br`), nunca o caminho — não descobre *qual*
 performer o membro está vendo. A exposição é "este IP acessou a Limen", não
 "este IP viu este perfil".
 
-**Não removi, e por quê:** tirar os `<link>` sem mais nada quebra a tipografia
-de todo o produto — as duas famílias não existem localmente (`resources/css/`
-não tem `@font-face`, não há `public/fonts/`). O conserto correto é
-**self-host**: baixar os `.woff2`, servir de `public/fonts/` e declarar
-`@font-face` no `app.css`. Isso é implementação, não auditoria, e muda como o
-design é entregue — decisão do PO. Enquanto não acontece, a regra "zero
-terceiros em área logada" tem esta exceção conhecida, e é honesto registrar que
-ela existe em vez de declarar a auditoria limpa.
+**Status: CORRIGIDO** (self-host, ver "Correções aplicadas"). Na primeira
+passada ficou em aberto porque tirar os `<link>` sem mais nada derrubaria a
+tipografia do produto inteiro — as duas famílias não existiam localmente — e
+self-host é implementação, não auditoria. O PO aprovou logo em seguida.
 
-### 3 — `welcome.blade.php` (OK)
+### 3 — `welcome.blade.php` (OK, apagado)
 
-Sobra do skeleton do Laravel, presente desde `e56a47c`. **Não tem rota** — nada
-em `routes/` aponta para ela, é código morto. Os links externos são institucionais
-do Laravel, sem script de tracking. Candidata a remoção por limpeza, não por
+Sobra do skeleton do Laravel, presente desde `e56a47c`. **Não tinha rota** —
+nada em `routes/` apontava para ela, era código morto. Os links externos eram
+institucionais do Laravel, sem script de tracking. Removida por limpeza, não por
 segurança.
 
 ### 4 — `i.pravatar.cc` no seeder de staging (OK)
@@ -80,12 +79,53 @@ offline (`AvatarPlaceholder::store`), sem rede nenhuma.
 - **Imagens e iframes remotos em componentes Vue:** nenhum.
 - **`public/`:** só assets próprios (favicon, og-image, build do Vite).
 
-## Follow-ups
+### 5 — `<img>` remoto no header de e-mail (CORRIGIDO)
 
-1. **Self-host das fontes** (Cormorant Garamond + Inter) para fechar os itens 1
-   e 2 e deixar a área logada sem nenhuma origem de terceiro. Requer decisão do
-   PO.
-2. **Apagar `resources/views/welcome.blade.php`** — código morto do skeleton.
-3. **Guarda de regressão:** hoje nada impede um `<script src>` de terceiro
-   voltar num Blade. Um teste que varra `resources/views/` por origem externa
-   não-permitida transformaria esta auditoria pontual em invariante contínua.
+**Achado que a primeira passada desta auditoria não pegou.** A varredura
+original procurou `<script src>` e `<link href>` externos e não olhou `<img>`,
+então passou batido: o header de e-mail publicado do Laravel trocava o nome da
+aplicação por uma imagem hospedada em `laravel.com` quando o slot era
+exatamente `"Laravel"`. Imagem remota em e-mail **é** pixel de rastreio na
+prática — quem hospeda vê IP, cliente de e-mail e hora de abertura de cada
+destinatário.
+
+Em produção o ramo estava morto (`APP_NAME=Limen` cai no `@else`), mas o
+`.env.example` ainda traz `APP_NAME=Laravel`: bastava um ambiente com o default
+para os e-mails saírem com o pixel. O `@if` inteiro foi removido; o header
+sempre renderiza o slot como texto.
+
+Quem encontrou foi o teste de invariante (follow-up 3, agora implementado) —
+o escopo dele é mais largo que o da varredura manual que escreveu este doc.
+
+## Correções aplicadas — 20/07/2026
+
+1. **Fontes self-hosted.** Cormorant Garamond e Inter agora vêm de
+   `public/fonts/` via `resources/css/fonts.css`. Os `<link>` do Google saíram
+   de `app.blade.php` e de `errors/layout.blade.php`. Itens 1 e 2 fechados: **a
+   área logada não faz nenhuma requisição a origem de terceiro.**
+   - São fontes **variáveis** — os `.woff2` que o Google serve por peso são
+     byte-idênticos (conferido por md5). Um arquivo por família+estilo+subset,
+     com `font-weight` em intervalo: 6 arquivos, 288 KB.
+   - Subsets `latin` e `latin-ext` apenas. Cyrillic/greek/vietnamese ficaram de
+     fora (plataforma BR); texto nesses alfabetos cai no fallback do sistema.
+   - As páginas de erro declaram os `@font-face` inline, sem `@vite`: elas têm
+     que renderizar mesmo com o manifest do build quebrado — é justamente o
+     cenário em que aparecem.
+2. **`welcome.blade.php` apagado** — item 3, código morto sem rota.
+3. **Invariante em teste:** `tests/Unit/ExternalAssetPolicyTest.php` varre todo
+   `resources/views/**.blade.php` procurando origem externa em tag que o cliente
+   baixa sozinho (`script`/`img`/`iframe`/`link`/`source`/`embed`/`object`/
+   `video`/`audio`, mais `url()` e `@import` em CSS inline). Falha apontando
+   arquivo:linha. `ALLOWED_EXTERNAL_ORIGINS` está **vazia** — cada entrada nova
+   é um terceiro vendo o IP de quem abre a página, e exige aval do PO.
+   `<a href>` externo não conta: é navegação que o usuário escolhe, não
+   requisição automática.
+
+## Follow-ups remanescentes
+
+1. **`APP_NAME=Laravel` no `.env.example`.** Não é mais vetor de pixel (item 5
+   corrigido), mas segue como default que vaza para assunto de e-mail e título
+   de página em ambiente mal configurado.
+2. **O teste cobre Blade, não Vue.** Um `<img src="https://...">` dentro de um
+   `.vue` passaria. Hoje não existe nenhum (verificado nesta auditoria), mas
+   estender a varredura a `resources/js/` fecharia o flanco.

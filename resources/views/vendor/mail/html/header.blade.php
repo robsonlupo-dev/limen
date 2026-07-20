@@ -2,11 +2,12 @@
 <tr>
 <td class="header">
 <a href="{{ $url }}" style="display: inline-block;">
-@if (trim($slot) === 'Laravel')
-<img src="https://laravel.com/img/notification-logo-v2.1.png" class="logo" alt="Laravel Logo">
-@else
+{{-- O default do Laravel trocava o nome por um <img> hospedado em laravel.com
+     quando o slot era exatamente "Laravel". Imagem remota em e-mail é pixel de
+     rastreio na prática: quem hospeda vê IP, cliente de e-mail e hora da
+     abertura. Ramo morto em produção (APP_NAME=Limen), mas o .env.example ainda
+     traz APP_NAME=Laravel — bastava um ambiente com o default. Removido. --}}
 {!! $slot !!}
-@endif
 </a>
 </td>
 </tr>
