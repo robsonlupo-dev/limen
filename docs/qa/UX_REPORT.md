@@ -10,28 +10,31 @@
 > de loading/empty/error e classes responsivas por arquivo).
 
 ## Resumo
-> **Nota de 20/07/2026:** este relatório é de **02/07/2026**. Itens marcados ✅ RESOLVIDO
-> foram verificados contra o código atual (`main`); o resto **não** foi rechecado — trate
-> como estado de 02/07, não como estado de hoje.
+> **Recheck completo em 20/07/2026** (`main` em `c3b1062`). Os 12 problemas apontados em
+> **02/07/2026** foram reconferidos um a um contra o código: **1 resolvido**, **2 não
+> procediam** (o relatório os havia marcado com "verificar em tela") e **9 continuam
+> abertos** — estes levam a tag `VERIFICADO: ainda aberto em 20/07/2026` e são candidatos
+> ao Sprint 6. As **notas 0–10 não foram recalculadas**: continuam sendo a avaliação de
+> 02/07. Ressalva de método do relatório original continua valendo (§ final).
 
 
 | Tela | Nota | Pontos fortes | Problemas | Melhoria sugerida |
 |---|---|---|---|---|
-| Entrada (role picker) | 8.5 | Pergunta-título forte ("Para quem você é o portal?"), expectativa de KYC declarada no card do performer, caminho de login presente | Emojis genéricos (👤/🌟) destoam do tom premium | Substituir emojis por ícones da identidade visual |
-| Landing | 8.0 | Tom premium, hierarquia serif/dourado consistente | Página estática sem prova social (nº de performers verificados) | Adicionar contadores reais do catálogo |
-| Login | 8.0 | Erro específico em PT-BR, estado `processing` no submit | Sem link visível para `entrada` quando o usuário não tem conta? (verificar em tela) | Garantir CTA "Criar conta" proeminente |
-| Cadastro (membro/performer) | 8.5 | 2 fluxos no mesmo form via `?tipo=`, 10 pontos de exibição de erro, validação client+server | Form longo sem indicador de progresso no fluxo performer | Stepper visual para o fluxo performer |
-| Esqueci minha senha | 8.0 | Fluxo completo PT-BR com feedback de envio | Não informa prazo de expiração do link | Mencionar validade do link no texto |
+| Entrada (role picker) | 8.5 | Pergunta-título forte ("Para quem você é o portal?"), expectativa de KYC declarada no card do performer, caminho de login presente | Emojis genéricos (👤/🌟) destoam do tom premium <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Substituir emojis por ícones da identidade visual |
+| Landing | 8.0 | Tom premium, hierarquia serif/dourado consistente | Página estática sem prova social (nº de performers verificados) <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Adicionar contadores reais do catálogo |
+| Login | 8.0 | Erro específico em PT-BR, estado `processing` no submit | ~~Sem link visível para `entrada` quando o usuário não tem conta?~~ ✅ **NÃO PROCEDE** (verificado 20/07/2026): `Login.vue:78` tem `Link` para `register` com o texto "Criar conta" desde `2878cfb` (29/06/2026), **anterior** ao relatório | Garantir CTA "Criar conta" proeminente |
+| Cadastro (membro/performer) | 8.5 | 2 fluxos no mesmo form via `?tipo=`, 10 pontos de exibição de erro, validação client+server | Form longo sem indicador de progresso no fluxo performer <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Stepper visual para o fluxo performer |
+| Esqueci minha senha | 8.0 | Fluxo completo PT-BR com feedback de envio | Não informa prazo de expiração do link <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Mencionar validade do link no texto |
 | Redefinir senha | 8.0 | Erros por campo, processing | — | — |
-| Verificar e-mail | 7.5 | Instrução clara, reenvio e "usar outro e-mail" (logout→cadastro) | **Sem feedback visível após reenviar** (post sem toast/flash na tela) | Exibir confirmação "link reenviado" após o POST |
-| Catálogo (Index) | 9.0 | Skeleton de loading real, **empty state excelente** ("O Portal ainda está abrindo suas portas"), picker de mundo em modal, paginação estilizada | Mundo atual só em texto pequeno no header | Chip de mundo mais proeminente + contagem de resultados |
+| Verificar e-mail | 7.5 | Instrução clara, reenvio e "usar outro e-mail" (logout→cadastro) | **Sem feedback visível após reenviar** (post sem toast/flash na tela) <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Exibir confirmação "link reenviado" após o POST |
+| Catálogo (Index) | 9.0 | Skeleton de loading real, **empty state excelente** ("O Portal ainda está abrindo suas portas"), picker de mundo em modal, paginação estilizada | Mundo atual só em texto pequeno no header <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Chip de mundo mais proeminente + contagem de resultados |
 | Perfil público (Show) | 7.0 | Header rico (avatar, badge, rating, contadores, valores por modo) | ~~**CTA principal "Enviar gorjeta" é placeholder desabilitado ("Em breve")** — a API de tips existe e funciona desde a Fase 6, mas a UI não a consome. Loop de monetização quebrado no front~~ ✅ **RESOLVIDO** (PR #41 `feat/tip-on-public-profile`, 16/07/2026) | ~~**P0 de produto:** ligar o modal ao `POST /api/v1/tips` (saldo, erros, sucesso)~~ Feito: `TipModal.vue` posta em `route('tips.send')` |
-| Painel performer (Dashboard) | 7.5 | Cards de saldo/ganhos/seguidores/KYC, empty state de gorjetas, botão live desabilitado com tooltip explicativo | "Ir ao vivo" é CTA morto (streaming é fase futura) no topo da página | Trocar por CTA útil (completar perfil / ver payouts) até o streaming existir |
+| Painel performer (Dashboard) | 7.5 | Cards de saldo/ganhos/seguidores/KYC, empty state de gorjetas, botão live desabilitado com tooltip explicativo | "Ir ao vivo" é CTA morto (streaming é fase futura) no topo da página <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Trocar por CTA útil (completar perfil / ver payouts) até o streaming existir |
 | Carteira (Wallet) | 9.0 | Loading por pacote, erro de CPF específico + erro geral, toast de sucesso, labels PT-BR para cada entry_type do ledger | — | Mostrar bônus do pacote com destaque maior |
-| Histórico da carteira | 8.0 | Empty states presentes, labels por tipo | Sem loading state na paginação | Reusar o padrão de skeleton do catálogo |
-| Onboarding performer | 8.0 | Upload com validação e erros por campo | Sem preview do avatar após upload? (verificar em tela) | Preview imediato pós-upload |
+| Histórico da carteira | 8.0 | Empty states presentes, labels por tipo | Sem loading state na paginação <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Reusar o padrão de skeleton do catálogo |
+| Onboarding performer | 8.0 | Upload com validação e erros por campo | ~~Sem preview do avatar após upload?~~ ✅ **NÃO PROCEDE** (verificado 20/07/2026): `Onboarding.vue:33-34` posta no `change` do input e o `img` da linha 74 renderiza o `avatar_url` atualizado pelo reload de props do Inertia | Preview imediato pós-upload |
 | Payouts (Index) | 8.5 | 4 empty states, 3 loadings, erros específicos; regras de valor mínimo/máximo comunicadas | — | — |
-| Payouts (History) | 8.0 | Empty states, status coloridos | Sem filtro por período | Filtro simples por mês |
+| Payouts (History) | 8.0 | Empty states, status coloridos | Sem filtro por período <!-- VERIFICADO: ainda aberto em 20/07/2026 --> | Filtro simples por mês |
 
 **Média geral: 8.1 / 10**
 
@@ -42,12 +45,19 @@
 - Estados de loading reais (skeleton no catálogo, spinner por pacote na carteira).
 
 ## Problemas priorizados
-1. **[P0 produto] Gorjeta desligada na UI** (`Catalog/Show.vue`): botão "Em breve" desabilitado
-   com API pronta — bloqueia o único fluxo de gasto do membro. É o gap nº 1 de monetização.
+1. ~~**[P0 produto] Gorjeta desligada na UI** (`Catalog/Show.vue`): botão "Em breve" desabilitado
+   com API pronta — bloqueia o único fluxo de gasto do membro. É o gap nº 1 de monetização.~~
+   ✅ **RESOLVIDO** (PR #41 `feat/tip-on-public-profile`, 16/07/2026).
 2. **[P2] Reenvio de verificação sem feedback** (`Auth/VerifyEmail.vue`): usuário não sabe se o
-   e-mail foi reenviado.
+   e-mail foi reenviado. <!-- VERIFICADO: ainda aberto em 20/07/2026 -->
 3. **[P2] CTA morto "Ir ao vivo"** no dashboard do performer (streaming inexistente).
+   <!-- VERIFICADO: ainda aberto em 20/07/2026. Piorou de nuance: hoje o botão é
+        habilitado quando o KYC está aprovado (`Dashboard.vue:26,39`), e o tooltip
+        fala de KYC, não de streaming — então a performer verificada clica num
+        botão que não leva a lugar nenhum. LiveKit continua sem implementação. -->
 4. **[P3] Emojis genéricos** na Entrada e no picker de mundo destoam do tom premium.
+   <!-- VERIFICADO: ainda aberto em 20/07/2026 — `Entrada.vue:24,37` (👤/🌟) e
+        `Catalog/Index.vue:54,62` (🌐). -->
 
 > Ressalva de método: avaliação por leitura de código + sinais estáticos, sem navegação
 > visual em browser (VM sem display). A validação manual tela a tela do PO segue necessária
