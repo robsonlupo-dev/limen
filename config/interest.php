@@ -26,4 +26,12 @@ return [
     // deixa de ser anônimo — quem acabou de seguir sabe que é ele, e a performer
     // também. O piso dilui a lista antes de mostrá-la.
     'anonymity_floor' => (int) env('INTEREST_ANONYMITY_FLOOR', 5),
+
+    // Mitigação de sybil no piso: só contas com esta idade (em dias) contam
+    // para ATINGIR o piso. Sem isto, a performer cria 4 contas de consumidor,
+    // segue a si mesma e desbloqueia a lista — o próximo seguidor de verdade
+    // aparece sozinho, que é exatamente o que o piso existe para impedir.
+    // Contas novas seguem normalmente e aparecem na lista quando o piso já foi
+    // atingido por contas antigas; elas só não ajudam a atingi-lo.
+    'anonymity_floor_account_age_days' => (int) env('ANONYMITY_FLOOR_ACCOUNT_AGE_DAYS', 7),
 ];

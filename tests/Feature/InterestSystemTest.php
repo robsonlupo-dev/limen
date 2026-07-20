@@ -24,7 +24,14 @@ uses(RefreshDatabase::class);
  */
 function interestMember(int $balance = 0): User
 {
-    $member = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
+    // Conta estabelecida: só contas com idade mínima contam para o Piso de
+    // Anonimato (mitigação de sybil). Estes testes falam de outra coisa — se os
+    // membros nascessem hoje, todos passariam a medir o corte de idade.
+    $member = User::factory()->create([
+        'role' => 'consumer',
+        'status' => 'active',
+        'created_at' => now()->subDays(30),
+    ]);
 
     if ($balance > 0) {
         app(TokenService::class)->credit($member, $balance, 'purchase');

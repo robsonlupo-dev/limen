@@ -89,9 +89,14 @@ class FollowersController extends Controller
             // Faixa, não o número: o raw fica no servidor (é ele que decide o
             // piso). Mandá-lo para a tela devolveria à performer o contador
             // preciso que as faixas existem para tirar — ela veria "3" virar "4"
-            // no instante em que alguém seguisse. Rotula o MESMO número que
-            // decidiu o piso (ativos), não o contador denormalizado, senão a tela
-            // diria "10+" enquanto o piso enxerga 3 e esconde a lista.
+            // no instante em que alguém seguisse. Rotula os seguidores ativos,
+            // não o contador denormalizado, senão a tela diria "10+" enquanto o
+            // piso enxerga 3 e esconde a lista.
+            //
+            // Aqui contam TODOS os ativos, inclusive contas novas — a faixa é
+            // exibição. Quem destrava a lista é a contagem com corte de idade
+            // (canRevealList), então "5+" com a lista escondida é um estado
+            // legítimo: são seguidores demais recentes para diluir alguém.
             'total_followers_label' => PerformerProfile::followersLabelFor($totalFollowers),
             'floor_message' => $belowFloor
                 ? 'Para proteger o anonimato dos membros Limen, a lista de seguidores fica visível a partir de '

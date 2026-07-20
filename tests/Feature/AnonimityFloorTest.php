@@ -25,9 +25,18 @@ function floorPerformer(): PerformerProfile
     ]);
 }
 
-function floorMember(bool $discrete = false): User
+/**
+ * Membro. Nasce com 30 dias de conta por padrão: só contas antigas contam para
+ * o piso, e os testes que não são sobre sybil precisam de seguidores que valham.
+ * Passe $ageDays para exercitar o corte de idade.
+ */
+function floorMember(bool $discrete = false, int $ageDays = 30): User
 {
-    $member = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
+    $member = User::factory()->create([
+        'role' => 'consumer',
+        'status' => 'active',
+        'created_at' => now()->subDays($ageDays),
+    ]);
 
     if ($discrete) {
         $member->discrete_mode = true;
@@ -38,10 +47,10 @@ function floorMember(bool $discrete = false): User
 }
 
 /** @return array<int, User> */
-function followersFor(PerformerProfile $profile, int $count, bool $discrete = false): array
+function followersFor(PerformerProfile $profile, int $count, bool $discrete = false, int $ageDays = 30): array
 {
-    return collect(range(1, $count))->map(function () use ($profile, $discrete) {
-        $member = floorMember($discrete);
+    return collect(range(1, $count))->map(function () use ($profile, $discrete, $ageDays) {
+        $member = floorMember($discrete, $ageDays);
         Follow::create([
             'user_id' => $member->id,
             'performer_profile_id' => $profile->id,
@@ -114,6 +123,142 @@ it('nenhum id vaza no payload quando esta abaixo do piso', function () {
     foreach ($members as $member) {
         expect($response->getContent())->not->toContain('Membro #' . $member->id);
     }
+});
+
+// ─── Mitigação de sybil: idade de conta no piso ──────────────────────────────
+//
+// O ataque: a performer registra contas de consumidor, segue a si mesma com
+// elas e destrava a lista. O próximo seguidor de verdade fica sozinho entre
+// nomes que ela mesma plantou — o piso teria virado decoração. Contas de
+// véspera são baratas; esperar uma semana por cada uma, muito menos.
+
+it('conta nova nao conta para o piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5, ageDays: 3);
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+        // A faixa é exibição e conta todo mundo: "5+" com a lista escondida é
+        // um estado legítimo, não uma inconsistência.
+        ->where('total_followers_label', '5+')
+    );
+});
+
+it('conta com exatamente 7 dias ja conta para o piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5, ageDays: 7);
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', false)
+        ->has('followers.data', 5)
+    );
+});
+
+it('conta com 8 dias conta para o piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5, ageDays: 8);
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', false)
+        ->has('followers.data', 5)
+    );
+});
+
+it('conta com 6 dias ainda nao conta: o corte e no dia 7', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5, ageDays: 6);
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+    );
+});
+
+it('4 contas novas mais 1 antiga fica abaixo do piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 4, ageDays: 1);   // as sybils da performer
+    followersFor($profile, 1);               // o membro real
+
+    // Este é o ataque literal: sem o corte de idade, o membro real apareceria
+    // sozinho entre 4 contas que a própria performer criou.
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+    );
+});
+
+it('4 contas novas mais 5 antigas libera a lista', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 4, ageDays: 1);
+    followersFor($profile, 5);
+
+    // As 5 antigas bastam sozinhas: o piso é atingido por elas.
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', false)
+        ->has('followers.data', 9)   // e as novas aparecem na lista
+    );
+});
+
+it('conta nova aparece na lista quando o piso foi atingido por contas antigas', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5);
+    $novato = followersFor($profile, 1, ageDays: 0)[0];
+
+    // O corte de idade vale para DESTRAVAR, não para exibir: quem seguiu hoje é
+    // um seguidor legítimo como qualquer outro depois que a lista abriu.
+    $response = followersPage($profile);
+
+    $response->assertInertia(fn (Assert $page) => $page->where('below_floor', false));
+    expect($response->getContent())->toContain('Membro #' . $novato->id);
+});
+
+it('conta nova nao empurra o piso: some ao envelhecer o resto', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 4);              // antigas: uma a menos que o piso
+    followersFor($profile, 10, ageDays: 2); // dez novas não substituem a quinta
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+    );
+});
+
+it('performer nao envia Interesse enquanto o piso so tem contas novas', function () {
+    $profile = floorPerformer();
+    $sybils = followersFor($profile, 5, ageDays: 1);
+
+    // O envio usa a MESMA fonte da tela. Se discordassem, varrer ids e ler
+    // 404-vs-201 reconstruiria a lista que a tela esconde.
+    foreach ($sybils as $sybil) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $sybil->id])
+            ->assertNotFound();
+    }
+});
+
+it('o corte de idade e configuravel', function () {
+    config(['interest.anonymity_floor_account_age_days' => 30]);
+
+    $profile = floorPerformer();
+    followersFor($profile, 5, ageDays: 10); // antigas para o padrão, novas p/ 30
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+    );
+});
+
+it('discreto antigo conta para o piso, discreto novo nao', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5);
+    followersFor($profile, 3, discrete: true, ageDays: 1);
+
+    // As duas contagens do piso (total e visíveis) usam o mesmo corte: a conta
+    // nova e discreta não entra em nenhuma das duas.
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', false)
+        ->has('followers.data', 5)
+    );
 });
 
 // ─── Modo Discreto na lista ──────────────────────────────────────────────────
