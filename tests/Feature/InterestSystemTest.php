@@ -76,6 +76,9 @@ function interestPerformer(): PerformerProfile
 
 it('lets an active performer send a binary interest without revealing or charging', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
     $member = interestFollower($profile);
 
     $this->actingAs($profile->user)
@@ -209,6 +212,9 @@ it('rejects unlock with insufficient balance without touching the ledger', funct
 
 it('blocks a second send to the same member within the cooldown window', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
     $member = interestFollower($profile);
 
     $this->actingAs($profile->user)
@@ -225,6 +231,9 @@ it('blocks a second send to the same member within the cooldown window', functio
 
 it('enforces the daily send limit per performer', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
 
     // Envia o teto (5) para membros distintos.
     foreach (range(1, 5) as $i) {
@@ -245,6 +254,9 @@ it('enforces the daily send limit per performer', function () {
 
 it('suppresses interest to a member who opted out (no leak to the performer)', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
     $member = interestFollower($profile);
     $member->update(['interests_opt_out' => true]);
 
@@ -260,6 +272,9 @@ it('suppresses interest to a member who opted out (no leak to the performer)', f
 
 it('applies the cooldown to an opted-out member so the performer cannot detect the opt-out', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
     $optedOut = interestFollower($profile);
     $optedOut->update(['interests_opt_out' => true]);
     $normal = interestFollower($profile);
@@ -282,6 +297,9 @@ it('applies the cooldown to an opted-out member so the performer cannot detect t
 
 it('counts a suppressed interest against the daily limit', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
 
     // Cinco envios, todos a membros que optaram por sair, esgotam a cota do dia
     // exatamente como envios normais — o contador não pode denunciar o opt-out.
@@ -302,6 +320,9 @@ it('counts a suppressed interest against the daily limit', function () {
 
 it('suppresses interest to an opted-out member even when they unlocked this performer before', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
     $member = interestFollower($profile, 50);
     PerformerInterest::create([
         'performer_profile_id' => $profile->id,
@@ -403,6 +424,9 @@ it('rejects interest aimed at a member who does not follow the performer', funct
 
 it('does not let a performer enumerate members through the send endpoint', function () {
     $profile = interestPerformer();
+    // Envio exige a lista visível (Piso de Anonimato): sem preencher, todo
+    // POST daria 404 e o teste mediria o piso em vez do que pretende provar.
+    padFollowersBelowFloor($profile);
 
     // Esgota a cota do dia com seguidores legítimos.
     foreach (range(1, 5) as $i) {

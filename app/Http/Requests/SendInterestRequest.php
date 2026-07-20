@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Follow;
 use App\Models\User;
+use App\Services\FollowerVisibilityService;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SendInterestRequest extends FormRequest
@@ -36,10 +37,22 @@ class SendInterestRequest extends FormRequest
     {
         $profile = $this->user()->performerProfile;
 
+        // A premissa acima ("ela já conhece os seguidores") deixou de valer com o
+        // Piso de Anonimato: abaixo do piso ela NÃO conhece, então bastaria varrer
+        // ids e ler o par 404/201 para reconstruir a lista que a tela esconde. E
+        // um membro em Modo Discreto nunca pode receber interesse. Por isso o
+        // alvo é resolvido pelo mesmo predicado que monta a tela — um id fora da
+        // lista visível é indistinguível de um id que não existe.
+        abort_unless(
+            $profile && app(FollowerVisibilityService::class)
+                ->canReceiveInterest($profile, (int) $this->validated('member_id')),
+            404,
+        );
+
         return User::where('id', $this->validated('member_id'))
             ->where('role', 'consumer')
             ->where('status', 'active')
-            ->whereIn('id', Follow::where('performer_profile_id', $profile?->id)->select('user_id'))
+            ->whereIn('id', Follow::where('performer_profile_id', $profile->id)->select('user_id'))
             ->firstOrFail();
     }
 }

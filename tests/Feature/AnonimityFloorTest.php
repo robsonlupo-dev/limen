@@ -137,16 +137,18 @@ it('membro discreto conta para o total mas nao aparece na lista', function () {
     expect($response->getContent())->toContain('Membro #' . $visible[0]->id);
 });
 
-it('membro discreto ajuda a atingir o piso', function () {
+it('discreto conta para o total mas nao substitui um visivel', function () {
     $profile = floorPerformer();
-    $visible = followersFor($profile, 4);
+    followersFor($profile, 4);
     followersFor($profile, 1, discrete: true);
 
-    // 4 visíveis + 1 discreto = 5: o piso é atingido e os 4 aparecem.
+    // O piso vale para as DUAS contagens: total 5 (atingido) mas só 4 visíveis,
+    // então a lista continua escondida. Medir só o total permitiria o caso
+    // degenerado de 4 discretos + 1 visível exibindo um nome sozinho.
     followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
-        ->where('below_floor', false)
+        ->where('below_floor', true)
         ->where('total_followers', 5)
-        ->has('followers.data', 4)
+        ->where('followers.data', [])
     );
 });
 
@@ -305,6 +307,146 @@ it('follow de membro normal nasce visivel', function () {
     app(FollowService::class)->follow($member, $profile);
 
     expect(Follow::where('user_id', $member->id)->value('discrete_mode'))->toBeFalse();
+});
+
+// ─── Porta web (sessão) ──────────────────────────────────────────────────────
+
+it('membro Black liga o Modo Discreto pela rota web, com flash de sucesso', function () {
+    $member = memberOfCircle('black');
+
+    $this->actingAs($member)
+        ->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => true])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Modo Discreto ativado');
+
+    expect($member->fresh()->discrete_mode)->toBeTrue();
+});
+
+it('a rota web desliga e avisa', function () {
+    $member = memberOfCircle('black');
+    $this->actingAs($member)->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => true]);
+
+    $this->actingAs($member->fresh())
+        ->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => false])
+        ->assertSessionHas('success', 'Modo Discreto desativado');
+
+    expect($member->fresh()->discrete_mode)->toBeFalse();
+});
+
+it('a rota web nega 403 a membro Explorador', function () {
+    $member = memberOfCircle('explorador');
+
+    $this->actingAs($member)
+        ->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => true])
+        ->assertForbidden();
+
+    expect($member->fresh()->discrete_mode)->toBeFalse();
+});
+
+it('a tela de configuracoes compartilha o estado do Modo Discreto', function () {
+    $member = memberOfCircle('black');
+
+    $this->actingAs($member)->get(route('consumer.settings'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Consumer/Settings')
+            ->where('auth.user.can_use_discrete_mode', true)
+            ->where('auth.user.discrete_mode', false)
+        );
+});
+
+it('membro sem tier ve can_use_discrete_mode falso', function () {
+    $member = memberOfCircle('prestige');
+
+    $this->actingAs($member)->get(route('consumer.settings'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('auth.user.can_use_discrete_mode', false)
+        );
+});
+
+// ─── Idempotência e saída do modo ────────────────────────────────────────────
+
+it('repetir o mesmo valor nao desliga o modo sem querer', function () {
+    $member = memberOfCircle('black');
+
+    // Duplo clique / retry de rede: o cliente manda o estado desejado.
+    foreach (range(1, 3) as $ignored) {
+        $this->actingAs($member->fresh())
+            ->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => true]);
+    }
+
+    expect($member->fresh()->discrete_mode)->toBeTrue();
+});
+
+it('quem perdeu o tier ainda consegue DESLIGAR o modo', function () {
+    $member = memberOfCircle('black');
+    $this->actingAs($member)->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => true]);
+
+    // Assinatura Black lapsa: o membro segue discreto (não reexpomos por lapso
+    // de pagamento), mas não pode ficar preso sem conseguir sair.
+    Subscription::where('user_id', $member->id)->update(['status' => 'canceled']);
+
+    $this->actingAs($member->fresh())
+        ->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => false])
+        ->assertSessionHas('success', 'Modo Discreto desativado');
+
+    expect($member->fresh()->discrete_mode)->toBeFalse();
+});
+
+it('quem perdeu o tier NAO consegue ligar de novo', function () {
+    $member = memberOfCircle('black');
+    Subscription::where('user_id', $member->id)->update(['status' => 'canceled']);
+
+    $this->actingAs($member->fresh())
+        ->patch(route('consumer.settings.discrete-mode'), ['discrete_mode' => true])
+        ->assertForbidden();
+});
+
+// ─── O piso e o Interesse Controlado precisam concordar ──────────────────────
+
+it('performer nao envia Interesse a membro em Modo Discreto', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5);
+
+    $discrete = floorMember(discrete: true);
+    Follow::create([
+        'user_id' => $discrete->id,
+        'performer_profile_id' => $profile->id,
+        'discrete_mode' => true,
+    ]);
+
+    // Ele não está na lista; mandar o id na mão tem de ser indistinguível de um
+    // id que não existe, senão o envio vira oráculo do Modo Discreto.
+    $this->actingAs($profile->user)
+        ->postJson(route('performer.interests.send'), ['member_id' => $discrete->id])
+        ->assertNotFound();
+});
+
+it('abaixo do piso a performer nao envia Interesse a ninguem', function () {
+    $profile = floorPerformer();
+    $members = followersFor($profile, 3);
+
+    // Sem isto, varrer ids e ler 404-vs-201 reconstruiria a lista inteira que a
+    // tela esconde — o piso viraria decoração.
+    foreach ($members as $member) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->assertNotFound();
+    }
+});
+
+it('lista com poucos visiveis fica escondida mesmo com o total acima do piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 4, discrete: true);
+    followersFor($profile, 1);
+
+    // 5 no total (piso atingido) mas só 1 visível: mostrar seria expor um único
+    // "Membro #id" — exatamente o que o piso existe para impedir.
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+    );
 });
 
 // ─── Fim a fim ───────────────────────────────────────────────────────────────

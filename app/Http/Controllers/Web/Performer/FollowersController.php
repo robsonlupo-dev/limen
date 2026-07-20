@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Performer;
 use App\Http\Controllers\Controller;
 use App\Models\Follow;
 use App\Models\PerformerInterest;
+use App\Services\FollowerVisibilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -23,6 +24,8 @@ use Inertia\Response;
  */
 class FollowersController extends Controller
 {
+    public function __construct(private FollowerVisibilityService $visibility) {}
+
     public function index(Request $request): Response|RedirectResponse
     {
         Gate::authorize('performer-active');
@@ -41,28 +44,13 @@ class FollowersController extends Controller
         // (b) virava oráculo de status: o envio para esse id dá 404, enquanto um
         // seguidor normal dá 201/422 — clicar no botão revelava a suspensão.
         // Todo id listado aqui precisa resolver em SendInterestRequest.
-        $activeMember = fn ($query) => $query->where('role', 'consumer')->where('status', 'active');
+        // Piso de Anonimato + Modo Discreto vivem no FollowerVisibilityService,
+        // que é a MESMA fonte usada por SendInterestRequest: se a tela e o envio
+        // discordarem, o envio vira oráculo para reconstruir o que a tela esconde.
+        $totalFollowers = $this->visibility->totalActiveFollowers($profile->id);
+        $belowFloor = ! $this->visibility->canRevealList($profile->id);
 
-        // Piso de Anonimato: com 1 ou 2 seguidores, "Membro #123" não anonimiza
-        // nada — quem seguiu ontem se reconhece na lista, e a performer também.
-        // O total conta TODOS os seguidores ativos, inclusive os discretos: são
-        // pessoas reais diluindo a lista, e tirá-los do total deixaria a chegada
-        // de um membro discreto visível como um degrau no piso.
-        $totalFollowers = Follow::where('performer_profile_id', $profile->id)
-            ->whereHas('user', $activeMember)
-            ->count();
-
-        $belowFloor = $totalFollowers < (int) config('interest.anonymity_floor');
-
-        $query = Follow::where('performer_profile_id', $profile->id)
-            ->whereHas('user', $activeMember)
-            // Modo Discreto: o seguidor conta para o piso mas não é listado, e
-            // portanto não pode receber interesse. A flag é conferida nos dois
-            // lugares (na linha do follow e no usuário) porque a cópia em follows
-            // é denormalizada: se as duas divergirem, vence a mais discreta —
-            // errar para o lado de esconder é o único erro barato aqui.
-            ->where('discrete_mode', false)
-            ->whereHas('user', fn ($q) => $q->where('discrete_mode', false));
+        $query = $this->visibility->listableQuery($profile->id);
 
         if ($belowFloor) {
             // Paginação vazia, mantendo o formato que a página espera.

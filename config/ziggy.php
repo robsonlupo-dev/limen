@@ -35,6 +35,8 @@ return [
 
         // User preferences
         'preferences.update',
+        'consumer.settings',
+        'consumer.settings.discrete-mode',
 
         // Performer area (all performer.* web routes)
         'performer.dashboard',

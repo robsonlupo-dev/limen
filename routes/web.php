@@ -14,6 +14,7 @@ use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
+use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
@@ -243,6 +244,15 @@ Route::middleware('auth')->group(function () {
         Route::patch('/interesses/opt-out', [ConsumerInterestController::class, 'optOut'])
             ->middleware('throttle:30,1')
             ->name('interests.opt-out');
+
+        // Configurações do membro (hoje: Modo Discreto).
+        Route::get('/configuracoes', [ConsumerPreferencesController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.settings');
+
+        Route::patch('/configuracoes/modo-discreto', [ConsumerPreferencesController::class, 'toggleDiscreteMode'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.settings.discrete-mode');
 
         // Assinaturas (Círculos) — escolha de tier + cartão + cancelamento.
         Route::get('/assinar', [SubscriptionController::class, 'index'])->name('subscribe.index');
