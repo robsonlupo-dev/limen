@@ -14,10 +14,16 @@ class FollowService
     {
         DB::transaction(function () use ($user, $profile) {
             try {
-                $follow = Follow::firstOrCreate([
-                    'user_id' => $user->id,
-                    'performer_profile_id' => $profile->id,
-                ]);
+                // O novo follow já nasce com o Modo Discreto do membro: sem isto
+                // um membro discreto reapareceria na lista de toda performer que
+                // passasse a seguir depois de ativar o modo.
+                $follow = Follow::firstOrCreate(
+                    [
+                        'user_id' => $user->id,
+                        'performer_profile_id' => $profile->id,
+                    ],
+                    ['discrete_mode' => (bool) $user->discrete_mode],
+                );
 
                 if ($follow->wasRecentlyCreated) {
                     DB::table('performer_profiles')

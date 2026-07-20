@@ -45,6 +45,21 @@ function interestFollower(PerformerProfile $profile, int $balance = 0): User
     return $member;
 }
 
+/**
+ * Enche a lista até um seguidor a menos que o Piso de Anonimato, para que o
+ * seguidor criado A SEGUIR pelo teste feche o piso e a lista fique visível.
+ *
+ * Os testes abaixo falam de anonimização, cooldown e opt-out — não do piso.
+ * Sem o preenchimento eles passariam a medir o piso (lista vazia) em vez do que
+ * pretendem provar. A cobertura do piso em si vive em AnonimityFloorTest.
+ */
+function padFollowersBelowFloor(PerformerProfile $profile): void
+{
+    foreach (range(1, (int) config('interest.anonymity_floor') - 1) as $ignored) {
+        interestFollower($profile);
+    }
+}
+
 function interestPerformer(): PerformerProfile
 {
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
@@ -496,15 +511,17 @@ it('toggles the member opt-out preference', function () {
 
 it('lists the performer followers anonymised, without member PII', function () {
     $profile = interestPerformer();
+    padFollowersBelowFloor($profile);
     $member = interestMember();
     $member->update(['name' => 'Fulano de Tal', 'email' => 'fulano@example.com']);
     Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
 
     $response = $this->actingAs($profile->user)->get(route('performer.followers'));
 
+    // Ordem é created_at desc: o membro recém-criado é o primeiro da lista.
     $response->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('Performer/Followers')
-        ->has('followers.data', 1)
+        ->has('followers.data', (int) config('interest.anonymity_floor'))
         ->where('followers.data.0.member_id', $member->id)
         ->where('followers.data.0.label', 'Membro #' . $member->id)
         ->where('followers.data.0.interest_sent', false)
@@ -518,6 +535,7 @@ it('lists the performer followers anonymised, without member PII', function () {
 
 it('marks a follower already in cooldown so the performer cannot resend', function () {
     $profile = interestPerformer();
+    padFollowersBelowFloor($profile);
     $member = interestMember();
     Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
 
@@ -535,6 +553,7 @@ it('marks a follower already in cooldown so the performer cannot resend', functi
 
 it('shows an opted-out follower exactly like any other follower', function () {
     $profile = interestPerformer();
+    padFollowersBelowFloor($profile);
     $optedOut = interestMember();
     $optedOut->update(['interests_opt_out' => true]);
     Follow::create(['user_id' => $optedOut->id, 'performer_profile_id' => $profile->id]);
@@ -548,7 +567,7 @@ it('shows an opted-out follower exactly like any other follower', function () {
     $this->actingAs($profile->user)
         ->get(route('performer.followers'))
         ->assertInertia(fn (Assert $page) => $page
-            ->has('followers.data', 1)
+            ->has('followers.data', (int) config('interest.anonymity_floor'))
             ->where('followers.data.0.interest_sent', true)
             ->where('remainingToday', 4)
         );
@@ -556,6 +575,7 @@ it('shows an opted-out follower exactly like any other follower', function () {
 
 it('leaves suspended and deleted members out of the followers list', function () {
     $profile = interestPerformer();
+    padFollowersBelowFloor($profile);
     $active = interestFollower($profile);
 
     // status não é fillable (proteção de mass-assignment), então update() aqui
@@ -573,7 +593,9 @@ it('leaves suspended and deleted members out of the followers list', function ()
     $this->actingAs($profile->user)
         ->get(route('performer.followers'))
         ->assertInertia(fn (Assert $page) => $page
-            ->has('followers.data', 1)
+            // Só o ativo entra além do preenchimento: suspenso e apagado ficam
+            // de fora tanto da lista quanto do total que alimenta o piso.
+            ->has('followers.data', (int) config('interest.anonymity_floor'))
             ->where('followers.data.0.member_id', $active->id)
         );
 

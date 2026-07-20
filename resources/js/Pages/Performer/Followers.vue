@@ -10,6 +10,9 @@ const props = defineProps({
     remainingToday: { type: Number, required: true },
     dailyLimit: { type: Number, required: true },
     cooldownDays: { type: Number, required: true },
+    below_floor: { type: Boolean, default: false },
+    total_followers: { type: Number, default: 0 },
+    floor_message: { type: String, default: null },
 })
 
 const remaining = ref(props.remainingToday)
@@ -83,8 +86,23 @@ async function sendInterest(follower) {
             </div>
 
             <div class="space-y-3">
+                <!-- Piso de Anonimato: a lista existe, mas ainda não é mostrável.
+                     Sem esta mensagem a performer leria a tela como "ninguém me
+                     segue", o que é falso quando total_followers > 0. -->
                 <div
-                    v-if="followers.data.length === 0"
+                    v-if="below_floor"
+                    class="rounded-xl border border-frame bg-surface p-10 text-center space-y-2"
+                >
+                    <p class="text-cream font-serif text-lg">Lista ainda não disponível</p>
+                    <p class="text-muted text-sm">{{ floor_message }}</p>
+                    <p class="text-muted text-xs">
+                        Você tem {{ total_followers }}
+                        {{ total_followers === 1 ? 'seguidor' : 'seguidores' }} até agora.
+                    </p>
+                </div>
+
+                <div
+                    v-else-if="followers.data.length === 0"
                     class="rounded-xl border border-frame bg-surface p-10 text-center space-y-2"
                 >
                     <p class="text-cream font-serif text-lg">Ninguém te segue ainda</p>

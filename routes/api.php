@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AsaasTransferWebhookController;
 use App\Http\Controllers\Api\V1\AdminKycController;
 use App\Http\Controllers\Api\V1\AdminPayoutController;
 use App\Http\Controllers\Api\V1\AsaasWebhookController;
+use App\Http\Controllers\Api\V1\Consumer\PreferencesController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -108,6 +109,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'role:consumer'])->group(functi
     // Tips (consumer sends tips)
     Route::post('tips', [TipController::class, 'store'])->middleware('throttle:10,1')->name('tips.store');
     Route::get('tips', [TipController::class, 'consumerHistory'])->name('tips.consumer-history');
+
+    // Modo Discreto (perk de Black/Founders Circle).
+    Route::patch('consumer/preferences/discrete-mode', [PreferencesController::class, 'toggleDiscreteMode'])
+        ->middleware('throttle:20,1')
+        ->name('consumer.preferences.discrete-mode');
 });
 
 // Public tips summary

@@ -20,4 +20,10 @@ return [
     // Uma performer não pode reenviar interesse ao mesmo membro dentro desta
     // janela (em dias), mesmo sem desbloqueio — evita "cutucadas" repetidas.
     'cooldown_days' => (int) env('INTEREST_COOLDOWN_DAYS', 30),
+
+    // Piso de Anonimato: a performer só enxerga a lista de seguidores a partir
+    // deste número de seguidores ativos. Com 1 ou 2 seguidores, "Membro #123"
+    // deixa de ser anônimo — quem acabou de seguir sabe que é ele, e a performer
+    // também. O piso dilui a lista antes de mostrá-la.
+    'anonymity_floor' => (int) env('INTEREST_ANONYMITY_FLOOR', 5),
 ];

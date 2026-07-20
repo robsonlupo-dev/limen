@@ -41,10 +41,38 @@ class FollowersController extends Controller
         // (b) virava oráculo de status: o envio para esse id dá 404, enquanto um
         // seguidor normal dá 201/422 — clicar no botão revelava a suspensão.
         // Todo id listado aqui precisa resolver em SendInterestRequest.
-        $follows = Follow::where('performer_profile_id', $profile->id)
-            ->whereHas('user', fn ($query) => $query->where('role', 'consumer')->where('status', 'active'))
-            ->orderByDesc('created_at')
-            ->paginate(20);
+        $activeMember = fn ($query) => $query->where('role', 'consumer')->where('status', 'active');
+
+        // Piso de Anonimato: com 1 ou 2 seguidores, "Membro #123" não anonimiza
+        // nada — quem seguiu ontem se reconhece na lista, e a performer também.
+        // O total conta TODOS os seguidores ativos, inclusive os discretos: são
+        // pessoas reais diluindo a lista, e tirá-los do total deixaria a chegada
+        // de um membro discreto visível como um degrau no piso.
+        $totalFollowers = Follow::where('performer_profile_id', $profile->id)
+            ->whereHas('user', $activeMember)
+            ->count();
+
+        $belowFloor = $totalFollowers < (int) config('interest.anonymity_floor');
+
+        $query = Follow::where('performer_profile_id', $profile->id)
+            ->whereHas('user', $activeMember)
+            // Modo Discreto: o seguidor conta para o piso mas não é listado, e
+            // portanto não pode receber interesse. A flag é conferida nos dois
+            // lugares (na linha do follow e no usuário) porque a cópia em follows
+            // é denormalizada: se as duas divergirem, vence a mais discreta —
+            // errar para o lado de esconder é o único erro barato aqui.
+            ->where('discrete_mode', false)
+            ->whereHas('user', fn ($q) => $q->where('discrete_mode', false));
+
+        if ($belowFloor) {
+            // Paginação vazia, mantendo o formato que a página espera.
+            $query->whereRaw('1 = 0');
+        }
+
+        // Desempate por id: created_at tem granularidade de segundo, e follows
+        // do mesmo segundo ficariam em ordem indefinida — o que, paginado, faz
+        // linha repetir numa página e sumir de outra.
+        $follows = $query->orderByDesc('created_at')->orderByDesc('id')->paginate(20);
 
         $cooldownDays = (int) config('interest.cooldown_days');
 
@@ -73,6 +101,12 @@ class FollowersController extends Controller
             'remainingToday' => max(0, $dailyLimit - $sentToday),
             'dailyLimit' => $dailyLimit,
             'cooldownDays' => $cooldownDays,
+            'below_floor' => $belowFloor,
+            'total_followers' => $totalFollowers,
+            'floor_message' => $belowFloor
+                ? 'Para proteger o anonimato dos membros Limen, a lista de seguidores fica visível a partir de '
+                    . config('interest.anonymity_floor') . ' seguidores.'
+                : null,
         ]);
     }
 }
