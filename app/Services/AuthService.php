@@ -7,8 +7,10 @@ use App\Models\IdentityVerification;
 use App\Models\PerformerProfile;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Support\ClientFingerprint;
 use App\Support\CpfHash;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -56,9 +58,16 @@ class AuthService
         });
     }
 
-    public function registerPerformer(array $data): User
+    /**
+     * @param  ?Request  $request  origem HTTP do cadastro, para registrar o IP
+     *                             (como HMAC) e detectar rede de exploração.
+     *                             Null em seeder/console: ali não há IP real, e
+     *                             gravar o 127.0.0.1 do console faria a massa
+     *                             sintética inteira nascer sinalizada.
+     */
+    public function registerPerformer(array $data, ?Request $request = null): User
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data, $request) {
             $user = new User([
                 'name' => $data['name'],
                 'email' => $data['email'],
@@ -70,6 +79,12 @@ class AuthService
             ]);
             $user->role = 'performer';
             $user->status = 'pending';
+            // Atribuição direta, FORA do $fillable, pelo mesmo motivo de `role`
+            // e `discrete_mode`: se fosse preenchível, quem se cadastra mandaria
+            // o próprio `registration_ip_hash` no payload e escolheria com quem
+            // colidir — ou com ninguém, escapando do flag que existe para
+            // protegê-la.
+            $user->registration_ip_hash = ClientFingerprint::hash($request?->ip());
             $user->save();
 
             $user->performerProfile()->create([

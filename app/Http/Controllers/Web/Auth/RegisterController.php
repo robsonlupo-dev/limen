@@ -28,7 +28,7 @@ class RegisterController extends Controller
         $data = array_merge($request->validated(), ['terms_version' => '1.0']);
 
         if (($data['role'] ?? 'consumer') === 'performer') {
-            $user = $authService->registerPerformer($data);
+            $user = $authService->registerPerformer($data, $request);
 
             Auth::login($user);
             $request->session()->regenerate();

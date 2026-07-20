@@ -29,7 +29,7 @@ class RegisterController extends Controller
 
     public function performer(RegisterPerformerRequest $request): JsonResponse
     {
-        $user = $this->authService->registerPerformer($request->validated());
+        $user = $this->authService->registerPerformer($request->validated(), $request);
         $token = $user->createToken('api')->plainTextToken;
 
         Audit::log('auth.register_performer', $user);
