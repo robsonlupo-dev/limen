@@ -27,7 +27,11 @@ class DashboardController extends Controller
             'wallet' => $this->walletBalance($user),
             'totalEarned' => $this->totalEarned($user),
             'tips' => $this->recentTips($profile),
-            'followers' => $profile->followers_count,
+            // Faixa também aqui: o observador que o contador exato entrega é a
+            // PRÓPRIA performer. Faixar só as telas públicas esconderia o número
+            // de terceiros e deixaria em pé exatamente a correlação que o Piso de
+            // Anonimato existe para impedir — ela vendo 3 virar 4 ao vivo.
+            'followers' => $profile->followersCountLabel(),
             'kycStatus' => $this->kycStatus($user),
             'isLive' => $profile->is_live,
         ]);

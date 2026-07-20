@@ -79,7 +79,7 @@ it('abaixo do piso a performer nao ve lista nenhuma, e sabe por que', function (
     followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('Performer/Followers')
         ->where('below_floor', true)
-        ->where('total_followers', 4)
+        ->where('total_followers_label', 'Menos de 5')
         ->where('followers.data', [])
         ->where('floor_message', 'Para proteger o anonimato dos membros Limen, a lista de seguidores fica visível a partir de 5 seguidores.')
     );
@@ -93,7 +93,7 @@ it('a partir do piso a lista aparece, anonimizada', function () {
 
     $response->assertOk()->assertInertia(fn (Assert $page) => $page
         ->where('below_floor', false)
-        ->where('total_followers', 5)
+        ->where('total_followers_label', '5+')
         ->has('followers.data', 5)
         ->where('floor_message', null)
     );
@@ -127,7 +127,7 @@ it('membro discreto conta para o total mas nao aparece na lista', function () {
 
     $response->assertOk()->assertInertia(fn (Assert $page) => $page
         ->where('below_floor', false)
-        ->where('total_followers', 7)   // discretos contam
+        ->where('total_followers_label', '5+')   // discretos contam
         ->has('followers.data', 5)      // mas não são listados
     );
 
@@ -147,7 +147,7 @@ it('discreto conta para o total mas nao substitui um visivel', function () {
     // degenerado de 4 discretos + 1 visível exibindo um nome sozinho.
     followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
         ->where('below_floor', true)
-        ->where('total_followers', 5)
+        ->where('total_followers_label', '5+')
         ->where('followers.data', [])
     );
 });
@@ -449,6 +449,86 @@ it('lista com poucos visiveis fica escondida mesmo com o total acima do piso', f
     );
 });
 
+// ─── Contador em faixas ──────────────────────────────────────────────────────
+
+it('rotula a contagem de seguidores por faixa', function (int $count, string $expected) {
+    $profile = floorPerformer();
+    $profile->forceFill(['followers_count' => $count])->save();
+
+    expect($profile->followersCountLabel())->toBe($expected);
+})->with([
+    'zero' => [0, 'Menos de 5'],
+    'limite inferior' => [4, 'Menos de 5'],
+    'entra na faixa 5+' => [5, '5+'],
+    'topo do 5+' => [9, '5+'],
+    'entra na faixa 10+' => [10, '10+'],
+    'topo do 10+' => [49, '10+'],
+    'entra na faixa 50+' => [50, '50+'],
+    'entra na faixa 100+' => [100, '100+'],
+    'topo das faixas' => [499, '100+'],
+    // A partir de 500 o exato volta: nessa escala um incremento não identifica.
+    'exato a partir de 500' => [500, '500'],
+    'exato formatado' => [1247, '1.247'],
+]);
+
+it('o catalogo publico nunca expoe o numero exato abaixo de 500', function () {
+    $profile = floorPerformer();
+    $profile->forceFill(['followers_count' => 137])->save();
+
+    $response = $this->get(route('performers.public'));
+
+    $response->assertOk();
+    // Nem no payload do Inertia, nem em campo que a UI não usa.
+    expect($response->getContent())->toContain('100+');
+    expect($response->getContent())->not->toContain('"followers_count"');
+    expect($response->getContent())->not->toContain('137');
+});
+
+it('o perfil publico da performer mostra a faixa', function () {
+    $profile = floorPerformer();
+    $profile->forceFill(['followers_count' => 7])->save();
+
+    $this->get(route('performers.public.show', $profile->slug))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('performer.followers_label', '5+'));
+});
+
+it('o dashboard da propria performer tambem ve a faixa, nao o numero', function () {
+    $profile = floorPerformer();
+    $profile->forceFill(['followers_count' => 3])->save();
+
+    // Quem faz a correlação "contador subiu → foi fulano" é ela: faixar só as
+    // telas públicas deixaria o ataque em pé.
+    $this->actingAs($profile->user)->get(route('performer.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('followers', 'Menos de 5'));
+});
+
+it('a tela de seguidores mostra faixa e nao devolve o total exato ao front', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 3);
+
+    $response = followersPage($profile);
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('total_followers_label', 'Menos de 5')
+        ->missing('total_followers')      // o raw fica no servidor
+        ->missing('total_followers_raw')
+    );
+});
+
+it('o piso continua decidindo pelo numero exato no servidor', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5);
+
+    // A faixa é só exibição: quem decide o piso é a contagem real.
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', false)
+        ->where('total_followers_label', '5+')
+        ->has('followers.data', 5)
+    );
+});
+
 // ─── Fim a fim ───────────────────────────────────────────────────────────────
 
 it('membro que ativa o modo some da lista de quem ele ja seguia', function () {
@@ -469,7 +549,7 @@ it('membro que ativa o modo some da lista de quem ele ja seguia', function () {
     $response = followersPage($profile);
     expect($response->getContent())->not->toContain('Membro #' . $member->id);
     $response->assertInertia(fn (Assert $page) => $page
-        ->where('total_followers', 6)
+        ->where('total_followers_label', '5+')
         ->has('followers.data', 5)
     );
 });

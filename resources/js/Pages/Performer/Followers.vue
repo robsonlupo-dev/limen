@@ -11,7 +11,7 @@ const props = defineProps({
     dailyLimit: { type: Number, required: true },
     cooldownDays: { type: Number, required: true },
     below_floor: { type: Boolean, default: false },
-    total_followers: { type: Number, default: 0 },
+    total_followers_label: { type: String, default: 'Menos de 5' },
     floor_message: { type: String, default: null },
 })
 
@@ -95,10 +95,7 @@ async function sendInterest(follower) {
                 >
                     <p class="text-cream font-serif text-lg">Lista ainda não disponível</p>
                     <p class="text-muted text-sm">{{ floor_message }}</p>
-                    <p class="text-muted text-xs">
-                        Você tem {{ total_followers }}
-                        {{ total_followers === 1 ? 'seguidor' : 'seguidores' }} até agora.
-                    </p>
+                    <p class="text-muted text-xs">Seguidores até agora: {{ total_followers_label }}.</p>
                 </div>
 
                 <div

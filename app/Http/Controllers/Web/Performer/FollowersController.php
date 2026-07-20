@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Performer;
 use App\Http\Controllers\Controller;
 use App\Models\Follow;
 use App\Models\PerformerInterest;
+use App\Models\PerformerProfile;
 use App\Services\FollowerVisibilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,15 +39,10 @@ class FollowersController extends Controller
             return redirect()->route('performer.onboarding');
         }
 
-        // Só membros que ainda existem e estão ativos. Sem este filtro a lista
-        // mostrava suspensos e contas apagadas (whereHas respeita o SoftDeletes
-        // do User), o que (a) mantinha quem apagou a conta visível à performer e
-        // (b) virava oráculo de status: o envio para esse id dá 404, enquanto um
-        // seguidor normal dá 201/422 — clicar no botão revelava a suspensão.
-        // Todo id listado aqui precisa resolver em SendInterestRequest.
-        // Piso de Anonimato + Modo Discreto vivem no FollowerVisibilityService,
-        // que é a MESMA fonte usada por SendInterestRequest: se a tela e o envio
-        // discordarem, o envio vira oráculo para reconstruir o que a tela esconde.
+        // Quem é listável (membro ativo, não-discreto, piso atingido) vive no
+        // FollowerVisibilityService, que é a MESMA fonte usada por
+        // SendInterestRequest: se a tela e o envio discordarem, o envio vira
+        // oráculo para reconstruir exatamente o que a tela esconde.
         $totalFollowers = $this->visibility->totalActiveFollowers($profile->id);
         $belowFloor = ! $this->visibility->canRevealList($profile->id);
 
@@ -90,7 +86,13 @@ class FollowersController extends Controller
             'dailyLimit' => $dailyLimit,
             'cooldownDays' => $cooldownDays,
             'below_floor' => $belowFloor,
-            'total_followers' => $totalFollowers,
+            // Faixa, não o número: o raw fica no servidor (é ele que decide o
+            // piso). Mandá-lo para a tela devolveria à performer o contador
+            // preciso que as faixas existem para tirar — ela veria "3" virar "4"
+            // no instante em que alguém seguisse. Rotula o MESMO número que
+            // decidiu o piso (ativos), não o contador denormalizado, senão a tela
+            // diria "10+" enquanto o piso enxerga 3 e esconde a lista.
+            'total_followers_label' => PerformerProfile::followersLabelFor($totalFollowers),
             'floor_message' => $belowFloor
                 ? 'Para proteger o anonimato dos membros Limen, a lista de seguidores fica visível a partir de '
                     . config('interest.anonymity_floor') . ' seguidores.'

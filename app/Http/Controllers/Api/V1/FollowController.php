@@ -43,7 +43,7 @@ class FollowController extends Controller
 
         return (new FollowResource([
             'following'       => true,
-            'followers_count' => $profile->followers_count,
+            'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
 
@@ -68,7 +68,7 @@ class FollowController extends Controller
 
         return (new FollowResource([
             'following'       => false,
-            'followers_count' => $profile->followers_count,
+            'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
 
@@ -82,7 +82,7 @@ class FollowController extends Controller
 
         return (new FollowResource([
             'following'       => $isFollowing,
-            'followers_count' => $profile->followers_count,
+            'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
 }

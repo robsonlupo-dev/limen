@@ -20,7 +20,8 @@ class PerformerProfileResource extends JsonResource
             'is_verified' => $this->is_verified,
             'rating_avg' => $this->rating_avg,
             'rating_count' => $this->rating_count,
-            'followers_count' => $this->followers_count,
+            // Faixa, nunca o número exato: ver PerformerProfile::followersCountLabel().
+            'followers_label' => $this->followersCountLabel(),
             'avatar_path' => $this->avatar_path,
             'cover_path' => $this->cover_path,
         ];

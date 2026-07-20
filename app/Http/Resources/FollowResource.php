@@ -11,7 +11,9 @@ class FollowResource extends JsonResource
     {
         return [
             'following'       => $this->resource['following'],
-            'followers_count' => $this->resource['followers_count'],
+            // Faixa: devolver o exato aqui daria à performer um contador preciso
+            // via a própria API de follow.
+            'followers_label' => $this->resource['followers_label'],
         ];
     }
 }

@@ -160,14 +160,18 @@ it('follow increments followers_count and is idempotent on second call', functio
     // First follow
     $this->postJson("/api/v1/performers/{$profile->slug}/follow", [], [
         'Authorization' => "Bearer $token",
-    ])->assertOk()->assertJsonPath('data.following', true)->assertJsonPath('data.followers_count', 1);
+    ])->assertOk()->assertJsonPath('data.following', true)
+        // A API devolve a FAIXA, não o número: o contador exato de um perfil
+        // pequeno identifica quem seguiu e quando. O incremento real continua
+        // sendo verificado no banco, logo abaixo.
+        ->assertJsonPath('data.followers_label', 'Menos de 5');
 
     expect(Follow::count())->toBe(1);
 
     // Second follow (idempotent)
     $this->postJson("/api/v1/performers/{$profile->slug}/follow", [], [
         'Authorization' => "Bearer $token",
-    ])->assertOk()->assertJsonPath('data.followers_count', 1);
+    ])->assertOk()->assertJsonPath('data.followers_label', 'Menos de 5');
 
     expect(Follow::count())->toBe(1);
 
@@ -190,7 +194,8 @@ it('unfollow decrements followers_count by 1', function () {
 
     $this->deleteJson("/api/v1/performers/{$profile->slug}/follow", [], [
         'Authorization' => "Bearer $token",
-    ])->assertOk()->assertJsonPath('data.following', false)->assertJsonPath('data.followers_count', 0);
+    ])->assertOk()->assertJsonPath('data.following', false)
+        ->assertJsonPath('data.followers_label', 'Menos de 5');
 
     $profile->refresh();
     expect($profile->followers_count)->toBe(0);

@@ -164,7 +164,7 @@ const lockedTiles = 6
                 <!-- Counter -->
                 <div class="mt-6 flex items-center gap-8 text-sm text-muted border-y border-frame py-4">
                     <div>
-                        <span class="text-cream font-medium">{{ performer.followers_count }}</span> apoiadores
+                        <span class="text-cream font-medium">{{ performer.followers_label }}</span> apoiadores
                     </div>
                 </div>
 

@@ -19,7 +19,8 @@ class PerformerPublicResource extends JsonResource
             'is_live'         => $this->is_live,
             'rating_avg'      => $this->rating_avg,
             'rating_count'    => $this->rating_count,
-            'followers_count' => $this->followers_count,
+            // Faixa, nunca o número exato: ver PerformerProfile::followersCountLabel().
+            'followers_label' => $this->followersCountLabel(),
             'avatar_url'      => $this->mediaUrl('avatar'),
             'cover_url'       => $this->mediaUrl('cover'),
         ];

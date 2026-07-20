@@ -45,6 +45,39 @@ class PerformerProfile extends Model
         ];
     }
 
+    /**
+     * Contagem de seguidores em faixas, para exibição. O número exato de um
+     * perfil pequeno é um canal lateral: quem observa o contador vê ele subir de
+     * 3 para 4 no instante em que alguém segue e liga o evento à pessoa —
+     * desfazendo o Piso de Anonimato sem nunca abrir a lista.
+     *
+     * A partir de 500 o número exato volta: nessa escala um incremento não
+     * identifica ninguém, e a contagem é sinal social legítimo.
+     */
+    public function followersCountLabel(): string
+    {
+        return self::followersLabelFor((int) $this->followers_count);
+    }
+
+    /**
+     * Mesma tabela de faixas para uma contagem qualquer. Existe porque nem toda
+     * tela conta a mesma coisa: o contador denormalizado followers_count inclui
+     * seguidores suspensos e contas apagadas, enquanto o Piso de Anonimato conta
+     * só membros ativos. Cada tela rotula o número que ela de fato usa, senão
+     * exibiria uma faixa que não corresponde ao que decidiu a visibilidade.
+     */
+    public static function followersLabelFor(int $count): string
+    {
+        return match (true) {
+            $count < 5 => 'Menos de 5',
+            $count < 10 => '5+',
+            $count < 50 => '10+',
+            $count < 100 => '50+',
+            $count < 500 => '100+',
+            default => number_format($count, 0, ',', '.'),
+        };
+    }
+
     public function scopePublicCatalog(Builder $query): Builder
     {
         return $query

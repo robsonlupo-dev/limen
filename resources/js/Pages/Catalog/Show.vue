@@ -95,7 +95,7 @@ function onTipSent(data) {
                 <!-- Counters -->
                 <div class="mt-6 flex items-center gap-8 text-sm text-muted border-y border-frame py-4">
                     <div>
-                        <span class="text-cream font-medium">{{ performer.followers_count }}</span> seguidores
+                        <span class="text-cream font-medium">{{ performer.followers_label }}</span> seguidores
                     </div>
                     <div>
                         <span class="text-cream font-medium">{{ tipsCount }}</span> gorjetas recebidas
