@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\AgeVerification;
 use App\Models\IdentityVerification;
 use App\Models\PerformerProfile;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Support\CpfHash;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -30,6 +32,21 @@ class AuthService
             // explicitly here to avoid mass-assignment of privileged fields.
             $user->preferred_world = $data['preferred_world'] ?? null;
             $user->save();
+
+            // NOTA: `users.age_verified_at` NÃO é preenchido aqui, embora seja
+            // tentador. Aquela coluna hoje só é marcada pelo KycService, quando
+            // um documento passou por provedor (Didit). Marcá-la também para
+            // "CPF válido + data declarada" faria um `whereNotNull` misturar os
+            // dois níveis e tratar declaração como documento conferido. O sinal
+            // do membro fica em `age_verifications`, onde `method` diz o que foi
+            // de fato verificado.
+            AgeVerification::create([
+                'user_id' => $user->id,
+                'method' => AgeVerification::METHOD_CPF_DOB,
+                // O CPF morre aqui: entra como argumento, sai como digest.
+                'cpf_hmac' => isset($data['cpf']) ? CpfHash::make($data['cpf']) : null,
+                'verified_at' => now(),
+            ]);
 
             TokenWallet::create(['user_id' => $user->id, 'balance' => 0]);
 
