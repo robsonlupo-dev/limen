@@ -37,9 +37,10 @@
     <meta name="twitter:title" content="{{ $ogTitle }}">
     <meta name="twitter:description" content="{{ $ogDescription }}">
     <meta name="twitter:image" content="{{ $ogImage }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    {{-- Fontes: self-hosted em public/fonts, declaradas em resources/css/fonts.css
+         e carregadas pelo @vite abaixo. Nada de CDN aqui — esta view é a raiz de
+         toda página Inertia, então um <link> externo viraria requisição a
+         terceiro em cada tela logada. Ver docs/PIXEL_AUDIT.md. --}}
     @routes
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @inertiaHead
