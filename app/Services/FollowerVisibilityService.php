@@ -59,17 +59,18 @@ class FollowerVisibilityService
     }
 
     /**
-     * Seguidores ativos que CONTAM para o piso: só contas com idade mínima.
+     * Seguidores ativos que CONTAM para o piso: conta antiga E com e-mail
+     * verificado.
      *
-     * Mitigação de sybil. Sem o corte, a performer registra 4 contas de
+     * Mitigação de sybil. Sem os cortes, a performer registra 4 contas de
      * consumidor, segue a si mesma com elas e destrava a lista — o próximo
      * seguidor de verdade fica sendo o único nome que ela não plantou, e o piso
      * vira decoração. Contas de véspera são baratas; contas com uma semana de
-     * espera, muito menos.
+     * espera e uma caixa de e-mail real cada, muito menos.
      */
     public function totalActiveFollowersForFloor(int $profileId): int
     {
-        return $this->aged(
+        return $this->floorEligible(
             Follow::where('performer_profile_id', $profileId)->whereHas('user', $this->activeMember())
         )->count();
     }
@@ -84,9 +85,9 @@ class FollowerVisibilityService
      * diluindo a lista, e ignorá-los no total faria a lista aparecer e sumir
      * conforme eles entram e saem.
      *
-     * O corte de idade vale para DESTRAVAR, não para exibir: uma vez que contas
-     * antigas atingiram o piso, a lista sai inteira — as novas aparecem nela
-     * normalmente (ver listableQuery, sem filtro de idade).
+     * Os cortes valem para DESTRAVAR, não para exibir: uma vez que contas
+     * elegíveis atingiram o piso, a lista sai inteira — as novas e as não
+     * verificadas aparecem nela normalmente (ver listableQuery, sem os cortes).
      */
     public function canRevealList(int $profileId): bool
     {
@@ -94,15 +95,28 @@ class FollowerVisibilityService
             return false;
         }
 
-        return $this->aged($this->listableQuery($profileId))->count() >= $this->floor();
+        return $this->floorEligible($this->listableQuery($profileId))->count() >= $this->floor();
     }
 
-    /** Restringe um query de follows a contas com a idade mínima do piso. */
-    private function aged(Builder $query): Builder
+    /**
+     * Restringe um query de follows às contas que contam para o piso: idade
+     * mínima e e-mail verificado.
+     *
+     * Os dois cortes andam juntos e valem para as DUAS contagens do piso. Aplicar
+     * só numa delas reabriria o caso degenerado que o piso existe para impedir
+     * (ex.: 4 discretos elegíveis + 1 visível recém-criado exibiria um nome
+     * sozinho). Na dúvida, esconde.
+     */
+    private function floorEligible(Builder $query): Builder
     {
         $cutoff = now()->subDays($this->floorAccountAgeDays());
 
-        return $query->whereHas('user', fn ($q) => $q->where('created_at', '<=', $cutoff));
+        return $query->whereHas('user', fn ($q) => $q
+            ->where('created_at', '<=', $cutoff)
+            // Verificação de e-mail é a barreira que a espera de 7 dias não dá:
+            // custa uma caixa de entrada real por conta, e o registro em lote
+            // paga esse custo por conta, não uma vez só.
+            ->whereNotNull('email_verified_at'));
     }
 
     /**

@@ -30,12 +30,13 @@ function floorPerformer(): PerformerProfile
  * o piso, e os testes que não são sobre sybil precisam de seguidores que valham.
  * Passe $ageDays para exercitar o corte de idade.
  */
-function floorMember(bool $discrete = false, int $ageDays = 30): User
+function floorMember(bool $discrete = false, int $ageDays = 30, bool $verified = true): User
 {
     $member = User::factory()->create([
         'role' => 'consumer',
         'status' => 'active',
         'created_at' => now()->subDays($ageDays),
+        'email_verified_at' => $verified ? now()->subDays($ageDays) : null,
     ]);
 
     if ($discrete) {
@@ -47,10 +48,10 @@ function floorMember(bool $discrete = false, int $ageDays = 30): User
 }
 
 /** @return array<int, User> */
-function followersFor(PerformerProfile $profile, int $count, bool $discrete = false, int $ageDays = 30): array
+function followersFor(PerformerProfile $profile, int $count, bool $discrete = false, int $ageDays = 30, bool $verified = true): array
 {
-    return collect(range(1, $count))->map(function () use ($profile, $discrete, $ageDays) {
-        $member = floorMember($discrete, $ageDays);
+    return collect(range(1, $count))->map(function () use ($profile, $discrete, $ageDays, $verified) {
+        $member = floorMember($discrete, $ageDays, $verified);
         Follow::create([
             'user_id' => $member->id,
             'performer_profile_id' => $profile->id,
@@ -259,6 +260,124 @@ it('discreto antigo conta para o piso, discreto novo nao', function () {
         ->where('below_floor', false)
         ->has('followers.data', 5)
     );
+});
+
+// ─── E-mail verificado no piso ───────────────────────────────────────────────
+//
+// A espera de 7 dias encarece a PRESSA, não o VOLUME: quem registra 200 contas
+// num burst espera uma semana uma única vez. Exigir e-mail verificado cobra uma
+// caixa de entrada real POR CONTA — o custo passa a escalar com o lote.
+
+it('conta antiga sem email verificado nao conta para o piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5, verified: false);
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+        // De novo: a faixa conta todo mundo, é exibição.
+        ->where('total_followers_label', '5+')
+    );
+});
+
+it('conta antiga com email verificado conta para o piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5, verified: true);
+
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', false)
+        ->has('followers.data', 5)
+    );
+});
+
+it('4 verificadas mais 1 nao verificada fica abaixo do piso', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 4);
+    followersFor($profile, 1, verified: false);
+
+    // A não verificada não fecha o piso — mesmo padrão do corte de idade.
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+    );
+});
+
+it('nao verificada aparece na lista quando o piso foi atingido por verificadas', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 5);
+    $naoVerificada = followersFor($profile, 1, verified: false)[0];
+
+    // Os cortes valem para DESTRAVAR, não para exibir.
+    $response = followersPage($profile);
+
+    $response->assertInertia(fn (Assert $page) => $page->where('below_floor', false));
+    expect($response->getContent())->toContain('Membro #' . $naoVerificada->id);
+});
+
+it('os dois cortes sao independentes: antiga+nao verificada e nova+verificada nao somam', function () {
+    $profile = floorPerformer();
+    followersFor($profile, 3, verified: false);          // antigas, sem verificar
+    followersFor($profile, 3, ageDays: 1);               // verificadas, novas
+
+    // 6 seguidores ativos e nenhum elegível: passar num corte não compensa
+    // falhar no outro.
+    followersPage($profile)->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('below_floor', true)
+        ->where('followers.data', [])
+    );
+});
+
+it('performer nao envia Interesse a seguidor de conta nao verificada abaixo do piso', function () {
+    $profile = floorPerformer();
+    $naoVerificadas = followersFor($profile, 5, verified: false);
+
+    // Tela e envio precisam concordar, senão o 404-vs-201 reconstrói a lista.
+    foreach ($naoVerificadas as $membro) {
+        $this->actingAs($profile->user)
+            ->postJson(route('performer.interests.send'), ['member_id' => $membro->id])
+            ->assertNotFound();
+    }
+});
+
+// ─── Throttle no cadastro web ────────────────────────────────────────────────
+
+it('cadastro web devolve 429 depois de 5 tentativas no mesmo minuto', function () {
+    // Registro em lote é o caminho barato para plantar contas e destravar o
+    // piso. O corte de idade encarece a pressa; o throttle encarece o volume.
+    $payload = fn (int $i) => [
+        'name' => 'Sybil ' . $i,
+        'email' => "sybil{$i}@example.com",
+        'password' => 'Password1',
+        'password_confirmation' => 'Password1',
+        'birthdate' => now()->subYears(25)->format('Y-m-d'),
+        'accept_terms' => true,
+        'lgpd_consent' => true,
+        'role' => 'consumer',
+        'terms_version' => '1.0',
+    ];
+
+    // Payload inválido de propósito (senha fraca): mantém o teste como guest e
+    // mede o throttle, não o cadastro. O limiter conta a tentativa de qualquer
+    // forma — é isso que faz dele uma barreira contra lote.
+    foreach (range(1, 5) as $i) {
+        $this->post(route('register.store'), array_merge($payload($i), [
+            'password' => 'weak', 'password_confirmation' => 'weak',
+        ]))->assertStatus(302);
+    }
+
+    $this->post(route('register.store'), $payload(6))->assertStatus(429);
+
+    expect(User::where('email', 'sybil6@example.com')->exists())->toBeFalse();
+});
+
+it('o throttle do cadastro web vale para performer tambem', function () {
+    // A rota é uma só; o papel vem no payload. Se o throttle fosse por papel,
+    // alternar 'role' zeraria o contador.
+    foreach (range(1, 5) as $i) {
+        $this->post(route('register.store'), ['role' => 'performer'])->assertStatus(302);
+    }
+
+    $this->post(route('register.store'), ['role' => 'consumer'])->assertStatus(429);
 });
 
 // ─── Modo Discreto na lista ──────────────────────────────────────────────────

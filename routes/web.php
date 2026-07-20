@@ -83,7 +83,14 @@ Route::get('/performers/{slug}', [PublicCatalogController::class, 'show'])
 // Auth (guest only)
 Route::middleware('guest')->group(function () {
     Route::get('/cadastro', [RegisterController::class, 'create'])->name('register');
-    Route::post('/cadastro', [RegisterController::class, 'store'])->name('register.store');
+    // Throttle não é só anti-força-bruta aqui: o Piso de Anonimato conta
+    // seguidores para decidir se a performer vê a lista, e registro em lote é o
+    // caminho barato para plantar contas e destravá-lo. O corte de idade
+    // encarece a pressa; o throttle encarece o volume. Atende os dois papéis —
+    // a rota é uma só, o papel vem no payload.
+    Route::post('/cadastro', [RegisterController::class, 'store'])
+        ->middleware('throttle:5,1')
+        ->name('register.store');
     Route::get('/login', [LoginController::class, 'create'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:5,1')->name('login.store');
 
