@@ -10,6 +10,10 @@
 > de loading/empty/error e classes responsivas por arquivo).
 
 ## Resumo
+> **Nota de 20/07/2026:** este relatório é de **02/07/2026**. Itens marcados ✅ RESOLVIDO
+> foram verificados contra o código atual (`main`); o resto **não** foi rechecado — trate
+> como estado de 02/07, não como estado de hoje.
+
 
 | Tela | Nota | Pontos fortes | Problemas | Melhoria sugerida |
 |---|---|---|---|---|
@@ -21,7 +25,7 @@
 | Redefinir senha | 8.0 | Erros por campo, processing | — | — |
 | Verificar e-mail | 7.5 | Instrução clara, reenvio e "usar outro e-mail" (logout→cadastro) | **Sem feedback visível após reenviar** (post sem toast/flash na tela) | Exibir confirmação "link reenviado" após o POST |
 | Catálogo (Index) | 9.0 | Skeleton de loading real, **empty state excelente** ("O Portal ainda está abrindo suas portas"), picker de mundo em modal, paginação estilizada | Mundo atual só em texto pequeno no header | Chip de mundo mais proeminente + contagem de resultados |
-| Perfil público (Show) | 7.0 | Header rico (avatar, badge, rating, contadores, valores por modo) | **CTA principal "Enviar gorjeta" é placeholder desabilitado ("Em breve")** — a API de tips existe e funciona desde a Fase 6, mas a UI não a consome. Loop de monetização quebrado no front | **P0 de produto:** ligar o modal ao `POST /api/v1/tips` (saldo, erros, sucesso) |
+| Perfil público (Show) | 7.0 | Header rico (avatar, badge, rating, contadores, valores por modo) | ~~**CTA principal "Enviar gorjeta" é placeholder desabilitado ("Em breve")** — a API de tips existe e funciona desde a Fase 6, mas a UI não a consome. Loop de monetização quebrado no front~~ ✅ **RESOLVIDO** (PR #41 `feat/tip-on-public-profile`, 16/07/2026) | ~~**P0 de produto:** ligar o modal ao `POST /api/v1/tips` (saldo, erros, sucesso)~~ Feito: `TipModal.vue` posta em `route('tips.send')` |
 | Painel performer (Dashboard) | 7.5 | Cards de saldo/ganhos/seguidores/KYC, empty state de gorjetas, botão live desabilitado com tooltip explicativo | "Ir ao vivo" é CTA morto (streaming é fase futura) no topo da página | Trocar por CTA útil (completar perfil / ver payouts) até o streaming existir |
 | Carteira (Wallet) | 9.0 | Loading por pacote, erro de CPF específico + erro geral, toast de sucesso, labels PT-BR para cada entry_type do ledger | — | Mostrar bônus do pacote com destaque maior |
 | Histórico da carteira | 8.0 | Empty states presentes, labels por tipo | Sem loading state na paginação | Reusar o padrão de skeleton do catálogo |

@@ -211,8 +211,10 @@ verificável, audit log de **leitura**.
 - **`.env.example` induz a SQLite**, mas o projeto é MySQL (§6.4).
 
 ### 4.5 Afirmações de handoffs antigos que hoje são FALSAS
-Não confie sem checar: contagens de teste antigas (**440** hoje), "limen.com.br" (produção é
-**thelimen.com.br**), CLAUDE.md "PHP 8.5" (**8.4.22**) e "Próxima: Fase 8" (entregue). **Ainda
+Não confie sem checar: contagens de teste antigas (**556** em 20/07/2026), "limen.com.br"
+(produção é **thelimen.com.br**). ✅ **CLAUDE.md corrigido em 20/07/2026** (`f0ee686` +
+`c51cee3`): dizia "PHP 8.5" (real **8.4.22**), "Blade + Tailwind" (real Inertia + Vue 3) e
+"Próxima: Fase 8" (entregue). Hoje ele é fonte confiável de stack e estado. **Ainda
 válidas:** ledger append-only; CPF só no checkout e PII isolada; `category` é o mundo (não criar
 `world`); deploy por `reset --hard`; sudoers restrito; idempotência de pagamento por id de evento.
 
