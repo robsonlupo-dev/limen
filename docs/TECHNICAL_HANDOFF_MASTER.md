@@ -23,6 +23,8 @@
   automático funcionando** (push na `main` → testes → deploy SSH). `limen.com.br` reservado para
   produção futura.
 - **Próxima tarefa imediata:** (1) validação manual tela a tela dos FIXes de UX da Fase 12;
+  <!-- Fase 12 = ciclo de FIXes de UX pós-QA (pós Sprint 4, anterior ao Sprint 5).
+       Não é Sprint 12. Numeração local do QA/UX cycle. -->
   (2) rodar a Operação de QA (popular 50 performers + 100 membros e rodar a bateria). Ver
   `docs/QA_HANDOFF_MASTER.md` e `docs/CURRENT_ISSUES_AND_NEXT_ACTIONS.md`.
 
@@ -62,6 +64,8 @@ Locale padrão `pt_BR`.
 
 ### [PENDENTE] — operacional/produção
 - Validação manual tela a tela dos FIXes de UX (Fase 12).
+  <!-- Fase 12 = ciclo de FIXes de UX pós-QA (pós Sprint 4, anterior ao Sprint 5).
+       Não é Sprint 12. Numeração local do QA/UX cycle. -->
 - Operação de QA com massa de teste (50 performers + 100 membros).
 - Scan de CSAM, IP allowlist nos webhooks, HSTS completo em produção (ver Issues).
 

@@ -41,6 +41,8 @@
 - **Arquivos:** `config/ziggy.php`, layouts/componentes Vue que chamam `route()`.
 
 ### P1 — FIXes de UX (Fase 12) sem validação manual tela a tela
+<!-- Fase 12 = ciclo de FIXes de UX pós-QA (pós Sprint 4, anterior ao Sprint 5).
+     Não é Sprint 12. Numeração local do QA/UX cycle. -->
 - **Descrição:** os 8 FIXes foram deployados (entrada Membro/Performer, age gate overlay,
   intro animada, e-mail PT-BR + redirect, esqueci senha, catálogo por mundo, cadastro
   performer, quick wins) mas ainda **não** foram validados um a um em navegador real.
@@ -86,6 +88,8 @@
 3. **Apoiar a validação manual tela a tela** dos FIXes (P1) e consolidar as observações do PO
    num único doc de melhorias.
 4. **Gerar o próximo pacote de FIXes** a partir dessas observações (em lote, como foi a Fase 12).
+  <!-- Fase 12 = ciclo de FIXes de UX pós-QA (pós Sprint 4, anterior ao Sprint 5).
+       Não é Sprint 12. Numeração local do QA/UX cycle. -->
 5. Só depois: avançar para features de DESIGN (feed, conteúdo pago, chat, streaming) conforme
    prioridade do PO.
 
@@ -141,6 +145,8 @@ construídas: feed, conteúdo pago destravável, chat, streaming LiveKit — **n
 nelas.
 
 Estado: os FIXes de UX da Fase 12 estão no ar mas faltam validar tela a tela; e falta rodar a
+<!-- Fase 12 = ciclo de FIXes de UX pós-QA (pós Sprint 4, anterior ao Sprint 5).
+     Não é Sprint 12. Numeração local do QA/UX cycle. -->
 Operação de QA para popular o banco. Armadilhas ativas: (1) HSTS de 1 ano no repo será
 restaurado pelo `reset --hard` — corrigir por ambiente; (2) qualquer rota nova usada no front
 tem de entrar em `config/ziggy.php` senão o site inteiro fica em tela preta; (3) nada de editar

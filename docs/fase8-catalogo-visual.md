@@ -56,6 +56,8 @@ O Catalog.vue já existe como placeholder — vamos substituí-lo.
 - Seção "O que ofereço" (work_modes como badges).
 - CTA "Enviar gorjeta" (abre modal com input de amount — placeholder,
   lógica real na Fase 9).
+  <!-- Fase 9 = ciclo visual pós-catálogo, mesmo contexto: numeração local,
+       não é Sprint 9. -->
 - Indicador "Ao vivo agora" com pulsação dourada se is_live=true.
 
 ## Componentes (resources/js/Components/)

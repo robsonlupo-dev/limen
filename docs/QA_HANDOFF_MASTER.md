@@ -176,6 +176,8 @@ tratar resultados como indicativos, não como capacidade de produção.
 - [ ] Bateria de segurança (IDOR, mass assignment, saldo negativo, webhook forjado) sem falha.
 - [ ] Massa de teste gerada só com Fake + ledger; `TEST_ACCOUNTS.md` documentado.
 - [ ] Validação manual tela a tela dos FIXes da Fase 12 concluída.
+  <!-- Fase 12 = ciclo de FIXes de UX pós-QA (pós Sprint 4, anterior ao Sprint 5).
+       Não é Sprint 12. Numeração local do QA/UX cycle. -->
 - [ ] Nenhum bug reportado em módulo NÃO IMPLEMENTADO (revisar contra a Matriz de Capacidade).
 - [ ] Carga executada com ressalva de ambiente registrada.
 - [ ] Dados sintéticos removidos antes de produção real.
