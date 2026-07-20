@@ -105,10 +105,23 @@ envio vira oráculo para reconstruir a lista que a tela esconde.
 5. Contagem de seguidores é sempre exibida **em faixa**, inclusive para a própria
    performer — faixar só as telas públicas deixaria a correlação de pé.
 
-## Dívida de segurança aberta
-`Membro #12345` (lista de seguidores) ↔ `Fã #2345` (dashboard de gorjetas,
-`consumer_id % 10000`) correlacionam de forma determinística, e a lista de
-gorjetas não passa por piso nenhum. Registro completo em `docs/SECURITY_ISSUES.md`.
+## Pseudônimo do membro — `FanAlias` (fechado no Sprint 6)
+Toda exposição de membro à performer passa por `app/Support/FanAlias.php`:
+pseudônimo derivado por par (performer_profile_id, member_id) com HMAC sobre a
+`APP_KEY`. Antes, `Membro #12345` (seguidores) e `Fã #2345` (gorjetas,
+`consumer_id % 10000`) correlacionavam de forma determinística — a lista de
+gorjetas não passa por piso nenhum, então bastava mandar uma gorjeta.
+
+Duas saídas, e a distinção importa:
+- `for()`/`label()` → 4 dígitos, **exibição**. Colide; nunca use como chave.
+- `handle()` → 16 hex, **identificação**. É o que a tela de Seguidores manda no
+  lugar do `member_id` e o que volta no POST do Interesse, resolvido contra os
+  seguidores listáveis do perfil. Trocar só o rótulo teria sido maquiagem: o id
+  cru continuaria legível nas props do Inertia.
+
+Nova superfície que mostre membro à performer usa `FanAlias`, não o id.
+O id segue sendo a chave interna (ledger, audit log) — isto é apresentação.
+Registro completo em `docs/SECURITY_ISSUES.md`.
 
 ## Limitações do ambiente de dev
 - **Sem `gh` CLI e sem token:** não é possível abrir PR ou issue por código. O

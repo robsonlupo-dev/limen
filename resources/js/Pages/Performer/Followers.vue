@@ -16,27 +16,27 @@ const props = defineProps({
 })
 
 const remaining = ref(props.remainingToday)
-// Envios feitos nesta sessão, por member_id — evita recarregar a página só
+// Envios feitos nesta sessão, por handle — evita recarregar a página só
 // para o botão refletir o estado.
 const justSent = ref({})
-const sendingId = ref(null)
+const sendingHandle = ref(null)
 const errorFor = ref({})
 const toastMessage = ref('')
 
 function alreadySent(follower) {
-    return follower.interest_sent || justSent.value[follower.member_id]
+    return follower.interest_sent || justSent.value[follower.member_handle]
 }
 
 async function sendInterest(follower) {
     if (alreadySent(follower) || remaining.value <= 0) return
 
-    errorFor.value = { ...errorFor.value, [follower.member_id]: '' }
-    sendingId.value = follower.member_id
+    errorFor.value = { ...errorFor.value, [follower.member_handle]: '' }
+    sendingHandle.value = follower.member_handle
 
     try {
-        await postJson(route('performer.interests.send'), { member_id: follower.member_id })
+        await postJson(route('performer.interests.send'), { member_handle: follower.member_handle })
 
-        justSent.value[follower.member_id] = true
+        justSent.value[follower.member_handle] = true
         remaining.value = Math.max(0, remaining.value - 1)
         toastMessage.value = 'Interesse enviado'
         setTimeout(() => (toastMessage.value = ''), 4000)
@@ -46,9 +46,9 @@ async function sendInterest(follower) {
                 ? 'Muitos envios em pouco tempo. Aguarde um instante.'
                 : (error.data?.message ?? 'Não foi possível enviar. Tente novamente.')
 
-        errorFor.value = { ...errorFor.value, [follower.member_id]: message }
+        errorFor.value = { ...errorFor.value, [follower.member_handle]: message }
     } finally {
-        sendingId.value = null
+        sendingHandle.value = null
     }
 }
 </script>
@@ -108,7 +108,7 @@ async function sendInterest(follower) {
 
                 <div
                     v-for="follower in followers.data"
-                    :key="follower.member_id"
+                    :key="follower.member_handle"
                     class="rounded-xl border border-frame bg-surface p-5 flex items-center gap-4"
                 >
                     <div class="h-12 w-12 rounded-full bg-surface-2 border border-frame flex items-center justify-center shrink-0">
@@ -118,8 +118,8 @@ async function sendInterest(follower) {
                     <div class="flex-1 min-w-0 space-y-0.5">
                         <p class="text-cream">{{ follower.label }}</p>
                         <p class="text-xs text-muted">Segue desde {{ follower.following_since }}</p>
-                        <p v-if="errorFor[follower.member_id]" class="text-xs text-danger pt-1">
-                            {{ errorFor[follower.member_id] }}
+                        <p v-if="errorFor[follower.member_handle]" class="text-xs text-danger pt-1">
+                            {{ errorFor[follower.member_handle] }}
                         </p>
                     </div>
 
@@ -134,7 +134,7 @@ async function sendInterest(follower) {
                             v-else
                             variant="primary"
                             size="sm"
-                            :loading="sendingId === follower.member_id"
+                            :loading="sendingHandle === follower.member_handle"
                             :disabled="remaining <= 0"
                             :title="remaining <= 0 ? 'Você atingiu o limite de envios de hoje' : undefined"
                             @click="sendInterest(follower)"

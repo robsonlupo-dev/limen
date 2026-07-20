@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Performer;
 
 use App\Http\Controllers\Controller;
 use App\Models\PerformerInterest;
+use App\Support\FanAlias;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -69,14 +70,16 @@ class SentInterestsController extends Controller
         $dailyLimit = (int) config('interest.daily_limit');
 
         return Inertia::render('Performer/Interests', [
-            'interests' => $interests->through(function (PerformerInterest $interest) use ($unlockedIdsOnPage) {
+            'interests' => $interests->through(function (PerformerInterest $interest) use ($unlockedIdsOnPage, $profile) {
                 $unlocked = $unlockedIdsOnPage->has($interest->id);
 
                 return [
                     'id' => $interest->id,
-                    // Sem member_id: a tela só rotula. A performer já tem o id
-                    // em Seguidores, mas aqui ele não serve a nada.
-                    'label' => 'Membro #' . $interest->member_id,
+                    // Sem member_id nem handle: a tela só rotula, não age sobre
+                    // o membro. O rótulo é o MESMO pseudônimo de Seguidores e do
+                    // dashboard de gorjetas — a performer reconhece a pessoa
+                    // entre as três telas sem que nenhuma delas mostre o id.
+                    'label' => FanAlias::label($profile->id, $interest->member_id, 'Membro #'),
                     'sent_at' => $interest->sent_at->format('d/m/Y'),
                     // Só dois estados saem daqui: 'unlocked' ou 'sent'. Um
                     // suprimido cai em 'sent' (ou em 'unlocked', se tivesse

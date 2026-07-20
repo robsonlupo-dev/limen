@@ -9,6 +9,7 @@ use App\Models\Tip;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Support\FanAlias;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -61,8 +62,11 @@ class DashboardController extends Controller
             ->orderByDesc('created_at')
             ->limit(10)
             ->get(['consumer_id', 'performer_amount', 'created_at'])
+            // Pseudônimo por par (perfil, membro): `consumer_id % 10000` entregava
+            // quatro dígitos do id real, e o mesmo espaço de ids fazia "Fã #2345"
+            // casar com "Membro #12345" da lista de seguidores. Ver FanAlias.
             ->map(fn (Tip $tip) => [
-                'fan' => 'Fã #' . str_pad((string) ($tip->consumer_id % 10000), 4, '0', STR_PAD_LEFT),
+                'fan' => FanAlias::label($profile->id, $tip->consumer_id),
                 'amount' => $tip->performer_amount,
                 'created_at' => $tip->created_at->format('d/m/Y H:i'),
             ])

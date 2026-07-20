@@ -7,6 +7,7 @@ use App\Models\Follow;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Services\FollowerVisibilityService;
+use App\Support\FanAlias;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -19,9 +20,10 @@ use Inertia\Response;
  * porque o membro já se expôs à performer ao segui-la: nenhuma superfície nova
  * de descoberta de membros é criada.
  *
- * Os membros aparecem anonimizados ("Membro #123"). A performer só precisa do
- * id para enviar o interesse, e o id já vai no POST de qualquer forma — nome e
- * e-mail nunca são expostos (CLAUDE.md, princípio 4).
+ * Os membros aparecem sob pseudônimo ("Membro #7351", ver App\Support\FanAlias):
+ * derivado por par (perfil, membro), então não é o id e não correlaciona com o
+ * "Fã #" das gorjetas. Nem o id sai daqui — o que vai para a tela e volta no
+ * POST é o handle opaco. Nome e e-mail nunca são expostos (CLAUDE.md, § 4).
  */
 class FollowersController extends Controller
 {
@@ -77,8 +79,11 @@ class FollowersController extends Controller
 
         return Inertia::render('Performer/Followers', [
             'followers' => $follows->through(fn (Follow $follow) => [
-                'member_id' => $follow->user_id,
-                'label' => 'Membro #' . $follow->user_id,
+                // Handle opaco, não o id: é ele que volta no POST do Interesse.
+                // Trocar só o `label` teria sido maquiagem — o id cru continuaria
+                // legível nas props do Inertia, que é de onde a performer leria.
+                'member_handle' => FanAlias::handle($profile->id, $follow->user_id),
+                'label' => FanAlias::label($profile->id, $follow->user_id, 'Membro #'),
                 'following_since' => $follow->created_at->format('d/m/Y'),
                 'interest_sent' => in_array($follow->user_id, $inCooldown, true),
             ]),
@@ -100,7 +105,7 @@ class FollowersController extends Controller
             'total_followers_label' => PerformerProfile::followersLabelFor($totalFollowers),
             'floor_message' => $belowFloor
                 ? 'Para proteger o anonimato dos membros Limen, a lista de seguidores fica visível a partir de '
-                    . config('interest.anonymity_floor') . ' seguidores.'
+                    .config('interest.anonymity_floor').' seguidores.'
                 : null,
         ]);
     }

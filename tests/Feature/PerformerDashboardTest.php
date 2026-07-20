@@ -6,11 +6,13 @@ use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\TipService;
 use App\Services\TokenService;
+use App\Support\FanAlias;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
-uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -155,7 +157,7 @@ it('remetente anonimizado como Fa #XXXX', function () {
 
     sendDashboardTip($consumer, $profile, 10);
 
-    $expectedFan = 'Fã #' . str_pad((string) ($consumer->id % 10000), 4, '0', STR_PAD_LEFT);
+    $expectedFan = FanAlias::label($profile->id, $consumer->id);
 
     $this->actingAs($performer)
         ->get('/performer/dashboard')
