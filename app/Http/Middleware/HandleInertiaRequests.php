@@ -47,6 +47,9 @@ class HandleInertiaRequests extends Middleware
                 'success' => session('success'),
                 'error' => session('error'),
             ],
+            // Destino da saída rápida (PanicButton). Global porque o botão vive
+            // no layout, não numa página.
+            'panicRedirectUrl' => config('app.panic_redirect_url'),
             'ageConfirmed' => (bool) $request->cookie('limen_age_confirmed'),
             'introSeen' => (bool) $request->cookie('limen_intro_seen'),
         ]);

@@ -4,6 +4,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
+import PanicButton from '@/Components/PanicButton.vue'
 
 defineProps({
     title: String,
@@ -146,6 +147,9 @@ function logout() {
                 </p>
             </div>
         </footer>
+
+        <!-- Saída rápida (todos os tiers) -->
+        <PanicButton />
 
         <!-- Logout confirmation -->
         <Modal :show="showLogoutConfirm" max-width="sm" @close="showLogoutConfirm = false">

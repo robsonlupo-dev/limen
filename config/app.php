@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Panic Redirect URL
+    |--------------------------------------------------------------------------
+    |
+    | Destino da saída rápida (PanicButton). O membro aciona e o navegador vai
+    | embora da Limen na hora. Tem que ser um site neutro e plausível — o padrão
+    | é a busca do Google. Só http(s); o front recusa qualquer outra coisa.
+    |
+    */
+
+    'panic_redirect_url' => env('PANIC_REDIRECT_URL', 'https://www.google.com.br'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |
