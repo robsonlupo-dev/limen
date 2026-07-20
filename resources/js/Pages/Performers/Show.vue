@@ -5,6 +5,7 @@ import GuestLayout from '@/Layouts/GuestLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import TipModal from '@/Components/TipModal.vue'
+import ReportModal from '@/Components/ReportModal.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
@@ -16,6 +17,9 @@ const props = defineProps({
     // com esta performer (a performer mandou Interesse + o membro desbloqueou).
     // Null = guest / performer / membro sem conversa → sem botão de chat aqui.
     chat: { type: Object, default: null },
+    // Alvo da denúncia ({ type, id }) ou null para visitante deslogado — a rota
+    // POST /reportar exige auth.
+    report: { type: Object, default: null },
     meta: { type: Object, default: () => ({ title: 'Limen', description: '' }) },
 })
 
@@ -27,6 +31,7 @@ const page = usePage()
 const canTip = computed(() => page.props.auth?.user?.role === 'consumer')
 
 const showTipModal = ref(false)
+const showReportModal = ref(false)
 
 // Acesso ao chat (só quando há conversa aberta — ver prop `chat`).
 const showChatAccessModal = ref(false)
@@ -222,6 +227,19 @@ const lockedTiles = 6
                         Criar conta
                     </Link>
                 </div>
+
+                <!-- Denúncia: deliberadamente discreto (texto pequeno, cor
+                     neutra, rodapé). Precisa existir e ser achável, não competir
+                     com o conteúdo. Só para quem está logado — ver prop `report`. -->
+                <div v-if="report" class="mb-16 text-center">
+                    <button
+                        type="button"
+                        class="text-xs text-muted/70 underline underline-offset-4 hover:text-muted transition-colors"
+                        @click="showReportModal = true"
+                    >
+                        Denunciar este perfil
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -233,6 +251,14 @@ const lockedTiles = 6
             :performer-slug="performer.slug"
             :performer-name="performer.stage_name"
             @close="showTipModal = false"
+        />
+
+        <ReportModal
+            v-if="report"
+            :show="showReportModal"
+            :reportable-type="report.type"
+            :reportable-id="report.id"
+            @close="showReportModal = false"
         />
 
         <!-- Modal de desbloqueio do chat: só montado quando há conversa sem acesso

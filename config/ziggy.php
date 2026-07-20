@@ -42,6 +42,9 @@ return [
         'consumer.settings',
         'consumer.settings.discrete-mode',
 
+        // Denúncia (compliance)
+        'report.store',
+
         // Performer area (all performer.* web routes)
         'performer.dashboard',
         'performer.onboarding',

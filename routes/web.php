@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\Auth\ForgotPasswordController;
 use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
+use App\Http\Controllers\Web\Admin\ReportAdminController;
 use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\ChatController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
+use App\Http\Controllers\Web\Consumer\ReportController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
@@ -117,6 +119,12 @@ Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')-
 // Admin back-office (auth + admin role).
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/waitlist', [WaitlistAdminController::class, 'index'])->name('admin.waitlist');
+
+    // Fila de moderação das denúncias (conteúdo ilegal, coerção, etc).
+    Route::get('/reports', [ReportAdminController::class, 'index'])->name('admin.reports');
+    Route::patch('/reports/{report}', [ReportAdminController::class, 'update'])
+        ->whereNumber('report')
+        ->name('admin.reports.update');
 });
 
 // Authenticated area
@@ -137,6 +145,20 @@ Route::middleware('auth')->group(function () {
     Route::patch('/preferencias', [UserPreferencesController::class, 'update'])
         ->middleware('throttle:30,1')
         ->name('preferences.update');
+
+    // Denúncia de conteúdo/conduta. Fora de role:consumer de propósito: uma
+    // performer também precisa poder denunciar (impersonation, coerção), e
+    // fechar o canal por papel é fechar a porta de compliance para metade da
+    // base.
+    //
+    // Dois tetos: o por minuto barra o script, e o DIÁRIO barra o flood que a
+    // janela de 24h sozinha não pega — ela é por (alvo, motivo), então com 6
+    // motivos e alvos variados uma conta só geraria milhares de e-mails ao
+    // admin e enterraria uma denúncia real de conteúdo com menor no ruído.
+    // 30/dia é folgado para quem denuncia de boa-fé e caro para quem inunda.
+    Route::post('/reportar', [ReportController::class, 'store'])
+        ->middleware(['throttle:20,1', 'throttle:30,1440'])
+        ->name('report.store');
 
     // Chat pós-desbloqueio de Interesse. Membro e performer compartilham as
     // telas; a ConversationPolicy garante que só participantes entrem. Não há

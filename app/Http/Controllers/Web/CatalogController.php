@@ -88,6 +88,9 @@ class CatalogController extends Controller
 
         return Inertia::render('Catalog/Show', [
             'performer' => $performer,
+            // Alvo da denúncia (ver PublicCatalogController::show). Toda a rota
+            // já está atrás de auth, então não há caso de visitante aqui.
+            'report' => ['type' => 'performer', 'id' => $profile->id],
         ]);
     }
 }

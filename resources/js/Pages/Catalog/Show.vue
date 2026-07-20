@@ -7,9 +7,12 @@ import StarRating from '@/Components/StarRating.vue'
 import FollowButton from '@/Components/FollowButton.vue'
 import Button from '@/Components/Button.vue'
 import TipModal from '@/Components/TipModal.vue'
+import ReportModal from '@/Components/ReportModal.vue'
 
 const props = defineProps({
     performer: { type: Object, required: true },
+    // Alvo da denúncia ({ type, id }). Ver PublicCatalogController::show.
+    report: { type: Object, default: null },
 })
 
 const categoryLabels = {
@@ -29,6 +32,7 @@ const workModeLabels = {
 }
 
 const showTipModal = ref(false)
+const showReportModal = ref(false)
 const tipsCount = ref(props.performer.tips_count)
 
 function onTipSent(data) {
@@ -140,8 +144,27 @@ function onTipSent(data) {
                         </div>
                     </div>
                 </div>
+
+                <!-- Denúncia: discreto de propósito (ver Performers/Show.vue). -->
+                <div v-if="report" class="mb-16 text-center">
+                    <button
+                        type="button"
+                        class="text-xs text-muted/70 underline underline-offset-4 hover:text-muted transition-colors"
+                        @click="showReportModal = true"
+                    >
+                        Denunciar este perfil
+                    </button>
+                </div>
             </div>
         </div>
+
+        <ReportModal
+            v-if="report"
+            :show="showReportModal"
+            :reportable-type="report.type"
+            :reportable-id="report.id"
+            @close="showReportModal = false"
+        />
 
         <!-- Tip modal (componente compartilhado com Performers/Show.vue) -->
         <TipModal
