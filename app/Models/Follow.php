@@ -7,7 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Follow extends Model
 {
-    protected $fillable = ['user_id', 'performer_profile_id'];
+    protected $fillable = ['user_id', 'performer_profile_id', 'discrete_mode'];
+
+    protected function casts(): array
+    {
+        return [
+            'discrete_mode' => 'boolean',
+        ];
+    }
 
     public function user(): BelongsTo
     {

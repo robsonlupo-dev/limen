@@ -8,7 +8,9 @@ const props = defineProps({
     wallet: { type: Number, required: true },
     totalEarned: { type: Number, required: true },
     tips: { type: Array, required: true },
-    followers: { type: Number, required: true },
+    // Faixa ("Menos de 5", "10+", ou o número exato a partir de 500), não Number:
+    // o contador preciso de um perfil pequeno identifica quem seguiu e quando.
+    followers: { type: String, required: true },
     kycStatus: { type: String, required: true },
     isLive: { type: Boolean, required: true },
 })

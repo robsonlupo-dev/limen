@@ -56,7 +56,7 @@ const categoryLabels = {
                 </p>
                 <div class="flex items-center justify-between pt-1">
                     <StarRating :rating="performer.rating_avg" />
-                    <span class="text-xs text-muted">{{ performer.followers_count }} seguidores</span>
+                    <span class="text-xs text-muted">{{ performer.followers_label }} seguidores</span>
                 </div>
             </div>
         </Link>

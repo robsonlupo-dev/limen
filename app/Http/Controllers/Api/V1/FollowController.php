@@ -19,10 +19,15 @@ class FollowController extends Controller
 
         DB::transaction(function () use ($request, $profile) {
             try {
-                $follow = Follow::firstOrCreate([
-                    'user_id'              => $request->user()->id,
-                    'performer_profile_id' => $profile->id,
-                ]);
+                // Espelha o FollowService (caminho web): o follow nasce com o
+                // Modo Discreto do membro.
+                $follow = Follow::firstOrCreate(
+                    [
+                        'user_id'              => $request->user()->id,
+                        'performer_profile_id' => $profile->id,
+                    ],
+                    ['discrete_mode' => (bool) $request->user()->discrete_mode],
+                );
 
                 if ($follow->wasRecentlyCreated) {
                     DB::table('performer_profiles')
@@ -38,7 +43,7 @@ class FollowController extends Controller
 
         return (new FollowResource([
             'following'       => true,
-            'followers_count' => $profile->followers_count,
+            'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
 
@@ -63,7 +68,7 @@ class FollowController extends Controller
 
         return (new FollowResource([
             'following'       => false,
-            'followers_count' => $profile->followers_count,
+            'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
 
@@ -77,7 +82,7 @@ class FollowController extends Controller
 
         return (new FollowResource([
             'following'       => $isFollowing,
-            'followers_count' => $profile->followers_count,
+            'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
 }

@@ -53,7 +53,7 @@ defineProps({
             </p>
             <div class="flex items-center justify-between pt-1">
                 <span class="text-[11px] rounded-full border border-gold/30 text-gold/90 px-2 py-0.5">Verificada</span>
-                <span class="text-xs text-muted">{{ performer.followers_count }} apoiadores</span>
+                <span class="text-xs text-muted">{{ performer.followers_label }} apoiadores</span>
             </div>
         </div>
     </Link>

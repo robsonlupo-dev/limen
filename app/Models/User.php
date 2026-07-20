@@ -40,6 +40,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'last_login_at' => 'datetime',
             'password' => 'hashed',
             'interests_opt_out' => 'boolean',
+            'discrete_mode' => 'boolean',
         ];
     }
 

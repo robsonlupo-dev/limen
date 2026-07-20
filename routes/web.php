@@ -14,6 +14,7 @@ use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
+use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
@@ -82,7 +83,14 @@ Route::get('/performers/{slug}', [PublicCatalogController::class, 'show'])
 // Auth (guest only)
 Route::middleware('guest')->group(function () {
     Route::get('/cadastro', [RegisterController::class, 'create'])->name('register');
-    Route::post('/cadastro', [RegisterController::class, 'store'])->name('register.store');
+    // Throttle não é só anti-força-bruta aqui: o Piso de Anonimato conta
+    // seguidores para decidir se a performer vê a lista, e registro em lote é o
+    // caminho barato para plantar contas e destravá-lo. O corte de idade
+    // encarece a pressa; o throttle encarece o volume. Atende os dois papéis —
+    // a rota é uma só, o papel vem no payload.
+    Route::post('/cadastro', [RegisterController::class, 'store'])
+        ->middleware('throttle:5,1')
+        ->name('register.store');
     Route::get('/login', [LoginController::class, 'create'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:5,1')->name('login.store');
 
@@ -243,6 +251,15 @@ Route::middleware('auth')->group(function () {
         Route::patch('/interesses/opt-out', [ConsumerInterestController::class, 'optOut'])
             ->middleware('throttle:30,1')
             ->name('interests.opt-out');
+
+        // Configurações do membro (hoje: Modo Discreto).
+        Route::get('/configuracoes', [ConsumerPreferencesController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.settings');
+
+        Route::patch('/configuracoes/modo-discreto', [ConsumerPreferencesController::class, 'toggleDiscreteMode'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.settings.discrete-mode');
 
         // Assinaturas (Círculos) — escolha de tier + cartão + cancelamento.
         Route::get('/assinar', [SubscriptionController::class, 'index'])->name('subscribe.index');
