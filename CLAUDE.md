@@ -9,7 +9,7 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 - Redis (via Docker) — cache/filas
 - Front-end: **Inertia + Vue 3 + Tailwind v4** (+ Ziggy para rotas no JS).
   Blade sobrou só no layout raiz. Mudar de stack, só com aprovação do PO.
-- Pagamento: Asaas / PIX (entregue na Fase 3)
+- Pagamento: Asaas / PIX (entregue na fundação)
 - Realtime: Laravel Reverb (chat). O servidor Reverb **ainda não roda** —
   dev/staging usam o driver `log`. Ver `config/broadcasting.php`.
 - Streaming de vídeo (LiveKit): **planejado, nada implementado.** Não há
@@ -37,10 +37,10 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 
 ## Fluxo de trabalho
 - O Product Owner (Robson) abre issues no GitHub para bugs e mudanças.
-- Cada fase termina com: suíte de testes verde + passo de debug + revisão de segurança.
+- Cada sprint termina com: suíte de testes verde + passo de debug + revisão de segurança.
 - Antes de implementar algo sensível (cadastro, KYC, pagamento, payout), rodar o subagente de segurança.
 
-## Modelo de tokens (resumo — implementado na Fase 3)
+## Modelo de tokens (resumo — implementado na fundação)
 - Cliente compra pacotes de tokens via PIX.
 - Cliente gasta tokens (gorjeta, sessão privada).
 - No gasto, a plataforma retém um split por nível do performer; o restante credita o performer.
@@ -56,28 +56,34 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 Receipts, Photo Blur, 2FA de performers, Hard Delete LGPD, fix da correlação
 `Membro #` ↔ `Fã #`).
 
-### Fases entregues
-- Fase 0: fundação do repo + ambiente (MySQL/Docker).
-- Fase 1: modelo de dados + segurança de base (migrations, models, TokenService, seeder).
-- Fase 2: autenticação + cadastro (Sanctum API, register/login/logout/me, email verification, password reset, role middleware, policies, audit log).
-- Fase 3: compra de tokens + Asaas/PIX (cliente mockável, pagamento, webhook idempotente, reconciliação agendada).
-- Fase 4: perfis de performer, catálogo público e sistema de follows.
-- Fase 5: verificação KYC de performers (webhook Didit, resubmissão, documentos criptografados).
-- Fase 6: gorjetas (TipService, split, ledger append-only, idempotência, rate limit 10/min).
-- Fase 7: frontend Inertia + Vue 3 + Tailwind v4 (design system Limen, páginas Landing/Cadastro/Login/VerifyEmail/Catálogo, gate de idade, auth por sessão, Ziggy).
-- Fase 8: catálogo de performers no frontend (público e autenticado).
+> **Numeração — só existe UMA: Sprint.** O trabalho fundacional era numerado por
+> "Fase", e as duas sequências colidiam (a antiga Fase 3 e o Sprint 3 são coisas
+> diferentes). Os rótulos de Fase foram **removidos**: a fundação virou lista por
+> nome, e "Sprint N" agora aponta para uma coisa só. Docs antigos em `docs/`
+> (`fase2-auth-api.md`, `fase4-perfis-catalogo.md`, o roadmap do handoff do
+> Sprint 5) ainda falam em Fase — são históricos, e "Fase N" ali **não** é
+> "Sprint N".
 
-### Entregue depois das fases numeradas (Sprints 1–5)
-- **Waitlist** com double opt-in, drip de nurturing e painel admin.
-- **Círculos** (assinaturas por tier), Founding Members com trial de 7 dias,
-  `ExpireSubscriptions` expirando por `next_due_date`.
-- **Payout** para performers, com porta de saída `needs_review` (alerta + requeue).
-- **Interesse Controlado**: performer sinaliza, membro paga 15 tokens (100%
-  plataforma) para desbloquear. Opt-out mascarado. Ver `docs/INTEREST_SYSTEM_SPEC.md`.
-- **Chat** pós-desbloqueio: janela de acesso paga, soft-delete LGPD.
-- **KYC Didit** real (`x-api-key`, webhook v3 com `X-Signature-V2`).
-- **Piso de Anonimato + Modo Discreto + mitigação de sybil** (§ abaixo).
-- Endurecimento PCI SAQ-D (`docs/PCI_SAQ_D.md`).
+### Entregue — fundação (anterior aos Sprints)
+- Fundação do repo + ambiente (MySQL/Docker).
+- Modelo de dados + segurança de base (migrations, models, TokenService, seeder).
+- Autenticação + cadastro (Sanctum API, register/login/logout/me, email verification, password reset, role middleware, policies, audit log).
+- Compra de tokens + Asaas/PIX (cliente mockável, pagamento, webhook idempotente, reconciliação agendada).
+- Perfis de performer, catálogo público e sistema de follows.
+- Verificação KYC de performers (webhook Didit, resubmissão, documentos criptografados).
+- Gorjetas (TipService, split, ledger append-only, idempotência, rate limit 10/min).
+- Frontend Inertia + Vue 3 + Tailwind v4 (design system Limen, páginas Landing/Cadastro/Login/VerifyEmail/Catálogo, gate de idade, auth por sessão, Ziggy).
+- Catálogo de performers no frontend (público e autenticado).
+
+### Entregue — Sprints
+- **Sprint 1** — fechamento de servidor (ASAAS Fake em staging, `performers:backfill-avatars`, sudoers do vendor).
+- **Sprint 3** — **Interesse Controlado**: performer sinaliza, membro paga 15 tokens (100% plataforma) para desbloquear. Opt-out mascarado. Ver `docs/INTEREST_SYSTEM_SPEC.md`.
+- **Sprint 4** — **Chat** interest-gated em tempo real (Reverb): janela de acesso paga, soft-delete LGPD.
+- **Sprint 5** — KYC Didit real (`x-api-key`, webhook v3 `X-Signature-V2`), PCI SAQ-D (`docs/PCI_SAQ_D.md`), payout com porta de saída `needs_review` (alerta + requeue), trial de 7 dias dos Founding Members, `ExpireSubscriptions` por `next_due_date`, **Piso de Anonimato + Modo Discreto + mitigação de sybil** (§ abaixo).
+- Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
+
+> **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
+> Não é lacuna de documentação a preencher — é como o histórico ficou.
 
 ## Privacidade do membro — decisões locked (não rediscutir sem o PO)
 Regra central do produto, não detalhe de implementação. Fonte única:
