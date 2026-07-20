@@ -13,6 +13,7 @@ function validateRegistration(array $overrides = []): \Illuminate\Validation\Val
         'password' => 'Password1',
         'password_confirmation' => 'Password1',
         'birthdate' => now()->subYears(20)->format('Y-m-d'),
+        'cpf' => '529.982.247-25',
         'accept_terms' => true,
         'lgpd_consent' => true,
         'terms_version' => '1.0',

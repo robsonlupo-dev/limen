@@ -26,6 +26,7 @@ const form = useForm({
     password: '',
     password_confirmation: '',
     birthdate: '',
+    cpf: '',
     accept_terms: false,
     lgpd_consent: false,
     // performer
@@ -37,7 +38,9 @@ const form = useForm({
 
 function submit() {
     form.post(route('register.store'), {
-        onFinish: () => form.reset('password', 'password_confirmation'),
+        // O CPF também sai do form após o submit: ele não é persistido no
+        // servidor, então não faz sentido continuar vivo no state do cliente.
+        onFinish: () => form.reset('password', 'password_confirmation', 'cpf'),
     })
 }
 </script>
@@ -115,6 +118,24 @@ function submit() {
                             :required="true"
                             :error="form.errors.birthdate"
                         />
+
+                        <!-- Membro: CPF exigido pelo ECA Digital. Validado no
+                             servidor e descartado — nunca é gravado. -->
+                        <div v-if="!isPerformer">
+                            <Input
+                                id="cpf"
+                                v-model="form.cpf"
+                                label="CPF"
+                                type="text"
+                                placeholder="000.000.000-00"
+                                autocomplete="off"
+                                :required="true"
+                                :error="form.errors.cpf"
+                            />
+                            <p v-if="!form.errors.cpf" class="mt-1 text-xs text-muted">
+                                Usado só para confirmar sua maioridade. Não armazenamos seu CPF.
+                            </p>
+                        </div>
 
                         <!-- Performer: stage name -->
                         <Input

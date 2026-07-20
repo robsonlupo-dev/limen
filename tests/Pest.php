@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\IdentityVerification;
+use App\Models\PerformerProfile;
 use App\Models\User;
+use App\Support\FanAlias;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -48,6 +50,24 @@ expect()->extend('toBeOne', function () {
 */
 
 /**
+ * Corpo do POST de Interesse Controlado.
+ *
+ * O endpoint recebe o handle opaco (App\Support\FanAlias), não o id do membro —
+ * é o mesmo valor que a tela de Seguidores entrega. Aceita um id cru para os
+ * testes que provam que um alvo inválido é indistinguível de um inexistente:
+ * ali o ponto é justamente montar um handle que não resolve.
+ */
+function interestPayload(PerformerProfile $profile, User|int $member): array
+{
+    return [
+        'member_handle' => FanAlias::handle(
+            $profile->id,
+            $member instanceof User ? $member->id : $member
+        ),
+    ];
+}
+
+/**
  * Persists a pending performer + KYC verification keyed on a Didit session ref,
  * so webhook tests have a row to transition. Shared across the KYC test files.
  */
@@ -56,7 +76,7 @@ function makePendingVerification(string $reference): IdentityVerification
     $user = User::factory()->create(['role' => 'performer', 'status' => 'pending']);
     $user->performerProfile()->create([
         'stage_name' => 'Didit Performer',
-        'slug' => 'didit-' . strtolower(Str::random(6)),
+        'slug' => 'didit-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => false,
     ]);

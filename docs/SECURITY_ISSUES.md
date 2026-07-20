@@ -7,62 +7,160 @@ issue existir, deixando o link no lugar.
 
 ---
 
-## Issue: Correlação de pseudônimos Membro # ↔ Fã #
+## RESOLVIDO — Correlação de pseudônimos Membro # ↔ Fã #
 
-**Severidade:** 🟡 Médio-Alto
-**Componente:** DashboardController.php:65 + FollowersController
-**Branch:** main (pré-existente, não introduzido pela feat/anonymity-floor)
+**Severidade:** 🟡 Médio-Alto · **Fechado no Sprint 6** · Não abrir issue.
 
-**Descrição:**
-O dashboard de gorjetas da performer exibe o remetente como
-`'Fã #' . ($tip->consumer_id % 10000)`, enquanto a lista de seguidores
-exibe `'Membro #' . $user_id`.
+`'Fã #' . (consumer_id % 10000)` no dashboard de gorjetas e `'Membro #' . user_id`
+na lista de seguidores viviam no mesmo espaço de ids, então Membro #12345 era
+Fã #2345. Um membro abaixo do piso, ou em Modo Discreto, que mandasse uma gorjeta
+entregava quatro dígitos do próprio id — e a lista de gorjetas não passa por piso
+nenhum.
 
-Como ambos usam o mesmo espaço de ID (`user_id`), a correlação é
-determinística:
-- Membro #12345 na lista de seguidores
-- Fã #2345 no dashboard de gorjetas (12345 % 10000 = 2345)
+**Como ficou:** `app/Support/FanAlias.php`. Pseudônimo derivado por PAR
+(performer_profile_id, member_id) via HMAC-SHA256 com a `APP_KEY` — o mesmo
+membro é um número diferente para cada performer, e o alias não volta a ser id.
+Fonte única das três telas (dashboard de gorjetas, seguidores, interesses
+enviados), então elas continuam concordando entre si sem concordar com o id.
 
-Um membro abaixo do piso de anonimato que envia uma gorjeta
-entrega 4 dígitos do próprio ID, permitindo correlação cruzada.
-A lista de gorjetas não passa por nenhum piso de anonimato.
+Respondendo aos pré-requisitos que esta seção deixou em aberto:
 
-**Impacto:**
-Membro discreto (Black/FC com Modo Discreto ativo) ou membro
-abaixo do piso pode ser identificado pela performer ao combinar
-os dois pseudônimos.
+- **Estável, não rotativo.** A performer precisa reconhecer "o Fã #0042 de
+  sempre" entre gorjetas — ela consegue contar quantas gorjetas ele mandou, e
+  isso é o produto. Decisão do PO no Sprint 6.
+- **Formato mantido em 4 dígitos** (não os 4 alfanuméricos propostos aqui): a
+  tela não muda de cara. Consequência aceita: com poucas centenas de seguidores
+  dois membros podem cair no mesmo rótulo. A UI **não** trata o alias como chave.
+- **Chave é a `APP_KEY`**, que já mora no `.env` e nunca é versionada (CLAUDE.md
+  § 5) — não foi criado salt novo. Rotacionar a `APP_KEY` rotaciona todos os
+  pseudônimos: a performer perde o histórico, nada quebra.
+- **O `member_id` cru NÃO trafega mais no POST.** Esta seção previa que ele
+  continuaria (`SendInterestRequest`), e é por isso que a troca não podia ser só
+  de exibição: com o id nas props do Inertia, o alias seria maquiagem — bastava
+  ler o payload. A lista de seguidores agora manda `member_handle` (HMAC truncado
+  em 16 hex) e o `SendInterestRequest` resolve handle→membro varrendo os
+  seguidores listáveis do perfil. Efeito colateral bom: adivinhar handle é
+  inviável, enquanto varrer ids era trivial — mas o Piso de Anonimato continua
+  sendo a barreira de autorização, não a obscuridade do handle.
 
-**Mitigação proposta:**
-Substituir `consumer_id % 10000` por um identificador opaco e
-estável por performer — ex: `hash(consumer_id + performer_id + salt)`
-truncado para 4 caracteres alfanuméricos. Isso garante que o mesmo
-membro apareça com pseudônimos diferentes para performers diferentes,
-impossibilitando correlação cruzada.
+**Não mudou:** ledger (`reference_id` segue sendo o user_id), audit log e
+qualquer coisa interna. Isto é camada de apresentação.
 
-**Pré-requisito:** Decidir se o pseudônimo deve ser estável
-(mesmo membro sempre é "Fã #AB3F" para a mesma performer)
-ou rotativo (muda a cada gorjeta).
+**Cobertura:** `tests/Unit/FanAliasTest.php` (determinismo, faixa, não-correlação
+entre performers, alias ≠ id, resolução do handle restrita aos candidatos,
+rotação de APP_KEY).
 
-**Sprint sugerido:** Sprint 6
+---
 
-### Notas de implementação (levantadas na revisão)
+## Age Verification — nível atual e limitações conhecidas
 
-- **4 caracteres alfanuméricos são ~1,68M combinações, mas o espaço que importa
-  é o de seguidores da performer.** Com poucas centenas de membros a colisão é
-  rara; o ponto do truncamento é impedir a correlação, não garantir unicidade.
-  A UI não deve tratar o pseudônimo como chave.
-- **O salt precisa sair do `.env`** (nunca versionado, ver CLAUDE.md §5). Trocar
-  o salt rotaciona todos os pseudônimos de uma vez — aceitável, mas quebra o
-  histórico que a performer via.
-- **Se o pseudônimo for estável, ele é um identificador persistente por
-  performer:** ela consegue contar "quantas gorjetas o Fã #AB3F já mandou". Isso
-  provavelmente é desejável (é o produto), mas é uma decisão de privacidade, não
-  só de implementação — é o que o pré-requisito acima está perguntando.
-- **`Membro #` na lista de seguidores tem o mesmo problema de fundo:** expõe o
-  `user_id` cru. Trocar só o lado das gorjetas fecha a correlação entre as duas
-  telas, mas o `user_id` continua vazando pela lista de seguidores para qualquer
-  outra superfície futura que use o mesmo espaço. Vale considerar o pseudônimo
-  opaco como padrão de toda exposição de membro à performer.
-- **O `member_id` cru ainda precisa trafegar no POST do Interesse Controlado**
-  (`SendInterestRequest`), então a troca é de exibição — o mapeamento
-  pseudônimo→id fica no servidor.
+**Implementado em:** 20/07/2026 · **Branch:** `age-verification`
+(migration `2026_07_20_100001_create_age_verifications_table`)
+**Status:** 🟠 PARCIAL — suficiente para documentar esforço, insuficiente para
+auditoria robusta. Não é issue a abrir: é registro de escopo, para que ninguém
+(nós inclusive) descreva este controle como mais forte do que ele é.
+
+Contexto: o `limen_age_confirmed` é gate de navegação pública, não verificação —
+o 18+ de cadastro já era server-side via `birthdate` antes desta entrega. O que
+mudou é a coleta de CPF e o registro auditável.
+
+### O que está implementado
+
+- CPF estruturalmente validado (dígitos verificadores, `app/Rules/CpfValido.php`).
+- Data de nascimento autodeclarada, `>= 18` anos, rejeitada no dia anterior ao
+  aniversário (o corte é hoje, não o ano).
+- **CPF nunca persistido** — só o HMAC-SHA256 com a `APP_KEY`
+  (`app/Support/CpfHash.php`), gravado em `age_verifications.cpf_hmac`.
+- `method = 'cpf_dob'` distingue este nível de verificações futuras.
+- `cpf_hmac` indexado, **não** unique: detecta conta duplicada, não bloqueia —
+  bloquear é decisão de produto ainda em aberto.
+
+### O que NÃO está implementado
+
+- Consulta a base oficial (Serpro/DataValid) — prevista para o Sprint 7.
+- Prova de que o CPF pertence a quem se cadastrou.
+- Prova de que a data de nascimento confere com o documento.
+
+Consequência prática: o algoritmo do CPF é público e gerador de CPF válido é
+resultado de primeira página de busca. O registro prova que **um CPF
+estruturalmente válido foi digitado**, não que a pessoa tem 18 anos.
+
+### Redação defensável para auditoria
+
+> "CPF estruturalmente validado + data de nascimento autodeclarada; consulta a
+> base oficial prevista para o Sprint 7 (`method = 'cpf_dob'`)."
+
+**NÃO** descrever para auditores como "verificação de CPF" sem essa ressalva —
+descreveria algo mais forte do que o sistema faz hoje, e uma ressalva ausente
+custa mais numa auditoria do que o controle fraco em si.
+
+### Decisões de design
+
+- **`users.age_verified_at` NÃO é marcado no cadastro de membro.** Aquela coluna
+  é escrita só pelo `KycService`, quando um documento passou por provedor
+  (Didit). Marcá-la também aqui faria qualquer `whereNotNull` tratar declaração
+  como documento conferido — os dois níveis viram um bool indistinguível no
+  dossiê. O sinal do membro mora em `age_verifications.method`.
+- **Quando o Serpro entrar**, gravar `method = 'serpro'` na mesma tabela permite
+  distinguir os dois níveis retroativamente, em vez de reescrever histórico.
+- **HMAC, não hash puro:** o espaço de CPF (10¹¹) é enumerável em GPU. A chave é
+  a `APP_KEY`, fora do Git, então um dump de banco isolado não permite a
+  varredura. Vazando `APP_KEY` **e** banco, os CPFs são recuperáveis por força
+  bruta — o modelo de ameaça aqui é dump de banco sozinho.
+- **Performer não informa CPF no cadastro:** já entrega no KYC com documento e
+  selfie; pedir duas vezes duplicaria coleta de PII sem ganho.
+
+**Cobertura:** `tests/Feature/MemberAgeVerificationTest.php` — CPF inválido e
+ausente rejeitados, menor de idade rejeitado (inclusive na véspera do
+aniversário), caminho feliz, `age_verified_at` nulo, dedupe por HMAC, e uma
+varredura de todas as colunas de texto de todas as tabelas confirmando que os
+dígitos do CPF não sobraram em lugar nenhum.
+
+---
+
+## Aceite de documentos — IP em claro no `audit_logs`
+
+**Severidade:** 🟢 Baixo · Registro de escopo, não bug. Abrir issue só se o PO
+quiser fechar a lacuna.
+
+`document_acceptances` guarda IP e user-agent como HMAC da `APP_KEY` (ver
+`app/Support/ClientFingerprint.php`): nenhuma coluna crua, o valor não é
+recuperável a partir de um dump do banco.
+
+Mas o mesmo evento chama `Audit::log('performer_documents_accepted', ...)`, e
+`app/Support/Audit.php` grava `'ip' => $request->ip()` **em texto puro**. Pelo
+`user_id` os dois lados se correlacionam, então na prática o IP do aceite existe
+em claro na tabela ao lado. A propriedade defendida na migration vale para
+`document_acceptances`, não para o dossiê inteiro.
+
+Não é regressão desta entrega — é o comportamento do `Audit` desde a fundação, e
+o audit log tem justamente a função de guardar rastro. O que não pode é a
+documentação prometer mais do que o sistema entrega.
+
+**Saídas possíveis:** (a) hashear o IP também no `Audit` — mas aí todo o audit
+log perde a leitura direta que o torna útil numa investigação; (b) política de
+retenção que expurgue `audit_logs.ip` depois de N meses; (c) aceitar e declarar.
+Decisão do PO.
+
+### O que ESTÁ implementado no aceite
+
+- Tabela `document_acceptances` append-only (o model recusa `update`), uma linha
+  por (usuário, documento, versão), com unique que torna re-submeter idempotente.
+- Versão vigente em `config/documents.php`; bumpar força re-aceite de todas as
+  performers. A versão **nunca** vem do request.
+- Middleware `documents.accepted` nas duas portas de auth: web (redirect) e API
+  Sanctum (403 JSON). Ignora quem não é performer.
+- Textos em `/politica-de-conteudo` e `/contrato-de-performance`, públicos.
+
+### O que NÃO está implementado
+
+- **O texto jurídico.** As duas páginas servem
+  `[CONTEÚDO JURÍDICO — aguardando Opice Blum]`. O aceite registrado hoje aponta
+  para a versão `2026-07-20`, que é placeholder: **não descrever para auditoria
+  como "contrato aceito"** enquanto o texto não for o definitivo. Quando chegar,
+  bumpar a versão no config é o que transforma o aceite em evidência real.
+- Sem re-aceite periódico por tempo (só por mudança de versão).
+- Sem trilha de recusa: quem não aceita simplesmente não passa, e não fica
+  registrado que recusou.
+
+**Cobertura:** `tests/Feature/PerformerDocumentAcceptanceTest.php` — 27 testes.

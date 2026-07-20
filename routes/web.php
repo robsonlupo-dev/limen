@@ -21,10 +21,12 @@ use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\LandingController;
+use App\Http\Controllers\Web\LegalDocumentsController;
 use App\Http\Controllers\Web\LinksController;
 use App\Http\Controllers\Web\UserPreferencesController;
 use App\Http\Controllers\Web\WaitlistController;
 use App\Http\Controllers\Web\Performer\DashboardController;
+use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
@@ -69,6 +71,15 @@ Route::get('/waitlist/cancelar', [WaitlistController::class, 'confirmUnsubscribe
 Route::post('/waitlist/cancelar', [WaitlistController::class, 'unsubscribe'])
     ->middleware('throttle:10,1')
     ->name('waitlist.unsubscribe.confirm');
+
+// Textos jurídicos aceitos pela performer no cadastro. Públicos: o contrato
+// precisa ser legível ANTES de existir conta e continuar acessível depois.
+Route::get('/politica-de-conteudo', [LegalDocumentsController::class, 'contentPolicy'])
+    ->middleware('throttle:60,1')
+    ->name('legal.content-policy');
+Route::get('/contrato-de-performance', [LegalDocumentsController::class, 'performanceContract'])
+    ->middleware('throttle:60,1')
+    ->name('legal.performance-contract');
 
 // Public performer catalog (no auth — SEO/marketing surface). Separate from the
 // authenticated /catalogo experience; interaction actions route to signup.
@@ -130,17 +141,22 @@ Route::middleware('auth')->group(function () {
     // Chat pós-desbloqueio de Interesse. Membro e performer compartilham as
     // telas; a ConversationPolicy garante que só participantes entrem. Não há
     // rota de abertura pelo membro — o canal nasce no desbloqueio.
+    // As telas de chat são compartilhadas, então o `documents.accepted` entra
+    // rota a rota e não no grupo: ele ignora quem não é performer, logo o
+    // membro passa igual. Sem isso a performer sem aceite continuaria
+    // conversando por um canal já aberto — a superfície que a Política de
+    // Conteúdo Proibido justamente governa.
     Route::get('/chat', [ChatController::class, 'index'])
-        ->middleware('throttle:60,1')
+        ->middleware(['throttle:60,1', 'documents.accepted'])
         ->name('chat.index');
 
     Route::get('/chat/{conversation}', [ChatController::class, 'show'])
-        ->middleware('throttle:60,1')
+        ->middleware(['throttle:60,1', 'documents.accepted'])
         ->whereNumber('conversation')
         ->name('chat.show');
 
     Route::post('/chat/{conversation}/mensagens', [ChatController::class, 'storeMessage'])
-        ->middleware('throttle:30,1')
+        ->middleware(['throttle:30,1', 'documents.accepted'])
         ->whereNumber('conversation')
         ->name('chat.messages.store');
 
@@ -155,6 +171,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/chat/interesse/{interest}/mensagem', [ChatController::class, 'performerStart'])
         ->middleware('throttle:10,1')
         ->whereNumber('interest')
+        ->middleware('documents.accepted')
         ->can('performer-active')
         ->name('chat.performer.start');
 
@@ -163,71 +180,87 @@ Route::middleware('auth')->group(function () {
         Route::delete('/catalogo/{slug}/seguir', [FollowController::class, 'destroy'])->name('catalog.unfollow');
     });
 
-    // Performer onboarding — available to pending performers (before KYC/active).
-    Route::middleware('role:performer')->group(function () {
-        Route::get('/performer/onboarding', [OnboardingController::class, 'index'])->name('performer.onboarding');
-        Route::post('/performer/onboarding/perfil', [OnboardingController::class, 'updateProfile'])->name('performer.onboarding.profile');
-        Route::post('/performer/onboarding/foto', [OnboardingController::class, 'avatar'])
-            ->middleware('throttle:20,1')
-            ->name('performer.onboarding.avatar');
+    // Aceite dos documentos (Política de Conteúdo Proibido + Contrato de
+    // Performance). FORA do grupo `documents.accepted` de propósito: é o destino
+    // do redirect daquele middleware, e gatear a própria tela de saída daria
+    // loop. Vale para performer pendente também — o aceite não espera o KYC.
+    Route::middleware(['role:performer', 'throttle:60,1'])->group(function () {
+        Route::get('/performer/aceitar-documentos', [DocumentAcceptanceController::class, 'index'])
+            ->name('performer.documents');
+        Route::post('/performer/aceitar-documentos', [DocumentAcceptanceController::class, 'store'])
+            ->name('performer.documents.accept');
     });
 
-    // Edição de perfil da performer já ativa. O onboarding continua sendo o
-    // caminho de quem ainda não entrou.
-    Route::get('/performer/perfil', [PerformerProfileController::class, 'edit'])
-        ->middleware('throttle:60,1')
-        ->name('performer.profile.edit')
-        ->can('performer-active');
+    // Tudo que a performer faz na plataforma passa pelo aceite vigente. O
+    // middleware ignora quem não é performer, então membro/admin que caia numa
+    // destas rotas continua barrado pelo role/gate de sempre, não por aqui.
+    Route::middleware('documents.accepted')->group(function () {
+        // Performer onboarding — available to pending performers (before KYC/active).
+        Route::middleware('role:performer')->group(function () {
+            Route::get('/performer/onboarding', [OnboardingController::class, 'index'])->name('performer.onboarding');
+            Route::post('/performer/onboarding/perfil', [OnboardingController::class, 'updateProfile'])->name('performer.onboarding.profile');
+            Route::post('/performer/onboarding/foto', [OnboardingController::class, 'avatar'])
+                ->middleware('throttle:20,1')
+                ->name('performer.onboarding.avatar');
+        });
 
-    // Nomes distintos dos da API de propósito: 'performer.profile.update' e
-    // 'performer.profile.avatar' já existem em routes/api.php. Nome repetido não
-    // dá erro — o último registrado vence no lookup, e route() no front passaria
-    // a apontar para a API (405, verbo diferente). Ver RouteNameCollisionTest.
-    Route::post('/performer/perfil', [PerformerProfileController::class, 'update'])
-        ->middleware('throttle:30,1')
-        ->name('performer.profile.save')
-        ->can('performer-active');
+        // Edição de perfil da performer já ativa. O onboarding continua sendo o
+        // caminho de quem ainda não entrou.
+        Route::get('/performer/perfil', [PerformerProfileController::class, 'edit'])
+            ->middleware('throttle:60,1')
+            ->name('performer.profile.edit')
+            ->can('performer-active');
 
-    Route::post('/performer/perfil/foto', [PerformerProfileController::class, 'avatar'])
-        ->middleware('throttle:20,1')
-        ->name('performer.profile.photo')
-        ->can('performer-active');
+        // Nomes distintos dos da API de propósito: 'performer.profile.update' e
+        // 'performer.profile.avatar' já existem em routes/api.php. Nome repetido não
+        // dá erro — o último registrado vence no lookup, e route() no front passaria
+        // a apontar para a API (405, verbo diferente). Ver RouteNameCollisionTest.
+        Route::post('/performer/perfil', [PerformerProfileController::class, 'update'])
+            ->middleware('throttle:30,1')
+            ->name('performer.profile.save')
+            ->can('performer-active');
 
-    Route::get('/performer/dashboard', [DashboardController::class, 'index'])
-        ->name('performer.dashboard')
-        ->can('performer-active');
+        Route::post('/performer/perfil/foto', [PerformerProfileController::class, 'avatar'])
+            ->middleware('throttle:20,1')
+            ->name('performer.profile.photo')
+            ->can('performer-active');
 
-    // Origem do envio de Interesse Controlado: a performer escolhe entre quem
-    // já a segue. Ver Web\Performer\FollowersController.
-    Route::get('/performer/seguidores', [FollowersController::class, 'index'])
-        ->middleware('throttle:60,1')
-        ->name('performer.followers')
-        ->can('performer-active');
+        Route::get('/performer/dashboard', [DashboardController::class, 'index'])
+            ->name('performer.dashboard')
+            ->can('performer-active');
 
-    Route::get('/performer/payouts', [PayoutController::class, 'index'])
-        ->name('performer.payouts.index')
-        ->can('performer-active');
+        // Origem do envio de Interesse Controlado: a performer escolhe entre quem
+        // já a segue. Ver Web\Performer\FollowersController.
+        Route::get('/performer/seguidores', [FollowersController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('performer.followers')
+            ->can('performer-active');
 
-    Route::get('/performer/payouts/history', [PayoutController::class, 'history'])
-        ->name('performer.payouts.history')
-        ->can('performer-active');
+        Route::get('/performer/payouts', [PayoutController::class, 'index'])
+            ->name('performer.payouts.index')
+            ->can('performer-active');
 
-    Route::post('/performer/payouts', [PayoutController::class, 'store'])
-        ->middleware('throttle:10,1')
-        ->name('performer.payouts.store')
-        ->can('performer-active');
+        Route::get('/performer/payouts/history', [PayoutController::class, 'history'])
+            ->name('performer.payouts.history')
+            ->can('performer-active');
 
-    // Interesse Controlado — a performer ativa sinaliza interesse em um membro.
-    Route::post('/performer/interesses', [PerformerInterestController::class, 'store'])
-        ->middleware('throttle:10,1')
-        ->name('performer.interests.send')
-        ->can('performer-active');
+        Route::post('/performer/payouts', [PayoutController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('performer.payouts.store')
+            ->can('performer-active');
 
-    // Histórico dos envios desta performer (para quem, quem revelou, cota do dia).
-    Route::get('/performer/interesses', [SentInterestsController::class, 'index'])
-        ->middleware('throttle:60,1')
-        ->name('performer.interests.index')
-        ->can('performer-active');
+        // Interesse Controlado — a performer ativa sinaliza interesse em um membro.
+        Route::post('/performer/interesses', [PerformerInterestController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('performer.interests.send')
+            ->can('performer-active');
+
+        // Histórico dos envios desta performer (para quem, quem revelou, cota do dia).
+        Route::get('/performer/interesses', [SentInterestsController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('performer.interests.index')
+            ->can('performer-active');
+    });
 
     Route::middleware(['role:consumer'])->group(function () {
         // Home da área logada do membro.

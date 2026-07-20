@@ -5,6 +5,7 @@ use App\Models\PerformerProfile;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\FollowService;
+use App\Support\FanAlias;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -16,8 +17,8 @@ function floorPerformer(): PerformerProfile
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create([
-        'stage_name' => 'Perf ' . Str::random(4),
-        'slug' => 'perf-' . strtolower(Str::random(6)),
+        'stage_name' => 'Perf '.Str::random(4),
+        'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
         'level' => 'iniciante',
@@ -109,7 +110,7 @@ it('a partir do piso a lista aparece, anonimizada', function () {
     );
 
     // Continua sem PII: só "Membro #id".
-    $response->assertSee('Membro #' . $members[0]->id, false);
+    $response->assertSee(FanAlias::label($profile->id, $members[0]->id, 'Membro #'), false);
     expect($response->getContent())->not->toContain($members[0]->email);
 });
 
@@ -122,7 +123,7 @@ it('nenhum id vaza no payload quando esta abaixo do piso', function () {
     // O ponto do piso: o id não pode estar em lugar nenhum da resposta, nem
     // escondido num campo que a UI não usa.
     foreach ($members as $member) {
-        expect($response->getContent())->not->toContain('Membro #' . $member->id);
+        expect($response->getContent())->not->toContain(FanAlias::label($profile->id, $member->id, 'Membro #'));
     }
 });
 
@@ -211,7 +212,7 @@ it('conta nova aparece na lista quando o piso foi atingido por contas antigas', 
     $response = followersPage($profile);
 
     $response->assertInertia(fn (Assert $page) => $page->where('below_floor', false));
-    expect($response->getContent())->toContain('Membro #' . $novato->id);
+    expect($response->getContent())->toContain(FanAlias::label($profile->id, $novato->id, 'Membro #'));
 });
 
 it('conta nova nao empurra o piso: some ao envelhecer o resto', function () {
@@ -233,7 +234,7 @@ it('performer nao envia Interesse enquanto o piso so tem contas novas', function
     // 404-vs-201 reconstruiria a lista que a tela esconde.
     foreach ($sybils as $sybil) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $sybil->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $sybil->id))
             ->assertNotFound();
     }
 });
@@ -311,7 +312,7 @@ it('nao verificada aparece na lista quando o piso foi atingido por verificadas',
     $response = followersPage($profile);
 
     $response->assertInertia(fn (Assert $page) => $page->where('below_floor', false));
-    expect($response->getContent())->toContain('Membro #' . $naoVerificada->id);
+    expect($response->getContent())->toContain(FanAlias::label($profile->id, $naoVerificada->id, 'Membro #'));
 });
 
 it('os dois cortes sao independentes: antiga+nao verificada e nova+verificada nao somam', function () {
@@ -334,7 +335,7 @@ it('performer nao envia Interesse a seguidor de conta nao verificada abaixo do p
     // Tela e envio precisam concordar, senão o 404-vs-201 reconstrói a lista.
     foreach ($naoVerificadas as $membro) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $membro->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $membro->id))
             ->assertNotFound();
     }
 });
@@ -345,7 +346,7 @@ it('cadastro web devolve 429 depois de 5 tentativas no mesmo minuto', function (
     // Registro em lote é o caminho barato para plantar contas e destravar o
     // piso. O corte de idade encarece a pressa; o throttle encarece o volume.
     $payload = fn (int $i) => [
-        'name' => 'Sybil ' . $i,
+        'name' => 'Sybil '.$i,
         'email' => "sybil{$i}@example.com",
         'password' => 'Password1',
         'password_confirmation' => 'Password1',
@@ -396,9 +397,9 @@ it('membro discreto conta para o total mas nao aparece na lista', function () {
     );
 
     foreach ($hidden as $member) {
-        expect($response->getContent())->not->toContain('Membro #' . $member->id);
+        expect($response->getContent())->not->toContain(FanAlias::label($profile->id, $member->id, 'Membro #'));
     }
-    expect($response->getContent())->toContain('Membro #' . $visible[0]->id);
+    expect($response->getContent())->toContain(FanAlias::label($profile->id, $visible[0]->id, 'Membro #'));
 });
 
 it('discreto conta para o total mas nao substitui um visivel', function () {
@@ -442,7 +443,7 @@ it('divergencia entre a flag do follow e a do usuario esconde o membro', functio
 
     $response = followersPage($profile);
 
-    expect($response->getContent())->not->toContain('Membro #' . $drifted->id);
+    expect($response->getContent())->not->toContain(FanAlias::label($profile->id, $drifted->id, 'Membro #'));
 });
 
 // ─── Toggle do Modo Discreto ─────────────────────────────────────────────────
@@ -683,7 +684,7 @@ it('performer nao envia Interesse a membro em Modo Discreto', function () {
     // Ele não está na lista; mandar o id na mão tem de ser indistinguível de um
     // id que não existe, senão o envio vira oráculo do Modo Discreto.
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $discrete->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $discrete->id))
         ->assertNotFound();
 });
 
@@ -695,7 +696,7 @@ it('abaixo do piso a performer nao envia Interesse a ninguem', function () {
     // tela esconde — o piso viraria decoração.
     foreach ($members as $member) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
             ->assertNotFound();
     }
 });
@@ -803,7 +804,7 @@ it('membro que ativa o modo some da lista de quem ele ja seguia', function () {
     Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
 
     // Antes: aparece (6 seguidores, acima do piso).
-    expect(followersPage($profile)->getContent())->toContain('Membro #' . $member->id);
+    expect(followersPage($profile)->getContent())->toContain(FanAlias::label($profile->id, $member->id, 'Membro #'));
 
     $this->actingAs($member, 'sanctum')
         ->patchJson(route('consumer.preferences.discrete-mode'))
@@ -811,7 +812,7 @@ it('membro que ativa o modo some da lista de quem ele ja seguia', function () {
 
     // Depois: sumiu da lista, mas continua contando para o piso.
     $response = followersPage($profile);
-    expect($response->getContent())->not->toContain('Membro #' . $member->id);
+    expect($response->getContent())->not->toContain(FanAlias::label($profile->id, $member->id, 'Membro #'));
     $response->assertInertia(fn (Assert $page) => $page
         ->where('total_followers_label', '5+')
         ->has('followers.data', 5)

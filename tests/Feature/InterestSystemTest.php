@@ -9,6 +9,7 @@ use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\InterestService;
 use App\Services\TokenService;
+use App\Support\FanAlias;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -72,8 +73,8 @@ function interestPerformer(): PerformerProfile
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create([
-        'stage_name' => 'Perf ' . Str::random(4),
-        'slug' => 'perf-' . strtolower(Str::random(6)),
+        'stage_name' => 'Perf '.Str::random(4),
+        'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
         'level' => 'iniciante',
@@ -89,7 +90,7 @@ it('lets an active performer send a binary interest without revealing or chargin
     $member = interestFollower($profile);
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
         ->assertCreated()
         ->assertExactJson(['sent' => true]);
 
@@ -225,11 +226,11 @@ it('blocks a second send to the same member within the cooldown window', functio
     $member = interestFollower($profile);
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
         ->assertCreated();
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
         ->assertUnprocessable()
         ->assertJsonPath('reason', 'cooldown');
 
@@ -246,13 +247,13 @@ it('enforces the daily send limit per performer', function () {
     foreach (range(1, 5) as $i) {
         $member = interestFollower($profile);
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
             ->assertCreated();
     }
 
     $extra = interestFollower($profile);
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $extra->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $extra->id))
         ->assertUnprocessable()
         ->assertJsonPath('reason', 'daily_limit');
 
@@ -269,7 +270,7 @@ it('suppresses interest to a member who opted out (no leak to the performer)', f
 
     // Resposta idêntica ao sucesso — a performer não percebe o opt-out.
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
         ->assertCreated()
         ->assertExactJson(['sent' => true]);
 
@@ -288,7 +289,7 @@ it('applies the cooldown to an opted-out member so the performer cannot detect t
 
     foreach ([$optedOut, $normal] as $member) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
             ->assertCreated();
     }
 
@@ -296,7 +297,7 @@ it('applies the cooldown to an opted-out member so the performer cannot detect t
     // linha, não haveria cooldown e a ausência do erro revelaria o opt-out.
     foreach ([$optedOut, $normal] as $member) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
             ->assertUnprocessable()
             ->assertJsonPath('reason', 'cooldown');
     }
@@ -315,12 +316,12 @@ it('counts a suppressed interest against the daily limit', function () {
         $member->update(['interests_opt_out' => true]);
 
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
             ->assertCreated();
     }
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => interestFollower($profile)->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, interestFollower($profile)->id))
         ->assertUnprocessable()
         ->assertJsonPath('reason', 'daily_limit');
 });
@@ -342,7 +343,7 @@ it('suppresses interest to an opted-out member even when they unlocked this perf
     $member->update(['interests_opt_out' => true]);
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
         ->assertCreated();
 
     // O opt-out vence o auto-unlock: quem optou por sair não recebe, mesmo já
@@ -423,7 +424,7 @@ it('rejects interest aimed at a member who does not follow the performer', funct
     $stranger = interestMember();
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $stranger->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $stranger->id))
         ->assertNotFound();
 
     expect(PerformerInterest::count())->toBe(0);
@@ -438,7 +439,7 @@ it('does not let a performer enumerate members through the send endpoint', funct
     // Esgota a cota do dia com seguidores legítimos.
     foreach (range(1, 5) as $i) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => interestFollower($profile)->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, interestFollower($profile)->id))
             ->assertCreated();
     }
 
@@ -451,7 +452,7 @@ it('does not let a performer enumerate members through the send endpoint', funct
     // quais ids são membros ativos da plataforma, de graça e sem gastar cota.
     foreach ([$activeStranger->id, $suspended->id, $otherPerformer->user_id, 99999999] as $probe) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $probe])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $probe))
             ->assertNotFound();
     }
 
@@ -463,7 +464,7 @@ it('rejects interest aimed at a non-member target', function () {
     $otherPerformer = interestPerformer();
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $otherPerformer->user_id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $otherPerformer->user_id))
         ->assertNotFound();
 
     expect(PerformerInterest::count())->toBe(0);
@@ -553,8 +554,8 @@ it('lists the performer followers anonymised, without member PII', function () {
     $response->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('Performer/Followers')
         ->has('followers.data', (int) config('interest.anonymity_floor'))
-        ->where('followers.data.0.member_id', $member->id)
-        ->where('followers.data.0.label', 'Membro #' . $member->id)
+        ->where('followers.data.0.member_handle', FanAlias::handle($profile->id, $member->id))
+        ->where('followers.data.0.label', FanAlias::label($profile->id, $member->id, 'Membro #'))
         ->where('followers.data.0.interest_sent', false)
         ->where('remainingToday', 5)
     );
@@ -571,7 +572,7 @@ it('marks a follower already in cooldown so the performer cannot resend', functi
     Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
         ->assertCreated();
 
     $this->actingAs($profile->user)
@@ -590,7 +591,7 @@ it('shows an opted-out follower exactly like any other follower', function () {
     Follow::create(['user_id' => $optedOut->id, 'performer_profile_id' => $profile->id]);
 
     $this->actingAs($profile->user)
-        ->postJson(route('performer.interests.send'), ['member_id' => $optedOut->id])
+        ->postJson(route('performer.interests.send'), interestPayload($profile, $optedOut->id))
         ->assertCreated();
 
     // O interesse suprimido conta na lista e na cota: sem isso, o botão voltaria
@@ -627,12 +628,12 @@ it('leaves suspended and deleted members out of the followers list', function ()
             // Só o ativo entra além do preenchimento: suspenso e apagado ficam
             // de fora tanto da lista quanto do total que alimenta o piso.
             ->has('followers.data', (int) config('interest.anonymity_floor'))
-            ->where('followers.data.0.member_id', $active->id)
+            ->where('followers.data.0.member_handle', FanAlias::handle($profile->id, $active->id))
         );
 
     foreach ([$suspended, $deleted] as $member) {
         $this->actingAs($profile->user)
-            ->postJson(route('performer.interests.send'), ['member_id' => $member->id])
+            ->postJson(route('performer.interests.send'), interestPayload($profile, $member->id))
             ->assertNotFound();
     }
 });

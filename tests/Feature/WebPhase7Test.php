@@ -39,6 +39,7 @@ it('registers a new consumer and redirects to email verification', function () {
         'password' => 'Senha123',
         'password_confirmation' => 'Senha123',
         'birthdate' => '1990-06-15',
+        'cpf' => '529.982.247-25',
         'accept_terms' => true,
         'lgpd_consent' => true,
     ]);
@@ -76,6 +77,7 @@ it('rejects registration with an already-used email', function () {
         'password' => 'Senha123',
         'password_confirmation' => 'Senha123',
         'birthdate' => '1988-01-01',
+        'cpf' => '529.982.247-25',
         'accept_terms' => true,
         'lgpd_consent' => true,
     ])->assertSessionHasErrors('email');

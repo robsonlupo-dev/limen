@@ -5,6 +5,7 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\InterestService;
 use App\Services\TokenService;
+use App\Support\FanAlias;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -25,8 +26,8 @@ function sentInterestsPerformer(): PerformerProfile
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create([
-        'stage_name' => 'Perf ' . Str::random(4),
-        'slug' => 'perf-' . strtolower(Str::random(6)),
+        'stage_name' => 'Perf '.Str::random(4),
+        'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
         'level' => 'iniciante',
@@ -81,7 +82,7 @@ it('mostra o membro anonimizado, sem nome nem email no payload', function () {
 
     $response->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('interests.data.0.label', 'Membro #' . $member->id)
+            ->where('interests.data.0.label', FanAlias::label($profile->id, $member->id, 'Membro #'))
         );
 
     $payload = $response->getContent();

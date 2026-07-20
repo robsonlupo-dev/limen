@@ -1,13 +1,13 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "limen/limen",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Limen — plataforma brasileira de conteúdo adulto premium",
     "keywords": [
         "laravel",
         "framework"
     ],
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
         "php": "^8.3",
         "fakerphp/faker": "^1.23",

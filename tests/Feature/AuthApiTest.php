@@ -13,6 +13,9 @@ function consumerPayload(array $overrides = []): array
         'password_confirmation' => 'Password1',
         'birthdate' => now()->subYears(20)->format('Y-m-d'),
         'phone' => '11999999999',
+        // Obrigatório desde a verificação de maioridade (Sprint 6). CPF de teste
+        // estruturalmente válido — não pertence a ninguém.
+        'cpf' => '529.982.247-25',
         'accept_terms' => true,
         'lgpd_consent' => true,
         'terms_version' => '1.0',

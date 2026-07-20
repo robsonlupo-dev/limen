@@ -76,7 +76,11 @@ Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 
     ->name('webhooks.asaas.transfer');
 
 // Performer profile management + KYC
-Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer'])->group(function () {
+// `documents.accepted` também aqui: o gate da porta web não vale para esta. Com
+// um token do /api/v1/auth/login a performer sem aceite chegaria em perfil, KYC
+// e gorjetas por fora da tela de aceite. Aqui o middleware responde 403 JSON
+// (não redirect) — é o que o cliente de API sabe consumir.
+Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer', 'documents.accepted'])->group(function () {
     Route::get('performer/dashboard', fn () => response()->json(['message' => 'Performer area.']));
     Route::get('performer/profile', [PerformerProfileController::class, 'show'])->name('performer.profile.show');
     Route::put('performer/profile', [PerformerProfileController::class, 'update'])->name('performer.profile.update');

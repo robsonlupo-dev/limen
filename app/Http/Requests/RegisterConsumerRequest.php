@@ -27,7 +27,10 @@ class RegisterConsumerRequest extends FormRequest
                 'before_or_equal:' . now()->subYears(18)->format('Y-m-d'),
             ],
             'phone' => ['nullable', 'string', 'max:20'],
-            'cpf' => ['nullable', 'string', new CpfValido],
+            // Obrigatório desde a verificação de maioridade do Sprint 6 — antes
+            // era opcional e não era persistido em lugar nenhum. Continua não
+            // sendo: só o HMAC vai para `age_verifications`.
+            'cpf' => ['required', 'string', new CpfValido],
             'accept_terms' => ['required', 'accepted'],
             'lgpd_consent' => ['required', 'accepted'],
             'terms_version' => ['required', 'string', 'max:20'],

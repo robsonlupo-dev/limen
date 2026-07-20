@@ -105,10 +105,43 @@ envio vira oráculo para reconstruir a lista que a tela esconde.
 5. Contagem de seguidores é sempre exibida **em faixa**, inclusive para a própria
    performer — faixar só as telas públicas deixaria a correlação de pé.
 
-## Dívida de segurança aberta
-`Membro #12345` (lista de seguidores) ↔ `Fã #2345` (dashboard de gorjetas,
-`consumer_id % 10000`) correlacionam de forma determinística, e a lista de
-gorjetas não passa por piso nenhum. Registro completo em `docs/SECURITY_ISSUES.md`.
+## Pseudônimo do membro — `FanAlias` (fechado no Sprint 6)
+Toda exposição de membro à performer passa por `app/Support/FanAlias.php`:
+pseudônimo derivado por par (performer_profile_id, member_id) com HMAC sobre a
+`APP_KEY`. Antes, `Membro #12345` (seguidores) e `Fã #2345` (gorjetas,
+`consumer_id % 10000`) correlacionavam de forma determinística — a lista de
+gorjetas não passa por piso nenhum, então bastava mandar uma gorjeta.
+
+Duas saídas, e a distinção importa:
+- `for()`/`label()` → 4 dígitos, **exibição**. Colide; nunca use como chave.
+- `handle()` → 16 hex, **identificação**. É o que a tela de Seguidores manda no
+  lugar do `member_id` e o que volta no POST do Interesse, resolvido contra os
+  seguidores listáveis do perfil. Trocar só o rótulo teria sido maquiagem: o id
+  cru continuaria legível nas props do Inertia.
+
+Nova superfície que mostre membro à performer usa `FanAlias`, não o id.
+O id segue sendo a chave interna (ledger, audit log) — isto é apresentação.
+Registro completo em `docs/SECURITY_ISSUES.md`.
+
+## Aceite de documentos da performer — `documents.accepted`
+Política de Conteúdo Proibido + Contrato de Performance. Versão vigente em
+`config/documents.php`; **bumpar a versão força re-aceite de todas** — não bumpe
+por typo. A versão nunca vem do request: o servidor resolve pelo config, senão
+bastaria postar a versão velha para satisfazer o gate sem ver o texto novo.
+
+`document_acceptances` é append-only (o model recusa `update`): versão nova é
+LINHA nova, é o histórico que dá o lastro jurídico. IP e user-agent entram como
+HMAC (`app/Support/ClientFingerprint.php`), nunca crus — mas o `audit_logs` do
+mesmo evento ainda grava o IP em claro; a ressalva está em `docs/SECURITY_ISSUES.md`.
+
+**Rota nova de performer entra no grupo `documents.accepted`.** Vale para as
+duas portas de auth: web (redirect) e API Sanctum (403 JSON). O middleware ignora
+quem não é performer, então rota compartilhada (chat) pode recebê-lo direto sem
+afetar o membro. Fora do gate ficam só a própria tela de aceite (senão o redirect
+dá loop) e as páginas públicas dos textos.
+
+O texto jurídico ainda é placeholder (aguardando Opice Blum) — **não descrever
+para auditoria como "contrato aceito"** até o texto definitivo entrar.
 
 ## Limitações do ambiente de dev
 - **Sem `gh` CLI e sem token:** não é possível abrir PR ou issue por código. O

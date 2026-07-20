@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Web;
 
 use App\Models\PerformerProfile;
+use App\Rules\CpfValido;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -46,6 +47,14 @@ class RegisterWebRequest extends FormRequest
 
             'role' => ['required', 'in:consumer,performer'],
 
+            // Maioridade do membro (ECA Digital). Obrigatório só para membro:
+            // a performer entrega o CPF no KYC, com documento e prova de vida,
+            // e pedir aqui duplicaria a coleta de PII sem ganho.
+            //
+            // O CPF é validado e descartado — não existe coluna para ele. O que
+            // sobra é o HMAC em `age_verifications` (App\Support\CpfHash).
+            'cpf' => ['required_if:role,consumer', 'nullable', 'string', new CpfValido],
+
             // Performer-only fields.
             'stage_name' => array_merge(
                 ['required_if:role,performer', 'nullable'],
@@ -66,6 +75,7 @@ class RegisterWebRequest extends FormRequest
             'password.regex' => 'A senha deve conter ao menos uma letra maiúscula e um número.',
             'accept_terms.accepted' => 'Você deve aceitar os termos de uso.',
             'lgpd_consent.accepted' => 'Você deve consentir com o tratamento de dados (LGPD).',
+            'cpf.required_if' => 'Informe seu CPF para confirmarmos que você é maior de 18 anos.',
             'stage_name.required_if' => 'Informe seu nome artístico.',
             'category.required_if' => 'Selecione o mundo que você representa.',
         ];
