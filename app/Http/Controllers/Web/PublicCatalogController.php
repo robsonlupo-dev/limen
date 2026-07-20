@@ -74,6 +74,14 @@ class PublicCatalogController extends Controller
             // não dá para iniciar chat frio daqui. Null (guest, performer/admin,
             // ou membro sem conversa) → a página não mostra botão de chat.
             'chat' => $this->chatStateFor($request, $profile->id),
+            // Alvo da denúncia. Só para quem está logado — POST /reportar exige
+            // auth, e oferecer o botão a um visitante levaria a um 401 mudo.
+            // Vai numa prop própria porque PerformerPublicResource não expõe o
+            // id do perfil, e não é para passar a expor: aqui é uma tela só,
+            // atrás de auth, enquanto o resource também serve a listagem pública.
+            'report' => $request->user()
+                ? ['type' => 'performer', 'id' => $profile->id]
+                : null,
             'meta' => [
                 'title' => "{$stageName} · Limen",
                 'description' => $description,
