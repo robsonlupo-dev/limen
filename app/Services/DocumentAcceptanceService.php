@@ -24,13 +24,26 @@ class DocumentAcceptanceService
      */
     public function pendingFor(User $user): array
     {
+        // Pares type|version, não `pluck` chaveado por type: depois de um bump a
+        // performer tem VÁRIAS linhas do mesmo tipo (o histórico), e um pluck
+        // chaveado colapsaria para uma delas — qual, depende da ordem que o
+        // banco devolveu. Com uma versão que não ordene junto com o id
+        // ("2026-07-20b", "v2"), o serviço leria a versão velha, o middleware
+        // bloquearia e o POST viraria no-op pelo unique: loop sem saída.
+        // A pergunta certa é de presença, não de "a mais recente".
         $accepted = $user->documentAcceptances()
             ->whereIn('document_type', DocumentAcceptance::REQUIRED)
-            ->pluck('document_version', 'document_type');
+            ->get(['document_type', 'document_version'])
+            ->map(fn (DocumentAcceptance $row) => $row->document_type.'|'.$row->document_version)
+            ->all();
 
         return array_values(array_filter(
             DocumentAcceptance::REQUIRED,
-            fn (string $type) => $accepted->get($type) !== DocumentAcceptance::currentVersion($type),
+            fn (string $type) => ! in_array(
+                $type.'|'.DocumentAcceptance::currentVersion($type),
+                $accepted,
+                true,
+            ),
         ));
     }
 

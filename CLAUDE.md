@@ -123,6 +123,26 @@ Nova superfície que mostre membro à performer usa `FanAlias`, não o id.
 O id segue sendo a chave interna (ledger, audit log) — isto é apresentação.
 Registro completo em `docs/SECURITY_ISSUES.md`.
 
+## Aceite de documentos da performer — `documents.accepted`
+Política de Conteúdo Proibido + Contrato de Performance. Versão vigente em
+`config/documents.php`; **bumpar a versão força re-aceite de todas** — não bumpe
+por typo. A versão nunca vem do request: o servidor resolve pelo config, senão
+bastaria postar a versão velha para satisfazer o gate sem ver o texto novo.
+
+`document_acceptances` é append-only (o model recusa `update`): versão nova é
+LINHA nova, é o histórico que dá o lastro jurídico. IP e user-agent entram como
+HMAC (`app/Support/ClientFingerprint.php`), nunca crus — mas o `audit_logs` do
+mesmo evento ainda grava o IP em claro; a ressalva está em `docs/SECURITY_ISSUES.md`.
+
+**Rota nova de performer entra no grupo `documents.accepted`.** Vale para as
+duas portas de auth: web (redirect) e API Sanctum (403 JSON). O middleware ignora
+quem não é performer, então rota compartilhada (chat) pode recebê-lo direto sem
+afetar o membro. Fora do gate ficam só a própria tela de aceite (senão o redirect
+dá loop) e as páginas públicas dos textos.
+
+O texto jurídico ainda é placeholder (aguardando Opice Blum) — **não descrever
+para auditoria como "contrato aceito"** até o texto definitivo entrar.
+
 ## Limitações do ambiente de dev
 - **Sem `gh` CLI e sem token:** não é possível abrir PR ou issue por código. O
   push devolve a URL de `pull/new` para o PO abrir manualmente.

@@ -115,3 +115,52 @@ ausente rejeitados, menor de idade rejeitado (inclusive na véspera do
 aniversário), caminho feliz, `age_verified_at` nulo, dedupe por HMAC, e uma
 varredura de todas as colunas de texto de todas as tabelas confirmando que os
 dígitos do CPF não sobraram em lugar nenhum.
+
+---
+
+## Aceite de documentos — IP em claro no `audit_logs`
+
+**Severidade:** 🟢 Baixo · Registro de escopo, não bug. Abrir issue só se o PO
+quiser fechar a lacuna.
+
+`document_acceptances` guarda IP e user-agent como HMAC da `APP_KEY` (ver
+`app/Support/ClientFingerprint.php`): nenhuma coluna crua, o valor não é
+recuperável a partir de um dump do banco.
+
+Mas o mesmo evento chama `Audit::log('performer_documents_accepted', ...)`, e
+`app/Support/Audit.php` grava `'ip' => $request->ip()` **em texto puro**. Pelo
+`user_id` os dois lados se correlacionam, então na prática o IP do aceite existe
+em claro na tabela ao lado. A propriedade defendida na migration vale para
+`document_acceptances`, não para o dossiê inteiro.
+
+Não é regressão desta entrega — é o comportamento do `Audit` desde a fundação, e
+o audit log tem justamente a função de guardar rastro. O que não pode é a
+documentação prometer mais do que o sistema entrega.
+
+**Saídas possíveis:** (a) hashear o IP também no `Audit` — mas aí todo o audit
+log perde a leitura direta que o torna útil numa investigação; (b) política de
+retenção que expurgue `audit_logs.ip` depois de N meses; (c) aceitar e declarar.
+Decisão do PO.
+
+### O que ESTÁ implementado no aceite
+
+- Tabela `document_acceptances` append-only (o model recusa `update`), uma linha
+  por (usuário, documento, versão), com unique que torna re-submeter idempotente.
+- Versão vigente em `config/documents.php`; bumpar força re-aceite de todas as
+  performers. A versão **nunca** vem do request.
+- Middleware `documents.accepted` nas duas portas de auth: web (redirect) e API
+  Sanctum (403 JSON). Ignora quem não é performer.
+- Textos em `/politica-de-conteudo` e `/contrato-de-performance`, públicos.
+
+### O que NÃO está implementado
+
+- **O texto jurídico.** As duas páginas servem
+  `[CONTEÚDO JURÍDICO — aguardando Opice Blum]`. O aceite registrado hoje aponta
+  para a versão `2026-07-20`, que é placeholder: **não descrever para auditoria
+  como "contrato aceito"** enquanto o texto não for o definitivo. Quando chegar,
+  bumpar a versão no config é o que transforma o aceite em evidência real.
+- Sem re-aceite periódico por tempo (só por mudança de versão).
+- Sem trilha de recusa: quem não aceita simplesmente não passa, e não fica
+  registrado que recusou.
+
+**Cobertura:** `tests/Feature/PerformerDocumentAcceptanceTest.php` — 27 testes.

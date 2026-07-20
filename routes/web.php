@@ -141,17 +141,22 @@ Route::middleware('auth')->group(function () {
     // Chat pós-desbloqueio de Interesse. Membro e performer compartilham as
     // telas; a ConversationPolicy garante que só participantes entrem. Não há
     // rota de abertura pelo membro — o canal nasce no desbloqueio.
+    // As telas de chat são compartilhadas, então o `documents.accepted` entra
+    // rota a rota e não no grupo: ele ignora quem não é performer, logo o
+    // membro passa igual. Sem isso a performer sem aceite continuaria
+    // conversando por um canal já aberto — a superfície que a Política de
+    // Conteúdo Proibido justamente governa.
     Route::get('/chat', [ChatController::class, 'index'])
-        ->middleware('throttle:60,1')
+        ->middleware(['throttle:60,1', 'documents.accepted'])
         ->name('chat.index');
 
     Route::get('/chat/{conversation}', [ChatController::class, 'show'])
-        ->middleware('throttle:60,1')
+        ->middleware(['throttle:60,1', 'documents.accepted'])
         ->whereNumber('conversation')
         ->name('chat.show');
 
     Route::post('/chat/{conversation}/mensagens', [ChatController::class, 'storeMessage'])
-        ->middleware('throttle:30,1')
+        ->middleware(['throttle:30,1', 'documents.accepted'])
         ->whereNumber('conversation')
         ->name('chat.messages.store');
 

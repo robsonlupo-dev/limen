@@ -65,6 +65,45 @@ it('deixa performer com aceite vigente entrar no dashboard', function () {
         ->assertOk();
 });
 
+it('barra performer sem aceite no chat, inclusive em conversa já aberta', function () {
+    // O canal nasce no desbloqueio do Interesse, não numa rota gateada: sem o
+    // middleware aqui, a performer sem aceite continuaria conversando.
+    $performer = performerWithoutDocs();
+
+    $this->actingAs($performer)
+        ->get(route('chat.index'))
+        ->assertRedirect(route('performer.documents'));
+});
+
+it('barra performer sem aceite na porta API, com 403 JSON em vez de redirect', function () {
+    $performer = performerWithoutDocs();
+
+    $this->actingAs($performer, 'sanctum')
+        ->getJson('/api/v1/performer/profile')
+        ->assertForbidden();
+});
+
+it('reabre a área depois do re-aceite, mesmo com versão que não ordena junto', function () {
+    $performer = activePerformerWithProfile();
+
+    // Hotfix do texto: ordena ABAIXO da anterior lexicograficamente. Se o
+    // serviço lesse "a última linha" em vez de checar presença, a performer
+    // ficaria presa em loop — bloqueada pelo middleware, com o POST virando
+    // no-op pelo unique.
+    config()->set('documents.versions.content_policy', '2026-07-20-hotfix');
+    config()->set('documents.versions.performance_contract', '2026-07-20-hotfix');
+
+    $this->actingAs($performer)->get(route('performer.dashboard'))
+        ->assertRedirect(route('performer.documents'));
+
+    $this->actingAs($performer)->post(route('performer.documents.accept'), [
+        'content_policy' => true,
+        'performance_contract' => true,
+    ]);
+
+    $this->actingAs($performer)->get(route('performer.dashboard'))->assertOk();
+});
+
 it('recusa editar um aceite já gravado', function () {
     $performer = User::factory()->performer()->create(['status' => 'active']);
     $row = $performer->documentAcceptances()->first();
