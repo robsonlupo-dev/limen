@@ -8,6 +8,10 @@ return [
         'links',
         'waitlist.store',
 
+        // Textos jurídicos (públicos)
+        'legal.content-policy',
+        'legal.performance-contract',
+
         // Public performer catalog (no auth)
         'performers.public',
         'performers.public.show',
@@ -43,6 +47,8 @@ return [
         'performer.onboarding',
         'performer.onboarding.profile',
         'performer.onboarding.avatar',
+        'performer.documents',
+        'performer.documents.accept',
         'performer.payouts.index',
         'performer.payouts.history',
         'performer.payouts.store',

@@ -64,6 +64,12 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(IdentityVerification::class);
     }
 
+    /** Aceites de Política de Conteúdo / Contrato de Performance (append-only). */
+    public function documentAcceptances(): HasMany
+    {
+        return $this->hasMany(DocumentAcceptance::class);
+    }
+
     public function tokenWallet(): HasOne
     {
         return $this->hasOne(TokenWallet::class);
