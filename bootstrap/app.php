@@ -1,5 +1,12 @@
 <?php
 
+use App\Http\Middleware\DocumentsAccepted;
+use App\Http\Middleware\EnsureActiveCircle;
+use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\TwoFactorChallenge;
+use App\Http\Middleware\VerifyAsaasWebhookIp;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,9 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+        $middleware->append(SecurityHeaders::class);
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
+            HandleInertiaRequests::class,
         ]);
         // UI-only flags written by the front-end in plaintext (age gate + intro).
         // They carry no secret, so they must be exempt from cookie encryption —
@@ -26,10 +33,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'limen_intro_seen',
         ]);
         $middleware->alias([
-            'role' => \App\Http\Middleware\EnsureUserHasRole::class,
-            'circle' => \App\Http\Middleware\EnsureActiveCircle::class,
-            'documents.accepted' => \App\Http\Middleware\DocumentsAccepted::class,
-            'asaas.webhook_ip' => \App\Http\Middleware\VerifyAsaasWebhookIp::class,
+            'role' => EnsureUserHasRole::class,
+            'circle' => EnsureActiveCircle::class,
+            'documents.accepted' => DocumentsAccepted::class,
+            '2fa' => TwoFactorChallenge::class,
+            'asaas.webhook_ip' => VerifyAsaasWebhookIp::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

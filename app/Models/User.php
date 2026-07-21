@@ -31,6 +31,13 @@ class User extends Authenticatable implements MustVerifyEmail
     // pode vir por mass assignment. A troca passa pelo DeletionService.
     protected $hidden = [
         'password', 'remember_token', 'deletion_token_hash',
+        // Segredo TOTP e recovery codes. O cast `encrypted` protege o REPOUSO;
+        // isto protege a SAÍDA — decifrado, `two_factor_secret` é o suficiente
+        // para gerar códigos válidos indefinidamente, e um recovery code é um
+        // bypass de uso único do segundo fator. Nem um nem outro volta ao
+        // cliente fora do fluxo de setup, que os monta explicitamente.
+        'two_factor_secret',
+        'two_factor_recovery_codes',
         // Digest do IP de cadastro. Hoje nenhuma serialização é automática (os
         // resources montam array explícito), então não vaza — mas um
         // `response()->json($user)` futuro exporia o identificador que permite
@@ -49,6 +56,13 @@ class User extends Authenticatable implements MustVerifyEmail
             'lgpd_consent_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            // 2FA TOTP. Cifrado em repouso pela APP_KEY: um dump do banco não
+            // pode render segundo fator. Rotacionar a APP_KEY invalida os dois
+            // (mesma ressalva já registrada para os documentos de KYC) — a
+            // performer cai no fluxo de re-cadastro do autenticador.
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
             'interests_opt_out' => 'boolean',
             'discrete_mode' => 'boolean',
             // Perks de privacidade Black/FC. NULL é significativo aqui ("nunca
@@ -70,7 +84,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function sendEmailVerificationNotification(): void
     {
-        $this->notify(new VerifyEmailNotification());
+        $this->notify(new VerifyEmailNotification);
     }
 
     public function sendPasswordResetNotification($token): void

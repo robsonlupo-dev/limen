@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Web\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\User;
 use App\Services\AuthService;
+use App\Services\TwoFactorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -34,10 +36,16 @@ class LoginController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        // regenerate() TROCA o id da sessão mas PRESERVA os dados dela. Sem este
+        // forget, uma marca de 2FA sobrevivente da sessão anterior faria a
+        // sessão nova nascer já verificada — e o desafio nunca apareceria.
+        // A marca é da sessão, não da conta: cada login prova o fator de novo.
+        $request->session()->forget(TwoFactorService::SESSION_KEY);
+
         return redirect()->intended(route($this->homeRouteFor($user)));
     }
 
-    private function homeRouteFor(\App\Models\User $user): string
+    private function homeRouteFor(User $user): string
     {
         if ($user->role !== 'performer') {
             return 'catalog';

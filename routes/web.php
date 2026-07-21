@@ -1,19 +1,15 @@
 <?php
 
+use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
+use App\Http\Controllers\Web\Admin\ReportAdminController;
+use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\Auth\EmailVerificationController;
 use App\Http\Controllers\Web\Auth\ForgotPasswordController;
 use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
-use App\Http\Controllers\Web\Admin\ReportAdminController;
-use App\Http\Controllers\Web\Admin\WaitlistAdminController;
-use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\ChatController;
-use App\Http\Controllers\Web\PublicCatalogController;
-use App\Http\Controllers\Web\ConviteController;
-use App\Http\Controllers\Web\EntradaController;
-use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
@@ -21,20 +17,25 @@ use App\Http\Controllers\Web\Consumer\ReportController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
-use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
+use App\Http\Controllers\Web\ConviteController;
+use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FollowController;
+use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\LegalDocumentsController;
 use App\Http\Controllers\Web\LinksController;
-use App\Http\Controllers\Web\UserPreferencesController;
-use App\Http\Controllers\Web\WaitlistController;
 use App\Http\Controllers\Web\Performer\DashboardController;
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
+use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
-use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\PayoutController;
+use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\SentInterestsController;
+use App\Http\Controllers\Web\Performer\TwoFactorController;
+use App\Http\Controllers\Web\PublicCatalogController;
+use App\Http\Controllers\Web\UserPreferencesController;
+use App\Http\Controllers\Web\WaitlistController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -141,7 +142,29 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 });
 
 // Authenticated area
-Route::middleware('auth')->group(function () {
+// Desafio de 2FA. FORA do gate `2fa` de propósito — pela mesma razão do aceite
+// de documentos: é o destino do redirect daquele middleware, e gatear a própria
+// tela de saída daria loop. O logout também fica fora (está acima, no seu
+// próprio `auth`): quem perdeu o autenticador precisa conseguir sair da sessão.
+//
+// O POST é o alvo de força bruta da feature — 6 dígitos são 1 em 1.000.000 por
+// tentativa, e a janela de ±30s do TOTP alarga isso. 5/min é o mesmo teto do
+// login, e por simetria: as duas rotas guardam a mesma porta.
+Route::middleware(['auth', 'role:performer'])->group(function () {
+    Route::get('/performer/2fa/challenge', [TwoFactorController::class, 'challenge'])
+        ->middleware('throttle:60,1')
+        ->name('performer.2fa.challenge');
+
+    Route::post('/performer/2fa/challenge', [TwoFactorController::class, 'verify'])
+        ->middleware('throttle:5,1')
+        ->name('performer.2fa.verify');
+});
+
+// `2fa` aplicado no grupo INTEIRO, não só nas rotas performer.*: a sessão da
+// performer também alcança catálogo e chat, e gatear só o dashboard deixaria a
+// conta sequestrada conversando com membros. O middleware ignora quem não é
+// performer com 2FA ativo, então membro e admin passam iguais.
+Route::middleware(['auth', '2fa'])->group(function () {
     Route::get('/email/verificar', [EmailVerificationController::class, 'notice'])->name('verification.notice');
 
     Route::get('/email/verificar/{id}/{hash}', [EmailVerificationController::class, 'verify'])
@@ -263,6 +286,37 @@ Route::middleware('auth')->group(function () {
         Route::get('/performer/dashboard', [DashboardController::class, 'index'])
             ->name('performer.dashboard')
             ->can('performer-active');
+
+        // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer
+        // pendente (em KYC) já tem senha, e-mail e documento enviado — é
+        // justamente a janela em que a conta guarda PII e ainda não tem
+        // segundo fator. Adiar o 2FA até a ativação protegeria o KYC só
+        // depois de ele já estar no banco.
+        //
+        // A alteração do próprio fator entra pelo throttle mais apertado:
+        // confirm/disable/recovery comparam código, então são superfície de
+        // brute force igual ao desafio.
+        Route::middleware('role:performer')->group(function () {
+            Route::get('/performer/configuracoes/2fa', [TwoFactorController::class, 'show'])
+                ->middleware('throttle:60,1')
+                ->name('performer.2fa.show');
+
+            Route::post('/performer/configuracoes/2fa/enable', [TwoFactorController::class, 'enable'])
+                ->middleware('throttle:10,1')
+                ->name('performer.2fa.enable');
+
+            Route::post('/performer/configuracoes/2fa/confirm', [TwoFactorController::class, 'confirm'])
+                ->middleware('throttle:5,1')
+                ->name('performer.2fa.confirm');
+
+            Route::post('/performer/configuracoes/2fa/disable', [TwoFactorController::class, 'disable'])
+                ->middleware('throttle:5,1')
+                ->name('performer.2fa.disable');
+
+            Route::post('/performer/configuracoes/2fa/recovery-codes', [TwoFactorController::class, 'regenerateRecoveryCodes'])
+                ->middleware('throttle:5,1')
+                ->name('performer.2fa.recovery-codes');
+        });
 
         // Origem do envio de Interesse Controlado: a performer escolhe entre quem
         // já a segue. Ver Web\Performer\FollowersController.

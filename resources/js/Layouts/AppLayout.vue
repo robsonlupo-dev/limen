@@ -79,6 +79,17 @@ function logout() {
                             Saques
                         </Link>
                     </template>
+                    <!-- isPerformer e não isActivePerformer: a performer em KYC
+                         já tem documento e selfie na conta — é a janela em que
+                         o 2FA mais importa e a única em que ela ainda não teria
+                         acesso à tela se o link seguisse os outros. -->
+                    <Link
+                        v-if="isPerformer"
+                        :href="route('performer.2fa.show')"
+                        class="text-gold/80 hover:text-gold transition-colors no-underline"
+                    >
+                        Segurança
+                    </Link>
                     <template v-if="isConsumer">
                         <Link
                             :href="route('consumer.dashboard')"
