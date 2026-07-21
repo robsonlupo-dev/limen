@@ -205,6 +205,65 @@ Nova superfície que mostre membro à performer usa `FanAlias`, não o id.
 O id segue sendo a chave interna (ledger, audit log) — isto é apresentação.
 Registro completo em `docs/SECURITY_ISSUES.md`.
 
+## 2FA da performer — TOTP (Sprint 6)
+A conta da performer guarda o KYC (documento + selfie) e é a identidade
+verificada sob a qual o conteúdo é publicado: um take-over vaza PII sensível E
+deixa terceiro publicar como ela. Senha não é fator suficiente para isso.
+
+Fortify **não** está instalado (e não é dependência do core do Laravel). O TOTP
+é `pragmarx/google2fa` direto; o QR é desenhado **localmente** em SVG inline
+(`bacon/bacon-qr-code`) — nunca por serviço externo de QR, porque a `otpauth://`
+carrega o segredo em claro. Regra em `app/Services/TwoFactorService.php`.
+
+- **`two_factor_confirmed_at` é o que liga o 2FA**, não a presença do secret:
+  entre `enable()` e `confirm()` a performer ainda não provou o autenticador, e
+  gatear nesse intervalo trancaria a conta com um QR nunca escaneado.
+- Secret e recovery codes: cast `encrypted` (APP_KEY), `$hidden`, **fora do
+  `$fillable`** (mesma regra de `discrete_mode`). Rotacionar APP_KEY derruba os
+  dois — a performer cai no re-cadastro do autenticador.
+- **Recovery code é de uso único, sob `lockForUpdate`.** Dois POSTs simultâneos
+  com o mesmo código autenticariam duas sessões sem o lock.
+- **TOTP também é de uso único** (`two_factor_last_used_ts`, `verifyKeyNewer`).
+  Sem isso o código valia os ~90s da janela: o capturado no desafio servia em
+  seguida para `/2fa/disable` e desligava o próprio fator.
+- **`confirm()` NÃO aceita recovery code** — o passo existe para provar que o
+  app autenticador funciona. `disable()` e a reemissão de códigos aceitam, e
+  **exigem** um fator: quem só tem a sessão não remove o segundo fator.
+
+### O gate vale nas DUAS portas de auth — e a prova é diferente em cada uma
+Middleware `2fa` (`TwoFactorChallenge`). Ignora quem não é performer com 2FA
+confirmado, então pode ser aplicado em grupo compartilhado, como o
+`documents.accepted`.
+
+- **Web (sessão):** marca na sessão, que guarda o **id do usuário**, não `true`
+  — assim não é herdável por uma sessão que trocou de dono. Aplicado no grupo
+  `auth` INTEIRO, não só em `performer.*`: a sessão da performer alcança chat e
+  catálogo, e gatear só o dashboard deixaria a conta sequestrada conversando
+  com membros.
+- **API (Sanctum):** não há sessão onde marcar, então o fator vem **antes do
+  token**. `POST /api/v1/auth/login` de quem tem 2FA devolve `two_factor_required`
+  + um token com a habilidade `2fa:challenge` e mais nada (10 min);
+  `POST /api/v1/auth/2fa/challenge` troca por código e devolve o token real. O
+  middleware testa a habilidade com `in_array` **e não `$token->can()`** — o
+  `can()` do Sanctum responde true para qualquer coisa num token `*`, o que
+  barrava justamente quem tinha passado pelo desafio.
+- `/broadcasting/auth` entra pelo `withBroadcasting` com `['web','auth','2fa']`.
+  No padrão (`channels:` no `withRouting`) ele sai só com `web` e a sessão
+  mandada ao desafio ainda assinava `conversation.{id}`.
+- **Fora do gate ficam só o desafio e o logout** (senão o redirect aponta para
+  rota que ele mesmo bloqueia, e quem perdeu o autenticador não sai da conta).
+
+**Rota autenticada nova entra no gate** — nas duas portas. Foi a lição do
+`documents.accepted`: gate que fecha uma porta só não é gate.
+
+> Ressalva conhecida: o login da web COMPLETA antes do fator (`Auth::login` e
+> depois o middleware barra). É mais fraco que desafiar antes de estabelecer a
+> sessão; o que fecha o buraco na prática é o gate cobrir o grupo `auth`
+> inteiro. Trocar por um login em dois passos é follow-up.
+>
+> Não implementado: alerta em N falhas de desafio (hoje só grava
+> `performer.2fa_challenge_failed` no audit e ninguém consome).
+
 ## Aceite de documentos da performer — `documents.accepted`
 Política de Conteúdo Proibido + Contrato de Performance. Versão vigente em
 `config/documents.php`; **bumpar a versão força re-aceite de todas** — não bumpe
