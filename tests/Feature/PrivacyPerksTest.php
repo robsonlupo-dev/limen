@@ -9,6 +9,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
+use App\Services\FollowerVisibilityService;
 use App\Services\InterestService;
 use App\Services\PrivacyPerkService;
 use App\Services\ProfileVisitService;
@@ -306,6 +307,31 @@ it('esconde o painel com poucos visitantes distintos, mesmo com o piso de seguid
         ->assertInertia(fn (Assert $page) => $page
             ->where('visitorsVisible', false)
             ->has('visitors', 0));
+});
+
+it('recusa um limite de painel abaixo do piso de anonimato', function () {
+    // Guard de invariante: painel visível nunca exibe menos gente que o piso.
+    // O piso é contado sobre a janela inteira, mas a lista sai cortada em
+    // $limit — com $limit menor que o piso os dois se descolam e a tela abre
+    // mostrando menos aliases do que o piso exige. Erro de chamador, então
+    // estoura alto em vez de degradar em silêncio.
+    $performer = perkVisiblePerformer();
+    $floor = app(FollowerVisibilityService::class)->floor();
+
+    expect(fn () => app(ProfileVisitService::class)->panelFor($performer, $floor - 1))
+        ->toThrow(LogicException::class);
+});
+
+it('aceita um limite igual ao piso', function () {
+    // O guard é `<`, não `<=`: exatamente o piso é um painel legítimo.
+    $performer = perkVisiblePerformer();
+    $floor = app(FollowerVisibilityService::class)->floor();
+    perkVisitors($performer, $floor);
+
+    $panel = app(ProfileVisitService::class)->panelFor($performer, $floor);
+
+    expect($panel['visible'])->toBeTrue()
+        ->and($panel['visitors'])->toHaveCount($floor);
 });
 
 it('contas de vespera nao destravam o piso de visitantes', function () {

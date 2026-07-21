@@ -124,13 +124,40 @@ class ProfileVisitService
      */
     public function panelFor(PerformerProfile $profile, int $limit = 10): array
     {
+        $floor = $this->visibility->floor();
+
+        // Invariante: painel VISÍVEL nunca mostra menos gente que o piso.
+        //
+        // O piso é contado sobre a janela inteira (floorEligibleVisitorCount),
+        // mas a lista sai cortada em $limit. Com $limit abaixo do piso os dois
+        // números se descolam: 5 visitantes elegíveis destravam o painel e a
+        // tela renderiza 3 aliases — um painel aberto exibindo menos nomes do
+        // que o piso exige, que é exatamente o que o piso existe para impedir.
+        //
+        // Erro do CHAMADOR, não do usuário: nenhum request alcança isto, só um
+        // `panelFor($profile, 3)` escrito à mão. Por isso LogicException e não
+        // um clamp silencioso — clampar esconderia a decisão errada em vez de
+        // apontá-la, e ela apareceria como "a tela mostra menos gente do que eu
+        // pedi". Quebra em teste e em staging, antes de virar produção.
+        //
+        // O piso vem do FollowerVisibilityService (config `interest.anonymity_floor`,
+        // com override por env), nunca de uma constante local: uma cópia do
+        // número aqui passaria a discordar do piso real no dia em que a env
+        // fosse setada, e discordaria justo no sentido permissivo.
+        if ($limit < $floor) {
+            throw new \LogicException(
+                "ProfileVisitService::panelFor: limit ({$limit}) abaixo do Piso de Anonimato ({$floor}) — "
+                .'o painel exibiria menos visitantes do que o piso exige.'
+            );
+        }
+
         $hidden = ['visible' => false, 'visitors' => []];
 
         if (! $this->visibility->canRevealList($profile->id)) {
             return $hidden;
         }
 
-        if ($this->floorEligibleVisitorCount($profile) < $this->visibility->floor()) {
+        if ($this->floorEligibleVisitorCount($profile) < $floor) {
             return $hidden;
         }
 
