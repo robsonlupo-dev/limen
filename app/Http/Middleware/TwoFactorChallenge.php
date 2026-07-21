@@ -5,11 +5,11 @@ namespace App\Http\Middleware;
 use App\Services\TwoFactorService;
 use Closure;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Barra a performer com 2FA ativo cuja sessão ainda não apresentou o segundo
- * fator.
+ * Barra a performer com 2FA ativo que ainda não apresentou o segundo fator.
  *
  * Só age sobre performer com 2FA CONFIRMADO: membro, admin e performer sem 2FA
  * passam direto. Mesma forma do DocumentsAccepted, e pela mesma razão — assim o
@@ -25,12 +25,26 @@ use Symfony\Component\HttpFoundation\Response;
  * para uma rota que ele mesmo bloqueia — loop infinito) e o logout, que vive
  * fora deste grupo: quem perdeu o autenticador precisa conseguir sair.
  *
- * Resposta por porta de auth (ver CLAUDE.md): redirect no caminho normal —
- * inclusive Inertia, que segue redirect no cliente — e 403 JSON quando o
- * chamador espera JSON, que seguindo o redirect receberia HTML e quebraria.
+ * ─── As DUAS portas de auth (ver CLAUDE.md) ──────────────────────────────────
+ *
+ * Vale para a API Sanctum também, e a prova do fator é diferente em cada porta:
+ *
+ * - **Sessão (web)**: a marca fica na sessão. É a porta que o frontend usa.
+ * - **Bearer (API)**: não há sessão onde marcar. O fator é provado ANTES de o
+ *   token existir — o login da API emite um token de desafio com a habilidade
+ *   `2fa:challenge` e mais nada, e só a troca por código devolve o token cheio.
+ *   Aqui o middleware só precisa recusar o token de desafio.
+ *
+ * Sem este segundo caso o gate era contornável inteiro: bastava pedir um token
+ * em `POST /api/v1/auth/login` com a senha e usar `/api/v1/performer/*`, onde
+ * moram perfil, KYC e gorjetas. A mesma lição que `documents.accepted` já tinha
+ * aprendido neste projeto — gate que fecha uma porta só não é gate.
  */
 class TwoFactorChallenge
 {
+    /** Habilidade do token que só serve para resolver o desafio. */
+    public const CHALLENGE_ABILITY = '2fa:challenge';
+
     public function __construct(private TwoFactorService $twoFactor) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -41,7 +55,7 @@ class TwoFactorChallenge
             return $next($request);
         }
 
-        if ($request->session()->get(TwoFactorService::SESSION_KEY) === true) {
+        if ($this->hasPresentedFactor($request, $user)) {
             return $next($request);
         }
 
@@ -50,5 +64,26 @@ class TwoFactorChallenge
         }
 
         return redirect()->route('performer.2fa.challenge');
+    }
+
+    private function hasPresentedFactor(Request $request, $user): bool
+    {
+        $token = $user->currentAccessToken();
+
+        // Bearer: o token cheio já nasceu depois do fator. O de desafio não
+        // abre nada além da própria troca.
+        //
+        // in_array na lista literal, e NÃO $token->can(): o `can()` do Sanctum
+        // responde true para qualquer habilidade quando o token tem `*` — que é
+        // o caso do token cheio. Usá-lo aqui barrava exatamente o token que
+        // acabou de passar pelo desafio, e deixava passar só o que não deveria.
+        if ($token instanceof PersonalAccessToken) {
+            return ! in_array(self::CHALLENGE_ABILITY, $token->abilities ?? [], true);
+        }
+
+        // Sessão. A checagem (inclusive o hasSession, obrigatório porque numa
+        // rota `api/*` não roda StartSession e chamar session() ali lançaria)
+        // vive no service — a marca tem uma dona só.
+        return $this->twoFactor->sessionHasFactor($request, $user);
     }
 }

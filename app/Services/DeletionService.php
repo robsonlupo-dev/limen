@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\User;
 use App\Support\Audit;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -173,7 +174,7 @@ class DeletionService
         // e é o lado que faltava: quem sequestra a sessão e CANCELA um pedido
         // legítimo deixa o titular achando que está saindo quando não está —
         // e sem este e-mail, nada na caixa dele o contradiz.
-        Mail::to($email)->queue(new AccountDeletionCancelledMail());
+        Mail::to($email)->queue(new AccountDeletionCancelledMail);
 
         return true;
     }
@@ -454,10 +455,10 @@ class DeletionService
             // a segunda estouraria Duplicate entry, a transação faria rollback e
             // o job engoliria o erro como "skipped" todo dia, para sempre, com o
             // KYC intacto no disco e o prazo legal correndo.
-            'stage_name' => '[removido] #' . $profile->id,
+            'stage_name' => '[removido] #'.$profile->id,
             // O slug é público e costuma ser o nome artístico: some junto, mas
             // continua único (a coluna tem índice único desde 15/07).
-            'slug' => 'removido-' . $profile->id,
+            'slug' => 'removido-'.$profile->id,
             'bio' => null,
             'avatar_path' => null,
             'cover_path' => null,
@@ -632,7 +633,7 @@ class DeletionService
     {
         $user->forceFill([
             'name' => '[removido]',
-            'email' => 'deleted-' . hash('sha256', $user->id . '|' . config('app.key')) . '@deleted.invalid',
+            'email' => 'deleted-'.hash('sha256', $user->id.'|'.config('app.key')).'@deleted.invalid',
             'email_verified_at' => null,
             // Senha aleatória e descartada: a conta fica inautenticável mesmo se
             // o soft delete for revertido por engano no banco.
@@ -670,6 +671,16 @@ class DeletionService
             // `status` NÃO é tocado: 'banned' é vocabulário de moderação e
             // marcar aqui contaminaria as métricas de abuso com quem só pediu
             // para sair. `deleted_at` é o marcador de conta encerrada.
+            // Segundo fator: material de autenticação, sem finalidade nenhuma
+            // depois do encerramento. Sai pelo mesmo motivo da senha aleatória
+            // logo acima — se o soft delete for revertido por engano no banco, a
+            // conta não pode voltar com o autenticador antigo ainda casando, e
+            // os recovery codes seriam 8 bypasses prontos numa linha que
+            // ninguém mais vigia.
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+            'two_factor_last_used_ts' => null,
             'deletion_token_hash' => null,
             'deletion_token_expires_at' => null,
         ])->save();
@@ -686,7 +697,7 @@ class DeletionService
     }
 
     /** Vencidos e ainda não encerrados — a fila do job diário. */
-    public function dueForDeletion(?Carbon $now = null): \Illuminate\Database\Eloquent\Collection
+    public function dueForDeletion(?Carbon $now = null): Collection
     {
         return User::query()
             ->whereNotNull('deletion_scheduled_at')

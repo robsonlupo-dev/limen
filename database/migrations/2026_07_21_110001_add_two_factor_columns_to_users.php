@@ -31,6 +31,14 @@ return new class extends Migration
             $table->text('two_factor_secret')->nullable()->after('password');
             $table->text('two_factor_recovery_codes')->nullable()->after('two_factor_secret');
             $table->timestamp('two_factor_confirmed_at')->nullable()->after('two_factor_recovery_codes');
+
+            // Último timestep TOTP consumido. É o que torna o código de uso
+            // ÚNICO (RFC 6238 §5.2): sem isto, o mesmo código vale pelos ~90s
+            // da janela e pode ser reapresentado — um código capturado por
+            // proxy de phishing passa no desafio E, logo depois, serve para
+            // POST /2fa/disable e desligar o próprio fator.
+            // Não é segredo (é um contador de tempo), então vai em claro.
+            $table->unsignedBigInteger('two_factor_last_used_ts')->nullable()->after('two_factor_confirmed_at');
         });
     }
 
@@ -41,6 +49,7 @@ return new class extends Migration
                 'two_factor_secret',
                 'two_factor_recovery_codes',
                 'two_factor_confirmed_at',
+                'two_factor_last_used_ts',
             ]);
         });
     }

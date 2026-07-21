@@ -8,6 +8,7 @@ use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use LogicException;
@@ -53,6 +54,35 @@ class TwoFactorService
         $this->engine->setWindow(self::WINDOW);
     }
 
+    /**
+     * Marca a sessão como tendo apresentado o fator, trocando o id antes.
+     *
+     * O regenerate é o que impede fixação em cima do segundo fator: sem ele, um
+     * id de sessão que o atacante tivesse plantado ANTES do desafio (ele sabe a
+     * senha; o que falta é o fator) sairia daqui já carimbado como verificado.
+     * Trocar o id na elevação de privilégio invalida o que ele tem.
+     */
+    public function markSessionVerified(Request $request, User $user): void
+    {
+        $request->session()->regenerate();
+        $request->session()->put(self::SESSION_KEY, $user->getKey());
+    }
+
+    /**
+     * A marca guarda o ID DO USUÁRIO, não `true`.
+     *
+     * Assim ela não é transferível: uma sessão que trocou de dono sem passar
+     * por logout (qualquer caminho de login futuro que esqueça de limpar a
+     * marca) não herda o fator de quem estava antes. É imunidade por
+     * construção, em vez de depender de lembrar do forget em cada controller.
+     */
+    public function sessionHasFactor(Request $request, ?User $user): bool
+    {
+        return $user !== null
+            && $request->hasSession()
+            && $request->session()->get(self::SESSION_KEY) === $user->getKey();
+    }
+
     /** 2FA ligado = confirmado. Ter secret gravado não basta — ver a migration. */
     public function isEnabled(?User $user): bool
     {
@@ -93,6 +123,10 @@ class TwoFactorService
         $user->two_factor_secret = $secret;
         $user->two_factor_recovery_codes = $codes;
         $user->two_factor_confirmed_at = null;
+        // Zera o contador de replay: o timestep do segredo ANTERIOR não diz
+        // nada sobre o novo, e herdá-lo recusaria os primeiros códigos válidos
+        // do autenticador recém-configurado.
+        $user->two_factor_last_used_ts = null;
         $user->save();
 
         // Sem o segredo e sem os códigos no metadata — o audit_logs não é lugar
@@ -150,6 +184,7 @@ class TwoFactorService
         $user->two_factor_secret = null;
         $user->two_factor_recovery_codes = null;
         $user->two_factor_confirmed_at = null;
+        $user->two_factor_last_used_ts = null;
         $user->save();
 
         Audit::log('performer.2fa_disabled', $user);
@@ -223,7 +258,48 @@ class TwoFactorService
             return false;
         }
 
-        return $this->engine->verifyKey($user->two_factor_secret, $code) !== false;
+        // verifyKeyNewer e não verifyKey: o timestep aceito tem que ser MAIOR
+        // que o último consumido, o que faz o código valer uma vez só
+        // (RFC 6238 §5.2). Com verifyKey, o mesmo código servia pelos ~90s da
+        // janela — e servia em rotas diferentes: quem capturasse o código
+        // usado no desafio o reapresentava em /2fa/disable e desligava o fator.
+        //
+        // Sob lock, e relendo dentro da transação, pelo mesmo motivo do
+        // consumo de recovery code: dois POSTs simultâneos com o MESMO código
+        // liam o mesmo `last_used_ts` e os dois passavam, desfazendo o uso
+        // único que a troca de método acabou de comprar.
+        return DB::transaction(function () use ($user, $code) {
+            /** @var User|null $locked */
+            $locked = User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+
+            if ($locked === null || $locked->two_factor_secret === null) {
+                return false;
+            }
+
+            // `?? 0` e não `null`: com null a lib devolve `true` em vez do
+            // timestep (Google2FA::findValidOTP), e aí não haveria o que
+            // gravar — o uso único morreria no primeiro código. O 0 não custa
+            // varredura: makeStartingTimestamp usa max(agora - janela, old+1),
+            // então o laço continua limitado à janela.
+            $timestamp = $this->engine->verifyKeyNewer(
+                $locked->two_factor_secret,
+                $code,
+                $locked->two_factor_last_used_ts ?? 0,
+            );
+
+            // A lib devolve false na recusa e o timestep (int) no acerto.
+            // Comparação estrita: um timestep 0 é falsy e passaria batido.
+            if ($timestamp === false) {
+                return false;
+            }
+
+            $locked->two_factor_last_used_ts = $timestamp;
+            $locked->save();
+
+            $user->refresh();
+
+            return true;
+        });
     }
 
     /**

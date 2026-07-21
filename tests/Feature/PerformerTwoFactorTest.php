@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\DeletionService;
 use App\Services\DocumentAcceptanceService;
 use App\Services\TwoFactorService;
 use Illuminate\Http\Request;
@@ -55,6 +56,28 @@ function acceptAllDocuments(User $user): void
 function totpFor(User $user): string
 {
     return (new Google2FA)->getCurrentOtp($user->fresh()->two_factor_secret);
+}
+
+/**
+ * Um TOTP válido AGORA, com o contador de replay zerado antes.
+ *
+ * O uso único do TOTP (RFC 6238 §5.2) grava o timestep consumido, então dois
+ * códigos seguidos dentro dos mesmos 30s se recusam — que é o comportamento
+ * correto e tem teste próprio. Só que Google2FA lê o relógio por
+ * `microtime()`, imune ao `Carbon::setTestNow`, então o teste não consegue
+ * ANDAR para o passo seguinte: rebobinar o contador é o equivalente.
+ *
+ * Use nos testes cujo objeto NÃO é o replay; para esses, `totpFor()` cru.
+ */
+function freshTotpFor(User $user): string
+{
+    // UPDATE direto, e não forceFill+save: a instância em memória carrega o
+    // valor de ANTES do confirm (null), então zerar por atributo não fica
+    // dirty e o save não escreve nada — o teste passaria a medir o contrário
+    // do que diz.
+    DB::table('users')->where('id', $user->id)->update(['two_factor_last_used_ts' => null]);
+
+    return totpFor($user);
 }
 
 /** Liga e confirma o 2FA, devolvendo os recovery codes emitidos. */
@@ -159,7 +182,7 @@ it('verify() aceita TOTP válido sem consumir recovery code', function () {
     enableAndConfirm($user);
     $service = app(TwoFactorService::class);
 
-    expect($service->verify($user->fresh(), totpFor($user)))->toBeTrue()
+    expect($service->verify($user->fresh(), freshTotpFor($user)))->toBeTrue()
         ->and($service->remainingRecoveryCodes($user->fresh()))->toBe(8);
 });
 
@@ -199,7 +222,7 @@ it('regenerar recovery codes invalida o lote anterior', function () {
     $old = enableAndConfirm($user);
     $service = app(TwoFactorService::class);
 
-    $new = $service->regenerateRecoveryCodes($user->fresh(), totpFor($user));
+    $new = $service->regenerateRecoveryCodes($user->fresh(), freshTotpFor($user));
 
     expect($new)->toHaveCount(8)
         ->and(array_intersect($old, $new))->toBeEmpty()
@@ -236,7 +259,7 @@ it('disable() com código válido limpa segredo e recovery codes', function () {
     enableAndConfirm($user);
     $service = app(TwoFactorService::class);
 
-    expect($service->disable($user->fresh(), totpFor($user)))->toBeTrue();
+    expect($service->disable($user->fresh(), freshTotpFor($user)))->toBeTrue();
 
     $user->refresh();
     expect($service->isEnabled($user))->toBeFalse()
@@ -281,7 +304,7 @@ it('middleware libera a sessão que passou pelo desafio', function () {
     enableAndConfirm($user);
 
     $this->actingAs($user->fresh())
-        ->withSession([TwoFactorService::SESSION_KEY => true])
+        ->withSession([TwoFactorService::SESSION_KEY => $user->id])
         ->get(route('performer.dashboard'))
         ->assertOk();
 });
@@ -330,9 +353,9 @@ it('a tela do desafio libera a sessão com um código válido', function () {
     enableAndConfirm($user);
 
     $this->actingAs($user->fresh())
-        ->post(route('performer.2fa.verify'), ['code' => totpFor($user)])
+        ->post(route('performer.2fa.verify'), ['code' => freshTotpFor($user)])
         ->assertRedirect(route('performer.dashboard'))
-        ->assertSessionHas(TwoFactorService::SESSION_KEY, true);
+        ->assertSessionHas(TwoFactorService::SESSION_KEY, $user->id);
 
     $this->get(route('performer.dashboard'))->assertOk();
 });
@@ -357,7 +380,7 @@ it('confirmar pelo web já deixa a sessão verificada', function () {
     $this->actingAs($user->fresh())
         ->post(route('performer.2fa.confirm'), ['code' => totpFor($user)])
         ->assertRedirect(route('performer.2fa.show'))
-        ->assertSessionHas(TwoFactorService::SESSION_KEY, true);
+        ->assertSessionHas(TwoFactorService::SESSION_KEY, $user->id);
 });
 
 it('a tela de configurações mostra o estado sem vazar o segredo', function () {
@@ -365,7 +388,7 @@ it('a tela de configurações mostra o estado sem vazar o segredo', function () 
     enableAndConfirm($user);
 
     $response = $this->actingAs($user->fresh())
-        ->withSession([TwoFactorService::SESSION_KEY => true])
+        ->withSession([TwoFactorService::SESSION_KEY => $user->id])
         ->get(route('performer.2fa.show'));
 
     $response->assertOk()->assertInertia(fn (Assert $page) => $page
@@ -386,7 +409,7 @@ it('POST /enable com 2FA já ativo devolve 409 e não troca o segredo', function
     $secret = $user->fresh()->two_factor_secret;
 
     $this->actingAs($user->fresh())
-        ->withSession([TwoFactorService::SESSION_KEY => true])
+        ->withSession([TwoFactorService::SESSION_KEY => $user->id])
         ->post(route('performer.2fa.enable'))
         ->assertStatus(409);
 
@@ -477,7 +500,7 @@ it('o login não herda a marca de 2FA da sessão anterior', function () {
 
     // regenerate() troca o id da sessão mas PRESERVA os dados: sem o forget
     // explícito, a sessão nova nasceria já verificada.
-    $this->withSession([TwoFactorService::SESSION_KEY => true])
+    $this->withSession([TwoFactorService::SESSION_KEY => $user->id])
         ->post(route('login.store'), [
             'email' => $user->email,
             'password' => 'senha-de-teste-123',
@@ -485,4 +508,165 @@ it('o login não herda a marca de 2FA da sessão anterior', function () {
 
     $this->get(route('performer.dashboard'))
         ->assertRedirect(route('performer.2fa.challenge'));
+});
+
+// ─── Porta Sanctum (API) ────────────────────────────────────────────────────
+//
+// O gate tem que valer nas DUAS portas de auth (CLAUDE.md). Sem isto, bastava
+// pedir um token em /api/v1/auth/login com a SENHA e usar /api/v1/performer/*,
+// onde moram perfil, KYC e gorjetas — o segundo fator viraria enfeite.
+
+it('o login da API não emite token cheio para quem tem 2FA', function () {
+    $user = twoFactorPerformer();
+    enableAndConfirm($user);
+    $user->forceFill(['password' => 'senha-de-teste-123'])->save();
+
+    $response = $this->postJson(route('auth.login'), [
+        'email' => $user->email,
+        'password' => 'senha-de-teste-123',
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['two_factor_required' => true])
+        ->assertJsonStructure(['challenge_token'])
+        // Nem o token real nem o perfil saem antes do fator.
+        ->assertJsonMissingPath('token')
+        ->assertJsonMissingPath('data');
+});
+
+it('o token de desafio não abre as rotas de performer da API', function () {
+    $user = twoFactorPerformer();
+    enableAndConfirm($user);
+    $user->forceFill(['password' => 'senha-de-teste-123'])->save();
+
+    $challenge = $this->postJson(route('auth.login'), [
+        'email' => $user->email,
+        'password' => 'senha-de-teste-123',
+    ])->json('challenge_token');
+
+    $headers = ['Authorization' => 'Bearer '.$challenge];
+
+    foreach ([
+        fn () => $this->getJson(route('performer.profile.show'), $headers),
+        fn () => $this->getJson(route('auth.me'), $headers),
+        fn () => $this->postJson(route('performer.kyc.submit'), [], $headers),
+    ] as $call) {
+        $this->app['auth']->forgetGuards();
+        $call()->assertForbidden();
+    }
+});
+
+it('a troca do token de desafio por código válido devolve o token cheio', function () {
+    $user = twoFactorPerformer();
+    enableAndConfirm($user);
+    $user->forceFill(['password' => 'senha-de-teste-123'])->save();
+
+    $challenge = $this->postJson(route('auth.login'), [
+        'email' => $user->email,
+        'password' => 'senha-de-teste-123',
+    ])->json('challenge_token');
+
+    $token = $this->postJson(route('auth.2fa.challenge'), ['code' => freshTotpFor($user)], [
+        'Authorization' => 'Bearer '.$challenge,
+    ])->assertOk()->json('token');
+
+    expect($token)->toBeString()->not->toBeEmpty();
+
+    // O guard é um singleton no container, e o container NÃO é reconstruído
+    // entre requests do mesmo teste: sem isto, o `sanctum` devolve o usuário
+    // que ele memorizou na request anterior — ainda carregando o token de
+    // DESAFIO — e o teste mediria o token errado. Em produção cada request
+    // sobe a app do zero, então o artefato é só do teste.
+    $this->app['auth']->forgetGuards();
+
+    $this->getJson(route('performer.profile.show'), ['Authorization' => 'Bearer '.$token])
+        ->assertOk();
+
+    // O token de desafio foi queimado na troca — não sobra credencial de
+    // meio-caminho pendurada.
+    $this->app['auth']->forgetGuards();
+
+    $this->postJson(route('auth.2fa.challenge'), ['code' => freshTotpFor($user)], [
+        'Authorization' => 'Bearer '.$challenge,
+    ])->assertUnauthorized();
+});
+
+it('a troca com código inválido não emite token', function () {
+    $user = twoFactorPerformer();
+    enableAndConfirm($user);
+    $user->forceFill(['password' => 'senha-de-teste-123'])->save();
+
+    $challenge = $this->postJson(route('auth.login'), [
+        'email' => $user->email,
+        'password' => 'senha-de-teste-123',
+    ])->json('challenge_token');
+
+    $this->postJson(route('auth.2fa.challenge'), ['code' => '000000'], [
+        'Authorization' => 'Bearer '.$challenge,
+    ])->assertStatus(422)->assertJsonMissingPath('token');
+});
+
+it('o login da API segue emitindo token cheio para quem não tem 2FA', function () {
+    $user = twoFactorPerformer();
+    $user->forceFill(['password' => 'senha-de-teste-123'])->save();
+
+    $this->postJson(route('auth.login'), [
+        'email' => $user->email,
+        'password' => 'senha-de-teste-123',
+    ])->assertOk()->assertJsonStructure(['token']);
+});
+
+// ─── Replay do TOTP ─────────────────────────────────────────────────────────
+
+it('o mesmo código TOTP não passa duas vezes', function () {
+    $user = twoFactorPerformer();
+    enableAndConfirm($user);
+    $service = app(TwoFactorService::class);
+
+    $code = freshTotpFor($user);
+
+    expect($service->verify($user->fresh(), $code))->toBeTrue()
+        // RFC 6238 §5.2: uso único. Sem isto, o código capturado no desafio
+        // ainda servia, dentro da janela, para POST /2fa/disable.
+        ->and($service->verify($user->fresh(), $code))->toBeFalse();
+});
+
+it('o código usado no confirm não serve para desativar em seguida', function () {
+    $user = twoFactorPerformer();
+    $service = app(TwoFactorService::class);
+    $service->enable($user);
+
+    $code = totpFor($user);
+    expect($service->confirm($user->fresh(), $code))->toBeTrue()
+        ->and($service->disable($user->fresh(), $code))->toBeFalse()
+        ->and($service->isEnabled($user->fresh()))->toBeTrue();
+});
+
+// ─── Flash de setup e Hard Delete ───────────────────────────────────────────
+
+it('o segredo não fica legível no store de sessão', function () {
+    $user = twoFactorPerformer();
+
+    $this->actingAs($user)->post(route('performer.2fa.enable'));
+
+    // O store é `database` com encrypt=false: flashar cru deixaria o segundo
+    // fator legível na tabela `sessions`.
+    $secret = $user->fresh()->two_factor_secret;
+    $flashed = session('2fa_setup');
+
+    expect($flashed)->toBeString()
+        ->and($flashed)->not->toContain($secret);
+});
+
+it('o Hard Delete LGPD apaga o segundo fator', function () {
+    $user = twoFactorPerformer();
+    enableAndConfirm($user);
+
+    app(DeletionService::class)->executeDeletion($user->fresh(), 'user_request');
+
+    $raw = DB::table('users')->where('id', $user->id)->first();
+
+    expect($raw->two_factor_secret)->toBeNull()
+        ->and($raw->two_factor_recovery_codes)->toBeNull()
+        ->and($raw->two_factor_confirmed_at)->toBeNull();
 });

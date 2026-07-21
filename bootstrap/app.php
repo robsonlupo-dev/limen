@@ -17,8 +17,18 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
-        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+    )
+    // `channels:` sairia daqui com /broadcasting/auth no middleware `web` e mais
+    // nada — sem `auth` e, o que importa aqui, sem `2fa`. Os callbacks em
+    // routes/channels.php só checam participação, então a sessão da performer
+    // que o TwoFactorChallenge acabou de mandar para o desafio ainda assinava
+    // `conversation.{id}` e lia o chat em tempo real — exatamente a superfície
+    // que o gate diz cobrir. Hoje o Reverb não roda (driver `log`), então isto
+    // é preventivo; no dia que subir, deixa de ser.
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        ['middleware' => ['web', 'auth', '2fa']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
