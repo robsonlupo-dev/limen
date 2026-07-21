@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Web\Consumer;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ToggleDiscreteModeRequest;
+use App\Http\Requests\TogglePrivacyPerkRequest;
 use App\Models\User;
 use App\Services\DeletionService;
 use App\Services\DiscreteModeService;
+use App\Services\PrivacyPerkService;
+use App\Services\ProfileVisitService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,6 +26,8 @@ class PreferencesController extends Controller
     public function __construct(
         private DiscreteModeService $discreteMode,
         private DeletionService $deletion,
+        private PrivacyPerkService $privacyPerks,
+        private ProfileVisitService $profileVisits,
     ) {}
 
     public function index(Request $request): Response
@@ -62,5 +67,38 @@ class PreferencesController extends Controller
         $newValue = $this->discreteMode->apply($user, $desired);
 
         return back()->with('success', 'Modo Discreto ' . ($newValue ? 'ativado' : 'desativado'));
+    }
+
+    /**
+     * Ghost Mode / Status Invisível / Read Receipts. Um endpoint para os três:
+     * a regra de elegibilidade é a mesma e o perk vem validado por allowlist.
+     */
+    public function togglePrivacyPerk(TogglePrivacyPerkRequest $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $perk = $request->perk();
+        $desired = $request->desiredValue();
+
+        // 403, não flash: o toggle só é renderizado para quem tem o tier, então
+        // quem chega aqui inelegível não veio pela UI. Voltar ao lado público
+        // é sempre permitido — ver PrivacyPerkService::mayApply().
+        abort_unless(
+            $this->privacyPerks->mayApply($user, $perk, $desired),
+            403,
+            'Disponível apenas para membros Black e Founders Circle',
+        );
+
+        $this->privacyPerks->apply($user, $perk, $desired);
+
+        // Ligar o Ghost Mode apaga o rastro já deixado. Sem isto o perk levaria
+        // até 24h para fazer efeito: a performer continuaria vendo no painel
+        // dela alguém que acabou de se tornar invisível — que é exatamente o
+        // que a pessoa achou que tinha resolvido ao clicar.
+        if ($perk === PrivacyPerkService::GHOST_MODE && $desired === true) {
+            $this->profileVisits->purgeFor($user);
+        }
+
+        return back()->with('success', 'Preferência de privacidade atualizada');
     }
 }

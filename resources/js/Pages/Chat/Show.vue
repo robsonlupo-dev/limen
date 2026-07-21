@@ -214,14 +214,21 @@ watch(() => props.messages.data.length, scrollToBottom)
                         </div>
                     </div>
                     <!-- Mensagem legível -->
-                    <div
-                        v-else
-                        class="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line break-words"
-                        :class="isMine(m)
-                            ? 'bg-gold text-background rounded-br-sm'
-                            : 'bg-surface border border-frame text-cream rounded-bl-sm'"
-                    >
-                        {{ m.body }}
+                    <div v-else class="max-w-[75%] flex flex-col" :class="isMine(m) ? 'items-end' : 'items-start'">
+                        <div
+                            class="rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line break-words"
+                            :class="isMine(m)
+                                ? 'bg-gold text-background rounded-br-sm'
+                                : 'bg-surface border border-frame text-cream rounded-bl-sm'"
+                        >
+                            {{ m.body }}
+                        </div>
+                        <!-- Confirmação de leitura: só nas minhas mensagens e só
+                             quando de fato houve leitura confirmada. Ausência não
+                             é "não leu" — pode ser leitor com read receipts
+                             desligados (perk Black/FC) — por isso a UI não tem
+                             estado "não lida": ou confirmou, ou não diz nada. -->
+                        <span v-if="isMine(m) && m.read_at" class="pt-1 pr-1 text-[11px] text-muted">Lida</span>
                     </div>
                 </div>
             </div>

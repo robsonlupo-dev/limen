@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import DiscreteModeToggle from '@/Components/DiscreteModeToggle.vue'
+import PrivacyPerkToggle from '@/Components/PrivacyPerkToggle.vue'
 import AccountDeletionSection from '@/Components/AccountDeletionSection.vue'
 
 defineProps({
@@ -40,6 +41,30 @@ const canUseDiscreteMode = computed(() => page.props.auth?.user?.can_use_discret
                         Ver Círculos &rarr;
                     </Link>
                 </div>
+
+                <PrivacyPerkToggle
+                    perk="ghost_mode"
+                    title="Ghost Mode"
+                    description="Suas visitas a perfis não são registradas"
+                    detail="A performer não vê você na lista de visitantes recentes do painel dela."
+                />
+
+                <PrivacyPerkToggle
+                    perk="invisible_status"
+                    title="Status Invisível"
+                    description="Sua presença não é exposta a ninguém"
+                    detail="Você navega sem que performers ou outros membros saibam que você está online."
+                />
+
+                <!-- Invertido: o membro liga a PRIVACIDADE, e no banco isso é
+                     read_receipts_enabled = false. -->
+                <PrivacyPerkToggle
+                    perk="read_receipts_enabled"
+                    title="Confirmação de leitura desligada"
+                    description="Ninguém sabe se você leu a mensagem"
+                    detail="Você continua vendo quando suas próprias mensagens são lidas por quem não desligou."
+                    inverted
+                />
             </div>
 
             <!-- Última seção da tela de propósito: ação destrutiva não disputa

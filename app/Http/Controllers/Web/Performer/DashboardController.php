@@ -9,6 +9,8 @@ use App\Models\Tip;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Services\FollowerVisibilityService;
+use App\Services\ProfileVisitService;
 use App\Support\FanAlias;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -17,12 +19,15 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function __construct(private ProfileVisitService $visits) {}
+
     public function index(Request $request): Response
     {
         Gate::authorize('performer-active');
 
         $user = $request->user();
         $profile = $user->performerProfile;
+        $visitorPanel = $this->visits->panelFor($profile);
 
         return Inertia::render('Performer/Dashboard', [
             'wallet' => $this->walletBalance($user),
@@ -35,6 +40,15 @@ class DashboardController extends Controller
             'followers' => $profile->followersCountLabel(),
             'kycStatus' => $this->kycStatus($user),
             'isLive' => $profile->is_live,
+            // Visitantes das últimas 24h, sob o mesmo FanAlias das gorjetas e
+            // atrás do mesmo Piso de Anonimato da tela de seguidores (ver
+            // ProfileVisitService::panelFor). Quem tem Ghost Mode (Black/FC) ou
+            // Modo Discreto nunca gerou linha — para esta tela ele não passou
+            // por aqui, e é isso que o perk vende.
+            'visitors' => $visitorPanel['visitors'],
+            'visitorsVisible' => $visitorPanel['visible'],
+            'visitorsWindowHours' => ProfileVisitService::RECENT_HOURS,
+            'anonymityFloor' => app(FollowerVisibilityService::class)->floor(),
         ]);
     }
 

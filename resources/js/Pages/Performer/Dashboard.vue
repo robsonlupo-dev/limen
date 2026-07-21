@@ -13,6 +13,14 @@ const props = defineProps({
     followers: { type: String, required: true },
     kycStatus: { type: String, required: true },
     isLive: { type: Boolean, required: true },
+    // Visitantes já pseudonimizados (FanAlias) pelo servidor — o id do membro
+    // não chega aqui, como nas gorjetas.
+    visitors: { type: Array, default: () => [] },
+    // Falso enquanto o Piso de Anonimato não destravar. Não é "lista vazia":
+    // vazio e escondido são estados diferentes, e a tela explica cada um.
+    visitorsVisible: { type: Boolean, default: false },
+    visitorsWindowHours: { type: Number, default: 24 },
+    anonymityFloor: { type: Number, default: 5 },
 })
 
 const kycBadge = computed(() => {
@@ -110,6 +118,58 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <!-- Visitantes recentes -->
+            <div class="space-y-3">
+                <div class="flex items-baseline justify-between gap-4">
+                    <h2 class="font-serif text-xl text-cream">Visitantes recentes</h2>
+                    <span class="text-xs text-muted">últimas {{ visitorsWindowHours }}h</span>
+                </div>
+
+                <!-- Piso de Anonimato: mesma regra da tela de seguidores. A tela
+                     diz POR QUE está vazia — sem isso a performer lê como
+                     "ninguém veio" e conclui coisa errada sobre o próprio perfil. -->
+                <div v-if="!visitorsVisible" class="rounded-xl border border-frame bg-surface p-8 text-center space-y-1">
+                    <p class="text-cream text-sm">Ainda não é possível mostrar os visitantes</p>
+                    <p class="text-muted text-xs">
+                        Para preservar o anonimato de quem visita, a lista aparece a partir de
+                        {{ anonymityFloor }} visitantes — e depende do mesmo piso da sua lista de seguidores.
+                    </p>
+                </div>
+
+                <div v-else-if="visitors.length === 0" class="rounded-xl border border-frame bg-surface p-8 text-center text-muted text-sm">
+                    Nenhuma visita nas últimas {{ visitorsWindowHours }} horas.
+                </div>
+
+                <div v-else class="rounded-xl border border-frame bg-surface overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-frame text-left text-xs text-muted uppercase tracking-wide">
+                                <th class="px-5 py-3 font-medium">Fã</th>
+                                <th class="px-5 py-3 font-medium">Visita</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="(visit, i) in visitors"
+                                :key="i"
+                                class="border-b border-frame/50 last:border-b-0"
+                            >
+                                <td class="px-5 py-3 text-cream">{{ visit.fan }}</td>
+                                <td class="px-5 py-3 text-muted">{{ visit.visited_at }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Nem toda visita aparece aqui, e a tela diz isso: sem o aviso,
+                     a lista vazia se lê como "ninguém veio", e a performer tira
+                     conclusão de um dado que nunca foi completo. -->
+                <p v-if="visitorsVisible" class="text-xs text-muted">
+                    Membros com Ghost Mode navegam sem registrar visita — esta lista é parcial por
+                    definição.
+                </p>
             </div>
         </div>
     </AppLayout>
