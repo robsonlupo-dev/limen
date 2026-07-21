@@ -53,3 +53,8 @@ Schedule::command('chat:purge-expired-access')->dailyAt('03:30')->withoutOverlap
 // passo é o único fora da transação — duas varreduras no mesmo usuário fariam a
 // segunda apagar caminhos já removidos e falhar o lote por um erro inócuo.
 Schedule::command('deletions:process')->dailyAt('04:00')->withoutOverlapping(30);
+
+// Retenção das visitas a perfis: o painel mostra 24h, guardamos 7 dias. Diário
+// basta — o prazo é em dias, e um DELETE por faixa de data não disputa nada com
+// o resto da madrugada.
+Schedule::command('visits:purge')->dailyAt('04:30')->withoutOverlapping(10);

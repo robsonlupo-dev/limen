@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Notifications\ResetPasswordNotification;
 use App\Notifications\VerifyEmailNotification;
+use App\Services\PrivacyPerkService;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -50,6 +51,11 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'interests_opt_out' => 'boolean',
             'discrete_mode' => 'boolean',
+            // Perks de privacidade Black/FC. NULL é significativo aqui ("nunca
+            // escolheu" → vale o padrão do tier), e o cast preserva o null.
+            'ghost_mode' => 'boolean',
+            'invisible_status' => 'boolean',
+            'read_receipts_enabled' => 'boolean',
             'deletion_requested_at' => 'datetime',
             'deletion_scheduled_at' => 'datetime',
             'deletion_confirmed_at' => 'datetime',
@@ -140,5 +146,35 @@ class User extends Authenticatable implements MustVerifyEmail
     public function activeCircleSlug(): ?string
     {
         return $this->activeCircle()?->slug;
+    }
+
+    // ─── Perks de privacidade (Black / Founders Circle) ──────────────────────
+    //
+    // Atalhos de leitura sobre o PrivacyPerkService, que é quem decide de fato
+    // (elegibilidade por rank de tier + padrão por tier + escolha explícita).
+    // Ficam no model porque os pontos de aplicação são espalhados — catálogo,
+    // chat, painel — e um `$user->hasGhostMode()` na condição é mais difícil de
+    // esquecer do que injetar o service em cada controller. A regra continua
+    // tendo uma dona só: mudar o critério é mudar o service, não isto aqui.
+
+    /** A visita deste membro a um perfil NÃO deve ser registrada. */
+    public function hasGhostMode(): bool
+    {
+        return app(PrivacyPerkService::class)->effective($this, PrivacyPerkService::GHOST_MODE);
+    }
+
+    /** A presença deste membro NÃO deve ser exposta a terceiros. */
+    public function hasInvisibleStatus(): bool
+    {
+        return app(PrivacyPerkService::class)->effective($this, PrivacyPerkService::INVISIBLE_STATUS);
+    }
+
+    /**
+     * A LEITURA deste membro pode ser confirmada para quem enviou a mensagem.
+     * False = ele lê sem que o remetente saiba (perk Black/FC).
+     */
+    public function hasReadReceipts(): bool
+    {
+        return app(PrivacyPerkService::class)->effective($this, PrivacyPerkService::READ_RECEIPTS);
     }
 }

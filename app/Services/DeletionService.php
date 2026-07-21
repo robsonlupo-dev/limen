@@ -294,6 +294,7 @@ class DeletionService
             $summary['age_verification_scrubbed'] = $this->scrubAgeVerification($user);
             $summary['follows'] = $this->purgeFollows($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
+            $summary['profile_visits'] = $this->purgeProfileVisits($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
@@ -562,6 +563,17 @@ class DeletionService
             ->where('consumer_id', $user->id)
             ->whereNotNull('message')
             ->update(['message' => null]);
+    }
+
+    /**
+     * Histórico de navegação do titular: quais perfis ele visitou e quando.
+     * Sem valor fiscal e sem trilha legal — hard delete, como os registros de
+     * KYC. Não há nada a preservar aqui, e manter seria guardar o mapa de
+     * interesses de uma conta encerrada.
+     */
+    private function purgeProfileVisits(User $user): int
+    {
+        return DB::table('profile_visits')->where('visitor_id', $user->id)->delete();
     }
 
     private function ledgerEntryCount(User $user): int
