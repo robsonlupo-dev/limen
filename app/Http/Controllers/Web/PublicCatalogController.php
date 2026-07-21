@@ -7,6 +7,7 @@ use App\Http\Resources\PerformerPublicResource;
 use App\Models\Conversation;
 use App\Services\ChatAccessService;
 use App\Services\PerformerCatalogService;
+use App\Services\ProfileVisitService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,6 +25,7 @@ class PublicCatalogController extends Controller
     public function __construct(
         private PerformerCatalogService $catalogService,
         private ChatAccessService $chatAccessService,
+        private ProfileVisitService $profileVisits,
     ) {}
 
     public function index(Request $request): Response
@@ -59,6 +61,11 @@ class PublicCatalogController extends Controller
     public function show(Request $request, string $slug): Response
     {
         $profile = $this->catalogService->findPublicBySlug($slug);
+
+        // Esta rota é pública, mas o membro logado também chega aqui (link
+        // direto, busca). Visitante anônimo não gera visita — não há quem
+        // mostrar — e quem tem Ghost Mode também não. Ver ProfileVisitService.
+        $this->profileVisits->record($request->user(), $profile);
 
         $performer = (new PerformerPublicResource($profile))->resolve($request);
 

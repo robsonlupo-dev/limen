@@ -41,6 +41,7 @@ return [
         'preferences.update',
         'consumer.settings',
         'consumer.settings.discrete-mode',
+        'consumer.settings.privacy',
 
         // Denúncia (compliance)
         'report.store',

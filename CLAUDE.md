@@ -105,6 +105,88 @@ envio vira oráculo para reconstruir a lista que a tela esconde.
 5. Contagem de seguidores é sempre exibida **em faixa**, inclusive para a própria
    performer — faixar só as telas públicas deixaria a correlação de pé.
 
+### Piso de visitantes (`profile_visits`, painel do dashboard)
+O painel "visitantes recentes" é a segunda superfície que expõe membro à
+performer, e o piso de seguidores sozinho não a cobre: ele libera a tela, não
+limita quem aparece nela. Por isso o painel tem **dois** cortes — `canRevealList()`
+(seguidores) **e** um piso de visitantes distintos.
+
+6. **O piso de visitantes conta só elegíveis:** conta com 7+ dias, e-mail
+   verificado, `role=consumer` e `status=active`. É a mesma mitigação de sybil do
+   item 4, e pelo mesmo motivo: contando todo visitante distinto, a performer com
+   o piso de seguidores já destravado criava 4 contas de véspera, visitava o
+   próprio perfil com cada uma e o quinto alias — o único que ela não plantou —
+   saía identificado por eliminação (casando o horário de cada visita própria com
+   a linha correspondente). Como o `FanAlias` é estável por par, esse vínculo ia
+   junto para as gorjetas e para a lista de seguidores.
+   O critério tem uma dona só: `FollowerVisibilityService::applyFloorEligibility()`.
+   **Não copie o número nem a regra** para outro service.
+7. **Elegibilidade destrava, não filtra** (item 4 vale aqui): aberto o painel, a
+   lista sai **completa** — visitante de conta nova aparece nela normalmente. Só
+   o CONTADOR do piso aplica os cortes.
+8. **`limit < piso` lança `LogicException`** (`ProfileVisitService::panelFor()`),
+   nunca clamp silencioso. O piso é contado sobre a janela inteira e a lista sai
+   cortada em `$limit`: se `$limit` for menor, o painel abre exibindo menos
+   aliases do que o piso exige. É erro de chamador — nenhum request alcança isso —
+   então quebra alto em teste e staging.
+9. **O guard do Ghost Mode vive no Service**, em `ProfileVisitService::record()`,
+   não nos controllers. São dois pontos de entrada hoje (`CatalogController` e
+   `PublicCatalogController`) e ambos só delegam; a checagem no controller viraria
+   duas cópias, e a terceira rota que aparecesse nasceria vazando. `record()`
+   também barra Modo Discreto (item 2) e a própria performer.
+   **Não existe coluna `hidden`/`ghost` em `profile_visits`:** visita de quem tem
+   o perk não é gravada. A ausência de linha É o produto — guardar a visita
+   marcada como oculta deixaria o dado a um JOIN de distância, e um bug de query
+   viraria o vazamento exato que o perk vende.
+10. **O painel usa `FanAlias::label(performer_profile_id, visitor_id)`** — nunca o
+    `visitor_id`. `visitor_id` é chave interna e não sai do service.
+11. **`profile_visits` são apagadas no Hard Delete** (`DeletionService::purgeProfileVisits()`),
+    com `DELETE` real dentro da transação. É o mapa de interesses do titular, sem
+    valor fiscal nem trilha legal — não há o que preservar. Retenção normal são
+    7 dias (`visits:purge`), enquanto o painel consome 24h. As visitas RECEBIDAS
+    pelo perfil saem junto quando a **performer** encerra
+    (`purgeVisitsToOwnProfile()`) — as FKs `cascadeOnDelete` de `profile_visits`
+    **nunca disparam**, porque os dois lados são soft-delete. Não escreva código
+    contando com o cascade.
+12. **Horário só em FAIXA, nunca em relógio.** O painel devolve `visited_slot`
+    (Madrugada/Manhã/Tarde/Noite, faixas de 6h; só a data fora do dia corrente).
+    **`visited_at` não é exposto.** Com `d/m/Y H:i`, a performer mandava o link
+    para UMA pessoa às 14:31, via o alias novo carimbado 14:32 e ligava o
+    pseudônimo a um nome — e o `FanAlias` é estável por par, então o vínculo ia
+    junto para gorjetas e seguidores.
+    A faixa é derivada de `ProfileVisitService::DISPLAY_TIMEZONE`
+    (`America/Sao_Paulo`), **não** de `config('app.timezone')`, que é `UTC`:
+    derivar dali rotularia 21:00 em São Paulo como "Madrugada".
+13. **Ordem embaralhada dentro da faixa** (`revealableSlots()`). Sem isso a lista
+    saía por recência e a POSIÇÃO entregava o que o relógio entregava. A ordem
+    ENTRE faixas fica (mais recente primeiro) — essa é a informação legítima.
+14. **k-anonimato por faixa: a faixa só aparece com `SLOT_MIN_K` (3) aliases.**
+    Faixa incompleta some por inteiro — **sem** placeholder, contador ou "1 visita
+    oculta", que reporiam o sinal que o k tira. Pela mesma razão, a copy de lista
+    vazia na tela é deliberadamente ambígua ("Nada a mostrar"), e **não** afirma
+    que não houve visita: distinguir "zero" de "abaixo de k" diria à performer que
+    alguém passou.
+    O k é filtro DENTRO da lista, **não** substituto do piso: `visible` continua
+    decidido só pelos pisos, e `visible: true` com lista vazia é estado legítimo.
+
+> **Ressalvas conhecidas — o painel de visitantes NÃO é anônimo contra um
+> adversário ativo.** Registrado para não ser redescoberto como novidade:
+>
+> - **Polling numa faixa já visível.** O k protege a transição escondida→visível:
+>   a faixa surge já com 3 aliases, e quem chegou no intervalo é um entre 3. Mas
+>   uma faixa **já visível** que ganha um visitante o entrega por diferença entre
+>   dois refreshes — verificado em teste: o diff devolve exatamente 1 alias novo.
+>   Fechar isso exigiria só revelar a faixa depois de encerrada (release em lote),
+>   o que não está implementado.
+> - **A2 — eliminação com contas envelhecidas.** Os cortes do piso (7 dias +
+>   e-mail verificado) são custo de setup ÚNICO, não recorrente: pagos uma vez, o
+>   painel fica destravado e cada visitante real seguinte sai por eliminação
+>   contra os aliases que a performer plantou. O k e a faixa encarecem; não
+>   eliminam.
+>
+> Consequência prática: **não descreva este painel como anônimo** em copy de
+> produto, política de privacidade ou auditoria. Ele reduz correlação passiva.
+
 ## Pseudônimo do membro — `FanAlias` (fechado no Sprint 6)
 Toda exposição de membro à performer passa por `app/Support/FanAlias.php`:
 pseudônimo derivado por par (performer_profile_id, member_id) com HMAC sobre a

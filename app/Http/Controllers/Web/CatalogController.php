@@ -8,6 +8,7 @@ use App\Models\Follow;
 use App\Models\PerformerProfile;
 use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
+use App\Services\ProfileVisitService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -18,6 +19,7 @@ class CatalogController extends Controller
     public function __construct(
         private PerformerCatalogService $catalogService,
         private FollowService $followService,
+        private ProfileVisitService $profileVisits,
     ) {}
 
     public function index(Request $request): Response
@@ -74,6 +76,10 @@ class CatalogController extends Controller
     public function show(Request $request, string $slug): Response
     {
         $profile = $this->catalogService->findBySlug($slug);
+
+        // Visita: no-op para quem tem Ghost Mode, e a resposta é idêntica nos
+        // dois casos de propósito (ver ProfileVisitService::record).
+        $this->profileVisits->record($request->user(), $profile);
 
         $performer = array_merge(
             (new PerformerPublicResource($profile))->resolve($request),

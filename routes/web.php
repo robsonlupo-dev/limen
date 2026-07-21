@@ -339,6 +339,12 @@ Route::middleware('auth')->group(function () {
             ->middleware('throttle:20,1')
             ->name('consumer.settings.discrete-mode');
 
+        // Perks de privacidade Black/FC (Ghost Mode, Status Invisível, Read
+        // Receipts). Um endpoint, perk validado por allowlist.
+        Route::patch('/configuracoes/privacidade', [ConsumerPreferencesController::class, 'togglePrivacyPerk'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.settings.privacy');
+
         // Assinaturas (Círculos) — escolha de tier + cartão + cancelamento.
         Route::get('/assinar', [SubscriptionController::class, 'index'])->name('subscribe.index');
         // throttle apertado: barra carding/BIN — poucas tentativas de cartão/min.

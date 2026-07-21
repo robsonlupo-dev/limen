@@ -43,4 +43,33 @@ class Circle extends Model
             ? -1
             : (int) array_search($this->slug, self::TIER_ORDER, true);
     }
+
+    /**
+     * Este Círculo é de tier `$minSlug` ou superior?
+     *
+     * Dona única da comparação de tier. Existe porque os call sites vinham
+     * escrevendo a regra à mão com `array_search`, e dois deles erravam do jeito
+     * caro: `tierRank() >= array_search('black', TIER_ORDER, true)` falha ABERTO
+     * se 'black' sair do TIER_ORDER (renomeação, reordenação). `array_search`
+     * devolve `false`, e numa comparação com bool o PHP converte os DOIS lados —
+     * `3 >= false`, `0 >= false` e até `-1 >= false` são todos true. O gate
+     * deixava de restringir qualquer coisa em vez de barrar tudo.
+     *
+     * Fail-closed nas duas pontas: slug desconhecido de um lado ou de outro
+     * responde `false`. Num gate de privilégio, "não sei comparar" é "não".
+     *
+     * Comparação por RANK e não por lista de slugs: tier novo acima de Black
+     * herda o privilégio sem precisar editar cada service.
+     */
+    public function tierAtLeast(string $minSlug): bool
+    {
+        $mine = array_search($this->slug, self::TIER_ORDER, true);
+        $min = array_search($minSlug, self::TIER_ORDER, true);
+
+        if ($mine === false || $min === false) {
+            return false;
+        }
+
+        return $mine >= $min;
+    }
 }

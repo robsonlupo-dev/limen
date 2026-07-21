@@ -11,6 +11,7 @@ use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerInterest;
+use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
 use App\Services\TokenService;
@@ -125,6 +126,14 @@ class ChatController extends Controller
         // Ler = marcar como lida: só quando o corpo é DE FATO entregue (leitura
         // plena e destravada). Em grace o corpo é retido, então não marca. Zera
         // as não-lidas do OUTRO participante; idempotente.
+        //
+        // A marcação continua SEMPRE acontecendo, inclusive para quem desligou
+        // read receipts, porque `read_at` tem dois usos: confirmar a leitura ao
+        // remetente E alimentar o `unread_count` do index(). Deixar de marcar
+        // desligaria os dois — o membro Black ficaria com a própria caixa
+        // eternamente marcada como não-lida. O perk é aplicado na ENTREGA
+        // (readReceiptVisible), não na escrita: quem tem o perk lê sem que o
+        // remetente veja, e continua com o próprio contador funcionando.
         if ($state['can_read'] && ! $state['locked']) {
             $conversation->messages()
                 ->whereNull('read_at')
@@ -139,6 +148,12 @@ class ChatController extends Controller
         if (! $state['can_read']) {
             $messages = new LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url()]);
         } else {
+            // O OUTRO participante desligou a confirmação de leitura? Então
+            // nenhuma mensagem minha volta com read_at — resolvido uma vez, e
+            // não por mensagem: numa conversa de duas pessoas, quem lê o que eu
+            // mandei é sempre a mesma pessoa.
+            $showReadReceipt = $this->readReceiptVisible($conversation, $request->user());
+
             // Com leitura bloqueada (grace): metadados + locked, sem corpo.
             $messages = $conversation->messages()
                 ->orderByDesc('id')
@@ -150,6 +165,13 @@ class ChatController extends Controller
                     'locked' => $state['locked'],
                     // Corpo só quando há leitura plena e destravada.
                     'body' => (! $state['locked']) ? $m->body : null,
+                    // Confirmação de leitura só nas MINHAS mensagens, e só se
+                    // quem lê não desligou o perk. read_at de uma mensagem que
+                    // EU recebi diz quando eu a li — não acrescenta nada na
+                    // minha tela e não precisa trafegar.
+                    'read_at' => ($showReadReceipt && $m->sender_id === $request->user()->id)
+                        ? $m->read_at
+                        : null,
                 ]);
         }
 
@@ -247,6 +269,53 @@ class ChatController extends Controller
         }
 
         return response()->json(['status' => 'sent'], 202);
+    }
+
+    /**
+     * As MINHAS mensagens podem voltar com confirmação de leitura?
+     *
+     * Depende de quem LÊ o que eu mando — o outro participante — porque é a
+     * leitura dele que o read_at revelaria. Perk de Black/FC: o membro lê sem
+     * que a performer saiba. A performer não tem o perk (não é consumer), então
+     * na prática isto só apaga o "Lida" da tela dela.
+     *
+     * Ausência de confirmação é ambígua de propósito: pode ser não-lida ou
+     * receipts desligados, e a UI não distingue as duas — se distinguisse, o
+     * "desligado" viraria um aviso de que o membro é assinante Black.
+     */
+    private function readReceiptVisible(Conversation $conversation, User $viewer): bool
+    {
+        $counterpartId = $viewer->id === $conversation->member_id
+            ? $conversation->performerProfile->user_id
+            : $conversation->member_id;
+
+        // withTrashed: `User` usa SoftDeletes e o encerramento de conta soft-deleta.
+        // Sem isto a contraparte encerrada some do find(), e o gate abaixo caía no
+        // lado PERMISSIVO — a performer que nunca viu "Lida" passava a ver "Lida"
+        // em todas as mensagens antigas do membro que acabou de sair (o read_at
+        // continua gravado, porque a marcação é sempre feita). Além de furar o
+        // perk depois do fato, a mudança era observável: o "Lida" aparecendo
+        // sozinho anunciava o encerramento da conta.
+        $counterpart = User::withTrashed()->find($counterpartId);
+
+        // Fail-closed em dois casos, e o segundo NÃO é redundante:
+        //
+        //  - contraparte inexistente (linha sumiu, conversa órfã);
+        //  - contraparte ENCERRADA. Aqui não dá para perguntar ao perk: o
+        //    encerramento zera as colunas para o lado público (DeletionService::
+        //    anonymizeUser), justamente para não deixar na linha o atestado de
+        //    que a pessoa era Black/FC. Consultar `hasReadReceipts()` numa conta
+        //    encerrada devolveria `true` por causa dessa limpeza e reabriria o
+        //    vazamento pela outra porta — o "Lida" apareceria em bloco no
+        //    instante do encerramento, que é o sinal que se quer evitar.
+        //
+        // Regra: conta encerrada não emite sinal novo, valor de coluna nenhum.
+        if ($counterpart === null || $counterpart->trashed()) {
+            return false;
+        }
+
+        // Conta viva: o perk é do LEITOR e é consultado normalmente.
+        return $counterpart->hasReadReceipts();
     }
 
     /**

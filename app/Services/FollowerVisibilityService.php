@@ -109,14 +109,31 @@ class FollowerVisibilityService
      */
     private function floorEligible(Builder $query): Builder
     {
-        $cutoff = now()->subDays($this->floorAccountAgeDays());
+        return $query->whereHas('user', fn ($q) => $this->applyFloorEligibility($q));
+    }
 
-        return $query->whereHas('user', fn ($q) => $q
-            ->where('created_at', '<=', $cutoff)
+    /**
+     * O critério de sybil aplicado a um query de `users` — a mitigação em si,
+     * separada de `follows` para que outras superfícies possam reusá-la.
+     *
+     * Existe porque o piso não é só da tela de seguidores: qualquer painel que
+     * exponha membros à performer precisa contar contas com o MESMO corte, ou o
+     * atacante troca a superfície e o piso cai (o painel de visitantes contava
+     * todo mundo e destravava com 4 contas de véspera — ver ProfileVisitService).
+     * Duplicar a regra lá teria criado uma segunda dona para ela; um critério
+     * com duas implementações é um critério que vai divergir.
+     *
+     * Vale para DESTRAVAR, não para filtrar: aberta a lista, conta nova aparece
+     * nela normalmente.
+     */
+    public function applyFloorEligibility(Builder $users): Builder
+    {
+        return $users
+            ->where('created_at', '<=', now()->subDays($this->floorAccountAgeDays()))
             // Verificação de e-mail é a barreira que a espera de 7 dias não dá:
             // custa uma caixa de entrada real por conta, e o registro em lote
             // paga esse custo por conta, não uma vez só.
-            ->whereNotNull('email_verified_at'));
+            ->whereNotNull('email_verified_at');
     }
 
     /**

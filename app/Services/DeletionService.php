@@ -294,6 +294,8 @@ class DeletionService
             $summary['age_verification_scrubbed'] = $this->scrubAgeVerification($user);
             $summary['follows'] = $this->purgeFollows($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
+            $summary['profile_visits'] = $this->purgeProfileVisits($user);
+            $summary['profile_visits_received'] = $this->purgeVisitsToOwnProfile($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
@@ -564,6 +566,42 @@ class DeletionService
             ->update(['message' => null]);
     }
 
+    /**
+     * Histórico de navegação do titular: quais perfis ele visitou e quando.
+     * Sem valor fiscal e sem trilha legal — hard delete, como os registros de
+     * KYC. Não há nada a preservar aqui, e manter seria guardar o mapa de
+     * interesses de uma conta encerrada.
+     */
+    private function purgeProfileVisits(User $user): int
+    {
+        return DB::table('profile_visits')->where('visitor_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro lado: as visitas RECEBIDAS pelo perfil da performer que encerra.
+     *
+     * É PII de terceiros — o histórico de navegação de membros que continuam
+     * ativos — pendurada num perfil que deixou de existir. Não sai pelo
+     * purgeProfileVisits (aquele é por `visitor_id`) e não sai pela FK: as duas
+     * `cascadeOnDelete` de `profile_visits` NUNCA disparam, porque nem o usuário
+     * nem o perfil sofrem DELETE físico — os dois são soft-delete. Sem esta
+     * varredura o dado só sumiria pela retenção de 7 dias do `visits:purge`.
+     *
+     * Roda ANTES do anonymizePerformerProfile, enquanto a relação ainda resolve.
+     * Consulta pela coluna, não pela relação carregada, para não depender do
+     * estado do cache de relações numa re-execução do job.
+     */
+    private function purgeVisitsToOwnProfile(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('profile_visits')->where('performer_profile_id', $profileId)->delete();
+    }
+
     private function ledgerEntryCount(User $user): int
     {
         $walletId = DB::table('token_wallets')->where('user_id', $user->id)->value('id');
@@ -617,6 +655,18 @@ class DeletionService
             'registration_ip_hash' => null,
             'discrete_mode' => false,
             'interests_opt_out' => false,
+            // Perks de privacidade: voltam ao lado PÚBLICO, como o discrete_mode
+            // ao lado. Mantê-los deixava na linha encerrada o atestado de que a
+            // pessoa era assinante Black/FC e quais escolhas de privacidade fez —
+            // sem lastro fiscal nem legal que justifique guardar.
+            //
+            // Valor explícito em vez de null (que seria "nunca escolheu"): assim
+            // effective() devolve o lado público sem depender de resolver o
+            // Círculo de uma conta encerrada. Note que read_receipts_enabled é o
+            // invertido dos três — público aqui é `true`.
+            'ghost_mode' => false,
+            'invisible_status' => false,
+            'read_receipts_enabled' => true,
             // `status` NÃO é tocado: 'banned' é vocabulário de moderação e
             // marcar aqui contaminaria as métricas de abuso com quem só pediu
             // para sair. `deleted_at` é o marcador de conta encerrada.
