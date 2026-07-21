@@ -105,6 +105,46 @@ envio vira oráculo para reconstruir a lista que a tela esconde.
 5. Contagem de seguidores é sempre exibida **em faixa**, inclusive para a própria
    performer — faixar só as telas públicas deixaria a correlação de pé.
 
+### Piso de visitantes (`profile_visits`, painel do dashboard)
+O painel "visitantes recentes" é a segunda superfície que expõe membro à
+performer, e o piso de seguidores sozinho não a cobre: ele libera a tela, não
+limita quem aparece nela. Por isso o painel tem **dois** cortes — `canRevealList()`
+(seguidores) **e** um piso de visitantes distintos.
+
+6. **O piso de visitantes conta só elegíveis:** conta com 7+ dias, e-mail
+   verificado, `role=consumer` e `status=active`. É a mesma mitigação de sybil do
+   item 4, e pelo mesmo motivo: contando todo visitante distinto, a performer com
+   o piso de seguidores já destravado criava 4 contas de véspera, visitava o
+   próprio perfil com cada uma e o quinto alias — o único que ela não plantou —
+   saía identificado por eliminação (casando o horário de cada visita própria com
+   a linha correspondente). Como o `FanAlias` é estável por par, esse vínculo ia
+   junto para as gorjetas e para a lista de seguidores.
+   O critério tem uma dona só: `FollowerVisibilityService::applyFloorEligibility()`.
+   **Não copie o número nem a regra** para outro service.
+7. **Elegibilidade destrava, não filtra** (item 4 vale aqui): aberto o painel, a
+   lista sai **completa** — visitante de conta nova aparece nela normalmente. Só
+   o CONTADOR do piso aplica os cortes.
+8. **`limit < piso` lança `LogicException`** (`ProfileVisitService::panelFor()`),
+   nunca clamp silencioso. O piso é contado sobre a janela inteira e a lista sai
+   cortada em `$limit`: se `$limit` for menor, o painel abre exibindo menos
+   aliases do que o piso exige. É erro de chamador — nenhum request alcança isso —
+   então quebra alto em teste e staging.
+9. **O guard do Ghost Mode vive no Service**, em `ProfileVisitService::record()`,
+   não nos controllers. São dois pontos de entrada hoje (`CatalogController` e
+   `PublicCatalogController`) e ambos só delegam; a checagem no controller viraria
+   duas cópias, e a terceira rota que aparecesse nasceria vazando. `record()`
+   também barra Modo Discreto (item 2) e a própria performer.
+   **Não existe coluna `hidden`/`ghost` em `profile_visits`:** visita de quem tem
+   o perk não é gravada. A ausência de linha É o produto — guardar a visita
+   marcada como oculta deixaria o dado a um JOIN de distância, e um bug de query
+   viraria o vazamento exato que o perk vende.
+10. **O painel usa `FanAlias::label(performer_profile_id, visitor_id)`** — nunca o
+    `visitor_id`. `visitor_id` é chave interna e não sai do service.
+11. **`profile_visits` são apagadas no Hard Delete** (`DeletionService::purgeProfileVisits()`),
+    com `DELETE` real dentro da transação. É o mapa de interesses do titular, sem
+    valor fiscal nem trilha legal — não há o que preservar. Retenção normal são
+    7 dias (`visits:purge`), enquanto o painel consome 24h.
+
 ## Pseudônimo do membro — `FanAlias` (fechado no Sprint 6)
 Toda exposição de membro à performer passa por `app/Support/FanAlias.php`:
 pseudônimo derivado por par (performer_profile_id, member_id) com HMAC sobre a
