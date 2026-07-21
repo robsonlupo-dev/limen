@@ -45,6 +45,12 @@ return [
         // Denúncia (compliance)
         'report.store',
 
+        // Exclusão de conta (LGPD art. 18, VI)
+        'account.deletion.request',
+        'account.deletion.cancel',
+        'account.deletion.confirm',
+        'account.deletion.confirm.store',
+
         // Performer area (all performer.* web routes)
         'performer.dashboard',
         'performer.onboarding',

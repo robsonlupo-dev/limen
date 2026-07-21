@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\Admin\ReportAdminController;
 use App\Http\Controllers\Web\Admin\WaitlistAdminController;
+use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\PublicCatalogController;
@@ -82,6 +83,18 @@ Route::get('/politica-de-conteudo', [LegalDocumentsController::class, 'contentPo
 Route::get('/contrato-de-performance', [LegalDocumentsController::class, 'performanceContract'])
     ->middleware('throttle:60,1')
     ->name('legal.performance-contract');
+
+// Confirmação, pelo e-mail, do pedido de exclusão de conta (LGPD art. 18, VI).
+// Sem auth de propósito: o link chega na caixa e o titular pode abri-lo em
+// outro navegador — o token É a credencial. GET só mostra a página (imune ao
+// prefetch de caixa de e-mail), POST consome o token de uso único.
+Route::get('/conta/confirmar-exclusao/{token}', [AccountDeletionController::class, 'confirm'])
+    ->middleware('throttle:20,1')
+    ->where('token', '[A-Za-z0-9]+')
+    ->name('account.deletion.confirm');
+Route::post('/conta/confirmar-exclusao', [AccountDeletionController::class, 'confirmStore'])
+    ->middleware('throttle:10,1')
+    ->name('account.deletion.confirm.store');
 
 // Public performer catalog (no auth — SEO/marketing surface). Separate from the
 // authenticated /catalogo experience; interaction actions route to signup.
@@ -283,6 +296,16 @@ Route::middleware('auth')->group(function () {
             ->name('performer.interests.index')
             ->can('performer-active');
     });
+
+    // Exclusão de conta (LGPD art. 18, VI). Fora de role:consumer — performer
+    // também é titular. Throttle apertado: o pedido dispara e-mail.
+    Route::post('/conta/solicitar-exclusao', [AccountDeletionController::class, 'request'])
+        ->middleware('throttle:5,1')
+        ->name('account.deletion.request');
+
+    Route::post('/conta/cancelar-exclusao', [AccountDeletionController::class, 'cancel'])
+        ->middleware('throttle:10,1')
+        ->name('account.deletion.cancel');
 
     Route::middleware(['role:consumer'])->group(function () {
         // Home da área logada do membro.
