@@ -69,6 +69,15 @@ return [
         'performer.profile.save',
         'performer.profile.photo',
 
+        // 2FA TOTP da performer
+        'performer.2fa.show',
+        'performer.2fa.enable',
+        'performer.2fa.confirm',
+        'performer.2fa.disable',
+        'performer.2fa.recovery-codes',
+        'performer.2fa.challenge',
+        'performer.2fa.verify',
+
         // Consumer panel
         'consumer.dashboard',
 

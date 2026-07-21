@@ -4,21 +4,22 @@ use App\Http\Controllers\Api\AsaasTransferWebhookController;
 use App\Http\Controllers\Api\V1\AdminKycController;
 use App\Http\Controllers\Api\V1\AdminPayoutController;
 use App\Http\Controllers\Api\V1\AsaasWebhookController;
-use App\Http\Controllers\Api\V1\Consumer\PreferencesController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Auth\TwoFactorChallengeController;
+use App\Http\Controllers\Api\V1\Consumer\PreferencesController;
 use App\Http\Controllers\Api\V1\FollowController;
-use App\Http\Controllers\Api\V1\TipController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\KycWebhookController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PerformerCatalogController;
 use App\Http\Controllers\Api\V1\PerformerMediaController;
 use App\Http\Controllers\Api\V1\PerformerProfileController;
+use App\Http\Controllers\Api\V1\TipController;
 use App\Http\Controllers\Api\V1\TokenPackageController;
 use Illuminate\Support\Facades\Route;
 
@@ -34,8 +35,23 @@ Route::prefix('v1/auth')->group(function () {
         ->middleware('signed')
         ->name('api.verification.verify');
 
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('logout', LogoutController::class)->name('auth.logout');
+    // Troca do token de desafio pelo token real. FORA do gate `2fa` de
+    // propósito (mesma razão da tela de desafio na web: é a saída, gateá-la
+    // trancaria a porta pelo lado de dentro). A habilidade do token é o que a
+    // protege — só o token de desafio chega aqui.
+    Route::post('2fa/challenge', TwoFactorChallengeController::class)
+        ->middleware(['auth:sanctum', 'throttle:5,1'])
+        ->name('auth.2fa.challenge');
+
+    // Logout FORA do gate: revogar o token é sempre permitido, e quem está com
+    // um token de desafio pendurado precisa poder descartá-lo.
+    Route::post('logout', LogoutController::class)
+        ->middleware('auth:sanctum')
+        ->name('auth.logout');
+
+    Route::middleware(['auth:sanctum', '2fa'])->group(function () {
+        // `me` gateado: devolve o perfil da performer, que é justamente o que o
+        // token de desafio não pode ler antes do segundo fator.
         Route::get('me', MeController::class)->name('auth.me');
         Route::post('email/verify/resend', [EmailVerificationController::class, 'resend'])
             ->middleware('throttle:3,1')
@@ -54,7 +70,7 @@ Route::get('v1/performer-media', PerformerMediaController::class)
     ->middleware('signed')
     ->name('performer.media');
 
-Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', '2fa'])->group(function () {
     Route::get('token-packages', [TokenPackageController::class, 'index'])->name('token-packages.index');
     Route::post('payments', [PaymentController::class, 'store'])->middleware('throttle:10,1')->name('payments.store');
     Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
@@ -80,7 +96,7 @@ Route::post('/webhooks/asaas/transfer', [AsaasTransferWebhookController::class, 
 // um token do /api/v1/auth/login a performer sem aceite chegaria em perfil, KYC
 // e gorjetas por fora da tela de aceite. Aqui o middleware responde 403 JSON
 // (não redirect) — é o que o cliente de API sabe consumir.
-Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer', 'documents.accepted'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer', 'documents.accepted', '2fa'])->group(function () {
     Route::get('performer/dashboard', fn () => response()->json(['message' => 'Performer area.']));
     Route::get('performer/profile', [PerformerProfileController::class, 'show'])->name('performer.profile.show');
     Route::put('performer/profile', [PerformerProfileController::class, 'update'])->name('performer.profile.update');
@@ -95,7 +111,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer', 'documents.ac
 });
 
 // Admin KYC management
-Route::prefix('v1')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'role:admin', '2fa'])->group(function () {
     Route::get('admin/kyc', [AdminKycController::class, 'index'])->name('admin.kyc.index');
     Route::post('admin/kyc/{verification}/approve', [AdminKycController::class, 'approve'])->name('admin.kyc.approve');
     Route::post('admin/kyc/{verification}/reject', [AdminKycController::class, 'reject'])->name('admin.kyc.reject');
@@ -105,7 +121,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'role:admin'])->group(function 
 });
 
 // Follow system (consumer only)
-Route::prefix('v1')->middleware(['auth:sanctum', 'role:consumer'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'role:consumer', '2fa'])->group(function () {
     Route::post('performers/{slug}/follow', [FollowController::class, 'follow'])->name('performers.follow');
     Route::delete('performers/{slug}/follow', [FollowController::class, 'unfollow'])->name('performers.unfollow');
     Route::get('performers/{slug}/following', [FollowController::class, 'following'])->name('performers.following');
