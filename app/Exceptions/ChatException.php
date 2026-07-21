@@ -15,9 +15,14 @@ use DomainException;
 class ChatException extends DomainException
 {
     public const CHANNEL_NOT_OPEN = 'channel_not_open';
+
     public const NOT_A_PARTICIPANT = 'not_a_participant';
+
     public const CONVERSATION_ARCHIVED = 'conversation_archived';
+
     public const ACCESS_REQUIRED = 'access_required';
+
+    public const CONTENT_BLOCKED = 'content_blocked';
 
     public function __construct(public readonly string $reason, string $message)
     {
@@ -53,6 +58,21 @@ class ChatException extends DomainException
         return new self(
             self::ACCESS_REQUIRED,
             'Seu acesso ao chat expirou. Renove por tokens ou assine um Círculo.',
+        );
+    }
+
+    /**
+     * Mensagem barrada pelo filtro de conteúdo.
+     *
+     * A mensagem é genérica de propósito e NÃO diz qual termo casou: apontar a
+     * palavra entrega o mapa da evasão (basta reescrever trocando aquela e o
+     * filtro para de ver qualquer coisa). O termo vai para o audit em HMAC.
+     */
+    public static function contentBlocked(): self
+    {
+        return new self(
+            self::CONTENT_BLOCKED,
+            'Mensagem não permitida pela política de uso da plataforma.',
         );
     }
 }

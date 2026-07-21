@@ -264,6 +264,42 @@ confirmado, então pode ser aplicado em grupo compartilhado, como o
 > Não implementado: alerta em N falhas de desafio (hoje só grava
 > `performer.2fa_challenge_failed` no audit e ninguém consome).
 
+## Geobloqueio (FOSTA-SESTA) — montado, NÃO ativo
+Middleware `GeoBlock` nos grupos `web` e `api`, 451. **Com `GEO_DRIVER=none` (o
+padrão e o valor de hoje) ele não bloqueia ninguém** — falta a fonte de
+geolocalização. Fail-OPEN de propósito: fail-closed sem fonte derruba o site.
+Detalhe e passos de ativação em `docs/GEOBLOCKING.md`.
+
+- `/up` fica fora — monitor de uptime sonda dos EUA e viraria alarme falso.
+- O driver `cloudflare` **só funciona com o origin fechado aos ranges do CF**:
+  `CF-IPCountry` é header, e um `curl -H` direto no IP do servidor passa.
+- Audit `access.geo_blocked` **deduplicado por IP/hora** — sem isso um bot em
+  laço num endpoint não autenticado enterra a trilha.
+- **Não é garantia jurídica: VPN contorna.** Não escreva "americanos não
+  acessam" em política, contrato ou auditoria — mesma disciplina de linguagem
+  do painel de visitantes.
+
+## Filtro de termos no chat
+Lista em `config/chat_filters.php`; casamento em `app/Support/ChatContentFilter.php`.
+Barra com 422 e mensagem **genérica** — dizer qual termo casou entrega o mapa da
+evasão. O termo vai para `audit_logs` (`chat.message_blocked`) em **HMAC**, não
+em claro: a lista está no repo, então `sha256` puro seria revertido por tabela.
+O CORPO da mensagem nunca entra no audit (seria uma segunda cópia do conteúdo do
+chat, fora do soft-delete do LGPD).
+
+- **O filtro roda ANTES da máscara de opt-out** em
+  `ChatService::performerMessageFromInterest`. Depois dela, o suprimido daria
+  202 e o normal 422 — o par viraria oráculo do opt-out. Guardado por teste.
+- Casamento com **fronteira de palavra unicode** (`\b` não serve com acento) e
+  normalização (acento, leet, alongamento). `fone` não casa em `telefone`.
+- **`conta`, `banco`, `encontro` e `transferência` estão deliberadamente FORA**
+  da lista (decisão do PO, Sprint 6): são português cotidiano ("me conta",
+  "eu te encontro") e barrariam conversa legítima de quem pagou 50 tokens pelo
+  acesso, sem explicação. O sinal real está coberto por FRASE (`conta bancária`,
+  `transferência bancária`, `pix fora`). Um teste guarda essa decisão.
+- **Não é anti-evasão.** Quem quer desviar escreve `z a p` ou combina em código.
+  Ausência de bloqueio não é prova de que ninguém combinou encontro.
+
 ## Aceite de documentos da performer — `documents.accepted`
 Política de Conteúdo Proibido + Contrato de Performance. Versão vigente em
 `config/documents.php`; **bumpar a versão força re-aceite de todas** — não bumpe

@@ -11,6 +11,7 @@ use App\Models\Message;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use App\Support\ChatContentFilter;
 
 /**
  * Chat pós-desbloqueio de Interesse. Ver docs/INTEREST_SYSTEM_SPEC.md §4-5 e
@@ -60,6 +61,8 @@ class ChatService
     public function sendMessage(Conversation $conversation, User $sender, string $body): Message
     {
         $conversation->loadMissing('performerProfile');
+
+        $this->assertContentAllowed($sender, $body);
 
         if (! $conversation->hasParticipant($sender)) {
             throw ChatException::notAParticipant();
@@ -118,6 +121,16 @@ class ChatService
             throw ChatException::notAParticipant();
         }
 
+        // ANTES da máscara de opt-out, e isso é o ponto: o caminho suprimido
+        // devolve 202 sem persistir nada, e o caminho normal cairia no 422 do
+        // filtro lá dentro (sendMessage). A performer que mandasse um termo
+        // barrado veria 202 para quem optou por sair e 422 para quem não optou
+        // — o par de respostas viraria oráculo do opt-out, que é exatamente o
+        // que INTEREST_ANONYMITY_FLOOR.md proíbe. Filtrando aqui em cima, o
+        // termo barrado devolve 422 para todo mundo, e a resposta volta a
+        // depender só do texto que a própria performer escreveu.
+        $this->assertContentAllowed($performerProfile->user, $body);
+
         // Máscara de opt-out: a resposta precisa ESPELHAR o status que a performer
         // vê (scopeDisplayedAsUnlocked), não o status real — senão a diferença
         // 202 vs 422 vaza o opt-out (INTEREST_ANONYMITY_FLOOR.md).
@@ -150,6 +163,43 @@ class ChatService
         $conversation->loadMissing('performerProfile');
 
         return $this->sendMessage($conversation, $performerProfile->user, $body);
+    }
+
+    /**
+     * Barra a mensagem que casa com a lista de termos proibidos.
+     *
+     * Roda ANTES de qualquer checagem de participação, acesso ou opt-out — de
+     * propósito. O resultado depende só do texto, então não distingue estado
+     * nenhum do destinatário e não vira oráculo de nada. Fosse depois do gate
+     * de acesso, o par de respostas passaria a contar ao remetente se ele tinha
+     * acesso, coisa que o filtro não precisa saber.
+     *
+     * @throws ChatException
+     */
+    private function assertContentAllowed(User $sender, string $body): void
+    {
+        $term = ChatContentFilter::firstMatch($body);
+
+        if ($term === null) {
+            return;
+        }
+
+        // O termo vai em HMAC; o CORPO da mensagem não vai de jeito nenhum.
+        // audit_logs é lido por admin e sobrevive ao Hard Delete (é trilha
+        // legal): copiar a mensagem para dentro dele criaria uma segunda cópia
+        // do conteúdo privado do chat, fora do soft-delete que o LGPD do
+        // projeto aplica em `messages`.
+        AuditLog::create([
+            'user_id' => $sender->id,
+            'action' => 'chat.message_blocked',
+            'ip' => request()->ip(),
+            'metadata' => [
+                'term_hash' => ChatContentFilter::digest($term),
+                'body_length' => mb_strlen($body),
+            ],
+        ]);
+
+        throw ChatException::contentBlocked();
     }
 
     /**
