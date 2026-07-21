@@ -389,6 +389,63 @@ it('does not let an abandoned PIX charge block deletion forever', function () {
     expect(User::withTrashed()->find($user->id)->deleted_at)->not->toBeNull();
 });
 
+it('keeps the 18+ proof but destroys the CPF digest', function () {
+    $user = delMember();
+
+    DB::table('age_verifications')->insert([
+        'user_id' => $user->id,
+        'method' => 'cpf',
+        'cpf_hmac' => str_repeat('a', 64),
+        'verified_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    delService()->executeDeletion($user);
+
+    $row = DB::table('age_verifications')->where('user_id', $user->id)->first();
+
+    // A prova de que a plataforma checou os 18+ fica; o identificador do CPF sai.
+    expect($row)->not->toBeNull()
+        ->and($row->verified_at)->not->toBeNull()
+        ->and($row->cpf_hmac)->toBeNull();
+});
+
+it('preserves document acceptances as the legal ballast', function () {
+    $performer = delPerformer();
+
+    DB::table('document_acceptances')->insert([
+        'user_id' => $performer->id,
+        'document_type' => 'performance_contract',
+        'document_version' => '1.0',
+        'accepted_at' => now(),
+        'ip_address_hash' => str_repeat('b', 64),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    // A performer já nasce com os aceites do cadastro; o insert acima só
+    // acrescenta um. O que importa é que a exclusão não leva NENHUM deles.
+    $before = DB::table('document_acceptances')->where('user_id', $performer->id)->count();
+
+    delService()->executeDeletion($performer);
+
+    // Append-only e lastro jurídico do aceite — IP/UA já são HMAC.
+    expect(DB::table('document_acceptances')->where('user_id', $performer->id)->count())
+        ->toBe($before)
+        ->toBeGreaterThan(0);
+});
+
+it('clears the registration IP digest that correlates accounts', function () {
+    $user = delMember();
+    DB::table('users')->where('id', $user->id)
+        ->update(['registration_ip_hash' => str_repeat('c', 64)]);
+
+    delService()->executeDeletion($user->fresh());
+
+    expect(DB::table('users')->where('id', $user->id)->value('registration_ip_hash'))->toBeNull();
+});
+
 it('emails the holder when a deletion request is cancelled', function () {
     Mail::fake();
 

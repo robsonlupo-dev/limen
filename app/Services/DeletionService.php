@@ -291,6 +291,7 @@ class DeletionService
             $summary['sessions'] = $this->purgeSessions($user);
 
             $summary['identity_verifications'] = $this->purgeKycRecords($user);
+            $summary['age_verification_scrubbed'] = $this->scrubAgeVerification($user);
             $summary['follows'] = $this->purgeFollows($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
@@ -302,6 +303,11 @@ class DeletionService
             // Preservados de propósito — contados para a prova de conformidade.
             $summary['preserved'] = [
                 'audit_logs' => $user->auditLogs()->count(),
+                // Append-only e lastro jurídico do aceite do Contrato de
+                // Performance (ver CLAUDE.md). IP e user-agent já entram como
+                // HMAC, então não há PII crua a esfregar — a linha fica inteira.
+                'document_acceptances' => DB::table('document_acceptances')
+                    ->where('user_id', $user->id)->count(),
                 'reports_filed' => DB::table('reports')->where('reporter_id', $user->id)->count(),
                 'token_ledger' => $this->ledgerEntryCount($user),
                 'payouts' => Payout::where('performer_id', $user->id)->count(),
@@ -494,6 +500,26 @@ class DeletionService
     }
 
     /**
+     * `age_verifications` fica, sem o `cpf_hmac` (decisão do PO, 20/07/2026).
+     *
+     * A linha (user_id, method, verified_at) é a prova de que a plataforma
+     * checou os 18+ — numa plataforma adulta é o artefato que uma fiscalização
+     * pede primeiro, e o art. 16, I o cobre. O `cpf_hmac` é outra coisa: HMAC
+     * de CPF é dado pessoal pseudonimizado, não anônimo, e um índice sobre ele
+     * permite testar "este CPF já esteve aqui?" contra um CPF conhecido.
+     *
+     * O preço é explícito: sem o hmac, o mesmo CPF pode recadastrar. Manter o
+     * guard exigiria manter o identificador de quem pediu para sumir.
+     */
+    private function scrubAgeVerification(User $user): bool
+    {
+        return DB::table('age_verifications')
+            ->where('user_id', $user->id)
+            ->whereNotNull('cpf_hmac')
+            ->update(['cpf_hmac' => null]) > 0;
+    }
+
+    /**
      * A waitlist guarda `name` e `email` EM CLARO, numa tabela própria que não
      * tem FK com `users` — some do radar de qualquer varredura por user_id. Como
      * praticamente toda a base de lançamento entrou por ela, esquecer este passo
@@ -584,6 +610,11 @@ class DeletionService
             // interessa. Sai junto, e com ele as preferências que só fazem
             // sentido enquanto existe alguém para preferir.
             'preferred_world' => null,
+            // Digest do IP de cadastro: é o que permite dizer "esta conta veio
+            // do mesmo IP que aquela". Serve à detecção de sybil enquanto a
+            // conta existe; depois do encerramento é só um identificador de
+            // quem pediu para sumir.
+            'registration_ip_hash' => null,
             'discrete_mode' => false,
             'interests_opt_out' => false,
             // `status` NÃO é tocado: 'banned' é vocabulário de moderação e
