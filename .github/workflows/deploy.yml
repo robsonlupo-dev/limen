@@ -104,7 +104,32 @@ jobs:
             cd /var/www/limen
             git config --global --add safe.directory /var/www/limen
             git fetch origin main
+            # O storage tem 10 arquivos VERSIONADOS (os .gitignore que criam
+            # storage/app/private, storage/framework/views, storage/logs, etc).
+            # O php-fpm roda como www-data e reescreve esse subtree, então o
+            # reset --hard esbarra em arquivo que o deploy não consegue
+            # desatar: "unable to unlink storage/app/private/.gitignore:
+            # Permission denied". Reassumir a posse ANTES torna o passo
+            # idempotente — mesma tática já usada em vendor/ e public/build/.
+            #
+            # É -R e não só o .gitignore que apareceu no erro: são 10 arquivos
+            # versionados sob storage/ (`git ls-files storage`), qualquer um
+            # pode ser o próximo, e o reset também precisa poder RECRIAR um que
+            # tenha sumido — o que exige escrita no diretório, não no arquivo.
+            sudo chown -R deploy:deploy /var/www/limen/storage
             git reset --hard origin/main
+            # Devolve o storage ao www-data IMEDIATAMENTE, e não só no chown do
+            # fim do script: entre o reset e aquele passo correm composer, npm
+            # ci, build e migrate (minutos), e nesse intervalo o php-fpm que
+            # está servindo o site não conseguiria escrever em storage/logs
+            # nem compilar view — 500 em request que logue. Com esta linha a
+            # janela é de ~1s, e o corpo do deploy roda no mesmo estado de
+            # ownership de hoje.
+            #
+            # Comando idêntico ao do fim do script de propósito: o sudoers casa
+            # por string exata, então reusar a linha já autorizada não amplia a
+            # superfície de sudo.
+            sudo chown -R www-data:www-data storage bootstrap/cache
             # composer install --no-dev remove os pacotes de dev de vendor/.
             # Se algum arquivo em vendor/ ficou com dono != deploy, o composer
             # não consegue apagá-lo e o deploy quebra. Reassumir a posse antes
