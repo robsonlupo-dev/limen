@@ -138,8 +138,13 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     </p>
                 </div>
 
+                <!-- Copy DELIBERADAMENTE ambígua: este estado cobre tanto "não
+                     houve visita" quanto "houve, mas nenhuma faixa reuniu
+                     visitantes suficientes ainda" (k-anonimato). Distinguir os
+                     dois casos devolveria à performer exatamente o sinal que o k
+                     remove — ela saberia que ALGUÉM passou. Não afirmar zero. -->
                 <div v-else-if="visitors.length === 0" class="rounded-xl border border-frame bg-surface p-8 text-center text-muted text-sm">
-                    Nenhuma visita nas últimas {{ visitorsWindowHours }} horas.
+                    Nada a mostrar nas últimas {{ visitorsWindowHours }} horas.
                 </div>
 
                 <div v-else class="rounded-xl border border-frame bg-surface overflow-hidden">

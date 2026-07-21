@@ -143,7 +143,49 @@ limita quem aparece nela. Por isso o painel tem **dois** cortes — `canRevealLi
 11. **`profile_visits` são apagadas no Hard Delete** (`DeletionService::purgeProfileVisits()`),
     com `DELETE` real dentro da transação. É o mapa de interesses do titular, sem
     valor fiscal nem trilha legal — não há o que preservar. Retenção normal são
-    7 dias (`visits:purge`), enquanto o painel consome 24h.
+    7 dias (`visits:purge`), enquanto o painel consome 24h. As visitas RECEBIDAS
+    pelo perfil saem junto quando a **performer** encerra
+    (`purgeVisitsToOwnProfile()`) — as FKs `cascadeOnDelete` de `profile_visits`
+    **nunca disparam**, porque os dois lados são soft-delete. Não escreva código
+    contando com o cascade.
+12. **Horário só em FAIXA, nunca em relógio.** O painel devolve `visited_slot`
+    (Madrugada/Manhã/Tarde/Noite, faixas de 6h; só a data fora do dia corrente).
+    **`visited_at` não é exposto.** Com `d/m/Y H:i`, a performer mandava o link
+    para UMA pessoa às 14:31, via o alias novo carimbado 14:32 e ligava o
+    pseudônimo a um nome — e o `FanAlias` é estável por par, então o vínculo ia
+    junto para gorjetas e seguidores.
+    A faixa é derivada de `ProfileVisitService::DISPLAY_TIMEZONE`
+    (`America/Sao_Paulo`), **não** de `config('app.timezone')`, que é `UTC`:
+    derivar dali rotularia 21:00 em São Paulo como "Madrugada".
+13. **Ordem embaralhada dentro da faixa** (`revealableSlots()`). Sem isso a lista
+    saía por recência e a POSIÇÃO entregava o que o relógio entregava. A ordem
+    ENTRE faixas fica (mais recente primeiro) — essa é a informação legítima.
+14. **k-anonimato por faixa: a faixa só aparece com `SLOT_MIN_K` (3) aliases.**
+    Faixa incompleta some por inteiro — **sem** placeholder, contador ou "1 visita
+    oculta", que reporiam o sinal que o k tira. Pela mesma razão, a copy de lista
+    vazia na tela é deliberadamente ambígua ("Nada a mostrar"), e **não** afirma
+    que não houve visita: distinguir "zero" de "abaixo de k" diria à performer que
+    alguém passou.
+    O k é filtro DENTRO da lista, **não** substituto do piso: `visible` continua
+    decidido só pelos pisos, e `visible: true` com lista vazia é estado legítimo.
+
+> **Ressalvas conhecidas — o painel de visitantes NÃO é anônimo contra um
+> adversário ativo.** Registrado para não ser redescoberto como novidade:
+>
+> - **Polling numa faixa já visível.** O k protege a transição escondida→visível:
+>   a faixa surge já com 3 aliases, e quem chegou no intervalo é um entre 3. Mas
+>   uma faixa **já visível** que ganha um visitante o entrega por diferença entre
+>   dois refreshes — verificado em teste: o diff devolve exatamente 1 alias novo.
+>   Fechar isso exigiria só revelar a faixa depois de encerrada (release em lote),
+>   o que não está implementado.
+> - **A2 — eliminação com contas envelhecidas.** Os cortes do piso (7 dias +
+>   e-mail verificado) são custo de setup ÚNICO, não recorrente: pagos uma vez, o
+>   painel fica destravado e cada visitante real seguinte sai por eliminação
+>   contra os aliases que a performer plantou. O k e a faixa encarecem; não
+>   eliminam.
+>
+> Consequência prática: **não descreva este painel como anônimo** em copy de
+> produto, política de privacidade ou auditoria. Ele reduz correlação passiva.
 
 ## Pseudônimo do membro — `FanAlias` (fechado no Sprint 6)
 Toda exposição de membro à performer passa por `app/Support/FanAlias.php`:

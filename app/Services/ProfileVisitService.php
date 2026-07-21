@@ -40,6 +40,22 @@ class ProfileVisitService
      */
     public const DISPLAY_TIMEZONE = 'America/Sao_Paulo';
 
+    /**
+     * k-anonimato por faixa: quantos aliases distintos uma faixa precisa ter
+     * para ser exibida.
+     *
+     * A faixa de 6h sozinha não segurava a performer que dá REFRESH: ela
+     * atualiza o painel, manda o link, atualiza de novo, e o alias que apareceu
+     * no intervalo é o alvo — o rótulo grosso não esconde a mudança do conjunto.
+     * Com k, a faixa só surge já com k aliases dentro, e o que apareceu no
+     * intervalo é um entre k.
+     *
+     * ATENÇÃO ao alcance: isto protege a transição escondida→visível. Uma faixa
+     * JÁ visível que ganha um visitante continua entregando esse visitante por
+     * diferença entre dois refreshes. Ver a ressalva no CLAUDE.md.
+     */
+    public const SLOT_MIN_K = 3;
+
     public function __construct(private FollowerVisibilityService $visibility) {}
 
     /**
@@ -130,8 +146,15 @@ class ProfileVisitService
      * Elegibilidade decide DESTRAVAR, não filtrar: aberto o painel, a lista sai
      * inteira — visitante de conta nova aparece nela normalmente.
      *
-     * O horário sai em FAIXA (`visited_slot`), nunca em relógio, e a ordem dentro
-     * da faixa é embaralhada — ver slot() e shuffleWithinSlots().
+     * O horário sai em FAIXA (`visited_slot`), nunca em relógio; a ordem dentro
+     * da faixa é embaralhada; e a faixa só aparece com SLOT_MIN_K aliases —
+     * ver slot() e revealableSlots().
+     *
+     * `visible` continua sendo decidido só pelos PISOS. O k é filtro DENTRO da
+     * lista, não substituto do piso: com o painel destravado e toda faixa
+     * incompleta, a resposta é `visible: true` com lista vazia. Os dois
+     * mecanismos respondem perguntas diferentes — "esta performer pode ver uma
+     * lista?" e "esta faixa já dilui quem está nela?".
      *
      * @return array{visible:bool,visitors:array<int,array{fan:string,visited_slot:string}>}
      */
@@ -178,7 +201,7 @@ class ProfileVisitService
 
         return [
             'visible' => true,
-            'visitors' => $this->shuffleWithinSlots(array_map(fn (object $row) => [
+            'visitors' => $this->revealableSlots(array_map(fn (object $row) => [
                 // Mesmo pseudônimo por par (perfil, membro) das gorjetas e da
                 // lista de seguidores: a performer reconhece "o Fã #0042 de
                 // sempre" entre as telas, sem que o id cru saia daqui.
@@ -220,20 +243,27 @@ class ProfileVisitService
     }
 
     /**
-     * Embaralha DENTRO de cada faixa, preservando a ordem entre faixas.
+     * Aplica k-anonimato por faixa e embaralha dentro de cada uma.
      *
-     * A faixa sozinha não bastava: a lista saía ordenada por recência, então a
-     * primeira linha da faixa era o visitante mais recente dela e o rótulo
-     * grosso não escondia nada — a POSIÇÃO entregava o que o relógio entregava.
+     * Duas defesas, contra ataques diferentes:
      *
-     * As faixas continuam em ordem (mais recente primeiro) porque essa é a
-     * informação que a tela legitimamente dá; o que some é a ordem interna, que
-     * só servia para localizar quem acabou de chegar.
+     *  - SHUFFLE, contra a leitura passiva. A lista vem do banco ordenada por
+     *    recência, então a primeira linha da faixa era o visitante mais recente
+     *    dela: a POSIÇÃO entregava o que o relógio entregava antes do A1.
+     *  - k, contra o REFRESH. A faixa só aparece já com k aliases dentro, então
+     *    quem chegou entre dois refreshes é um entre k, não o único nome novo.
+     *
+     * Faixa incompleta some por inteiro, sem "aguardando" nem contador: um
+     * placeholder dizendo "1 visita ainda oculta" reporia o sinal que o k tira —
+     * a performer veria o contador subir no instante da visita.
+     *
+     * As faixas mantêm a ordem entre si (mais recente primeiro), que é a
+     * informação que a tela legitimamente dá.
      *
      * @param  array<int,array{fan:string,visited_slot:string}>  $visitors
      * @return array<int,array{fan:string,visited_slot:string}>
      */
-    private function shuffleWithinSlots(array $visitors): array
+    private function revealableSlots(array $visitors): array
     {
         $grouped = [];
 
@@ -246,6 +276,10 @@ class ProfileVisitService
         $out = [];
 
         foreach ($grouped as $group) {
+            if (count($group) < self::SLOT_MIN_K) {
+                continue;
+            }
+
             shuffle($group);
 
             foreach ($group as $visitor) {

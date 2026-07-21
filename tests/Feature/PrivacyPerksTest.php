@@ -379,6 +379,117 @@ it('embaralha a ordem dentro da faixa', function () {
     expect($ordens->count())->toBeGreaterThan(1);
 });
 
+// --- A1 (cont.): k-anonimato por faixa --------------------------------------
+//
+// A faixa sozinha não segurava o REFRESH: a performer atualiza, manda o link,
+// atualiza de novo, e o alias que surgiu no intervalo é o alvo. Com k, a faixa
+// só aparece já com k aliases dentro.
+//
+// CUIDADO ao ler estes testes: o piso exige 5 visitantes elegíveis distintos
+// para `visible` ser true. Todos usam 5+ visitantes de propósito — com 4 o
+// painel ficaria escondido pelo PISO, e um teste de k passaria pelo motivo
+// errado.
+
+/** N visitantes num horário específico (fuso de exibição). */
+function perkVisitorsAt(PerformerProfile $profile, int $count, string $when): array
+{
+    test()->travelTo(Carbon::parse($when, ProfileVisitService::DISPLAY_TIMEZONE));
+
+    return perkVisitors($profile, $count);
+}
+
+/** Painel montado pelo service: faixa => quantidade de aliases exibidos. */
+function perkSlotCounts(PerformerProfile $performer): array
+{
+    return collect(app(ProfileVisitService::class)->panelFor($performer)['visitors'])
+        ->countBy('visited_slot')->all();
+}
+
+it('faixa com menos de k aliases nao aparece', function () {
+    $performer = perkVisiblePerformer();
+    perkVisitorsAt($performer, 3, '2026-07-21 09:00'); // Manhã: completa
+    perkVisitorsAt($performer, 2, '2026-07-21 15:00'); // Tarde: incompleta
+
+    // 5 visitantes elegíveis: o piso está satisfeito, então o que esconde a
+    // Tarde é o k, não o piso.
+    expect(perkSlotCounts($performer))->toBe(['Manhã' => 3]);
+});
+
+it('faixa com exatamente k aliases aparece', function () {
+    $performer = perkVisiblePerformer();
+    perkVisitorsAt($performer, 3, '2026-07-21 09:00');
+    perkVisitorsAt($performer, 2, '2026-07-21 15:00');
+
+    // O corte é `< k`, não `<= k`: exatamente 3 é faixa legítima.
+    expect(perkSlotCounts($performer)['Manhã'])->toBe(ProfileVisitService::SLOT_MIN_K);
+});
+
+it('nenhuma faixa aparece quando todas estao incompletas', function () {
+    $performer = perkVisiblePerformer();
+    perkVisitorsAt($performer, 2, '2026-07-21 09:00'); // Manhã
+    perkVisitorsAt($performer, 2, '2026-07-21 15:00'); // Tarde
+    perkVisitorsAt($performer, 1, '2026-07-21 21:00'); // Noite
+
+    $panel = app(ProfileVisitService::class)->panelFor($performer);
+
+    // 5 elegíveis distintos: piso DESTRAVADO, lista vazia mesmo assim. Os dois
+    // mecanismos são independentes.
+    expect($panel['visible'])->toBeTrue()
+        ->and($panel['visitors'])->toBe([]);
+});
+
+it('a tela nao distingue lista vazia por k de ausencia de visitas', function () {
+    // Se a tela dissesse "2 visitas ocultas" ou mudasse de copy, a performer
+    // saberia que ALGUÉM passou — exatamente o sinal que o k remove.
+    $comVisitas = perkVisiblePerformer();
+    perkVisitorsAt($comVisitas, 2, '2026-07-21 09:00');
+    perkVisitorsAt($comVisitas, 2, '2026-07-21 15:00');
+    perkVisitorsAt($comVisitas, 1, '2026-07-21 21:00');
+
+    $semVisitas = perkVisiblePerformer();
+
+    $props = fn (PerformerProfile $p) => collect(
+        test()->actingAs($p->user)->get(route('performer.dashboard'))->viewData('page')['props']
+    )->only(['visitors', 'visitorsVisible', 'visitorsWindowHours'])->all();
+
+    expect($props($comVisitas)['visitors'])->toBe([])
+        ->and($props($semVisitas)['visitors'])->toBe([]);
+});
+
+it('faixas completas e incompletas convivem sem vazar a incompleta', function () {
+    $performer = perkVisiblePerformer();
+    perkVisitorsAt($performer, 4, '2026-07-21 09:00'); // Manhã completa
+    perkVisitorsAt($performer, 3, '2026-07-21 15:00'); // Tarde completa
+    perkVisitorsAt($performer, 2, '2026-07-21 21:00'); // Noite incompleta
+
+    // Ordem das faixas é por RECÊNCIA (Tarde antes de Manhã) — o que o shuffle
+    // embaralha é o interior da faixa, não a sequência entre elas. `toBe` em
+    // array compara a ordem das chaves, então isto também trava esse contrato.
+    expect(perkSlotCounts($performer))->toBe(['Tarde' => 3, 'Manhã' => 4]);
+});
+
+it('o k protege a transicao escondida para visivel', function () {
+    // O cenário do polling: a performer olha o painel, manda o link, olha de
+    // novo. A faixa não pode surgir com o alvo sozinho dentro.
+    $performer = perkVisiblePerformer();
+    perkVisitorsAt($performer, 5, '2026-07-21 09:00'); // piso, faixa da Manhã
+
+    test()->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    $antes = perkSlotCounts($performer);
+
+    // Chega o alvo, sozinho na Tarde.
+    $alvo = perkMember();
+    $this->actingAs($alvo)->get(route('catalog.show', $performer->slug))->assertOk();
+
+    $depois = perkSlotCounts($performer);
+
+    // A Tarde não apareceu — o alvo não virou o único nome novo da tela.
+    expect($antes)->toBe(['Manhã' => 5])
+        ->and($depois)->toBe(['Manhã' => 5])
+        ->and(collect(app(ProfileVisitService::class)->panelFor($performer)['visitors'])
+            ->pluck('fan'))->not->toContain(FanAlias::label($performer->id, $alvo->id));
+});
+
 // --- Piso de Anonimato sobre o painel de visitantes --------------------------
 //
 // A lista de visitantes é uma superfície NOVA de exposição do membro à
