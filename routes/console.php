@@ -45,3 +45,11 @@ Schedule::command('subscriptions:expire')->hourly()->withoutOverlapping(10);
 // diário basta; withoutOverlapping evita duas varreduras concorrentes soft-
 // deletando o mesmo lote.
 Schedule::command('chat:purge-expired-access')->dailyAt('03:30')->withoutOverlapping(10);
+
+// Direito de eliminação (LGPD art. 18, VI): executa as exclusões cuja carência
+// de 30 dias venceu. Diário basta — o prazo é contado em dias, e adiantar não é
+// opção (a carência é justamente o direito de desistir).
+// withoutOverlapping: executeDeletion destrói arquivos de KYC do disco, e esse
+// passo é o único fora da transação — duas varreduras no mesmo usuário fariam a
+// segunda apagar caminhos já removidos e falhar o lote por um erro inócuo.
+Schedule::command('deletions:process')->dailyAt('04:00')->withoutOverlapping(30);

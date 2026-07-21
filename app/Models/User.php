@@ -25,8 +25,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'interests_opt_out',
     ];
 
+    // Colunas de exclusão ficam FORA do $fillable de propósito (mesma regra do
+    // discrete_mode): agendar o próprio encerramento — ou o de outro — nunca
+    // pode vir por mass assignment. A troca passa pelo DeletionService.
     protected $hidden = [
-        'password', 'remember_token',
+        'password', 'remember_token', 'deletion_token_hash',
         // Digest do IP de cadastro. Hoje nenhuma serialização é automática (os
         // resources montam array explícito), então não vaza — mas um
         // `response()->json($user)` futuro exporia o identificador que permite
@@ -47,7 +50,16 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'interests_opt_out' => 'boolean',
             'discrete_mode' => 'boolean',
+            'deletion_requested_at' => 'datetime',
+            'deletion_scheduled_at' => 'datetime',
+            'deletion_confirmed_at' => 'datetime',
+            'deletion_token_expires_at' => 'datetime',
         ];
+    }
+
+    public function deletionLogs(): HasMany
+    {
+        return $this->hasMany(DeletionLog::class);
     }
 
     public function sendEmailVerificationNotification(): void

@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Web\Consumer;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ToggleDiscreteModeRequest;
 use App\Models\User;
+use App\Services\DeletionService;
 use App\Services\DiscreteModeService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,11 +20,28 @@ use Inertia\Response;
  */
 class PreferencesController extends Controller
 {
-    public function __construct(private DiscreteModeService $discreteMode) {}
+    public function __construct(
+        private DiscreteModeService $discreteMode,
+        private DeletionService $deletion,
+    ) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        return Inertia::render('Consumer/Settings');
+        /** @var User $user */
+        $user = $request->user();
+
+        return Inertia::render('Consumer/Settings', [
+            // Estado da exclusão vai como prop DESTA página, não no share()
+            // global: é uma consulta a payouts que só esta tela usa, e o share
+            // roda em toda resposta Inertia da aplicação.
+            'deletion' => [
+                'requested_at' => $user->deletion_requested_at?->toIso8601String(),
+                'scheduled_at' => $user->deletion_scheduled_at?->toIso8601String(),
+                'confirmed' => $user->deletion_confirmed_at !== null,
+                'blocking_payouts' => $this->deletion->blockingPayoutCount($user),
+                'grace_days' => DeletionService::GRACE_DAYS,
+            ],
+        ]);
     }
 
     public function toggleDiscreteMode(ToggleDiscreteModeRequest $request): RedirectResponse

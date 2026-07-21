@@ -3,6 +3,11 @@ import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import DiscreteModeToggle from '@/Components/DiscreteModeToggle.vue'
+import AccountDeletionSection from '@/Components/AccountDeletionSection.vue'
+
+defineProps({
+    deletion: { type: Object, default: () => ({}) },
+})
 
 const page = usePage()
 const canUseDiscreteMode = computed(() => page.props.auth?.user?.can_use_discrete_mode === true)
@@ -36,6 +41,10 @@ const canUseDiscreteMode = computed(() => page.props.auth?.user?.can_use_discret
                     </Link>
                 </div>
             </div>
+
+            <!-- Última seção da tela de propósito: ação destrutiva não disputa
+                 atenção com preferência de uso. -->
+            <AccountDeletionSection :deletion="deletion" />
         </div>
     </AppLayout>
 </template>
