@@ -19,6 +19,9 @@ use Illuminate\Support\Facades\DB;
  */
 class DiscreteModeService
 {
+    /** Tier mínimo do perk. Comparado por RANK, não por slug. */
+    public const MIN_TIER = 'black';
+
     /**
      * Perk de Black/Founders Circle. Checagem por rank de tier, não por lista de
      * slugs: um tier novo acima de Black herda o benefício sem que este arquivo
@@ -42,7 +45,10 @@ class DiscreteModeService
             return false;
         }
 
-        return $circle->tierRank() >= array_search('black', Circle::TIER_ORDER, true);
+        // Comparação (e o fail-closed) em Circle::tierAtLeast — a regra tem uma
+        // dona só. A forma anterior era `tierRank() >= array_search(...)`, que
+        // falhava ABERTO se 'black' saísse do TIER_ORDER.
+        return $circle->tierAtLeast(self::MIN_TIER);
     }
 
     /**

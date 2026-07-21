@@ -75,9 +75,9 @@ class AppServiceProvider extends ServiceProvider
                 return true;
             }
 
-            $required = array_search($minTier, \App\Models\Circle::TIER_ORDER, true);
-
-            return $required !== false && $circle->tierRank() >= $required;
+            // Comparação em Circle::tierAtLeast, que já é fail-closed nas duas
+            // pontas (tier do usuário ou tier mínimo fora do TIER_ORDER ⇒ nega).
+            return $circle->tierAtLeast($minTier);
         });
 
         WaitlistEntry::observe(WaitlistEntryObserver::class);

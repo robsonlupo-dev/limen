@@ -74,36 +74,10 @@ class PrivacyPerkService
             return false;
         }
 
-        $minRank = $this->minTierRank();
-
-        // Fail-closed. `array_search` devolve `false` se MIN_TIER sumir do
-        // TIER_ORDER — renomeação de tier, reordenação, remoção do Black.
-        //
-        // E `false` como operando da direita é armadilha, não só um zero
-        // disfarçado: numa comparação com bool o PHP converte os DOIS lados,
-        // então `3 >= false`, `0 >= false` e até `-1 >= false` são TODOS true.
-        // Sem este guard, sumir 'black' do TIER_ORDER não restringiria nada —
-        // liberaria os três perks para todo mundo, inclusive para Círculo de
-        // slug desconhecido (tierRank() === -1). Falha aberta e silenciosa.
-        //
-        // Mesmo guard que EnsureActiveCircle e AppServiceProvider já fazem.
-        if ($minRank === false) {
-            return false;
-        }
-
-        return $circle->tierRank() >= $minRank;
-    }
-
-    /**
-     * Posição do tier mínimo no TIER_ORDER, ou `false` se ele não estiver lá.
-     *
-     * Método à parte (e `protected`) porque `TIER_ORDER` é const e não dá para
-     * mutar em teste: sobrescrever isto é o único jeito de exercitar de verdade
-     * o caminho fail-closed acima, em vez de confiar que ele está certo.
-     */
-    protected function minTierRank(): int|false
-    {
-        return array_search(self::MIN_TIER, Circle::TIER_ORDER, true);
+        // Comparação (e o fail-closed) em Circle::tierAtLeast — a regra tem uma
+        // dona só. A forma anterior era `tierRank() >= array_search(...)`, que
+        // falhava ABERTO se MIN_TIER saísse do TIER_ORDER.
+        return $circle->tierAtLeast(self::MIN_TIER);
     }
 
     /**

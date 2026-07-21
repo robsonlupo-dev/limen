@@ -10,6 +10,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
+use App\Services\DiscreteModeService;
 use App\Services\FollowerVisibilityService;
 use App\Services\InterestService;
 use App\Services\PrivacyPerkService;
@@ -774,38 +775,48 @@ it('nao aceita os perks por mass assignment no registro', function () {
         ->and($user->read_receipts_enabled)->toBeNull();
 });
 
-it('fail-closed quando o tier minimo some do TIER_ORDER', function () {
+it('fail-closed quando o tier do Circulo nao esta no TIER_ORDER', function () {
     // Regressão B1. O código era `tierRank() >= array_search('black', TIER_ORDER)`.
-    // Some 'black' do TIER_ORDER (renomeação, reordenação) e array_search devolve
-    // `false` — que numa comparação converte os DOIS lados para bool, tornando
-    // `3 >= false`, `0 >= false` e `-1 >= false` todos TRUE. O gate não
-    // restringiria nada: liberaria os três perks para todo tier, inclusive para
-    // Círculo de slug desconhecido. Falha aberta e silenciosa.
-    //
-    // TIER_ORDER é const e não dá para mutar, então o teste substitui a
-    // resolução do rank — é o caminho fail-closed que está sendo exercitado,
-    // não uma simulação dele.
-    $service = new class extends PrivacyPerkService
-    {
-        protected function minTierRank(): int|false
-        {
-            return false; // 'black' não está mais no TIER_ORDER
-        }
-    };
+    // `array_search` devolve `false` quando não acha, e numa comparação com bool
+    // o PHP converte os DOIS lados: `3 >= false`, `0 >= false` e até
+    // `-1 >= false` são todos TRUE. O gate deixava de restringir em vez de
+    // barrar — inclusive para Círculo de slug desconhecido, cujo rank é -1
+    // justamente por não ser reconhecido.
+    $desconhecido = new Circle(['slug' => 'tier-que-nao-existe']);
 
-    $black = perkMember('black')->activeCircle();
-    $explorador = perkMember('explorador')->activeCircle();
-
-    expect($black)->not->toBeNull()
-        ->and($service->circleQualifies($black))->toBeFalse()
-        ->and($service->circleQualifies($explorador))->toBeFalse();
+    expect(app(PrivacyPerkService::class)->circleQualifies($desconhecido))->toBeFalse()
+        ->and(app(DiscreteModeService::class)->circleQualifies($desconhecido))->toBeFalse();
 });
 
 it('o tier minimo dos perks existe no TIER_ORDER', function () {
     // O guard acima fecha em vez de abrir, mas fechado silenciosamente também é
     // ruim: todo Black perderia os perks sem ninguém notar. Este teste é o alarme
     // — quebra na hora em que alguém mexer no TIER_ORDER sem olhar para cá.
-    expect(Circle::TIER_ORDER)->toContain(PrivacyPerkService::MIN_TIER);
+    expect(Circle::TIER_ORDER)->toContain(PrivacyPerkService::MIN_TIER)
+        ->and(Circle::TIER_ORDER)->toContain(DiscreteModeService::MIN_TIER);
+});
+
+// ─── Circle::tierAtLeast — dona única da comparação de tier ──────────────────
+
+it('tierAtLeast compara por rank, nao por slug', function () {
+    $black = new Circle(['slug' => 'black']);
+    $explorador = new Circle(['slug' => 'explorador']);
+
+    expect($black->tierAtLeast('explorador'))->toBeTrue()
+        ->and($explorador->tierAtLeast('black'))->toBeFalse()
+        // Igualdade conta: o piso é "este tier OU superior".
+        ->and($black->tierAtLeast('black'))->toBeTrue()
+        // Tier acima de Black herda o privilégio sem editar service nenhum.
+        ->and((new Circle(['slug' => 'founders_circle']))->tierAtLeast('black'))->toBeTrue();
+});
+
+it('tierAtLeast fecha nas duas pontas quando o slug nao existe', function () {
+    // Slug do PRÓPRIO Círculo fora do TIER_ORDER...
+    expect((new Circle(['slug' => 'inexistente']))->tierAtLeast('black'))->toBeFalse()
+        // ...e o slug MÍNIMO fora do TIER_ORDER (o caso do B1: 'black' sumindo).
+        // É aqui que a versão antiga liberava tudo.
+        ->and((new Circle(['slug' => 'explorador']))->tierAtLeast('inexistente'))->toBeFalse()
+        ->and((new Circle(['slug' => 'founders_circle']))->tierAtLeast('inexistente'))->toBeFalse();
 });
 
 it('a performer nao tem perks de privacidade de membro', function () {
