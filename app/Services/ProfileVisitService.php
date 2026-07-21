@@ -30,6 +30,16 @@ class ProfileVisitService
      */
     public const RETENTION_DAYS = 7;
 
+    /**
+     * Fuso de EXIBIÇÃO das faixas do painel.
+     *
+     * Fixo, e não `config('app.timezone')`: a app roda em UTC (config/app.php),
+     * então derivar a faixa dali rotularia uma visita das 21:00 em São Paulo
+     * como "Madrugada". Os rótulos são lidos por gente no Brasil — o fuso da
+     * infraestrutura não tem a ver com o significado da palavra.
+     */
+    public const DISPLAY_TIMEZONE = 'America/Sao_Paulo';
+
     public function __construct(private FollowerVisibilityService $visibility) {}
 
     /**
@@ -120,7 +130,10 @@ class ProfileVisitService
      * Elegibilidade decide DESTRAVAR, não filtrar: aberto o painel, a lista sai
      * inteira — visitante de conta nova aparece nela normalmente.
      *
-     * @return array{visible:bool,visitors:array<int,array{fan:string,visited_at:string}>}
+     * O horário sai em FAIXA (`visited_slot`), nunca em relógio, e a ordem dentro
+     * da faixa é embaralhada — ver slot() e shuffleWithinSlots().
+     *
+     * @return array{visible:bool,visitors:array<int,array{fan:string,visited_slot:string}>}
      */
     public function panelFor(PerformerProfile $profile, int $limit = 10): array
     {
@@ -165,14 +178,82 @@ class ProfileVisitService
 
         return [
             'visible' => true,
-            'visitors' => array_map(fn (object $row) => [
+            'visitors' => $this->shuffleWithinSlots(array_map(fn (object $row) => [
                 // Mesmo pseudônimo por par (perfil, membro) das gorjetas e da
                 // lista de seguidores: a performer reconhece "o Fã #0042 de
                 // sempre" entre as telas, sem que o id cru saia daqui.
                 'fan' => FanAlias::label($profile->id, (int) $row->visitor_id),
-                'visited_at' => Carbon::parse($row->visited_at)->format('d/m/Y H:i'),
-            ], $rows),
+                'visited_slot' => $this->slot(Carbon::parse($row->visited_at)),
+            ], $rows)),
         ];
+    }
+
+    /**
+     * Faixa do dia em vez de relógio.
+     *
+     * `d/m/Y H:i` transformava o painel num oráculo de identidade: a performer
+     * manda o link do perfil para UMA pessoa às 14:31, vê um alias novo
+     * carimbado 14:32 e acabou de ligar aquele pseudônimo a um nome. Como o
+     * FanAlias é estável por par, o vínculo vai junto para as gorjetas e para a
+     * lista de seguidores — a correlação que o FanAlias existe para impedir,
+     * reconstruída pelo relógio.
+     *
+     * Faixa de 6h é grossa o bastante para não casar com um envio pontual e
+     * ainda responder o que a tela se propõe a responder ("teve movimento hoje
+     * de manhã"). Fora do dia corrente sai só a data: nada obriga a ser mais
+     * fino, e menos é mais seguro.
+     */
+    private function slot(Carbon $dt): string
+    {
+        $dt = $dt->copy()->setTimezone(self::DISPLAY_TIMEZONE);
+
+        if (! $dt->isToday()) {
+            return $dt->format('d/m/Y');
+        }
+
+        return match (true) {
+            $dt->hour < 6 => 'Madrugada',
+            $dt->hour < 12 => 'Manhã',
+            $dt->hour < 18 => 'Tarde',
+            default => 'Noite',
+        };
+    }
+
+    /**
+     * Embaralha DENTRO de cada faixa, preservando a ordem entre faixas.
+     *
+     * A faixa sozinha não bastava: a lista saía ordenada por recência, então a
+     * primeira linha da faixa era o visitante mais recente dela e o rótulo
+     * grosso não escondia nada — a POSIÇÃO entregava o que o relógio entregava.
+     *
+     * As faixas continuam em ordem (mais recente primeiro) porque essa é a
+     * informação que a tela legitimamente dá; o que some é a ordem interna, que
+     * só servia para localizar quem acabou de chegar.
+     *
+     * @param  array<int,array{fan:string,visited_slot:string}>  $visitors
+     * @return array<int,array{fan:string,visited_slot:string}>
+     */
+    private function shuffleWithinSlots(array $visitors): array
+    {
+        $grouped = [];
+
+        // A ordem de PRIMEIRA aparição de cada faixa é a ordem de recência que
+        // veio do banco, e o PHP preserva a ordem de inserção das chaves.
+        foreach ($visitors as $visitor) {
+            $grouped[$visitor['visited_slot']][] = $visitor;
+        }
+
+        $out = [];
+
+        foreach ($grouped as $group) {
+            shuffle($group);
+
+            foreach ($group as $visitor) {
+                $out[] = $visitor;
+            }
+        }
+
+        return $out;
     }
 
     /**

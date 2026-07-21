@@ -17,6 +17,7 @@ use App\Services\PrivacyPerkService;
 use App\Services\ProfileVisitService;
 use App\Services\TokenService;
 use App\Support\FanAlias;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -235,13 +236,14 @@ it('mostra visitantes recentes no painel da performer sob pseudonimo', function 
     $visitors = perkVisitors($performer, 5);
     $member = $visitors[4];
 
-    $this->actingAs($performer->user)
-        ->get(route('performer.dashboard'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('visitorsVisible', true)
-            ->has('visitors', 5)
-            // O mais recente primeiro.
-            ->where('visitors.0.fan', FanAlias::label($performer->id, $member->id)));
+    $response = $this->actingAs($performer->user)->get(route('performer.dashboard'));
+    $aliases = collect($response->viewData('page')['props']['visitors'])->pluck('fan');
+
+    // PRESENÇA, não posição: a ordem dentro da faixa é embaralhada de propósito
+    // (ver shuffleWithinSlots) — asserir índice aqui travaria justamente o
+    // comportamento que o A1 removeu.
+    expect($aliases)->toHaveCount(5)
+        ->and($aliases)->toContain(FanAlias::label($performer->id, $member->id));
 });
 
 it('nunca entrega o id do membro na lista de visitantes', function () {
@@ -254,9 +256,9 @@ it('nunca entrega o id do membro na lista de visitantes', function () {
     // frágil (a data carrega dígitos), então a garantia é a forma: nenhuma
     // chave além destas duas, e o alias não é derivável de volta ao id.
     $visitors = $response->viewData('page')['props']['visitors'];
-    expect(array_keys($visitors[0]))->toBe(['fan', 'visited_at'])
-        ->and($visitors[0]['fan'])->toBe(FanAlias::label($performer->id, $member->id))
-        ->and($visitors[0]['fan'])->not->toBe('Fã #'.$member->id);
+    expect(array_keys($visitors[0]))->toBe(['fan', 'visited_slot'])
+        ->and(collect($visitors)->pluck('fan'))->toContain(FanAlias::label($performer->id, $member->id))
+        ->and(collect($visitors)->pluck('fan'))->not->toContain('Fã #'.$member->id);
 });
 
 it('o membro com Ghost Mode nao aparece no painel da performer', function () {
@@ -282,6 +284,99 @@ it('o painel so mostra visitas das ultimas 24h', function () {
     $this->actingAs($performer->user)
         ->get(route('performer.dashboard'))
         ->assertInertia(fn (Assert $page) => $page->has('visitors', 0));
+});
+
+// --- A1: faixa de horário em vez de relógio ---------------------------------
+//
+// `d/m/Y H:i` deixava a performer casar um envio de link ("mandei às 14:31")
+// com o alias que aparecia carimbado 14:32 — e o FanAlias é estável por par,
+// então o vínculo ia junto para gorjetas e seguidores.
+
+/** Painel montado direto pelo service, no instante atual. */
+function perkPanelSlots(PerformerProfile $performer): array
+{
+    return collect(app(ProfileVisitService::class)->panelFor($performer)['visitors'])
+        ->pluck('visited_slot')->all();
+}
+
+it('visitantes da mesma faixa recebem o mesmo rotulo', function () {
+    $this->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+
+    $performer = perkVisiblePerformer();
+    perkVisitors($performer, 5); // todos às 15:00 → mesma faixa
+
+    expect(array_unique(perkPanelSlots($performer)))->toBe(['Tarde']);
+});
+
+it('a faixa da manha sai como Manha', function () {
+    $this->travelTo(Carbon::parse('2026-07-21 09:00', ProfileVisitService::DISPLAY_TIMEZONE));
+
+    $performer = perkVisiblePerformer();
+    perkVisitors($performer, 5);
+
+    expect(array_unique(perkPanelSlots($performer)))->toBe(['Manhã']);
+});
+
+it('a faixa e derivada do fuso brasileiro, nao do UTC da app', function () {
+    // 21:00 em São Paulo é 00:00 UTC do dia seguinte. Derivar a faixa de
+    // `config('app.timezone')` (que é UTC) rotularia isto como "Madrugada" —
+    // e ainda jogaria a visita para o "dia seguinte", virando data em vez de
+    // faixa. O rótulo é lido por gente no Brasil.
+    $this->travelTo(Carbon::parse('2026-07-21 21:00', ProfileVisitService::DISPLAY_TIMEZONE));
+
+    $performer = perkVisiblePerformer();
+    perkVisitors($performer, 5);
+
+    expect(array_unique(perkPanelSlots($performer)))->toBe(['Noite']);
+});
+
+it('visita de ontem sai como data, nao como faixa do dia', function () {
+    // Dentro da janela de 24h, mas em outro dia do calendário.
+    $this->travelTo(Carbon::parse('2026-07-20 22:00', ProfileVisitService::DISPLAY_TIMEZONE));
+
+    $performer = perkVisiblePerformer();
+    perkVisitors($performer, 5);
+
+    $this->travelTo(Carbon::parse('2026-07-21 02:00', ProfileVisitService::DISPLAY_TIMEZONE));
+
+    expect(array_unique(perkPanelSlots($performer)))->toBe(['20/07/2026']);
+});
+
+it('o painel nao devolve visited_at em lugar nenhum', function () {
+    $this->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+
+    $performer = perkVisiblePerformer();
+    perkVisitors($performer, 5);
+
+    $visitors = app(ProfileVisitService::class)->panelFor($performer)['visitors'];
+
+    foreach ($visitors as $visitor) {
+        expect(array_keys($visitor))->toBe(['fan', 'visited_slot'])
+            ->and($visitor)->not->toHaveKey('visited_at');
+    }
+
+    // E nem pela tela: um relógio vazando na prop do Inertia é o mesmo furo.
+    $props = $this->actingAs($performer->user)
+        ->get(route('performer.dashboard'))->viewData('page')['props'];
+
+    expect(json_encode($props['visitors']))->not->toContain('visited_at');
+});
+
+it('embaralha a ordem dentro da faixa', function () {
+    // Sem shuffle, a POSIÇÃO entrega o que o relógio entregava: a primeira
+    // linha da faixa é sempre o visitante mais recente dela.
+    $this->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+
+    $performer = perkVisiblePerformer();
+    perkVisitors($performer, 5); // todos na mesma faixa
+
+    $ordens = collect(range(1, 20))->map(
+        fn () => collect(app(ProfileVisitService::class)->panelFor($performer)['visitors'])
+            ->pluck('fan')->implode('|')
+    )->unique();
+
+    // 20 sorteios de 5! ordens possíveis: sair a mesma ordem 20x é ~1e-25.
+    expect($ordens->count())->toBeGreaterThan(1);
 });
 
 // --- Piso de Anonimato sobre o painel de visitantes --------------------------

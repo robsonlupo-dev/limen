@@ -157,7 +157,10 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                                 class="border-b border-frame/50 last:border-b-0"
                             >
                                 <td class="px-5 py-3 text-cream">{{ visit.fan }}</td>
-                                <td class="px-5 py-3 text-muted">{{ visit.visited_at }}</td>
+                                <!-- Faixa do dia, nunca relógio: horário exato deixava
+                                     a performer casar um envio de link com o alias que
+                                     aparece logo depois. Ver ProfileVisitService::slot(). -->
+                                <td class="px-5 py-3 text-muted">{{ visit.visited_slot }}</td>
                             </tr>
                         </tbody>
                     </table>
