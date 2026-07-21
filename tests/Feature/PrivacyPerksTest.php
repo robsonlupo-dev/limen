@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Circle;
 use App\Models\Conversation;
 use App\Models\Follow;
 use App\Models\Message;
@@ -771,6 +772,40 @@ it('nao aceita os perks por mass assignment no registro', function () {
     expect($user->ghost_mode)->toBeNull()
         ->and($user->invisible_status)->toBeNull()
         ->and($user->read_receipts_enabled)->toBeNull();
+});
+
+it('fail-closed quando o tier minimo some do TIER_ORDER', function () {
+    // Regressão B1. O código era `tierRank() >= array_search('black', TIER_ORDER)`.
+    // Some 'black' do TIER_ORDER (renomeação, reordenação) e array_search devolve
+    // `false` — que numa comparação converte os DOIS lados para bool, tornando
+    // `3 >= false`, `0 >= false` e `-1 >= false` todos TRUE. O gate não
+    // restringiria nada: liberaria os três perks para todo tier, inclusive para
+    // Círculo de slug desconhecido. Falha aberta e silenciosa.
+    //
+    // TIER_ORDER é const e não dá para mutar, então o teste substitui a
+    // resolução do rank — é o caminho fail-closed que está sendo exercitado,
+    // não uma simulação dele.
+    $service = new class extends PrivacyPerkService
+    {
+        protected function minTierRank(): int|false
+        {
+            return false; // 'black' não está mais no TIER_ORDER
+        }
+    };
+
+    $black = perkMember('black')->activeCircle();
+    $explorador = perkMember('explorador')->activeCircle();
+
+    expect($black)->not->toBeNull()
+        ->and($service->circleQualifies($black))->toBeFalse()
+        ->and($service->circleQualifies($explorador))->toBeFalse();
+});
+
+it('o tier minimo dos perks existe no TIER_ORDER', function () {
+    // O guard acima fecha em vez de abrir, mas fechado silenciosamente também é
+    // ruim: todo Black perderia os perks sem ninguém notar. Este teste é o alarme
+    // — quebra na hora em que alguém mexer no TIER_ORDER sem olhar para cá.
+    expect(Circle::TIER_ORDER)->toContain(PrivacyPerkService::MIN_TIER);
 });
 
 it('a performer nao tem perks de privacidade de membro', function () {

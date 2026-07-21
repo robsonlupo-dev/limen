@@ -32,6 +32,9 @@ class PrivacyPerkService
 
     public const PERKS = [self::GHOST_MODE, self::INVISIBLE_STATUS, self::READ_RECEIPTS];
 
+    /** Tier mínimo que dá direito aos perks. Comparado por RANK, não por slug. */
+    public const MIN_TIER = 'black';
+
     /**
      * Valor do perk quando o membro nunca escolheu à mão.
      *
@@ -71,7 +74,36 @@ class PrivacyPerkService
             return false;
         }
 
-        return $circle->tierRank() >= array_search('black', Circle::TIER_ORDER, true);
+        $minRank = $this->minTierRank();
+
+        // Fail-closed. `array_search` devolve `false` se MIN_TIER sumir do
+        // TIER_ORDER — renomeação de tier, reordenação, remoção do Black.
+        //
+        // E `false` como operando da direita é armadilha, não só um zero
+        // disfarçado: numa comparação com bool o PHP converte os DOIS lados,
+        // então `3 >= false`, `0 >= false` e até `-1 >= false` são TODOS true.
+        // Sem este guard, sumir 'black' do TIER_ORDER não restringiria nada —
+        // liberaria os três perks para todo mundo, inclusive para Círculo de
+        // slug desconhecido (tierRank() === -1). Falha aberta e silenciosa.
+        //
+        // Mesmo guard que EnsureActiveCircle e AppServiceProvider já fazem.
+        if ($minRank === false) {
+            return false;
+        }
+
+        return $circle->tierRank() >= $minRank;
+    }
+
+    /**
+     * Posição do tier mínimo no TIER_ORDER, ou `false` se ele não estiver lá.
+     *
+     * Método à parte (e `protected`) porque `TIER_ORDER` é const e não dá para
+     * mutar em teste: sobrescrever isto é o único jeito de exercitar de verdade
+     * o caminho fail-closed acima, em vez de confiar que ele está certo.
+     */
+    protected function minTierRank(): int|false
+    {
+        return array_search(self::MIN_TIER, Circle::TIER_ORDER, true);
     }
 
     /**
