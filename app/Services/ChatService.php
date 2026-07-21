@@ -12,6 +12,7 @@ use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\ChatContentFilter;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Chat pós-desbloqueio de Interesse. Ver docs/INTEREST_SYSTEM_SPEC.md §4-5 e
@@ -178,28 +179,61 @@ class ChatService
      */
     private function assertContentAllowed(User $sender, string $body): void
     {
-        $term = ChatContentFilter::firstMatch($body);
+        $match = ChatContentFilter::match($body);
 
-        if ($term === null) {
+        if ($match === null) {
             return;
         }
 
-        // O termo vai em HMAC; o CORPO da mensagem não vai de jeito nenhum.
-        // audit_logs é lido por admin e sobrevive ao Hard Delete (é trilha
-        // legal): copiar a mensagem para dentro dele criaria uma segunda cópia
-        // do conteúdo privado do chat, fora do soft-delete que o LGPD do
-        // projeto aplica em `messages`.
+        $isConduct = $match['category'] === ChatContentFilter::CONDUCT;
+
+        $this->auditBlock($sender, $body, $match, $isConduct);
+
+        throw $isConduct
+            ? ChatException::conductBlocked()
+            : ChatException::legalRiskBlocked();
+    }
+
+    /**
+     * Registra o bloqueio, deduplicado por (usuário, regra) na janela.
+     *
+     * A regra vai em HMAC; o CORPO da mensagem não vai de jeito nenhum —
+     * decisão do PO, e `audit_logs` é lido por admin e sobrevive ao Hard
+     * Delete: copiar a mensagem para cá criaria uma segunda cópia do conteúdo
+     * privado do chat, fora do soft-delete que o LGPD do projeto aplica em
+     * `messages`. A contrapartida é que a moderação age por REPETIÇÃO, não
+     * julgando o caso isolado.
+     *
+     * A deduplicação existe porque a lista é enumerável: sem ela, uma conta
+     * varrendo os termos escreve dezenas de linhas por minuto e enterra a
+     * trilha — o mesmo cuidado que o GeoBlock já toma.
+     *
+     * @param  array{category: string, rule: string}  $match
+     */
+    private function auditBlock(User $sender, string $body, array $match, bool $isConduct): void
+    {
+        $ruleHash = ChatContentFilter::digest($match['rule']);
+        $minutes = max(1, (int) config('chat_filters.audit_dedup_minutes'));
+
+        // add() é atômico: dois envios simultâneos não viram duas linhas.
+        if (! Cache::add('chatfilter:'.$sender->id.':'.substr($ruleHash, 0, 32), true, now()->addMinutes($minutes))) {
+            return;
+        }
+
         AuditLog::create([
             'user_id' => $sender->id,
             'action' => 'chat.message_blocked',
             'ip' => request()->ip(),
             'metadata' => [
-                'term_hash' => ChatContentFilter::digest($term),
+                'category' => $match['category'],
+                'rule_hash' => $ruleHash,
                 'body_length' => mb_strlen($body),
+                // Só conduta vai para a fila de moderação. Risco legal é
+                // barrado e contado; conduta é barrada E olhada por gente,
+                // porque reincidência ali é caso de suspensão, não de config.
+                'flagged_for_review' => $isConduct,
             ],
         ]);
-
-        throw ChatException::contentBlocked();
     }
 
     /**

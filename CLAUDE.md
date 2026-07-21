@@ -279,26 +279,50 @@ Detalhe e passos de ativação em `docs/GEOBLOCKING.md`.
   acessam" em política, contrato ou auditoria — mesma disciplina de linguagem
   do painel de visitantes.
 
-## Filtro de termos no chat
-Lista em `config/chat_filters.php`; casamento em `app/Support/ChatContentFilter.php`.
-Barra com 422 e mensagem **genérica** — dizer qual termo casou entrega o mapa da
-evasão. O termo vai para `audit_logs` (`chat.message_blocked`) em **HMAC**, não
-em claro: a lista está no repo, então `sha256` puro seria revertido por tabela.
-O CORPO da mensagem nunca entra no audit (seria uma segunda cópia do conteúdo do
-chat, fora do soft-delete do LGPD).
+## Filtro de conteúdo do chat — duas categorias
+Listas em `config/chat_filters.php`; casamento em `app/Support/ChatContentFilter.php`.
 
+- **TIPO 1 `legal`** — encontro mediante pagamento e transação fora do ledger.
+  422 com mensagem que **cita os Termos de Uso**.
+- **TIPO 2 `conduct`** — ameaça/sextorsão e insulto **direcionado**. 422 com
+  mensagem de política de conduta + `flagged_for_review` no audit.
+
+### O que o filtro deliberadamente NÃO barra (decisão do PO — não "consertar")
+1. **Troca de contato é PERMITIDA.** WhatsApp, telefone, Instagram, endereço:
+   legítimo num produto de conteúdo adulto/dating. A versão anterior barrava
+   isso e derrubava "comprei um fone de ouvido" e "vi seu instagram".
+2. **Palavrão em contexto sexual consentido é PERMITIDO.** "que puta gostosa"
+   é o vocabulário do produto. Só entra insulto DIRECIONADO (pronome +
+   xingamento), e um qualificador consensual na mensagem — `safada`, `gostosa`,
+   `linda` — **desarma** o casamento: "sua puta safada" passa, "sua puta
+   nojenta" não. Heurística: erra no elogio seco ("sua puta"). O caminho para
+   o caso ambíguo é a denúncia (`Report`), que tem contexto e um humano.
+3. **Encontro SEM valor monetário é PERMITIDO.** "vamos num motel" passa;
+   "motel, 300 reais" não. Termo ambíguo (`programa`, `motel`, `presencial`)
+   só bloqueia junto de `money_signals` na MESMA mensagem — é o único jeito de
+   usar `programa` sem barrar "qual seu programa favorito".
+
+### Invariantes
 - **O filtro roda ANTES da máscara de opt-out** em
   `ChatService::performerMessageFromInterest`. Depois dela, o suprimido daria
   202 e o normal 422 — o par viraria oráculo do opt-out. Guardado por teste.
-- Casamento com **fronteira de palavra unicode** (`\b` não serve com acento) e
-  normalização (acento, leet, alongamento). `fone` não casa em `telefone`.
-- **`conta`, `banco`, `encontro` e `transferência` estão deliberadamente FORA**
-  da lista (decisão do PO, Sprint 6): são português cotidiano ("me conta",
-  "eu te encontro") e barrariam conversa legítima de quem pagou 50 tokens pelo
-  acesso, sem explicação. O sinal real está coberto por FRASE (`conta bancária`,
-  `transferência bancária`, `pix fora`). Um teste guarda essa decisão.
-- **Não é anti-evasão.** Quem quer desviar escreve `z a p` ou combina em código.
-  Ausência de bloqueio não é prova de que ninguém combinou encontro.
+- Normalização fecha ZWSP e **fullwidth** (achados da revisão de segurança):
+  `\p{Cf}` sai ANTES do `Str::ascii` (que virava o ZWSP em espaço real) e
+  NFKC colapsa fullwidth (que o `Str::ascii` DESCARTAVA, zerando a mensagem).
+- `audit_logs` leva **categoria + `rule_hash` (HMAC)**, nunca a regra em claro
+  (a lista está no repo: `sha256` seria revertido por tabela) e **nunca o
+  corpo** — seria 2ª cópia do conteúdo do chat, fora do soft-delete do LGPD.
+  Deduplicado por (usuário, regra), senão enumerar a lista enterra a trilha.
+- **A moderação age por REPETIÇÃO**, não por caso isolado: sem o corpo, o
+  admin vê "usuário X disparou conduta 9x". Fila humana de verdade (com
+  contexto) é follow-up — `reports` exige `reporter_id` e um alvo morfável, e
+  mensagem bloqueada não é persistida.
+
+> **Não é anti-evasão, e o "segredo" nunca foi real.** A lista está no repo e o
+> remetente distingue as categorias pela resposta. A mensagem de erro é
+> específica de propósito: dizer o que foi violado vale mais do que uma
+> vaguidade que o evasor contorna em duas tentativas e que só prejudica quem
+> agiu de boa-fé. Ausência de bloqueio **não** é prova de que nada foi combinado.
 
 ## Aceite de documentos da performer — `documents.accepted`
 Política de Conteúdo Proibido + Contrato de Performance. Versão vigente em

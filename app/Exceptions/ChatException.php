@@ -24,6 +24,8 @@ class ChatException extends DomainException
 
     public const CONTENT_BLOCKED = 'content_blocked';
 
+    public const CONDUCT_BLOCKED = 'conduct_blocked';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -62,17 +64,31 @@ class ChatException extends DomainException
     }
 
     /**
-     * Mensagem barrada pelo filtro de conteúdo.
+     * Mensagem barrada por sugerir transação fora da plataforma ou encontro
+     * mediante pagamento (TIPO 1).
      *
-     * A mensagem é genérica de propósito e NÃO diz qual termo casou: apontar a
-     * palavra entrega o mapa da evasão (basta reescrever trocando aquela e o
-     * filtro para de ver qualquer coisa). O termo vai para o audit em HMAC.
+     * A mensagem DIZ o que foi violado. A versão anterior era genérica para
+     * "não entregar o mapa da evasão", e a revisão de segurança mostrou que
+     * isso nunca valeu: a lista está no repo e o remetente distingue as
+     * categorias pela resposta em duas tentativas. Sobrava só o usuário de
+     * boa-fé sem saber o que fazer — pagou pelo acesso e levou uma vaguidade.
+     * O termo exato continua fora da resposta; vai para o audit em HMAC.
      */
-    public static function contentBlocked(): self
+    public static function legalRiskBlocked(): self
     {
         return new self(
             self::CONTENT_BLOCKED,
-            'Mensagem não permitida pela política de uso da plataforma.',
+            'Esta mensagem não é permitida pois sugere transação fora da plataforma '
+            .'ou encontro mediante pagamento, o que viola os Termos de Uso.',
+        );
+    }
+
+    /** Mensagem barrada por conduta abusiva — ameaça ou insulto direcionado (TIPO 2). */
+    public static function conductBlocked(): self
+    {
+        return new self(
+            self::CONDUCT_BLOCKED,
+            'Esta mensagem foi bloqueada por violar nossa política de conduta.',
         );
     }
 }

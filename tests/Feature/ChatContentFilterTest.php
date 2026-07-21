@@ -2,165 +2,296 @@
 
 use App\Exceptions\ChatException;
 use App\Services\InterestService;
-use App\Support\ChatContentFilter;
+use App\Support\ChatContentFilter as F;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Filtro de termos proibidos no chat (Sprint 6).
+ * Filtro de conteúdo do chat — duas categorias (Sprint 6, revisado).
  *
- * Dois alvos: combinar encontro presencial e levar a transação para fora da
- * plataforma. Os helpers (chatPerformer, chatUnlockedPair, grantChatAccess)
- * vêm de ChatPhase1Test.php.
+ * TIPO 1 (legal): intermediação de encontro pago e transação fora do ledger.
+ * TIPO 2 (conduta): ameaça e insulto DIRECIONADO.
  *
- * O que estes testes NÃO provam: que o filtro impede alguém de combinar
- * encontro. Ver o cabeçalho de config/chat_filters.php — quem quer desviar,
- * desvia. Aqui se prova o mecanismo: barra o que está na lista, deixa passar o
- * resto, não conta ao remetente o que casou e não vira oráculo de opt-out.
+ * Metade destes testes prova o que o filtro NÃO barra, e essa metade é a que
+ * importa manter: troca de contato, palavrão consensual e encontro sem valor
+ * são conversa legítima aqui, e a versão anterior do filtro barrava os três.
+ * Helpers (chatPerformer, chatUnlockedPair, grantChatAccess) em tests/Pest.php.
  */
+beforeEach(function () {
+    Cache::flush();
+});
 
-// ─── Bloqueio e liberação ───────────────────────────────────────────────────
+// ─── O que passou a ser PERMITIDO (o ponto da revisão) ──────────────────────
 
-it('bloqueia mensagem com termo proibido (422) e não persiste nada', function () {
+it('permite troca de contato — é legítima numa plataforma de conteúdo adulto', function () {
+    expect(F::blocks('me chama no whatsapp'))->toBeFalse()
+        ->and(F::blocks('meu telefone é 11999999999'))->toBeFalse()
+        ->and(F::blocks('me segue no instagram'))->toBeFalse()
+        ->and(F::blocks('manda no zap'))->toBeFalse()
+        ->and(F::blocks('qual seu endereço de email?'))->toBeFalse()
+        ->and(F::blocks('comprei um fone de ouvido novo'))->toBeFalse()
+        ->and(F::blocks('meu celular novo tira foto linda'))->toBeFalse();
+});
+
+it('permite palavrão em contexto sexual consentido', function () {
+    // É uma plataforma adulta: este É o vocabulário do produto.
+    expect(F::blocks('que puta gostosa'))->toBeFalse()
+        ->and(F::blocks('sua puta safada'))->toBeFalse()
+        ->and(F::blocks('puta merda, que linda'))->toBeFalse()
+        ->and(F::blocks('tá puta comigo?'))->toBeFalse()
+        ->and(F::blocks('vou te comer toda'))->toBeFalse()
+        ->and(F::blocks('sua vaca deliciosa'))->toBeFalse();
+});
+
+it('permite combinar encontro SEM valor monetário', function () {
+    // A plataforma não controla a vida pessoal de adultos.
+    expect(F::blocks('vamos num motel qualquer dia'))->toBeFalse()
+        ->and(F::blocks('fiquei num hotel em paris nas férias'))->toBeFalse()
+        ->and(F::blocks('podemos nos encontrar quando você quiser'))->toBeFalse()
+        ->and(F::blocks('meu curso é presencial'))->toBeFalse();
+});
+
+it('permite as palavras comuns que derrubavam conversa antes', function () {
+    expect(F::blocks('me conta como foi seu dia'))->toBeFalse()
+        ->and(F::blocks('qual seu programa favorito na tv?'))->toBeFalse()
+        ->and(F::blocks('vamos fazer um programa juntos no domingo'))->toBeFalse()
+        ->and(F::blocks('comprei tokens no pix agora'))->toBeFalse()
+        ->and(F::blocks('quanto custa o pacote de tokens?'))->toBeFalse();
+});
+
+// ─── TIPO 1 — risco legal ───────────────────────────────────────────────────
+
+it('bloqueia frase inequívoca de programa pago', function () {
+    expect(F::categoryOf('faço programa completo'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('você faz programa?'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('oferece GFE?'))->toBe(F::LEGAL);
+});
+
+it('bloqueia transação fora da plataforma', function () {
+    expect(F::categoryOf('faz o pix fora da plataforma'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('me paga fora, sai mais barato'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('prefiro receber por fora do site'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('transfere fora daqui'))->toBe(F::LEGAL);
+});
+
+it('bloqueia encontro APENAS quando há valor monetário junto', function () {
+    // O mesmo termo, com e sem dinheiro: é a regra inteira num par.
+    expect(F::blocks('vamos num motel'))->toBeFalse()
+        ->and(F::categoryOf('vamos num motel, 300 reais'))->toBe(F::LEGAL);
+
+    expect(F::blocks('quero te encontrar'))->toBeFalse()
+        ->and(F::categoryOf('quero te encontrar, qual seu valor?'))->toBe(F::LEGAL);
+
+    expect(F::blocks('qual seu programa favorito'))->toBeFalse()
+        ->and(F::categoryOf('quanto custa um programa?'))->toBe(F::LEGAL);
+
+    expect(F::categoryOf('encontro presencial R$ 500'))->toBe(F::LEGAL);
+});
+
+it('não confunde data e hora com valor', function () {
+    // Um \d+ genérico como sinal de dinheiro barraria isto — por isso o sinal
+    // tem que ser explicitamente monetário.
+    expect(F::blocks('vamos nos encontrar dia 15'))->toBeFalse()
+        ->and(F::blocks('te encontro às 20h'))->toBeFalse();
+});
+
+it('cachê sozinho não bloqueia — show na plataforma é conversa legítima', function () {
+    expect(F::blocks('qual seu cachê para uma live?'))->toBeFalse();
+});
+
+// ─── TIPO 2 — conduta ───────────────────────────────────────────────────────
+
+it('bloqueia ameaça explícita', function () {
+    expect(F::categoryOf('vou te matar'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('te processo se não responder'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('sei onde você mora'))->toBe(F::CONDUCT);
+});
+
+it('bloqueia sextorsão', function () {
+    // O vetor de ameaça mais próprio desta plataforma.
+    expect(F::categoryOf('vou vazar suas fotos'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('vou mostrar pro seu marido'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('vou te expor'))->toBe(F::CONDUCT);
+});
+
+it('não barra "vou te" seguido de coisa normal', function () {
+    // 'vou te' veio na spec como padrão de ameaça; barrá-lo solto mataria o
+    // produto funcionando.
+    expect(F::blocks('vou te ligar depois'))->toBeFalse()
+        ->and(F::blocks('vou te mandar uma foto'))->toBeFalse()
+        ->and(F::blocks('vou te comer inteira'))->toBeFalse();
+});
+
+it('bloqueia insulto DIRECIONADO', function () {
+    expect(F::categoryOf('sua puta nojenta'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('você é uma vaca'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('vc é uma idiota'))->toBe(F::CONDUCT);
+});
+
+it('o qualificador consensual desarma o insulto direcionado', function () {
+    // "sua puta safada" é dirty talk; "sua puta nojenta" não é. A diferença
+    // está no qualificador, não na palavra.
+    expect(F::blocks('sua puta safada'))->toBeFalse()
+        ->and(F::categoryOf('sua puta nojenta'))->toBe(F::CONDUCT);
+});
+
+it('risco legal vence conduta quando a mensagem dispara as duas', function () {
+    // A categoria mais grave é a que deve ser reportada.
+    expect(F::categoryOf('sua puta nojenta, faz programa completo?'))->toBe(F::LEGAL);
+});
+
+// ─── Bypasses fechados na revisão de segurança ──────────────────────────────
+
+it('fecha o bypass de zero-width e fullwidth', function () {
+    // Os dois achados da revisão: o ZWSP virava espaço real (quebrando a
+    // palavra) e o fullwidth era DESCARTADO pelo Str::ascii (a mensagem
+    // inteira normalizava para vazio e não casava nada).
+    expect(F::blocks("faz progr\u{200B}ama completo"))->toBeTrue()
+        ->and(F::blocks('ｆａｚ ｐｒｏｇｒａｍａ ｃｏｍｐｌｅｔｏ'))->toBeTrue();
+});
+
+it('mantém acento, leet, alongamento e caixa cobertos', function () {
+    expect(F::blocks('FAZ PROGRAMA COMPLETO'))->toBeTrue()
+        ->and(F::blocks('faz pr0gr4m4 completo'))->toBeTrue()
+        ->and(F::blocks('faz programaaaa completo'))->toBeTrue()
+        ->and(F::categoryOf('cachê de R$ 500 pro programa'))->toBe(F::LEGAL);
+});
+
+it('respeita o desligamento por config', function () {
+    config(['chat_filters.enabled' => false]);
+
+    expect(F::blocks('faz programa completo'))->toBeFalse();
+});
+
+// ─── Resposta HTTP ──────────────────────────────────────────────────────────
+
+it('devolve 422 com a mensagem de risco legal', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
 
     $this->actingAs($member)
         ->postJson(route('chat.messages.store', $conversation->id), [
-            'body' => 'vamos marcar num motel amanhã',
+            'body' => 'faz programa completo?',
         ])
         ->assertStatus(422)
         ->assertJson([
             'reason' => ChatException::CONTENT_BLOCKED,
-            'message' => 'Mensagem não permitida pela política de uso da plataforma.',
+            'message' => 'Esta mensagem não é permitida pois sugere transação fora da plataforma '
+                .'ou encontro mediante pagamento, o que viola os Termos de Uso.',
         ]);
 
     expect($conversation->messages()->count())->toBe(0);
 });
 
-it('permite mensagem normal (201)', function () {
+it('devolve 422 com a mensagem de conduta', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'vou te matar'])
+        ->assertStatus(422)
+        ->assertJson([
+            'reason' => ChatException::CONDUCT_BLOCKED,
+            'message' => 'Esta mensagem foi bloqueada por violar nossa política de conduta.',
+        ]);
+});
+
+it('entrega a mensagem normal (201)', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
 
     $this->actingAs($member)
         ->postJson(route('chat.messages.store', $conversation->id), [
-            'body' => 'oi, gostei muito do seu perfil',
+            'body' => 'oi gata, me chama no whatsapp que a gente conversa melhor',
         ])
         ->assertStatus(201);
 
     expect($conversation->messages()->count())->toBe(1);
 });
 
-it('o filtro é case-insensitive', function () {
-    $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
-    grantChatAccess($member, $conversation);
-
-    $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'MEU WHATSAPP É'])
-        ->assertStatus(422);
-
-    $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'MeU WhAtSaPp'])
-        ->assertStatus(422);
-});
-
-it('a resposta não revela qual termo casou', function () {
+it('a resposta não revela a regra que casou', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
 
     $response = $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), [
-            'body' => 'me chama no whatsapp',
-        ])->assertStatus(422);
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'faz programa completo'])
+        ->assertStatus(422);
 
-    // Dizer a palavra entrega o mapa da evasão: a pessoa reescreve trocando só
-    // aquela e o filtro para de ver qualquer coisa.
-    expect($response->getContent())->not->toContain('whatsapp')
-        ->and($response->getContent())->not->toContain('term');
-});
-
-// ─── Normalização (desvio preguiçoso) ───────────────────────────────────────
-
-it('normaliza acento, leet e alongamento', function () {
-    expect(ChatContentFilter::blocks('qual seu endereço?'))->toBeTrue()
-        ->and(ChatContentFilter::blocks('qual seu endereco?'))->toBeTrue()
-        ->and(ChatContentFilter::blocks('me chama no wh4ts4pp'))->toBeTrue()
-        ->and(ChatContentFilter::blocks('manda no zaaaap'))->toBeTrue();
-});
-
-it('a fronteira de palavra evita o falso positivo óbvio', function () {
-    // 'fone' está na lista, mas não pode casar dentro de 'telefone'... e
-    // 'telefone' TAMBÉM está na lista, então a mensagem cai de qualquer forma.
-    // O que importa provar é que a fronteira funciona em palavra inocente:
-    expect(ChatContentFilter::blocks('comprei um fone de ouvido novo'))->toBeTrue();
-    expect(ChatContentFilter::blocks('adoro zapping de canal'))->toBeFalse();
-    expect(ChatContentFilter::blocks('vou ao hotelaria curso'))->toBeFalse();
-});
-
-it('deixa passar as palavras comuns que a lista deliberadamente NÃO barra', function () {
-    // 'conta', 'banco', 'encontro' e 'transferência' ficaram fora da lista
-    // (config/chat_filters.php, bloco AMBÍGUOS). Este teste é o guarda dessa
-    // decisão: religá-los quebra aqui, com o custo à vista, em vez de sair
-    // barrando conversa cotidiana em produção sem ninguém perceber.
-    expect(ChatContentFilter::blocks('me conta como foi seu dia'))->toBeFalse()
-        ->and(ChatContentFilter::blocks('conta comigo pro que precisar'))->toBeFalse()
-        ->and(ChatContentFilter::blocks('eu te encontro no chat amanhã'))->toBeFalse()
-        ->and(ChatContentFilter::blocks('fica por minha conta'))->toBeFalse()
-        ->and(ChatContentFilter::blocks('sentei no banco da praça'))->toBeFalse();
-});
-
-it('barra a FRASE que carrega o sinal de verdade', function () {
-    expect(ChatContentFilter::blocks('me passa sua conta bancária'))->toBeTrue()
-        ->and(ChatContentFilter::blocks('faz o pix fora da plataforma'))->toBeTrue()
-        ->and(ChatContentFilter::blocks('prefiro transferência bancária'))->toBeTrue()
-        // 'pix' sozinho é o meio de pagamento da PRÓPRIA plataforma: barrá-lo
-        // quebraria a conversa sobre a compra legítima de tokens.
-        ->and(ChatContentFilter::blocks('comprei tokens no pix agora'))->toBeFalse();
-});
-
-it('respeita o desligamento por config', function () {
-    config(['chat_filters.enabled' => false]);
-
-    expect(ChatContentFilter::blocks('vamos num motel'))->toBeFalse();
+    // A mensagem diz a CATEGORIA violada (é o que o usuário de boa-fé precisa),
+    // nunca o termo — esse continua só no audit, em HMAC.
+    expect($response->getContent())->not->toContain('rule')
+        ->and($response->getContent())->not->toContain('programa completo');
 });
 
 // ─── Audit ──────────────────────────────────────────────────────────────────
 
-it('registra o bloqueio sem expor o termo nem o corpo', function () {
+it('registra categoria e flag de moderação sem o corpo da mensagem', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
 
     $this->actingAs($member)
         ->postJson(route('chat.messages.store', $conversation->id), [
-            'body' => 'meu whatsapp é 11999999999, me chama',
+            'body' => 'sua puta nojenta, me manda 11999999999',
         ])->assertStatus(422);
 
-    $log = DB::table('audit_logs')->where('action', 'chat.message_blocked')->first();
-
-    expect($log)->not->toBeNull()
-        ->and($log->user_id)->toBe($member->id);
-
+    $log = DB::table('audit_logs')->where('action', 'chat.message_blocked')->sole();
     $metadata = json_decode((string) $log->metadata, true);
 
-    // O termo confere contra o digest (a operação consegue calibrar a lista)...
-    expect($metadata['term_hash'])->toBe(ChatContentFilter::digest('whatsapp'))
-        // ...mas nem o termo nem o CORPO ficam legíveis. audit_logs é lido por
-        // admin e sobrevive ao Hard Delete: copiar a mensagem para cá criaria
-        // uma segunda cópia do conteúdo do chat fora do soft-delete do LGPD.
+    expect($log->user_id)->toBe($member->id)
+        ->and($metadata['category'])->toBe(F::CONDUCT)
+        // Só conduta vai para a fila humana; risco legal é barrado e contado.
+        ->and($metadata['flagged_for_review'])->toBeTrue()
+        // 'puta' vem antes de 'nojenta' na lista, então é ele quem casa — o
+        // qualificador 'nojenta' é o que deixou de desarmar, não o que casou.
+        ->and($metadata['rule_hash'])->toBe(F::digest('direcionado: puta'))
+        // Nem o corpo nem a regra em claro. audit_logs sobrevive ao Hard
+        // Delete: copiar a mensagem para cá seria uma 2ª cópia do conteúdo
+        // privado do chat, fora do soft-delete do LGPD em `messages`.
         ->and($metadata)->not->toHaveKey('body')
-        ->and((string) $log->metadata)->not->toContain('whatsapp')
+        ->and((string) $log->metadata)->not->toContain('nojenta')
         ->and((string) $log->metadata)->not->toContain('11999999999');
 });
 
-it('o digest do termo não é reversível por tabela', function () {
-    // A lista de termos está no repo: um sha256 puro seria revertido em
-    // segundos. HMAC com a APP_KEY fecha isso — ver ClientFingerprint.
-    expect(ChatContentFilter::digest('motel'))
-        ->not->toBe(hash('sha256', 'motel'));
+it('risco legal NÃO é marcado para moderação', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'faz programa completo'])
+        ->assertStatus(422);
+
+    $metadata = json_decode(
+        (string) DB::table('audit_logs')->where('action', 'chat.message_blocked')->sole()->metadata,
+        true,
+    );
+
+    expect($metadata['category'])->toBe(F::LEGAL)
+        ->and($metadata['flagged_for_review'])->toBeFalse();
+});
+
+it('deduplica o audit por usuário e regra — enumerar a lista não enterra a trilha', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    grantChatAccess($member, $conversation);
+
+    for ($i = 0; $i < 5; $i++) {
+        $this->actingAs($member)
+            ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'faz programa completo'])
+            ->assertStatus(422);
+    }
+
+    expect(DB::table('audit_logs')->where('action', 'chat.message_blocked')->count())->toBe(1);
+});
+
+it('o digest da regra não é reversível por tabela', function () {
+    // A lista está no repo: sha256 puro seria revertido em segundos.
+    expect(F::digest('programa completo'))->not->toBe(hash('sha256', 'programa completo'));
 });
 
 // ─── O que o filtro NÃO pode virar: oráculo do opt-out ──────────────────────
@@ -168,14 +299,12 @@ it('o digest do termo não é reversível por tabela', function () {
 it('a performer recebe a MESMA resposta para membro com e sem opt-out', function () {
     $performer = chatPerformer();
 
-    [$normal, , $interestNormal] = chatUnlockedPair($performer, balance: 50);
+    [, , $interestNormal] = chatUnlockedPair($performer, balance: 50);
     [$optedOut, , $interestOptedOut] = chatUnlockedPair($performer, balance: 50);
 
-    // Membro sai do Interesse: os envios da performer passam a ser mascarados
-    // (202 sem entregar nada) para não vazar o opt-out.
     app(InterestService::class)->setOptOut($optedOut, true);
 
-    $blocked = ['body' => 'me chama no whatsapp'];
+    $blocked = ['body' => 'faz programa completo'];
 
     $a = $this->actingAs($performer->user)
         ->postJson(route('chat.performer.start', $interestNormal->id), $blocked);
@@ -183,22 +312,9 @@ it('a performer recebe a MESMA resposta para membro com e sem opt-out', function
     $b = $this->actingAs($performer->user)
         ->postJson(route('chat.performer.start', $interestOptedOut->id), $blocked);
 
-    // Se o filtro rodasse DEPOIS da máscara, o suprimido devolveria 202 e o
-    // normal 422 — e o par de respostas viraria oráculo do opt-out, que é o
-    // que INTEREST_ANONYMITY_FLOOR.md proíbe. Filtrando antes, o termo barrado
-    // devolve 422 para os dois: a resposta depende só do texto que a própria
-    // performer escreveu.
+    // Se o filtro rodasse DEPOIS da máscara, o suprimido daria 202 e o normal
+    // 422 — o par viraria oráculo do opt-out (INTEREST_ANONYMITY_FLOOR.md).
     expect($a->status())->toBe(422)
         ->and($b->status())->toBe($a->status())
         ->and($b->json('reason'))->toBe($a->json('reason'));
-});
-
-it('a performer também é filtrada no envio pela linha de Interesse', function () {
-    $performer = chatPerformer();
-    [, , $interest] = chatUnlockedPair($performer, balance: 50);
-
-    $this->actingAs($performer->user)
-        ->postJson(route('chat.performer.start', $interest->id), ['body' => 'vamos num motel'])
-        ->assertStatus(422)
-        ->assertJson(['reason' => ChatException::CONTENT_BLOCKED]);
 });
