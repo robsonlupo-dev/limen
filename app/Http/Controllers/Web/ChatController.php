@@ -289,9 +289,33 @@ class ChatController extends Controller
             ? $conversation->performerProfile->user_id
             : $conversation->member_id;
 
-        $counterpart = User::find($counterpartId);
+        // withTrashed: `User` usa SoftDeletes e o encerramento de conta soft-deleta.
+        // Sem isto a contraparte encerrada some do find(), e o gate abaixo caía no
+        // lado PERMISSIVO — a performer que nunca viu "Lida" passava a ver "Lida"
+        // em todas as mensagens antigas do membro que acabou de sair (o read_at
+        // continua gravado, porque a marcação é sempre feita). Além de furar o
+        // perk depois do fato, a mudança era observável: o "Lida" aparecendo
+        // sozinho anunciava o encerramento da conta.
+        $counterpart = User::withTrashed()->find($counterpartId);
 
-        return $counterpart === null || $counterpart->hasReadReceipts();
+        // Fail-closed em dois casos, e o segundo NÃO é redundante:
+        //
+        //  - contraparte inexistente (linha sumiu, conversa órfã);
+        //  - contraparte ENCERRADA. Aqui não dá para perguntar ao perk: o
+        //    encerramento zera as colunas para o lado público (DeletionService::
+        //    anonymizeUser), justamente para não deixar na linha o atestado de
+        //    que a pessoa era Black/FC. Consultar `hasReadReceipts()` numa conta
+        //    encerrada devolveria `true` por causa dessa limpeza e reabriria o
+        //    vazamento pela outra porta — o "Lida" apareceria em bloco no
+        //    instante do encerramento, que é o sinal que se quer evitar.
+        //
+        // Regra: conta encerrada não emite sinal novo, valor de coluna nenhum.
+        if ($counterpart === null || $counterpart->trashed()) {
+            return false;
+        }
+
+        // Conta viva: o perk é do LEITOR e é consultado normalmente.
+        return $counterpart->hasReadReceipts();
     }
 
     /**

@@ -15,6 +15,7 @@ use App\Services\PrivacyPerkService;
 use App\Services\ProfileVisitService;
 use App\Services\TokenService;
 use App\Support\FanAlias;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -614,6 +615,31 @@ it('o gate e do LEITOR, nao do remetente', function () {
     expect($mine['read_at'])->not->toBeNull();
 });
 
+it('conta encerrada do leitor nao reabre a confirmacao de leitura', function () {
+    // Regressão M1. `User::find()` não enxerga soft-deleted, então a contraparte
+    // encerrada virava null e o gate caía no lado PERMISSIVO: a performer que
+    // nunca viu "Lida" passava a ver "Lida" em todas as mensagens antigas (o
+    // read_at continua gravado — a marcação é sempre feita, por design). Além
+    // de furar o perk depois do fato, o "Lida" surgindo sozinho anunciava o
+    // encerramento da conta.
+    $performer = perkPerformer();
+    [$member, $conversation] = perkChatPair($performer, 'black');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'oi');
+
+    $this->actingAs($member)->get(route('chat.show', $conversation->id))->assertOk();
+    expect(perkPerformerSeesReadReceipt($performer, $conversation))->toBeFalse();
+
+    // O membro encerra a conta. A leitura JÁ ESTÁ gravada em read_at.
+    app(App\Services\DeletionService::class)->requestDeletion($member);
+    app(App\Services\DeletionService::class)->executeDeletion($member->fresh(), 'test');
+
+    expect(Message::where('conversation_id', $conversation->id)
+        ->whereNotNull('read_at')->exists())->toBeTrue();
+
+    // ...e continua sem confirmar: fail-closed.
+    expect(perkPerformerSeesReadReceipt($performer, $conversation))->toBeFalse();
+});
+
 it('o Black que liga a confirmacao de leitura volta a confirmar', function () {
     $performer = perkPerformer();
     [$member, $conversation] = perkChatPair($performer, 'black');
@@ -781,4 +807,46 @@ it('o encerramento de conta apaga o historico de visitas do titular', function (
     app(App\Services\DeletionService::class)->executeDeletion($member->fresh(), 'test');
 
     expect(ProfileVisit::where('visitor_id', $member->id)->count())->toBe(0);
+});
+
+it('o encerramento zera os perks de privacidade na linha anonimizada', function () {
+    // Regressão M2. As três colunas sobreviviam intactas ao Hard Delete: sobrava
+    // numa conta encerrada o atestado de que a pessoa era assinante Black/FC e
+    // quais escolhas de privacidade fez. `discrete_mode` já era zerado ao lado.
+    $member = perkMember('black');
+    app(PrivacyPerkService::class)->apply($member, PrivacyPerkService::GHOST_MODE, true);
+    app(PrivacyPerkService::class)->apply($member, PrivacyPerkService::INVISIBLE_STATUS, true);
+    app(PrivacyPerkService::class)->apply($member, PrivacyPerkService::READ_RECEIPTS, false);
+
+    app(App\Services\DeletionService::class)->requestDeletion($member);
+    app(App\Services\DeletionService::class)->executeDeletion($member->fresh(), 'test');
+
+    $row = DB::table('users')->where('id', $member->id)->first();
+
+    // Lado público dos três — read_receipts_enabled é o invertido.
+    expect((bool) $row->ghost_mode)->toBeFalse()
+        ->and((bool) $row->invisible_status)->toBeFalse()
+        ->and((bool) $row->read_receipts_enabled)->toBeTrue();
+});
+
+it('o encerramento da performer apaga as visitas recebidas pelo perfil dela', function () {
+    // Regressão M3. `purgeProfileVisits` só cobre `visitor_id` (o titular como
+    // visitante). As visitas RECEBIDAS são PII de terceiros — membros ainda
+    // ativos — e ficavam penduradas num perfil que deixou de existir. As FKs
+    // `cascadeOnDelete` não salvam: os dois lados são soft-delete e o DELETE
+    // físico nunca acontece.
+    $performer = perkPerformer();
+    $visitantes = perkVisitors($performer, 3);
+
+    expect(ProfileVisit::where('performer_profile_id', $performer->id)->count())->toBe(3);
+
+    app(App\Services\DeletionService::class)->requestDeletion($performer->user);
+    app(App\Services\DeletionService::class)->executeDeletion($performer->user->fresh(), 'test');
+
+    expect(ProfileVisit::where('performer_profile_id', $performer->id)->count())->toBe(0);
+
+    // Os visitantes continuam existindo — só o rastro deles naquele perfil saiu.
+    foreach ($visitantes as $v) {
+        expect(User::find($v->id))->not->toBeNull();
+    }
 });
