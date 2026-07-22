@@ -22,6 +22,7 @@ use Inertia\Response;
 class DashboardController extends Controller
 {
     private const FOLLOWING_PREVIEW = 6;
+
     private const TIPS_PREVIEW = 5;
 
     public function __construct(private TokenService $tokenService) {}

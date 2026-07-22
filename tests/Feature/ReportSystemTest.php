@@ -19,7 +19,6 @@ uses(RefreshDatabase::class);
  *
  * Helpers locais (prefixo report*) para o arquivo rodar isolado ou na suíte.
  */
-
 function reportMember(): User
 {
     return User::factory()->create(['role' => 'consumer', 'status' => 'active']);

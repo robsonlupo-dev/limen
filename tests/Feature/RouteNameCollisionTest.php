@@ -25,6 +25,6 @@ it('has no duplicate route names across web and api', function () {
     expect($duplicates)->toBe(
         [],
         'Nome de rota repetido: o último registrado vence no lookup e o outro fica '
-        . 'inalcançável por route(). Renomeie um dos dois: ' . implode(', ', $duplicates),
+        .'inalcançável por route(). Renomeie um dos dois: '.implode(', ', $duplicates),
     );
 });

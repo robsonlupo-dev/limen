@@ -26,7 +26,7 @@ it('submitVerification returns reference, url and pending status', function () {
         ], 201),
     ]);
 
-    $result = (new DiditKycClient())->submitVerification(['vendor_data' => '42']);
+    $result = (new DiditKycClient)->submitVerification(['vendor_data' => '42']);
 
     expect($result['reference'])->toBe('sess_abc');
     expect($result['status'])->toBe('pending');
@@ -48,7 +48,7 @@ it('getVerification maps Approved to approved', function () {
         'verification.didit.me/v3/session/*/decision/' => Http::response(['status' => 'Approved'], 200),
     ]);
 
-    $result = (new DiditKycClient())->getVerification('sess_abc');
+    $result = (new DiditKycClient)->getVerification('sess_abc');
 
     expect($result['reference'])->toBe('sess_abc');
     expect($result['status'])->toBe('approved');
@@ -64,7 +64,7 @@ it('getVerification maps Declined to rejected', function () {
         'verification.didit.me/v3/session/*/decision/' => Http::response(['status' => 'Declined'], 200),
     ]);
 
-    $result = (new DiditKycClient())->getVerification('sess_abc');
+    $result = (new DiditKycClient)->getVerification('sess_abc');
 
     expect($result['status'])->toBe('rejected');
 });
@@ -77,7 +77,7 @@ it('getVerification maps an unknown status to pending', function () {
         'verification.didit.me/v3/session/*/decision/' => Http::response(['status' => 'In Review'], 200),
     ]);
 
-    $result = (new DiditKycClient())->getVerification('sess_abc');
+    $result = (new DiditKycClient)->getVerification('sess_abc');
 
     expect($result['status'])->toBe('pending');
 });
@@ -94,11 +94,11 @@ it('throws a body-free exception when Didit returns an error', function () {
         ),
     ]);
 
-    expect(fn () => (new DiditKycClient())->getVerification('sess_abc'))
+    expect(fn () => (new DiditKycClient)->getVerification('sess_abc'))
         ->toThrow(RuntimeException::class);
 
     try {
-        (new DiditKycClient())->getVerification('sess_abc');
+        (new DiditKycClient)->getVerification('sess_abc');
     } catch (RuntimeException $e) {
         expect($e->getMessage())->not->toContain('Maria');
         expect($e->getMessage())->toContain('500');

@@ -7,11 +7,15 @@ use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\FakeAsaasClient;
+use App\Services\PaymentService;
+use Illuminate\Contracts\Auth\Guard;
+use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Log;
 
 function createActivePackage(array $overrides = []): TokenPackage
 {
     return TokenPackage::create(array_merge([
-        'slug' => 'test-' . uniqid(),
+        'slug' => 'test-'.uniqid(),
         'name' => 'Test Package',
         'tokens' => 500,
         'price_cents' => 4990,
@@ -178,7 +182,7 @@ it('does not double-credit on duplicate webhook event', function () {
 
     $this->postJson('/api/v1/webhooks/asaas', $payload, $headers)->assertOk();
 
-    app(\Illuminate\Contracts\Auth\Guard::class);
+    app(Guard::class);
     auth()->forgetGuards();
 
     $this->postJson('/api/v1/webhooks/asaas', $payload, $headers)->assertOk();
@@ -348,7 +352,7 @@ it('creates asaas customer and charge with valid cpf without leaking cpf', funct
     [$user, $token] = authenticatedUser();
 
     $loggedMessages = [];
-    \Illuminate\Support\Facades\Log::listen(function (\Illuminate\Log\Events\MessageLogged $e) use (&$loggedMessages) {
+    Log::listen(function (MessageLogged $e) use (&$loggedMessages) {
         $loggedMessages[] = json_encode([$e->message, $e->context]);
     });
 
@@ -378,8 +382,8 @@ it('creates asaas customer and charge with valid cpf without leaking cpf', funct
         expect($msg)->not->toContain($validCpf);
     }
 
-    /** @var \App\Services\Asaas\FakeAsaasClient $fake */
-    $fake = app(\App\Services\Asaas\AsaasClientInterface::class);
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
     $customers = $fake->getCreatedCustomers();
     expect($customers)->toHaveCount(1);
     expect($customers[0]['cpfCnpj'])->toBe($cleanCpf);
@@ -401,8 +405,8 @@ it('reuses existing asaas customer on second purchase without requiring cpf', fu
 
     expect($user->fresh()->asaas_customer_id)->toBe('cus_existing_123');
 
-    /** @var \App\Services\Asaas\FakeAsaasClient $fake */
-    $fake = app(\App\Services\Asaas\AsaasClientInterface::class);
+    /** @var FakeAsaasClient $fake */
+    $fake = app(AsaasClientInterface::class);
     expect($fake->getCreatedCustomers())->toHaveCount(0);
 });
 
@@ -413,7 +417,7 @@ it('leaves the event unprocessed when confirm fails at the gateway so reconcile 
     [$user, $token] = authenticatedUser();
 
     // Charge conhecido pelo fake e marcado como pago (usado só no reconcile).
-    $fake = new \App\Services\Asaas\FakeAsaasClient();
+    $fake = new FakeAsaasClient;
     $charge = $fake->createPixCharge([
         'value' => $package->price_cents / 100,
         'dueDate' => now()->addDay()->format('Y-m-d'),
@@ -436,20 +440,64 @@ it('leaves the event unprocessed when confirm fails at the gateway so reconcile 
     Payment::where('id', $payment->id)->update(['created_at' => now()->subMinutes(10)]);
 
     // Cliente que estoura ao reconsultar a cobrança (getPayment), como um timeout do Asaas.
-    $throwing = new class implements \App\Services\Asaas\AsaasClientInterface {
-        public function createCustomer(array $data): array { return ['id' => 'cus_x']; }
-        public function createPixCharge(array $data): array { return ['id' => 'pay_x']; }
-        public function getPixQrCode(string $chargeId): array { return ['encodedImage' => '', 'payload' => '']; }
-        public function getPayment(string $chargeId): array { throw new \RuntimeException('Asaas API error: HTTP 503'); }
-        public function createTransfer(array $data): array { return ['id' => 'tr_x']; }
-        public function getTransfer(string $transferId): array { return ['id' => $transferId, 'status' => 'PENDING']; }
-        public function findTransfersByExternalReference(string $externalReference): array { return ['data' => []]; }
-        public function createSubscription(array $data): array { return ['id' => 'sub_x']; }
-        public function getSubscription(string $subscriptionId): array { return ['id' => $subscriptionId]; }
-        public function getSubscriptionPayments(string $subscriptionId): array { return ['data' => []]; }
-        public function cancelSubscription(string $subscriptionId): array { return ['id' => $subscriptionId, 'deleted' => true]; }
+    $throwing = new class implements AsaasClientInterface
+    {
+        public function createCustomer(array $data): array
+        {
+            return ['id' => 'cus_x'];
+        }
+
+        public function createPixCharge(array $data): array
+        {
+            return ['id' => 'pay_x'];
+        }
+
+        public function getPixQrCode(string $chargeId): array
+        {
+            return ['encodedImage' => '', 'payload' => ''];
+        }
+
+        public function getPayment(string $chargeId): array
+        {
+            throw new RuntimeException('Asaas API error: HTTP 503');
+        }
+
+        public function createTransfer(array $data): array
+        {
+            return ['id' => 'tr_x'];
+        }
+
+        public function getTransfer(string $transferId): array
+        {
+            return ['id' => $transferId, 'status' => 'PENDING'];
+        }
+
+        public function findTransfersByExternalReference(string $externalReference): array
+        {
+            return ['data' => []];
+        }
+
+        public function createSubscription(array $data): array
+        {
+            return ['id' => 'sub_x'];
+        }
+
+        public function getSubscription(string $subscriptionId): array
+        {
+            return ['id' => $subscriptionId];
+        }
+
+        public function getSubscriptionPayments(string $subscriptionId): array
+        {
+            return ['data' => []];
+        }
+
+        public function cancelSubscription(string $subscriptionId): array
+        {
+            return ['id' => $subscriptionId, 'deleted' => true];
+        }
     };
-    app()->instance(\App\Services\Asaas\AsaasClientInterface::class, $throwing);
+    app()->instance(AsaasClientInterface::class, $throwing);
 
     config(['asaas.webhook_token' => 'valid-token']);
 
@@ -471,8 +519,8 @@ it('leaves the event unprocessed when confirm fails at the gateway so reconcile 
     ]);
 
     // Reconcile com o gateway saudável credita — uma única vez.
-    app()->instance(\App\Services\Asaas\AsaasClientInterface::class, $fake);
-    app(\App\Services\PaymentService::class)->reconcile();
+    app()->instance(AsaasClientInterface::class, $fake);
+    app(PaymentService::class)->reconcile();
 
     expect($payment->fresh()->status)->toBe('confirmed');
     expect(TokenLedger::where('reference_type', 'payment')->where('reference_id', $payment->id)->count())->toBe(1);

@@ -14,7 +14,9 @@ use DomainException;
 class InterestException extends DomainException
 {
     public const COOLDOWN = 'cooldown';
+
     public const DAILY_LIMIT = 'daily_limit';
+
     public const INVALID_TARGET = 'invalid_target';
 
     public function __construct(public readonly string $reason, string $message)

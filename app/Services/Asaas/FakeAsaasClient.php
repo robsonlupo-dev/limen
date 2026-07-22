@@ -27,7 +27,7 @@ class FakeAsaasClient implements AsaasClientInterface
     public function createCustomer(array $data): array
     {
         $customer = [
-            'id' => 'cus_fake_' . uniqid(),
+            'id' => 'cus_fake_'.uniqid(),
             'name' => $data['name'] ?? 'Fake Customer',
             'email' => $data['email'] ?? 'fake@test.com',
             'cpfCnpj' => $data['cpfCnpj'] ?? '',
@@ -45,7 +45,7 @@ class FakeAsaasClient implements AsaasClientInterface
 
     public function createPixCharge(array $data): array
     {
-        $id = 'pay_fake_' . uniqid();
+        $id = 'pay_fake_'.uniqid();
 
         $this->charges[$id] = [
             'id' => $id,
@@ -62,8 +62,8 @@ class FakeAsaasClient implements AsaasClientInterface
     public function getPixQrCode(string $chargeId): array
     {
         return [
-            'encodedImage' => base64_encode('fake-qr-image-' . $chargeId),
-            'payload' => 'fake-pix-copy-paste-' . $chargeId,
+            'encodedImage' => base64_encode('fake-qr-image-'.$chargeId),
+            'payload' => 'fake-pix-copy-paste-'.$chargeId,
         ];
     }
 
@@ -101,7 +101,7 @@ class FakeAsaasClient implements AsaasClientInterface
             $this->forceNextTransferUnavailable = false;
             // Ambiguous outcome: still record the transfer (as if Asaas created it
             // but our response was lost), so reconcile can later find it.
-            $id = 'transfer_fake_' . uniqid();
+            $id = 'transfer_fake_'.uniqid();
             $this->transfers[$id] = [
                 'id' => $id,
                 'status' => 'PENDING',
@@ -117,7 +117,7 @@ class FakeAsaasClient implements AsaasClientInterface
             throw new AsaasRequestException('Simulated Asaas transfer rejection.');
         }
 
-        $id = 'transfer_fake_' . uniqid();
+        $id = 'transfer_fake_'.uniqid();
 
         $this->transfers[$id] = [
             'id' => $id,
@@ -195,7 +195,7 @@ class FakeAsaasClient implements AsaasClientInterface
 
     public function createSubscription(array $data): array
     {
-        $id = 'sub_fake_' . uniqid();
+        $id = 'sub_fake_'.uniqid();
 
         // Guarda o payload SEM os campos sensíveis do cartão: os testes só aferem
         // termos de cobrança (nextDueDate, value, cycle) e não há razão para PAN e
@@ -211,7 +211,7 @@ class FakeAsaasClient implements AsaasClientInterface
         // O primeiro charge nasce junto da assinatura. Devolvemos o id dele para
         // que o SubscriptionService ancore o grant inicial nesse charge — o mesmo
         // id que o webhook do primeiro pagamento vai trazer, fechando a dedupe.
-        $firstPaymentId = 'pay_fake_' . uniqid();
+        $firstPaymentId = 'pay_fake_'.uniqid();
 
         $this->subscriptions[$id] = [
             'id' => $id,
@@ -244,7 +244,7 @@ class FakeAsaasClient implements AsaasClientInterface
             'creditCard' => [
                 'creditCardNumber' => $last4,
                 'creditCardBrand' => $card['brand'] ?? 'VISA',
-                'creditCardToken' => 'cctok_fake_' . uniqid(),
+                'creditCardToken' => 'cctok_fake_'.uniqid(),
             ],
         ];
     }
@@ -305,7 +305,7 @@ class FakeAsaasClient implements AsaasClientInterface
      */
     public function simulateSubscriptionCharged(string $subscriptionId): array
     {
-        $chargeId = 'pay_fake_' . uniqid();
+        $chargeId = 'pay_fake_'.uniqid();
         if (isset($this->subscriptions[$subscriptionId])) {
             $this->subscriptions[$subscriptionId]['payments'][] = $chargeId;
         }
@@ -322,7 +322,7 @@ class FakeAsaasClient implements AsaasClientInterface
 
         return [
             'event' => 'PAYMENT_CONFIRMED',
-            'id' => 'evt_fake_' . uniqid(),
+            'id' => 'evt_fake_'.uniqid(),
             'payment' => [
                 'id' => $chargeId,
                 'subscription' => $subscriptionId,
@@ -334,11 +334,11 @@ class FakeAsaasClient implements AsaasClientInterface
 
     public function simulateSubscriptionOverdue(string $subscriptionId): array
     {
-        $chargeId = $this->subscriptions[$subscriptionId]['payments'][0] ?? ('pay_fake_' . uniqid());
+        $chargeId = $this->subscriptions[$subscriptionId]['payments'][0] ?? ('pay_fake_'.uniqid());
 
         return [
             'event' => 'PAYMENT_OVERDUE',
-            'id' => 'evt_fake_' . uniqid(),
+            'id' => 'evt_fake_'.uniqid(),
             'payment' => [
                 'id' => $chargeId,
                 'subscription' => $subscriptionId,
@@ -355,7 +355,7 @@ class FakeAsaasClient implements AsaasClientInterface
 
         return [
             'event' => 'SUBSCRIPTION_DELETED',
-            'id' => 'evt_fake_' . uniqid(),
+            'id' => 'evt_fake_'.uniqid(),
             'subscription' => [
                 'id' => $subscriptionId,
                 'status' => 'INACTIVE',

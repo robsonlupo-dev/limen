@@ -280,7 +280,7 @@ it('does not resend the confirmation email on an idempotent re-submit', function
 it('confirms an email via the token link and lands on the founder panel', function () {
     $entry = joinWaitlist();
 
-    $this->get('/waitlist/confirmar?t=' . $entry->invite_token)
+    $this->get('/waitlist/confirmar?t='.$entry->invite_token)
         ->assertRedirect(route('waitlist.founder', ['invite_code' => $entry->invite_code]))
         ->assertSessionHas('success');
 
@@ -289,9 +289,9 @@ it('confirms an email via the token link and lands on the founder panel', functi
 
 it('is idempotent on confirm and bounces an invalid token to the landing', function () {
     $entry = joinWaitlist();
-    $this->get('/waitlist/confirmar?t=' . $entry->invite_token);
+    $this->get('/waitlist/confirmar?t='.$entry->invite_token);
     $first = $entry->fresh()->confirmed_at;
-    $this->get('/waitlist/confirmar?t=' . $entry->invite_token);
+    $this->get('/waitlist/confirmar?t='.$entry->invite_token);
     expect($entry->fresh()->confirmed_at->eq($first))->toBeTrue();
 
     $this->get('/waitlist/confirmar?t=bogus')->assertRedirect(route('landing'));
@@ -303,7 +303,7 @@ it('shows the referral banner, suggests the referrer role, and attributes the si
     Mail::fake();
     $referrer = joinWaitlist(['name' => 'Rafael Souza', 'email' => 'raf@example.com', 'role' => 'performer']);
 
-    $this->get('/convite/' . $referrer->invite_code)
+    $this->get('/convite/'.$referrer->invite_code)
         ->assertOk()
         ->assertInertia(fn (Assert $p) => $p->component('Landing')
             ->where('referral.name', 'Rafael')
@@ -415,7 +415,7 @@ it('numbers positions independently per role', function () {
 it('renders the member founder panel with role title and tier', function () {
     $entry = joinWaitlist(['name' => 'Rafael Souza', 'email' => 'raf@example.com', 'role' => 'member']);
 
-    $this->get('/f/' . $entry->invite_code)
+    $this->get('/f/'.$entry->invite_code)
         ->assertOk()
         ->assertSee('Painel de Rafael')
         ->assertSee('Membro Fundador')
@@ -426,7 +426,7 @@ it('renders the member founder panel with role title and tier', function () {
 it('renders the performer founder panel with the feminine title', function () {
     $entry = joinWaitlist(['name' => 'Lia', 'email' => 'lia@example.com', 'role' => 'performer']);
 
-    $this->get('/f/' . $entry->invite_code)->assertOk()->assertSee('Performer Fundadora');
+    $this->get('/f/'.$entry->invite_code)->assertOk()->assertSee('Performer Fundadora');
 });
 
 it('404s the founder panel for an unknown invite code', function () {
@@ -437,7 +437,7 @@ it('does not expose referred emails on the founder panel (only masked names)', f
     $referrer = joinWaitlist(['email' => 'ref@example.com']);
     joinWaitlist(['name' => 'Carla Menezes', 'email' => 'carla@example.com'], $referrer);
 
-    $this->get('/f/' . $referrer->invite_code)
+    $this->get('/f/'.$referrer->invite_code)
         ->assertSee('Carla M.')
         ->assertDontSee('carla@example.com');
 });
@@ -465,7 +465,7 @@ it('shows the admin waitlist dashboard to an admin', function () {
 it('renders the unsubscribe confirmation on GET without deleting', function () {
     $entry = joinWaitlist(['email' => 'rita@example.com']);
 
-    $this->get('/waitlist/cancelar?t=' . $entry->invite_token)->assertOk()->assertSee('rita@example.com');
+    $this->get('/waitlist/cancelar?t='.$entry->invite_token)->assertOk()->assertSee('rita@example.com');
     expect(WaitlistEntry::where('email', 'rita@example.com')->count())->toBe(1);
 });
 

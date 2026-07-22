@@ -39,7 +39,7 @@ class WalletController extends Controller
                 'tokens' => $package->tokens,
                 'bonus' => $package->bonus,
                 'price_cents' => $package->price_cents,
-                'price_formatted' => 'R$ ' . number_format($package->price_cents / 100, 2, ',', '.'),
+                'price_formatted' => 'R$ '.number_format($package->price_cents / 100, 2, ',', '.'),
             ]);
 
         return Inertia::render('Consumer/Wallet/Index', [

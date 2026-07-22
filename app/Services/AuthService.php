@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\AgeVerification;
 use App\Models\IdentityVerification;
-use App\Models\PerformerProfile;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Support\ClientFingerprint;

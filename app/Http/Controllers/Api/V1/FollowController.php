@@ -23,7 +23,7 @@ class FollowController extends Controller
                 // Modo Discreto do membro.
                 $follow = Follow::firstOrCreate(
                     [
-                        'user_id'              => $request->user()->id,
+                        'user_id' => $request->user()->id,
                         'performer_profile_id' => $profile->id,
                     ],
                     ['discrete_mode' => (bool) $request->user()->discrete_mode],
@@ -42,7 +42,7 @@ class FollowController extends Controller
         $profile->refresh();
 
         return (new FollowResource([
-            'following'       => true,
+            'following' => true,
             'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
@@ -67,7 +67,7 @@ class FollowController extends Controller
         $profile->refresh();
 
         return (new FollowResource([
-            'following'       => false,
+            'following' => false,
             'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }
@@ -81,7 +81,7 @@ class FollowController extends Controller
             ->exists();
 
         return (new FollowResource([
-            'following'       => $isFollowing,
+            'following' => $isFollowing,
             'followers_label' => $profile->followersCountLabel(),
         ]))->response();
     }

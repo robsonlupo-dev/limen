@@ -3,9 +3,9 @@
 use App\Http\Requests\RegisterConsumerRequest;
 use Illuminate\Support\Facades\Validator;
 
-function validateRegistration(array $overrides = []): \Illuminate\Validation\Validator
+function validateRegistration(array $overrides = []): Illuminate\Validation\Validator
 {
-    $request = new RegisterConsumerRequest();
+    $request = new RegisterConsumerRequest;
 
     $data = array_merge([
         'name' => 'Test User',

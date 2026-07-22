@@ -8,7 +8,7 @@ function ipAllowlistCharge(): array
 {
     $user = User::factory()->create();
     $package = TokenPackage::create([
-        'slug' => 'ip-' . uniqid(),
+        'slug' => 'ip-'.uniqid(),
         'name' => 'IP Package',
         'tokens' => 500,
         'price_cents' => 4990,
@@ -20,7 +20,7 @@ function ipAllowlistCharge(): array
         'user_id' => $user->id,
         'token_package_id' => $package->id,
         'provider' => 'asaas',
-        'provider_charge_id' => 'chg_ip_' . uniqid(),
+        'provider_charge_id' => 'chg_ip_'.uniqid(),
         'method' => 'pix',
         'amount_cents' => $package->price_cents,
         'tokens' => $package->tokens,
@@ -29,7 +29,7 @@ function ipAllowlistCharge(): array
     ]);
 
     return [$payment, [
-        'id' => 'evt_ip_' . uniqid(),
+        'id' => 'evt_ip_'.uniqid(),
         'event' => 'PAYMENT_RECEIVED',
         'payment' => ['id' => $payment->provider_charge_id],
     ]];

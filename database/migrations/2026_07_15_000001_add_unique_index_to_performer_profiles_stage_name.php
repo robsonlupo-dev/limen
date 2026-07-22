@@ -35,8 +35,8 @@ return new class extends Migration
         if ($duplicates->isNotEmpty()) {
             throw new RuntimeException(
                 'Não é possível tornar stage_name único: já existem nomes repetidos em '
-                . 'performer_profiles (inclusive soft-deleted). Resolva antes de migrar. '
-                . 'Repetidos: ' . $duplicates->implode(', ')
+                .'performer_profiles (inclusive soft-deleted). Resolva antes de migrar. '
+                .'Repetidos: '.$duplicates->implode(', ')
             );
         }
 

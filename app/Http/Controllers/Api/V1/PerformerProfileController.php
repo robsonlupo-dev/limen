@@ -58,7 +58,7 @@ class PerformerProfileController extends Controller
             Storage::disk('local')->delete($profile->avatar_path);
         }
 
-        $ext  = $request->file('file')->extension();
+        $ext = $request->file('file')->extension();
         $path = $request->file('file')->storeAs(
             "performer-media/{$request->user()->id}",
             "avatar.{$ext}",
@@ -90,7 +90,7 @@ class PerformerProfileController extends Controller
             Storage::disk('local')->delete($profile->cover_path);
         }
 
-        $ext  = $request->file('file')->extension();
+        $ext = $request->file('file')->extension();
         $path = $request->file('file')->storeAs(
             "performer-media/{$request->user()->id}",
             "cover.{$ext}",

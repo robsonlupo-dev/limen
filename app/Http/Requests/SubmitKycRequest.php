@@ -20,7 +20,7 @@ class SubmitKycRequest extends FormRequest
             'full_legal_name' => ['required', 'string', 'max:255'],
             'date_of_birth' => [
                 'required', 'date',
-                'before_or_equal:' . now()->subYears(18)->format('Y-m-d'),
+                'before_or_equal:'.now()->subYears(18)->format('Y-m-d'),
             ],
             'document_front' => ['required', 'file', 'mimes:jpeg,png', 'max:10240'],
             'document_back' => ['nullable', 'file', 'mimes:jpeg,png', 'max:10240'],

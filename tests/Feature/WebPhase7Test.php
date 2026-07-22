@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -182,7 +183,7 @@ it('shares introSeen=true when the intro cookie is present', function () {
 // discard the JS-set value and the gate/intro would loop forever.
 
 it('exempts the age/intro flag cookies from encryption', function () {
-    $encryptCookies = app(\Illuminate\Cookie\Middleware\EncryptCookies::class);
+    $encryptCookies = app(EncryptCookies::class);
 
     expect($encryptCookies->isDisabled('limen_age_confirmed'))->toBeTrue()
         ->and($encryptCookies->isDisabled('limen_intro_seen'))->toBeTrue()

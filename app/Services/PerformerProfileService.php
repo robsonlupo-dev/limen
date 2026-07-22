@@ -50,7 +50,7 @@ class PerformerProfileService
 
         $path = $file->storeAs(
             "performer-media/{$profile->user_id}",
-            'avatar.' . $file->extension(),
+            'avatar.'.$file->extension(),
             'local',
         );
 

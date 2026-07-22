@@ -34,7 +34,7 @@ return new class extends Migration
 
         // Agora que nada usa gls/swing, encolhe o enum para os 4 mundos oficiais.
         DB::statement(
-            "ALTER TABLE performer_profiles MODIFY category "
+            'ALTER TABLE performer_profiles MODIFY category '
             ."ENUM('mulheres','homens','casais','trans') NOT NULL DEFAULT 'mulheres'"
         );
     }
@@ -44,7 +44,7 @@ return new class extends Migration
         // Reabre o enum para os 6 valores. Os dados já remapeados NÃO são
         // revertidos: não há como distinguir quem era gls/swing depois do merge.
         DB::statement(
-            "ALTER TABLE performer_profiles MODIFY category "
+            'ALTER TABLE performer_profiles MODIFY category '
             ."ENUM('mulheres','homens','casais','trans','gls','swing') NOT NULL DEFAULT 'mulheres'"
         );
     }

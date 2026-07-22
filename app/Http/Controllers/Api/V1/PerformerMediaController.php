@@ -13,7 +13,7 @@ class PerformerMediaController extends Controller
     public function __invoke(Request $request): StreamedResponse
     {
         $profileId = $request->integer('profile_id');
-        $type      = $request->input('type');
+        $type = $request->input('type');
 
         abort_unless(in_array($type, ['avatar', 'cover'], true), 404);
 

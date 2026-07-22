@@ -8,7 +8,7 @@ class FakeKycClient implements KycClientInterface
 
     public function submitVerification(array $data): array
     {
-        $ref = 'kyc_fake_' . uniqid();
+        $ref = 'kyc_fake_'.uniqid();
 
         $this->verifications[$ref] = [
             'reference' => $ref,

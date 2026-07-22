@@ -21,10 +21,10 @@ class DiditKycClient implements KycClientInterface
     {
         $response = Http::withHeaders([
             'x-api-key' => config('kyc.api_key'),
-        ])->asJson()->post(rtrim((string) config('kyc.base_url'), '/') . '/v3/session/', [
+        ])->asJson()->post(rtrim((string) config('kyc.base_url'), '/').'/v3/session/', [
             'workflow_id' => config('kyc.workflow_id'),
             'vendor_data' => (string) ($data['vendor_data'] ?? ''),
-            'callback' => config('app.url') . '/api/v1/webhooks/kyc',
+            'callback' => config('app.url').'/api/v1/webhooks/kyc',
         ]);
 
         $this->ensureOk($response, 'session');
@@ -40,7 +40,7 @@ class DiditKycClient implements KycClientInterface
     {
         $response = Http::withHeaders([
             'x-api-key' => config('kyc.api_key'),
-        ])->get(rtrim((string) config('kyc.base_url'), '/') . '/v3/session/' . rawurlencode($ref) . '/decision/');
+        ])->get(rtrim((string) config('kyc.base_url'), '/').'/v3/session/'.rawurlencode($ref).'/decision/');
 
         $this->ensureOk($response, 'decision');
 

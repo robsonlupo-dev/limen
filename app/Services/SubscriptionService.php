@@ -6,11 +6,11 @@ use App\Exceptions\AlreadySubscribedException;
 use App\Models\Circle;
 use App\Models\Subscription;
 use App\Models\SubscriptionCharge;
-use App\Models\TokenLedger;
 use App\Models\User;
 use App\Models\WaitlistEntry;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Support\Audit;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -37,7 +37,7 @@ class SubscriptionService
     public function subscribe(User $user, Circle $circle, array $cardData): Subscription
     {
         if ($user->activeSubscription() !== null) {
-            throw new AlreadySubscribedException();
+            throw new AlreadySubscribedException;
         }
 
         $trialEndsAt = $this->trialEndsAtFor($user);
@@ -150,7 +150,7 @@ class SubscriptionService
      * 3. Primeira assinatura — qualquer assinatura anterior, mesmo cancelada, já
      *    consumiu o trial; senão bastaria cancelar e reassinar para nunca pagar.
      */
-    private function trialEndsAtFor(User $user): ?\Illuminate\Support\Carbon
+    private function trialEndsAtFor(User $user): ?Carbon
     {
         $cutoff = config('waitlist.founder_cutoff_at');
 
@@ -307,6 +307,7 @@ class SubscriptionService
 
         if (in_array($eventType, ['SUBSCRIPTION_DELETED', 'SUBSCRIPTION_INACTIVATED'], true)) {
             $this->markCanceled($payload['subscription']['id'] ?? null);
+
             return;
         }
 
@@ -322,6 +323,7 @@ class SubscriptionService
 
         if (! $subscription) {
             Log::warning('Subscription webhook for unknown subscription', ['subscription' => $subId]);
+
             return;
         }
 
@@ -446,6 +448,7 @@ class SubscriptionService
 
                 if ($hasOtherActive) {
                     $charge->update(['status' => 'superseded', 'processed_at' => now()]);
+
                     return;
                 }
             }

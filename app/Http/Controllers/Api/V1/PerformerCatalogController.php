@@ -37,8 +37,8 @@ class PerformerCatalogController extends Controller
 
         match ($request->input('sort', 'rating_avg')) {
             'followers_count' => $query->orderByDesc('followers_count'),
-            'newest'          => $query->orderByDesc('created_at'),
-            default           => $query->orderByDesc('rating_avg'),
+            'newest' => $query->orderByDesc('created_at'),
+            default => $query->orderByDesc('rating_avg'),
         };
 
         return PerformerPublicResource::collection($query->paginate(20));

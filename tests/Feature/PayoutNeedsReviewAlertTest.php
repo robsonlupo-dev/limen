@@ -1,6 +1,7 @@
 <?php
 
 use App\Mail\PayoutNeedsReviewMail;
+use App\Models\AuditLog;
 use App\Models\Payout;
 use App\Models\TokenLedger;
 use App\Models\User;
@@ -8,9 +9,11 @@ use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\FakeAsaasClient;
 use App\Services\PayoutService;
 use App\Services\TokenService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
-uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 // Locais e com nomes próprios para o arquivo rodar isolado (as fábricas de
@@ -23,7 +26,7 @@ function alertPerformer(int $funded = 1000): User
     $performer = User::factory()->performer()->create(['status' => 'active']);
     $performer->performerProfile()->create([
         'stage_name' => 'Payout Alert Performer',
-        'slug' => 'payout-alert-' . strtolower(Illuminate\Support\Str::random(6)),
+        'slug' => 'payout-alert-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
     ]);
@@ -183,7 +186,7 @@ it('requeue registra o audit log payout.requeued com requeued_by correto', funct
         'subject_id' => $payout->id,
     ]);
 
-    $log = App\Models\AuditLog::where('action', 'payout.requeued')->latest()->first();
+    $log = AuditLog::where('action', 'payout.requeued')->latest()->first();
     expect($log->metadata['requeued_by'])->toBe($admin->id);
 
     // Requeue não move token: a reserva continua de pé, sem estorno.

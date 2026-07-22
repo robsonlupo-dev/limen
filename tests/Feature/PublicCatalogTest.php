@@ -18,8 +18,8 @@ function makePublicPerformer(array $userAttrs = [], array $profileAttrs = []): P
     ], $userAttrs));
 
     return $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Ana Lima ' . Str::random(4),
-        'slug' => 'ana-lima-' . strtolower(Str::random(6)),
+        'stage_name' => 'Ana Lima '.Str::random(4),
+        'slug' => 'ana-lima-'.strtolower(Str::random(6)),
         'bio' => 'Bio pública da performer.',
         'category' => 'mulheres',
         'is_verified' => true,

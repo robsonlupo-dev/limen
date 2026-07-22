@@ -6,7 +6,7 @@ use App\Models\User;
 use App\Services\TokenService;
 
 beforeEach(function () {
-    $this->service = new TokenService();
+    $this->service = new TokenService;
     $this->user = User::factory()->create();
 });
 

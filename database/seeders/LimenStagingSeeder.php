@@ -272,7 +272,7 @@ class LimenStagingSeeder extends Seeder
             'full_legal_name' => $user->name,
             'date_of_birth' => $user->birthdate?->format('Y-m-d') ?? '1990-01-01',
             'provider' => 'fake',
-            'provider_reference' => 'staging_seed_' . $user->id,
+            'provider_reference' => 'staging_seed_'.$user->id,
             'provider_status' => 'approved',
             'status' => 'approved',
             'age_confirmed' => true,

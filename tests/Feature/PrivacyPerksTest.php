@@ -10,6 +10,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
+use App\Services\DeletionService;
 use App\Services\DiscreteModeService;
 use App\Services\FollowerVisibilityService;
 use App\Services\InterestService;
@@ -838,8 +839,8 @@ it('conta encerrada do leitor nao reabre a confirmacao de leitura', function () 
     expect(perkPerformerSeesReadReceipt($performer, $conversation))->toBeFalse();
 
     // O membro encerra a conta. A leitura JÁ ESTÁ gravada em read_at.
-    app(App\Services\DeletionService::class)->requestDeletion($member);
-    app(App\Services\DeletionService::class)->executeDeletion($member->fresh(), 'test');
+    app(DeletionService::class)->requestDeletion($member);
+    app(DeletionService::class)->executeDeletion($member->fresh(), 'test');
 
     expect(Message::where('conversation_id', $conversation->id)
         ->whereNotNull('read_at')->exists())->toBeTrue();
@@ -973,7 +974,7 @@ it('recusa perk ou valor ausente', function () {
 
 it('nao aceita os perks por mass assignment no registro', function () {
     // Mesma regra do discrete_mode: privilégio de tier não entra por formulário.
-    $user = new User();
+    $user = new User;
     $user->fill(['ghost_mode' => true, 'invisible_status' => true, 'read_receipts_enabled' => false]);
 
     expect($user->ghost_mode)->toBeNull()
@@ -1055,8 +1056,8 @@ it('o encerramento de conta apaga o historico de visitas do titular', function (
 
     expect(ProfileVisit::where('visitor_id', $member->id)->count())->toBe(1);
 
-    app(App\Services\DeletionService::class)->requestDeletion($member);
-    app(App\Services\DeletionService::class)->executeDeletion($member->fresh(), 'test');
+    app(DeletionService::class)->requestDeletion($member);
+    app(DeletionService::class)->executeDeletion($member->fresh(), 'test');
 
     expect(ProfileVisit::where('visitor_id', $member->id)->count())->toBe(0);
 });
@@ -1070,8 +1071,8 @@ it('o encerramento zera os perks de privacidade na linha anonimizada', function 
     app(PrivacyPerkService::class)->apply($member, PrivacyPerkService::INVISIBLE_STATUS, true);
     app(PrivacyPerkService::class)->apply($member, PrivacyPerkService::READ_RECEIPTS, false);
 
-    app(App\Services\DeletionService::class)->requestDeletion($member);
-    app(App\Services\DeletionService::class)->executeDeletion($member->fresh(), 'test');
+    app(DeletionService::class)->requestDeletion($member);
+    app(DeletionService::class)->executeDeletion($member->fresh(), 'test');
 
     $row = DB::table('users')->where('id', $member->id)->first();
 
@@ -1092,8 +1093,8 @@ it('o encerramento da performer apaga as visitas recebidas pelo perfil dela', fu
 
     expect(ProfileVisit::where('performer_profile_id', $performer->id)->count())->toBe(3);
 
-    app(App\Services\DeletionService::class)->requestDeletion($performer->user);
-    app(App\Services\DeletionService::class)->executeDeletion($performer->user->fresh(), 'test');
+    app(DeletionService::class)->requestDeletion($performer->user);
+    app(DeletionService::class)->executeDeletion($performer->user->fresh(), 'test');
 
     expect(ProfileVisit::where('performer_profile_id', $performer->id)->count())->toBe(0);
 

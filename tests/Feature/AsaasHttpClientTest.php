@@ -1,6 +1,9 @@
 <?php
 
 use App\Services\Asaas\AsaasHttpClient;
+use App\Services\Asaas\AsaasRequestException;
+use App\Services\Asaas\AsaasUnavailableException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -16,7 +19,7 @@ it('sends the api key and returns the decoded body on success', function () {
         'sandbox.asaas.com/api/v3/customers' => Http::response(['id' => 'cus_123'], 200),
     ]);
 
-    $result = (new AsaasHttpClient())->createCustomer(['name' => 'Ana']);
+    $result = (new AsaasHttpClient)->createCustomer(['name' => 'Ana']);
 
     expect($result)->toBe(['id' => 'cus_123']);
 
@@ -37,7 +40,7 @@ it('surfaces the Asaas error description in the exception without logging the re
         $logged[] = $message->context;
     });
 
-    expect(fn () => (new AsaasHttpClient())->createCustomer([
+    expect(fn () => (new AsaasHttpClient)->createCustomer([
         'name' => 'Ana',
         'cpfCnpj' => '12345678900',
     ]))->toThrow(RuntimeException::class, 'CPF/CNPJ inválido.');
@@ -55,7 +58,7 @@ it('maps a random PIX key to Asaas EVP (not RANDOM) on a transfer', function () 
         'sandbox.asaas.com/api/v3/transfers' => Http::response(['id' => 'tr_1', 'status' => 'PENDING'], 200),
     ]);
 
-    (new AsaasHttpClient())->createTransfer([
+    (new AsaasHttpClient)->createTransfer([
         'pix_key' => 'a1b2c3d4-0000-0000-0000-000000000000',
         'pix_key_type' => 'random',
         'value' => 32.18,
@@ -72,7 +75,7 @@ it('maps cpf/email/phone key types to the Asaas enum', function () {
         'sandbox.asaas.com/api/v3/transfers' => Http::response(['id' => 'tr_1'], 200),
     ]);
 
-    $client = new AsaasHttpClient();
+    $client = new AsaasHttpClient;
 
     foreach (['cpf' => 'CPF', 'email' => 'EMAIL', 'phone' => 'PHONE'] as $internal => $asaas) {
         $client->createTransfer([
@@ -90,7 +93,7 @@ it('maps cpf/email/phone key types to the Asaas enum', function () {
 it('rejects an unknown PIX key type before calling Asaas', function () {
     Http::fake();
 
-    expect(fn () => (new AsaasHttpClient())->createTransfer([
+    expect(fn () => (new AsaasHttpClient)->createTransfer([
         'pix_key' => 'k',
         'pix_key_type' => 'iban',
         'value' => 10.0,
@@ -101,11 +104,11 @@ it('rejects an unknown PIX key type before calling Asaas', function () {
 
 it('wraps a connection/timeout failure as an ambiguous AsaasUnavailableException', function () {
     Http::fake(function () {
-        throw new \Illuminate\Http\Client\ConnectionException('cURL error 28: timeout');
+        throw new ConnectionException('cURL error 28: timeout');
     });
 
-    expect(fn () => (new AsaasHttpClient())->getPayment('pay_1'))
-        ->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
+    expect(fn () => (new AsaasHttpClient)->getPayment('pay_1'))
+        ->toThrow(AsaasUnavailableException::class);
 });
 
 it('classifies a 4xx as a definitive AsaasRequestException', function () {
@@ -113,8 +116,8 @@ it('classifies a 4xx as a definitive AsaasRequestException', function () {
         'sandbox.asaas.com/api/v3/payments/pay_1' => Http::response(['errors' => [['description' => 'bad']]], 400),
     ]);
 
-    expect(fn () => (new AsaasHttpClient())->getPayment('pay_1'))
-        ->toThrow(\App\Services\Asaas\AsaasRequestException::class);
+    expect(fn () => (new AsaasHttpClient)->getPayment('pay_1'))
+        ->toThrow(AsaasRequestException::class);
 });
 
 it('classifies a 5xx as an ambiguous AsaasUnavailableException', function () {
@@ -122,11 +125,11 @@ it('classifies a 5xx as an ambiguous AsaasUnavailableException', function () {
         'sandbox.asaas.com/api/v3/transfers' => Http::response('gateway error', 503),
     ]);
 
-    expect(fn () => (new AsaasHttpClient())->createTransfer([
+    expect(fn () => (new AsaasHttpClient)->createTransfer([
         'pix_key' => 'k@e.com',
         'pix_key_type' => 'email',
         'value' => 10.0,
-    ]))->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
+    ]))->toThrow(AsaasUnavailableException::class);
 });
 
 /**
@@ -140,11 +143,11 @@ it('classifies a 429 as ambiguous, not a definitive rejection', function () {
         'sandbox.asaas.com/api/v3/transfers' => Http::response(['errors' => [['description' => 'rate limited']]], 429),
     ]);
 
-    expect(fn () => (new AsaasHttpClient())->createTransfer([
+    expect(fn () => (new AsaasHttpClient)->createTransfer([
         'pix_key' => 'k@e.com',
         'pix_key_type' => 'email',
         'value' => 10.0,
-    ]))->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
+    ]))->toThrow(AsaasUnavailableException::class);
 });
 
 it('classifies a 408 as ambiguous, not a definitive rejection', function () {
@@ -152,11 +155,11 @@ it('classifies a 408 as ambiguous, not a definitive rejection', function () {
         'sandbox.asaas.com/api/v3/transfers' => Http::response('request timeout', 408),
     ]);
 
-    expect(fn () => (new AsaasHttpClient())->createTransfer([
+    expect(fn () => (new AsaasHttpClient)->createTransfer([
         'pix_key' => 'k@e.com',
         'pix_key_type' => 'email',
         'value' => 10.0,
-    ]))->toThrow(\App\Services\Asaas\AsaasUnavailableException::class);
+    ]))->toThrow(AsaasUnavailableException::class);
 });
 
 it('keeps a 400 definitive — only 408/429 are the 4xx exceptions', function () {
@@ -164,9 +167,9 @@ it('keeps a 400 definitive — only 408/429 are the 4xx exceptions', function ()
         'sandbox.asaas.com/api/v3/transfers' => Http::response(['errors' => [['description' => 'invalid pix key']]], 400),
     ]);
 
-    expect(fn () => (new AsaasHttpClient())->createTransfer([
+    expect(fn () => (new AsaasHttpClient)->createTransfer([
         'pix_key' => 'k@e.com',
         'pix_key_type' => 'email',
         'value' => 10.0,
-    ]))->toThrow(\App\Services\Asaas\AsaasRequestException::class);
+    ]))->toThrow(AsaasRequestException::class);
 });

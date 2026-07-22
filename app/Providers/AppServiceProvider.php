@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Models\WaitlistEntry;
+use App\Models\WaitlistReferral;
+use App\Observers\WaitlistEntryObserver;
+use App\Observers\WaitlistReferralObserver;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\AsaasHttpClient;
 use App\Services\Asaas\FakeAsaasClient;
@@ -9,11 +14,6 @@ use App\Services\Kyc\DiditKycClient;
 use App\Services\Kyc\FakeKycClient;
 use App\Services\Kyc\KycClientInterface;
 use App\Services\Kyc\KycHttpClient;
-use App\Models\User;
-use App\Models\WaitlistEntry;
-use App\Models\WaitlistReferral;
-use App\Observers\WaitlistEntryObserver;
-use App\Observers\WaitlistReferralObserver;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -33,17 +33,17 @@ class AppServiceProvider extends ServiceProvider
                 );
             }
 
-            return $useFake ? new FakeAsaasClient() : new AsaasHttpClient();
+            return $useFake ? new FakeAsaasClient : new AsaasHttpClient;
         });
 
         $this->app->singleton(KycClientInterface::class, function () {
             if ($this->app->environment('testing') || config('kyc.provider') === 'fake') {
-                return new FakeKycClient();
+                return new FakeKycClient;
             }
 
             return match (config('kyc.provider')) {
-                'didit' => new DiditKycClient(),
-                default => new KycHttpClient(),
+                'didit' => new DiditKycClient,
+                default => new KycHttpClient,
             };
         });
     }

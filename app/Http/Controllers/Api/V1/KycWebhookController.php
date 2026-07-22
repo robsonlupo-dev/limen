@@ -86,7 +86,7 @@ class KycWebhookController extends Controller
 
     private function eventKey(string $eventId): string
     {
-        return 'kyc_webhook_event:' . $eventId;
+        return 'kyc_webhook_event:'.$eventId;
     }
 
     /**

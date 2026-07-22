@@ -9,11 +9,13 @@ use App\Models\User;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\AsaasHttpClient;
 use App\Services\Asaas\FakeAsaasClient;
+use App\Services\PayoutService;
 use App\Services\TokenService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
-uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -410,7 +412,7 @@ it('429 no createTransfer NAO estorna — atravessa o client HTTP real', functio
         'asaas.base_url' => 'https://sandbox.asaas.com/api/v3',
         'asaas.api_key' => 'sandbox-key',
     ]);
-    app()->bind(AsaasClientInterface::class, fn () => new AsaasHttpClient());
+    app()->bind(AsaasClientInterface::class, fn () => new AsaasHttpClient);
 
     Http::fake([
         'sandbox.asaas.com/api/v3/transfers' => Http::response(['errors' => [['description' => 'rate limited']]], 429),
@@ -447,7 +449,7 @@ it('reconcile confirma como paid um payout ambiguo cuja transferencia existe e f
 
     $payout->update(['requested_at' => now()->subMinutes(20)]); // passa da janela de reconcile
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     $payout->refresh();
     expect($payout->status)->toBe('paid');
@@ -473,7 +475,7 @@ it('reconcile NAO estorna automaticamente um payout ambiguo sem transferencia �
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     $payout->refresh();
     expect($payout->status)->toBe('processing'); // não estornado
@@ -503,7 +505,7 @@ it('reconcile NAO estorna quando o lookup do transfer falha (ex.: 429) — apena
     $fake = app(AsaasClientInterface::class);
     $fake->forceNextGetTransferFailure(); // getTransfer estoura (429), como num batch
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     $payout->refresh();
     expect($payout->status)->toBe('processing'); // adiado, não estornado
@@ -539,7 +541,7 @@ it('reconcile NAO estorna quando o lookup do transfer falha de forma definitiva 
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     $payout->refresh();
     expect($payout->status)->toBe('processing');
@@ -570,7 +572,7 @@ it('payout irresolvivel ha mais de 2h vai para needs_review — sem estorno', fu
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     $payout->refresh();
     expect($payout->status)->toBe('needs_review');
@@ -604,7 +606,7 @@ it('payout velho mas ainda sem streak de buscas vazias ganha a janela inteira', 
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     $payout->refresh();
     expect($payout->status)->toBe('processing'); // primeira busca vazia: tenta de novo, não estaciona
@@ -632,7 +634,7 @@ it('streak zera quando o lookup volta a resolver', function () {
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     $payout->refresh();
     expect($payout->status)->toBe('processing');
@@ -677,7 +679,7 @@ it('nao estaciona payout que ganhou asaas_transfer_id durante a corrida', functi
         }
     });
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     expect($payout->refresh()->status)->toBe('processing'); // volta pro lote, não estaciona
 });
@@ -709,7 +711,7 @@ it('payout em needs_review sai do lote do reconcile e nao e mais consultado', fu
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->reconcile();
+    app(PayoutService::class)->reconcile();
 
     expect($payout->refresh()->status)->toBe('needs_review');
 });
@@ -734,7 +736,7 @@ it('webhook TRANSFER_DONE ainda liquida um payout parado em needs_review', funct
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->handleWebhook([
+    app(PayoutService::class)->handleWebhook([
         'id' => 'evt_review_done',
         'event' => 'TRANSFER_DONE',
         'transfer' => ['id' => 'transfer_review_done', 'status' => 'DONE'],
@@ -759,7 +761,7 @@ it('webhook TRANSFER_FAILED em needs_review estorna os tokens', function () {
     ]);
     app(TokenService::class)->debit($performer, 1000, 'payout_reserve', 'payout', $payout->id, 'reserva');
 
-    app(\App\Services\PayoutService::class)->handleWebhook([
+    app(PayoutService::class)->handleWebhook([
         'id' => 'evt_review_failed',
         'event' => 'TRANSFER_FAILED',
         'transfer' => ['id' => 'transfer_review_failed', 'failReason' => 'Chave PIX inválida'],
