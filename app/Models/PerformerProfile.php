@@ -23,6 +23,13 @@ class PerformerProfile extends Model
      */
     public const WORLDS = ['mulheres', 'homens', 'casais', 'trans'];
 
+    public const TIERS = ['verificada', 'select', 'maison'];
+
+    /**
+     * tier, tier_granted_at e tier_granted_by ficam FORA do $fillable —
+     * escrita somente via forceFill() em endpoint admin dedicado, mesmo
+     * padrão do discrete_mode (anti mass assignment).
+     */
     protected $fillable = [
         'stage_name', 'slug', 'bio', 'category', 'work_modes',
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
@@ -42,6 +49,7 @@ class PerformerProfile extends Model
             'rate_camera' => 'integer',
             'rating_count' => 'integer',
             'followers_count' => 'integer',
+            'tier_granted_at' => 'datetime',
         ];
     }
 
@@ -89,6 +97,11 @@ class PerformerProfile extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function tierGrantedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'tier_granted_by');
     }
 
     public function follows(): HasMany
