@@ -1,10 +1,10 @@
 <?php
 
-use App\Models\PerformerProfile;
 use App\Models\Tip;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Services\TipService;
 use App\Services\TokenService;
 use Illuminate\Support\Str;
 
@@ -13,17 +13,17 @@ use Illuminate\Support\Str;
 function makeVerifiedPerformerWithLevel(string $level, int $splitPct, array $userAttrs = []): array
 {
     $user = User::factory()->create(array_merge([
-        'role'   => 'performer',
+        'role' => 'performer',
         'status' => 'active',
     ], $userAttrs));
 
     $profile = $user->performerProfile()->create([
-        'stage_name'  => 'Performer ' . Str::random(4),
-        'slug'        => 'perf-' . strtolower(Str::random(6)),
-        'category'    => 'mulheres',
+        'stage_name' => 'Performer '.Str::random(4),
+        'slug' => 'perf-'.strtolower(Str::random(6)),
+        'category' => 'mulheres',
         'is_verified' => true,
-        'level'       => $level,
-        'split_pct'   => $splitPct,
+        'level' => $level,
+        'split_pct' => $splitPct,
     ]);
 
     $token = $user->createToken('api')->plainTextToken;
@@ -33,7 +33,7 @@ function makeVerifiedPerformerWithLevel(string $level, int $splitPct, array $use
 
 function makeConsumerWithBalance(int $balance): array
 {
-    $user  = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
+    $user = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
     $token = $user->createToken('api')->plainTextToken;
 
     if ($balance > 0) {
@@ -46,10 +46,10 @@ function makeConsumerWithBalance(int $balance): array
 function tipPayload(string $slug, int $amount, ?string $key = null, ?string $message = null): array
 {
     return [
-        'performer_slug'   => $slug,
-        'amount'           => $amount,
-        'idempotency_key'  => $key ?? (string) Str::uuid(),
-        'message'          => $message,
+        'performer_slug' => $slug,
+        'amount' => $amount,
+        'idempotency_key' => $key ?? (string) Str::uuid(),
+        'message' => $message,
     ];
 }
 
@@ -57,17 +57,17 @@ function tipPayload(string $slug, int $amount, ?string $key = null, ?string $mes
 
 it('sends a valid tip and applies correct split', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(100);
-    [, $profile]                = makeVerifiedPerformerWithLevel('iniciante', 65);
+    [, $profile] = makeVerifiedPerformerWithLevel('iniciante', 65);
 
     $response = $this->postJson('/api/v1/tips', tipPayload($profile->slug, 50), [
         'Authorization' => "Bearer $consumerToken",
     ]);
 
     $response->assertCreated()->assertJsonFragment([
-        'amount'           => 50,
+        'amount' => 50,
         'performer_amount' => 32, // floor(50 * 65 / 100)
-        'platform_amount'  => 18,
-        'new_balance'      => 50,
+        'platform_amount' => 18,
+        'new_balance' => 50,
     ]);
 
     expect(TokenWallet::where('user_id', $consumer->id)->value('balance'))->toBe(50);
@@ -79,7 +79,7 @@ it('sends a valid tip and applies correct split', function () {
 
 it('applies correct split for each performer level', function (string $level, int $splitPct, int $amount, int $expectedPerformer) {
     [$consumer, $consumerToken] = makeConsumerWithBalance(1000);
-    [, $profile]                = makeVerifiedPerformerWithLevel($level, $splitPct);
+    [, $profile] = makeVerifiedPerformerWithLevel($level, $splitPct);
 
     $response = $this->postJson('/api/v1/tips', tipPayload($profile->slug, $amount), [
         'Authorization' => "Bearer $consumerToken",
@@ -87,20 +87,20 @@ it('applies correct split for each performer level', function (string $level, in
 
     $response->assertCreated()->assertJsonFragment([
         'performer_amount' => $expectedPerformer,
-        'platform_amount'  => $amount - $expectedPerformer,
+        'platform_amount' => $amount - $expectedPerformer,
     ]);
 })->with([
     'iniciante 65%' => ['iniciante', 65, 100, 65],
-    'estrela 70%'   => ['estrela',   70, 100, 70],
-    'premium 75%'   => ['premium',   75, 100, 75],
-    'vip 80%'       => ['vip',       80, 100, 80],
+    'estrela 70%' => ['estrela',   70, 100, 70],
+    'premium 75%' => ['premium',   75, 100, 75],
+    'vip 80%' => ['vip',       80, 100, 80],
 ]);
 
 // ─── 3. Insufficient balance returns 422, nothing debited ────────────────────
 
 it('returns 422 on insufficient balance and makes no ledger entries', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(10);
-    [, $profile]                = makeVerifiedPerformerWithLevel('iniciante', 65);
+    [, $profile] = makeVerifiedPerformerWithLevel('iniciante', 65);
 
     $ledgerBefore = TokenLedger::count();
 
@@ -120,9 +120,9 @@ it('rejects tip to a non-verified performer', function () {
 
     $performerUser = User::factory()->create(['role' => 'performer', 'status' => 'active']);
     $profile = $performerUser->performerProfile()->create([
-        'stage_name'  => 'Unverified',
-        'slug'        => 'unverified-' . strtolower(Str::random(4)),
-        'category'    => 'mulheres',
+        'stage_name' => 'Unverified',
+        'slug' => 'unverified-'.strtolower(Str::random(4)),
+        'category' => 'mulheres',
         'is_verified' => false,
     ]);
 
@@ -138,9 +138,9 @@ it('rejects tip when performer user is not active', function () {
 
     $performerUser = User::factory()->create(['role' => 'performer', 'status' => 'pending']);
     $profile = $performerUser->performerProfile()->create([
-        'stage_name'  => 'Pending Perf',
-        'slug'        => 'pending-' . strtolower(Str::random(4)),
-        'category'    => 'mulheres',
+        'stage_name' => 'Pending Perf',
+        'slug' => 'pending-'.strtolower(Str::random(4)),
+        'category' => 'mulheres',
         'is_verified' => true,
     ]);
 
@@ -155,7 +155,7 @@ it('rejects tip when performer user is not active', function () {
 
 it('rejects amount below 1', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(100);
-    [, $profile]                = makeVerifiedPerformerWithLevel('iniciante', 65);
+    [, $profile] = makeVerifiedPerformerWithLevel('iniciante', 65);
 
     $this->postJson('/api/v1/tips', tipPayload($profile->slug, 0), [
         'Authorization' => "Bearer $consumerToken",
@@ -164,7 +164,7 @@ it('rejects amount below 1', function () {
 
 it('rejects amount above 1000', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(2000);
-    [, $profile]                = makeVerifiedPerformerWithLevel('iniciante', 65);
+    [, $profile] = makeVerifiedPerformerWithLevel('iniciante', 65);
 
     $this->postJson('/api/v1/tips', tipPayload($profile->slug, 1001), [
         'Authorization' => "Bearer $consumerToken",
@@ -175,7 +175,7 @@ it('rejects amount above 1000', function () {
 
 it('returns existing tip on duplicate idempotency key without creating duplicates', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(200);
-    [, $profile]                = makeVerifiedPerformerWithLevel('iniciante', 65);
+    [, $profile] = makeVerifiedPerformerWithLevel('iniciante', 65);
     $key = (string) Str::uuid();
 
     $first = $this->postJson('/api/v1/tips', tipPayload($profile->slug, 50, $key), [
@@ -184,7 +184,7 @@ it('returns existing tip on duplicate idempotency key without creating duplicate
     $first->assertCreated();
 
     $ledgerCount = TokenLedger::count();
-    $tipCount    = Tip::count();
+    $tipCount = Tip::count();
 
     $second = $this->postJson('/api/v1/tips', tipPayload($profile->slug, 50, $key), [
         'Authorization' => "Bearer $consumerToken",
@@ -205,9 +205,9 @@ it('rejects a tip to yourself', function () {
 
     // Give this user also a performer profile
     $profile = $user->performerProfile()->create([
-        'stage_name'  => 'Self',
-        'slug'        => 'self-' . strtolower(Str::random(4)),
-        'category'    => 'mulheres',
+        'stage_name' => 'Self',
+        'slug' => 'self-'.strtolower(Str::random(4)),
+        'category' => 'mulheres',
         'is_verified' => true,
     ]);
 
@@ -222,7 +222,7 @@ it('rejects a tip to yourself', function () {
 
 it('rate limits tips to 10 per minute', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(10000);
-    [, $profile]                = makeVerifiedPerformerWithLevel('vip', 80);
+    [, $profile] = makeVerifiedPerformerWithLevel('vip', 80);
 
     for ($i = 0; $i < 10; $i++) {
         $this->postJson('/api/v1/tips', tipPayload($profile->slug, 10), [
@@ -239,7 +239,7 @@ it('rate limits tips to 10 per minute', function () {
 
 it('returns consumer tip history in descending order', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(500);
-    [, $profile]                = makeVerifiedPerformerWithLevel('estrela', 70);
+    [, $profile] = makeVerifiedPerformerWithLevel('estrela', 70);
 
     $this->postJson('/api/v1/tips', tipPayload($profile->slug, 10), ['Authorization' => "Bearer $consumerToken"])->assertCreated();
     $this->postJson('/api/v1/tips', tipPayload($profile->slug, 20), ['Authorization' => "Bearer $consumerToken"])->assertCreated();
@@ -276,23 +276,23 @@ it('returns performer received tip history', function () {
 
 it('rolls back consumer debit when performer credit fails', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(100);
-    [, $profile]                = makeVerifiedPerformerWithLevel('iniciante', 65);
+    [, $profile] = makeVerifiedPerformerWithLevel('iniciante', 65);
 
     $consumerBalanceBefore = TokenWallet::where('user_id', $consumer->id)->value('balance');
-    $ledgerBefore          = TokenLedger::count();
+    $ledgerBefore = TokenLedger::count();
 
     // Force performer credit to fail by giving performer an immutable wallet state
     // Simulated by making TokenService::credit throw inside a transaction
-    $mock = Mockery::mock(\App\Services\TokenService::class)->makePartial();
-    $mock->shouldReceive('credit')->once()->andThrow(new \RuntimeException('Simulated credit failure'));
-    app()->instance(\App\Services\TokenService::class, $mock);
-    app()->instance(\App\Services\TipService::class, new \App\Services\TipService($mock));
+    $mock = Mockery::mock(TokenService::class)->makePartial();
+    $mock->shouldReceive('credit')->once()->andThrow(new RuntimeException('Simulated credit failure'));
+    app()->instance(TokenService::class, $mock);
+    app()->instance(TipService::class, new TipService($mock));
 
     try {
         $this->postJson('/api/v1/tips', tipPayload($profile->slug, 50), [
             'Authorization' => "Bearer $consumerToken",
         ]);
-    } catch (\Throwable) {
+    } catch (Throwable) {
         // May surface as 500; we just check DB state
     }
 
@@ -305,7 +305,7 @@ it('rolls back consumer debit when performer credit fails', function () {
 
 it('increments performer tips_count for each tip received', function () {
     [$consumer, $consumerToken] = makeConsumerWithBalance(500);
-    [, $profile]                = makeVerifiedPerformerWithLevel('vip', 80);
+    [, $profile] = makeVerifiedPerformerWithLevel('vip', 80);
 
     expect($profile->fresh()->tips_count)->toBe(0);
 
@@ -315,4 +315,3 @@ it('increments performer tips_count for each tip received', function () {
     $this->postJson('/api/v1/tips', tipPayload($profile->slug, 10), ['Authorization' => "Bearer $consumerToken"])->assertCreated();
     expect($profile->fresh()->tips_count)->toBe(2);
 });
-

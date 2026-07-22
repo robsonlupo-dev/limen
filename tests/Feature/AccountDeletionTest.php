@@ -28,7 +28,6 @@ use Illuminate\Support\Str;
  *
  * Helpers com prefixo del* para o arquivo rodar isolado ou na suíte.
  */
-
 function delService(): DeletionService
 {
     return app(DeletionService::class);
@@ -44,8 +43,8 @@ function delPerformer(): User
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     $user->performerProfile()->create([
-        'stage_name' => 'Perf ' . Str::random(4),
-        'slug' => 'perf-' . strtolower(Str::random(6)),
+        'stage_name' => 'Perf '.Str::random(4),
+        'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'level' => 'iniciante',
         'split_pct' => 65,

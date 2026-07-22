@@ -2,6 +2,8 @@
 
 namespace App\Services\Waitlist;
 
+use App\Enums\MemberTier;
+use App\Enums\PerformerTier;
 use App\Models\WaitlistEntry;
 use Illuminate\Support\Str;
 
@@ -67,8 +69,8 @@ class FounderPresenter
     private function benefitLadder(WaitlistEntry $entry, array $metrics): array
     {
         $cases = $entry->isPerformer()
-            ? \App\Enums\PerformerTier::ordered()
-            : \App\Enums\MemberTier::ordered();
+            ? PerformerTier::ordered()
+            : MemberTier::ordered();
 
         return array_map(function ($tier) use ($metrics) {
             $req = $tier->requirement();

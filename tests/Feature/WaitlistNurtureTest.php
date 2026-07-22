@@ -4,6 +4,7 @@ use App\Mail\WaitlistNurtureMail;
 use App\Models\WaitlistEmailLog;
 use App\Models\WaitlistEntry;
 use App\Services\Waitlist\WaitlistNurtureService;
+use App\Services\Waitlist\WaitlistService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 
@@ -15,7 +16,7 @@ uses(RefreshDatabase::class);
  */
 function confirmedEntry(string $role, string $email, int $daysAgo): WaitlistEntry
 {
-    $svc = app(App\Services\Waitlist\WaitlistService::class);
+    $svc = app(WaitlistService::class);
     $extra = $role === 'performer' ? ['world' => 'mulheres'] : [];
     $entry = $svc->join(array_merge(['name' => 'Nura Teste', 'email' => $email, 'role' => $role], $extra), null, '127.0.0.1')['entry'];
     $svc->confirm($entry);
@@ -53,7 +54,7 @@ it('does not send anything before the first step cadence has elapsed', function 
 it('never sends the drip to an unconfirmed entry', function () {
     Mail::fake();
     // Joined long ago but never confirmed → no double opt-in, no drip.
-    $svc = app(App\Services\Waitlist\WaitlistService::class);
+    $svc = app(WaitlistService::class);
     $entry = $svc->join(['name' => 'No Confirm', 'email' => 'no@example.com', 'role' => 'member'], null, '127.0.0.1')['entry'];
     $entry->forceFill(['created_at' => now()->subDays(60)])->save();
 
@@ -191,7 +192,7 @@ it('points the CTA at the founder panel with a role- and day-specific UTM', func
 
     // Day is the configured cadence (nurture_2 → dia3, nurture_3 → dia7).
     $memberHtml = (new WaitlistNurtureMail($member, 'nurture_2'))->render();
-    expect($memberHtml)->toContain('/f/' . $member->invite_code)
+    expect($memberHtml)->toContain('/f/'.$member->invite_code)
         ->and($memberHtml)->toContain('utm_source=nurturing')
         ->and($memberHtml)->toContain('utm_medium=email')
         ->and($memberHtml)->toContain('utm_campaign=membro_dia3');

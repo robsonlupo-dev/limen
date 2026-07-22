@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\InterestException;
 use App\Models\AuditLog;
 use App\Models\PerformerInterest;
@@ -140,7 +141,7 @@ class InterestService
      * quando: já houve desbloqueio prévio do par (paga uma vez por performer),
      * OU o membro tem um Círculo ativo (benefício de assinatura).
      *
-     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente (só membro sem assinatura)
+     * @throws InsufficientBalanceException saldo insuficiente (só membro sem assinatura)
      */
     public function unlock(User $member, PerformerInterest $interest): PerformerInterest
     {

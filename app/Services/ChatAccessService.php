@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Models\AuditLog;
 use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
-use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -50,7 +50,7 @@ class ChatAccessService
      * antecipada empilha), senão a partir de agora.
      *
      * @throws \InvalidArgumentException assinante (não deveria pagar) ou performer
-     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente
+     * @throws InsufficientBalanceException saldo insuficiente
      */
     public function openOrRenew(Conversation $conversation, User $member, string $idempotencyKey): ChatAccess
     {
@@ -66,7 +66,7 @@ class ChatAccessService
             throw new \InvalidArgumentException('Active subscribers already have free chat.');
         }
 
-        return DB::transaction(function () use ($conversation, $member, $performerProfile, $idempotencyKey) {
+        return DB::transaction(function () use ($member, $performerProfile, $idempotencyKey) {
             // Serializa opens/renovações concorrentes do mesmo par.
             $access = ChatAccess::where('member_id', $member->id)
                 ->where('performer_profile_id', $performerProfile->id)

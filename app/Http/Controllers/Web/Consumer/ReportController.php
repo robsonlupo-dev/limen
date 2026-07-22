@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreReportRequest;
 use App\Mail\ReportReceivedMail;
 use App\Models\Report;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Cache;
@@ -17,7 +18,7 @@ class ReportController extends Controller
     {
         $data = $request->validated();
 
-        /** @var class-string<\Illuminate\Database\Eloquent\Model> $class */
+        /** @var class-string<Model> $class */
         $class = Report::classForAlias($data['reportable_type']);
         $reportable = $class::find($data['reportable_id']);
 

@@ -14,6 +14,7 @@ class AsaasHttpClient implements AsaasClientInterface
     private const TIMEOUT_SECONDS = 20;
 
     private string $baseUrl;
+
     private string $apiKey;
 
     public function __construct()
@@ -49,7 +50,7 @@ class AsaasHttpClient implements AsaasClientInterface
 
     public function findTransfersByExternalReference(string $externalReference): array
     {
-        return $this->get('/transfers?externalReference=' . urlencode($externalReference));
+        return $this->get('/transfers?externalReference='.urlencode($externalReference));
     }
 
     public function createSubscription(array $data): array
@@ -109,7 +110,7 @@ class AsaasHttpClient implements AsaasClientInterface
         try {
             $response = Http::withHeaders([
                 'access_token' => $this->apiKey,
-            ])->timeout(self::TIMEOUT_SECONDS)->post($this->baseUrl . $path, $data);
+            ])->timeout(self::TIMEOUT_SECONDS)->post($this->baseUrl.$path, $data);
         } catch (ConnectionException $e) {
             // Timeout / connection reset: the request may still have been processed
             // by Asaas. Ambiguous — callers must not assume it failed.
@@ -124,7 +125,7 @@ class AsaasHttpClient implements AsaasClientInterface
         try {
             $response = Http::withHeaders([
                 'access_token' => $this->apiKey,
-            ])->timeout(self::TIMEOUT_SECONDS)->get($this->baseUrl . $path);
+            ])->timeout(self::TIMEOUT_SECONDS)->get($this->baseUrl.$path);
         } catch (ConnectionException $e) {
             throw new AsaasUnavailableException("Asaas unreachable on GET {$path}: {$e->getMessage()}", previous: $e);
         }
@@ -137,7 +138,7 @@ class AsaasHttpClient implements AsaasClientInterface
         try {
             $response = Http::withHeaders([
                 'access_token' => $this->apiKey,
-            ])->timeout(self::TIMEOUT_SECONDS)->delete($this->baseUrl . $path);
+            ])->timeout(self::TIMEOUT_SECONDS)->delete($this->baseUrl.$path);
         } catch (ConnectionException $e) {
             throw new AsaasUnavailableException("Asaas unreachable on DELETE {$path}: {$e->getMessage()}", previous: $e);
         }

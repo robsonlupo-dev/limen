@@ -1,8 +1,14 @@
 <?php
 
+use App\Models\ChatAccess;
+use App\Models\Conversation;
+use App\Models\Follow;
 use App\Models\IdentityVerification;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use App\Services\ChatAccessService;
+use App\Services\InterestService;
+use App\Services\TokenService;
 use App\Support\FanAlias;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -141,4 +147,57 @@ function kycV3SimpleHeaders(array $payload, ?int $timestamp = null): array
         'X-Timestamp' => (string) $timestamp,
         'X-Signature-Simple' => hash_hmac('sha256', $base, (string) config('kyc.webhook_secret')),
     ];
+}
+
+// ─── Chat (par com Interesse desbloqueado) ───────────────────────────────────
+
+/**
+ * Par membro+performer com o canal de chat REALMENTE aberto (follow →
+ * interesse → unlock), como no fluxo de produção. Compartilhado entre
+ * ChatPhase1Test e ChatContentFilterTest.
+ */
+function chatPerformer(int $splitPct = 65): PerformerProfile
+{
+    $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
+
+    return $user->performerProfile()->create([
+        'stage_name' => 'Perf '.Str::random(4),
+        'slug' => 'perf-'.strtolower(Str::random(6)),
+        'category' => 'mulheres',
+        'is_verified' => true,
+        'level' => 'iniciante',
+        'split_pct' => $splitPct,
+    ]);
+}
+
+function chatMember(int $balance = 0): User
+{
+    $member = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
+
+    if ($balance > 0) {
+        app(TokenService::class)->credit($member, $balance, 'purchase');
+    }
+
+    return $member;
+}
+
+/** Membro que seguiu, recebeu interesse e desbloqueou — canal aberto de verdade. */
+function chatUnlockedPair(PerformerProfile $performer, int $balance = 0): array
+{
+    $member = chatMember($balance + 15);
+    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $performer->id]);
+
+    $interest = app(InterestService::class)->send($performer, $member);
+    app(InterestService::class)->unlock($member, $interest);
+
+    $conversation = Conversation::where('member_id', $member->id)
+        ->where('performer_profile_id', $performer->id)
+        ->sole();
+
+    return [$member, $conversation, $interest->fresh()];
+}
+
+function grantChatAccess(User $member, Conversation $conversation): ChatAccess
+{
+    return app(ChatAccessService::class)->openOrRenew($conversation, $member, (string) Str::uuid());
 }

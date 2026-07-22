@@ -18,10 +18,10 @@ class AvatarPlaceholder
         $initial = htmlspecialchars($initial, ENT_QUOTES | ENT_XML1, 'UTF-8');
 
         return '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">'
-            . '<rect width="300" height="300" fill="#1a1a2e"/>'
-            . '<circle cx="150" cy="150" r="120" fill="none" stroke="#c9a227" stroke-width="3"/>'
-            . "<text x=\"150\" y=\"172\" font-family=\"Georgia, serif\" font-size=\"96\" fill=\"#c9a227\" text-anchor=\"middle\">{$initial}</text>"
-            . '</svg>';
+            .'<rect width="300" height="300" fill="#1a1a2e"/>'
+            .'<circle cx="150" cy="150" r="120" fill="none" stroke="#c9a227" stroke-width="3"/>'
+            ."<text x=\"150\" y=\"172\" font-family=\"Georgia, serif\" font-size=\"96\" fill=\"#c9a227\" text-anchor=\"middle\">{$initial}</text>"
+            .'</svg>';
     }
 
     /**

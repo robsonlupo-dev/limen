@@ -2,9 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\Follow;
 use App\Models\IdentityVerification;
+use App\Models\Payment;
 use App\Models\PerformerProfile;
-use App\Models\TokenLedger;
+use App\Models\Tip;
 use App\Models\TokenPackage;
 use App\Models\TokenWallet;
 use App\Models\User;
@@ -14,9 +16,11 @@ use App\Services\FollowService;
 use App\Services\PaymentService;
 use App\Services\TipService;
 use App\Services\TokenService;
+use Database\Factories\PerformerProfileFactory;
 use Database\Seeders\Concerns\RefusesUnsafeEnvironment;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
@@ -84,7 +88,7 @@ class LimenTestSeeder extends Seeder
 
         // Em `local` o container liga o AsaasHttpClient real; a massa de QA
         // exige o fake. Força o binding só para este processo de seed.
-        app()->singleton(AsaasClientInterface::class, fn () => new FakeAsaasClient());
+        app()->singleton(AsaasClientInterface::class, fn () => new FakeAsaasClient);
 
         // Pacotes de tokens + contas base (idempotente). Os dois seeders usam o
         // mesmo guard, então não podem discordar sobre o ambiente ser seguro —
@@ -100,16 +104,16 @@ class LimenTestSeeder extends Seeder
             'Massa pronta: %d performers, %d membros, %d follows, %d tips, %d payments.',
             $performers->count(),
             $members->count(),
-            \App\Models\Follow::count(),
-            \App\Models\Tip::count(),
-            \App\Models\Payment::count(),
+            Follow::count(),
+            Tip::count(),
+            Payment::count(),
         ));
     }
 
-    /** @return \Illuminate\Support\Collection<int, PerformerProfile> */
+    /** @return Collection<int, PerformerProfile> */
     private function seedPerformers(string $password)
     {
-        $levels = array_keys(\Database\Factories\PerformerProfileFactory::LEVEL_SPLITS);
+        $levels = array_keys(PerformerProfileFactory::LEVEL_SPLITS);
         $profiles = collect();
         $i = 0;
 
@@ -130,7 +134,7 @@ class LimenTestSeeder extends Seeder
                     'terms_version' => '1.0',
                 ]);
 
-                $stageName = fake()->unique()->firstName() . ' ' . Arr::random(self::STAGE_SUFFIXES);
+                $stageName = fake()->unique()->firstName().' '.Arr::random(self::STAGE_SUFFIXES);
                 $level = $levels[$i % count($levels)];
 
                 $profile = PerformerProfile::firstOrCreate(
@@ -155,7 +159,7 @@ class LimenTestSeeder extends Seeder
         return $profiles;
     }
 
-    /** @return \Illuminate\Support\Collection<int, User> */
+    /** @return Collection<int, User> */
     private function seedMembers(string $password)
     {
         $tokenService = app(TokenService::class);
@@ -207,8 +211,8 @@ class LimenTestSeeder extends Seeder
 
         foreach ($members as $idx => $member) {
             // Idempotência do histórico: só gera para membros sem rastro anterior.
-            $hasHistory = \App\Models\Payment::where('user_id', $member->id)->exists()
-                || \App\Models\Follow::where('user_id', $member->id)->exists();
+            $hasHistory = Payment::where('user_id', $member->id)->exists()
+                || Follow::where('user_id', $member->id)->exists();
             if ($hasHistory) {
                 continue;
             }
@@ -222,7 +226,7 @@ class LimenTestSeeder extends Seeder
                 $payment = $paymentService->createPayment($member, $packages->random(), $this->fakeCpf());
                 $asaas->simulatePaymentReceived($payment->provider_charge_id);
                 $paymentService->handleWebhook([
-                    'id' => 'evt_seed_' . uniqid('', true),
+                    'id' => 'evt_seed_'.uniqid('', true),
                     'event' => 'PAYMENT_RECEIVED',
                     'payment' => ['id' => $payment->provider_charge_id],
                 ]);
@@ -261,7 +265,7 @@ class LimenTestSeeder extends Seeder
                 'full_legal_name' => $user->name,
                 'date_of_birth' => $user->birthdate?->format('Y-m-d') ?? '1990-01-01',
                 'provider' => 'fake',
-                'provider_reference' => 'fake_seed_' . $user->id,
+                'provider_reference' => 'fake_seed_'.$user->id,
                 'provider_status' => 'approved',
                 'status' => 'approved',
                 'age_confirmed' => true,
@@ -294,7 +298,7 @@ class LimenTestSeeder extends Seeder
     private function writePlaceholderMedia(User $user, PerformerProfile $profile, string $world, string $stageName): void
     {
         [$bg, $accent] = self::WORLD_COLORS[$world];
-        $initials = mb_strtoupper(mb_substr($stageName, 0, 1) . mb_substr(strrchr($stageName, ' ') ?: ' ?', 1, 1));
+        $initials = mb_strtoupper(mb_substr($stageName, 0, 1).mb_substr(strrchr($stageName, ' ') ?: ' ?', 1, 1));
 
         $avatar = <<<SVG
         <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">

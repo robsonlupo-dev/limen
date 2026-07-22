@@ -66,7 +66,7 @@ class PreferencesController extends Controller
 
         $newValue = $this->discreteMode->apply($user, $desired);
 
-        return back()->with('success', 'Modo Discreto ' . ($newValue ? 'ativado' : 'desativado'));
+        return back()->with('success', 'Modo Discreto '.($newValue ? 'ativado' : 'desativado'));
     }
 
     /**

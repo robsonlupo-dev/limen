@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 class BackfillPerformerAvatars extends Command
 {
     protected $signature = 'performers:backfill-avatars {--disk=local : Disco onde a mídia privada vive}';
+
     protected $description = 'Regenera avatares de performer ausentes no disco (corrige 404 em performer-media)';
 
     public function handle(): int
@@ -32,6 +33,7 @@ class BackfillPerformerAvatars extends Command
             foreach ($profiles as $profile) {
                 if ($profile->avatar_path && Storage::disk($disk)->exists($profile->avatar_path)) {
                     $ok++;
+
                     continue;
                 }
 

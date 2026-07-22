@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Web\Performer;
 
-use App\Exceptions\PayoutNotAllowedException;
 use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\PayoutNotAllowedException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\PayoutRequest;
 use App\Models\Payout;
@@ -116,7 +116,7 @@ class PayoutController extends Controller
             return $this->maskGeneric($key);
         }
 
-        return substr($digits, 0, 3) . '.***.***-' . substr($digits, -2);
+        return substr($digits, 0, 3).'.***.***-'.substr($digits, -2);
     }
 
     private function maskEmail(string $key): string
@@ -129,7 +129,7 @@ class PayoutController extends Controller
 
         $visible = mb_substr($local, 0, min(2, mb_strlen($local)));
 
-        return $visible . '***@' . $domain;
+        return $visible.'***@'.$domain;
     }
 
     private function maskPhone(string $key): string
@@ -141,7 +141,7 @@ class PayoutController extends Controller
             return $this->maskGeneric($key);
         }
 
-        return str_repeat('*', $len - 4) . substr($digits, -4);
+        return str_repeat('*', $len - 4).substr($digits, -4);
     }
 
     private function maskGeneric(string $key): string
@@ -152,6 +152,6 @@ class PayoutController extends Controller
             return str_repeat('*', $len);
         }
 
-        return str_repeat('*', $len - 4) . substr($key, -4);
+        return str_repeat('*', $len - 4).substr($key, -4);
     }
 }

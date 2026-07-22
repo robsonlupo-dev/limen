@@ -40,7 +40,7 @@ class RegisterWebRequest extends FormRequest
             ],
             'birthdate' => [
                 'required', 'date', 'before_or_equal:today',
-                'before_or_equal:' . now()->subYears(18)->format('Y-m-d'),
+                'before_or_equal:'.now()->subYears(18)->format('Y-m-d'),
             ],
             'accept_terms' => ['required', 'accepted'],
             'lgpd_consent' => ['required', 'accepted'],

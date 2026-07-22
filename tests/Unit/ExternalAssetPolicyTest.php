@@ -110,7 +110,7 @@ function isAllowedOrigin(string $url, array $allowed): bool
 /**
  * @param  list<string>  $patterns
  * @param  list<string>  $allowed
- * @return list<string>  "caminho:linha → url"
+ * @return list<string> "caminho:linha → url"
  */
 function externalAssetViolations(Finder $files, string $prefix, array $patterns, array $allowed): array
 {

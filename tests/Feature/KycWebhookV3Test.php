@@ -15,7 +15,7 @@ function v3Payload(array $overrides = []): array
         'session_id' => 'sess_v3',
         'status' => 'Approved',
         'webhook_type' => 'status.updated',
-        'event_id' => 'evt_' . uniqid(),
+        'event_id' => 'evt_'.uniqid(),
     ], $overrides);
 }
 

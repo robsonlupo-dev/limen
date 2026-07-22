@@ -104,7 +104,7 @@ trait RefusesUnsafeEnvironment
 
         throw new \RuntimeException(sprintf(
             'SEED_ADMIN_PASSWORD é obrigatória fora de local/testing: %s recusa-se a '
-            . 'criar contas com senha default (sinais de APP_ENV: %s).',
+            .'criar contas com senha default (sinais de APP_ENV: %s).',
             class_basename(static::class),
             implode(', ', $this->environmentSignals()) ?: 'nenhum',
         ));

@@ -28,7 +28,7 @@ class SubscriptionController extends Controller
                 'slug' => $circle->slug,
                 'name' => $circle->name,
                 'price_cents' => $circle->price_cents,
-                'price_formatted' => 'R$ ' . number_format($circle->price_cents / 100, 2, ',', '.'),
+                'price_formatted' => 'R$ '.number_format($circle->price_cents / 100, 2, ',', '.'),
                 'monthly_tokens' => $circle->monthly_tokens,
                 'discount_pct' => $circle->discount_pct,
                 'invite_only' => $circle->invite_only,

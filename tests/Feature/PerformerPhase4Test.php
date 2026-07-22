@@ -1,25 +1,24 @@
 <?php
 
-use Illuminate\Support\Str;
 use App\Models\Follow;
-use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function makePerformer(array $userAttrs = [], array $profileAttrs = []): array
 {
     $user = User::factory()->create(array_merge([
-        'role'   => 'performer',
+        'role' => 'performer',
         'status' => 'active',
     ], $userAttrs));
 
     $profile = $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Ana Lima ' . Str::random(4),
-        'slug'        => 'ana-lima-' . strtolower(\Illuminate\Support\Str::random(4)),
-        'category'    => 'mulheres',
+        'stage_name' => 'Ana Lima '.Str::random(4),
+        'slug' => 'ana-lima-'.strtolower(Str::random(4)),
+        'category' => 'mulheres',
         'is_verified' => true,
     ], $profileAttrs));
 
@@ -30,7 +29,7 @@ function makePerformer(array $userAttrs = [], array $profileAttrs = []): array
 
 function makeConsumer(): array
 {
-    $user  = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
+    $user = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
     $token = $user->createToken('api')->plainTextToken;
 
     return [$user, $token];
@@ -42,9 +41,9 @@ it('performer updates own profile and receives updated data', function () {
     [, $profile, $token] = makePerformer();
 
     $response = $this->putJson('/api/v1/performer/profile', [
-        'bio'         => 'New bio text',
+        'bio' => 'New bio text',
         'rate_public' => 80,
-        'category'    => 'casais',
+        'category' => 'casais',
     ], ['Authorization' => "Bearer $token"]);
 
     $response->assertOk()
@@ -53,8 +52,8 @@ it('performer updates own profile and receives updated data', function () {
         ->assertJsonPath('data.category', 'casais');
 
     $this->assertDatabaseHas('performer_profiles', [
-        'id'          => $profile->id,
-        'bio'         => 'New bio text',
+        'id' => $profile->id,
+        'bio' => 'New bio text',
         'rate_public' => 80,
     ]);
 });
@@ -100,7 +99,7 @@ it('catalog returns only active and verified performers', function () {
 
 it('catalog category filter returns only matching performers', function () {
     [, $mulheres] = makePerformer([], ['category' => 'mulheres']);
-    [, $homens]   = makePerformer([], ['category' => 'homens']);
+    [, $homens] = makePerformer([], ['category' => 'homens']);
 
     $response = $this->getJson('/api/v1/performers?category=mulheres');
 
@@ -115,7 +114,7 @@ it('catalog category filter returns only matching performers', function () {
 // ─── 5. Stage-name search works ──────────────────────────────────────────────
 
 it('catalog search by stage_name returns matching performers', function () {
-    [, $match]   = makePerformer([], ['stage_name' => 'Unique Name XYZ']);
+    [, $match] = makePerformer([], ['stage_name' => 'Unique Name XYZ']);
     [, $nomatch] = makePerformer([], ['stage_name' => 'Completely Different']);
 
     $response = $this->getJson('/api/v1/performers?search=Unique+Name');
@@ -155,7 +154,7 @@ it('public profile response does not expose user_id, email, CPF, or rates', func
 
 it('follow increments followers_count and is idempotent on second call', function () {
     [, $profile] = makePerformer();
-    [, $token]   = makeConsumer();
+    [, $token] = makeConsumer();
 
     // First follow
     $this->postJson("/api/v1/performers/{$profile->slug}/follow", [], [
@@ -183,7 +182,7 @@ it('follow increments followers_count and is idempotent on second call', functio
 
 it('unfollow decrements followers_count by 1', function () {
     [, $profile] = makePerformer();
-    [, $token]   = makeConsumer();
+    [, $token] = makeConsumer();
 
     $this->postJson("/api/v1/performers/{$profile->slug}/follow", [], [
         'Authorization' => "Bearer $token",
@@ -206,7 +205,7 @@ it('unfollow decrements followers_count by 1', function () {
 
 it('GET following returns correct boolean for followed and unfollowed states', function () {
     [, $profile] = makePerformer();
-    [, $token]   = makeConsumer();
+    [, $token] = makeConsumer();
 
     // Not yet following
     $this->getJson("/api/v1/performers/{$profile->slug}/following", [
@@ -280,7 +279,7 @@ it('pending performer does not appear in catalog and returns 404 on GET by slug'
 
     // Not in catalog
     $response = $this->getJson('/api/v1/performers');
-    $slugs    = collect($response->json('data'))->pluck('slug')->all();
+    $slugs = collect($response->json('data'))->pluck('slug')->all();
     expect($slugs)->not->toContain($pendingProfile->slug);
 
     // Direct slug returns 404

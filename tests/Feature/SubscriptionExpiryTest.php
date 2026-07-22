@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Asaas\AsaasClientInterface;
@@ -107,7 +108,7 @@ it('nao reprocessa assinatura ja cancelada', function () {
     runExpiry();
 
     expect($sub->fresh()->canceled_at->eq($canceledAt))->toBeTrue();
-    expect(App\Models\AuditLog::where('action', 'subscription.expired')
+    expect(AuditLog::where('action', 'subscription.expired')
         ->where('subject_id', $sub->id)->count())->toBe(1);
 
     $this->travelBack();

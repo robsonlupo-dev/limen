@@ -26,7 +26,7 @@ it('exposes every route used by the frontend in the Ziggy allowlist', function (
 
         foreach ($matches[1] as $name) {
             $used[$name] ??= [];
-            $used[$name][] = str_replace($frontendDir . '/', '', $file->getPathname());
+            $used[$name][] = str_replace($frontendDir.'/', '', $file->getPathname());
         }
     }
 
@@ -34,7 +34,7 @@ it('exposes every route used by the frontend in the Ziggy allowlist', function (
 
     $message = "Rotas usadas no frontend fora do allowlist de config/ziggy.php:\n";
     foreach ($missing as $name) {
-        $message .= "  - route('{$name}')  em: " . implode(', ', array_unique($used[$name])) . "\n";
+        $message .= "  - route('{$name}')  em: ".implode(', ', array_unique($used[$name]))."\n";
     }
     $message .= 'Adicione cada uma ao array only[] de config/ziggy.php.';
 

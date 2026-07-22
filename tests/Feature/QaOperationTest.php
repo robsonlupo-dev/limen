@@ -5,6 +5,7 @@ use App\Models\Tip;
 use App\Models\User;
 use App\Services\TokenService;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 // Gaps identificados pela Operação de QA (02/07/2026) sobre a suíte existente.
 
@@ -81,7 +82,7 @@ it('rejects a tip with an absurdly large amount without touching the ledger', fu
         ->postJson('/api/v1/tips', [
             'performer_slug' => $profile->slug,
             'amount' => 2 ** 40,
-            'idempotency_key' => (string) \Illuminate\Support\Str::uuid(),
+            'idempotency_key' => (string) Str::uuid(),
         ])
         ->assertStatus(422)
         ->assertJsonValidationErrors('amount');
@@ -101,7 +102,7 @@ it('stores unicode and emoji in tip messages without breaking', function () {
         ->postJson('/api/v1/tips', [
             'performer_slug' => $profile->slug,
             'amount' => 10,
-            'idempotency_key' => (string) \Illuminate\Support\Str::uuid(),
+            'idempotency_key' => (string) Str::uuid(),
             'message' => $message,
         ])
         ->assertCreated();

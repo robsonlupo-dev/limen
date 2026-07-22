@@ -3,6 +3,7 @@
 use App\Http\Middleware\DocumentsAccepted;
 use App\Http\Middleware\EnsureActiveCircle;
 use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\GeoBlock;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\TwoFactorChallenge;
@@ -32,6 +33,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
+        // Geobloqueio (FOSTA-SESTA). Nos grupos `web` e `api`, e NÃO no append
+        // global: o append pegaria `/up`, e monitor de uptime costuma sondar
+        // dos EUA — o health check viraria alarme falso permanente. É no-op
+        // enquanto GEO_DRIVER=none (o estado de hoje); ver config/geo.php.
+        $middleware->web(prepend: [GeoBlock::class]);
+        $middleware->api(prepend: [GeoBlock::class]);
         $middleware->web(append: [
             HandleInertiaRequests::class,
         ]);

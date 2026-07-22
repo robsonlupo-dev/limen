@@ -128,7 +128,7 @@ class PerformerProfile extends Model
     {
         $base = Str::slug($stageName);
         do {
-            $slug = $base . '-' . strtolower(Str::random(4));
+            $slug = $base.'-'.strtolower(Str::random(4));
         } while (static::withTrashed()->where('slug', $slug)->exists());
 
         return $slug;

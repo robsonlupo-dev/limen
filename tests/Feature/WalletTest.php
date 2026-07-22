@@ -8,16 +8,17 @@ use App\Models\User;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Services\PaymentService;
 use App\Services\TokenService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
-uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function makeWalletConsumer(array $attrs = []): User
 {
     $consumer = makeWebConsumer($attrs);
-    $consumer->asaas_customer_id = 'cus_test_' . $consumer->id;
+    $consumer->asaas_customer_id = 'cus_test_'.$consumer->id;
     $consumer->save();
 
     TokenWallet::firstOrCreate(['user_id' => $consumer->id], ['balance' => 0]);
@@ -28,7 +29,7 @@ function makeWalletConsumer(array $attrs = []): User
 function makeWalletPackage(array $overrides = []): TokenPackage
 {
     return TokenPackage::create(array_merge([
-        'slug' => 'wallet-test-' . uniqid(),
+        'slug' => 'wallet-test-'.uniqid(),
         'name' => 'Teste',
         'tokens' => 500,
         'bonus' => 75,

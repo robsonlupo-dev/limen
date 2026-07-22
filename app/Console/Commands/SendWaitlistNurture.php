@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class SendWaitlistNurture extends Command
 {
     protected $signature = 'waitlist:send-nurture';
+
     protected $description = 'Dispatch any due Founding Members nurturing emails to confirmed waitlist entries (idempotent)';
 
     public function handle(WaitlistNurtureService $service): int

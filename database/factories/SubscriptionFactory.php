@@ -21,7 +21,7 @@ class SubscriptionFactory extends Factory
         return [
             'user_id' => User::factory(),
             'circle_id' => $circle?->id,
-            'asaas_subscription_id' => 'sub_fake_' . fake()->unique()->bothify('????####'),
+            'asaas_subscription_id' => 'sub_fake_'.fake()->unique()->bothify('????####'),
             'status' => 'active',
             'current_period_start' => now(),
             'current_period_end' => now()->addMonthNoOverflow(),

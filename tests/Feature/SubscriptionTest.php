@@ -12,6 +12,7 @@ use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\FakeAsaasClient;
 use App\Services\PaymentService;
 use App\Services\SubscriptionService;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 
@@ -93,7 +94,7 @@ it('stores only card token + last4 + brand, never the PAN, and encrypts the toke
         ->and($sub->card_token)->toStartWith('cctok_fake_');
 
     // The full PAN is never persisted anywhere on the row.
-    $raw = \DB::table('subscriptions')->where('id', $sub->id)->first();
+    $raw = DB::table('subscriptions')->where('id', $sub->id)->first();
     expect($raw->card_token)->not->toContain('5162306219378829') // not the PAN
         ->and($raw->card_token)->not->toBe($sub->card_token);     // encrypted at rest
     expect(json_encode($raw))->not->toContain('5162306219378829');
@@ -116,7 +117,7 @@ it('enforces one-active-per-user at the database level', function () {
     Subscription::factory()->for($user)->create(['status' => 'active']);
 
     expect(fn () => Subscription::factory()->for($user)->create(['status' => 'active']))
-        ->toThrow(Illuminate\Database\QueryException::class);
+        ->toThrow(QueryException::class);
 });
 
 it('grants again on a renewal webhook and never double-grants a replayed event', function () {

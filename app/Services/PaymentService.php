@@ -90,6 +90,7 @@ class PaymentService
 
         if (! $payment) {
             Log::warning('Webhook for unknown charge', ['charge_id' => $chargeId, 'event' => $eventId]);
+
             return;
         }
 

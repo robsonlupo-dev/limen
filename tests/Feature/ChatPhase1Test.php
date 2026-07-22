@@ -3,15 +3,11 @@
 use App\Events\MessageSent;
 use App\Events\NewMessage;
 use App\Models\ChatAccess;
-use App\Models\Conversation;
 use App\Models\Follow;
 use App\Models\Message;
-use App\Models\PerformerInterest;
-use App\Models\PerformerProfile;
 use App\Models\Subscription;
 use App\Models\TokenLedger;
 use App\Models\User;
-use App\Services\ChatAccessService;
 use App\Services\ChatService;
 use App\Services\InterestService;
 use App\Services\TokenService;
@@ -27,52 +23,12 @@ uses(RefreshDatabase::class);
  * membro precisa de Círculo ativo (chat livre) OU de um ACESSO pago por
  * performer (50 tokens / janela). Ver docs/COMMUNICATION_ECONOMY.md §2,
  * docs/INTEREST_SYSTEM_SPEC.md §4-5 e docs/INTEREST_ANONYMITY_FLOOR.md.
+ *
+ * Os helpers do par (chatPerformer, chatMember, chatUnlockedPair,
+ * grantChatAccess) foram para tests/Pest.php quando um segundo arquivo passou a
+ * usá-los: definidos aqui, só existiam se ESTE arquivo tivesse sido carregado,
+ * então o outro passava na suíte inteira e quebrava rodando sozinho.
  */
-function chatPerformer(int $splitPct = 65): PerformerProfile
-{
-    $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
-
-    return $user->performerProfile()->create([
-        'stage_name' => 'Perf '.Str::random(4),
-        'slug' => 'perf-'.strtolower(Str::random(6)),
-        'category' => 'mulheres',
-        'is_verified' => true,
-        'level' => 'iniciante',
-        'split_pct' => $splitPct,
-    ]);
-}
-
-function chatMember(int $balance = 0): User
-{
-    $member = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
-
-    if ($balance > 0) {
-        app(TokenService::class)->credit($member, $balance, 'purchase');
-    }
-
-    return $member;
-}
-
-/** Membro que seguiu, recebeu interesse e desbloqueou — canal aberto de verdade. */
-function chatUnlockedPair(PerformerProfile $performer, int $balance = 0): array
-{
-    $member = chatMember($balance + 15);
-    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $performer->id]);
-
-    $interest = app(InterestService::class)->send($performer, $member);
-    app(InterestService::class)->unlock($member, $interest);
-
-    $conversation = Conversation::where('member_id', $member->id)
-        ->where('performer_profile_id', $performer->id)
-        ->sole();
-
-    return [$member, $conversation, $interest->fresh()];
-}
-
-function grantChatAccess(User $member, Conversation $conversation): ChatAccess
-{
-    return app(ChatAccessService::class)->openOrRenew($conversation, $member, (string) Str::uuid());
-}
 
 // --- O canal nasce no desbloqueio, não por endpoint do membro -----------------
 
@@ -303,7 +259,7 @@ it('enters grace after expiry: history visible but bodies withheld and sending b
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
     // Performer manda algo legível durante o acesso.
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
 
     // Passa o vencimento (30d), ainda dentro da carência (45d).
     $this->travel(31)->days();
@@ -328,7 +284,7 @@ it('enters grace after expiry: history visible but bodies withheld and sending b
 it('withholds messages entirely from a member who never bought access', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi da performer');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'oi da performer');
 
     $this->actingAs($member)
         ->get(route('chat.show', $conversation->id))
@@ -347,7 +303,7 @@ it('soft-deletes messages after the grace period and marks the access deleted', 
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'a reter');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'a reter');
     expect(Message::count())->toBe(1);
 
     // Passa a carência inteira (45d+).
@@ -432,8 +388,8 @@ it('shows unread count and a readable preview to a member with active access', f
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'primeira');
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'ultima visivel');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'primeira');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'ultima visivel');
 
     $this->actingAs($member)
         ->get(route('chat.index'))
@@ -448,7 +404,7 @@ it('shows unread count and a readable preview to a member with active access', f
 it('withholds the list preview and unread count from a member without access', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
 
     $this->actingAs($member)
         ->get(route('chat.index'))
@@ -462,7 +418,7 @@ it('withholds the list preview and unread count from a member without access', f
 it('always shows the preview to the performer regardless of member access', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi membro');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'oi membro');
 
     $this->actingAs($performer->user)
         ->get(route('chat.index'))
@@ -477,7 +433,7 @@ it('marks the counterpart messages as read when opened with full access', functi
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'oi');
 
     expect(Message::whereNull('read_at')->count())->toBe(1);
     $this->actingAs($member)->get(route('chat.show', $conversation->id))->assertOk();
@@ -488,7 +444,7 @@ it('does not mark messages read while in grace (body withheld)', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'oi');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'oi');
     $this->travel(31)->days(); // grace: leitura bloqueada, corpo retido
 
     $this->actingAs($member)->get(route('chat.show', $conversation->id))->assertOk();
@@ -499,7 +455,7 @@ it('marks only the counterpart messages, never the reader own', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
     grantChatAccess($member, $conversation);
-    app(App\Services\ChatService::class)->sendMessage($conversation, $performer->user, 'da performer');
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'da performer');
     $this->actingAs($member)
         ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'do membro'])
         ->assertStatus(201);

@@ -19,7 +19,6 @@ uses(RefreshDatabase::class);
  * Helpers locais (prefixo tipWeb*) para o arquivo ser autossuficiente rodando
  * isolado ou na suíte completa.
  */
-
 function tipWebConsumer(int $balance = 0): User
 {
     $consumer = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
@@ -36,8 +35,8 @@ function tipWebPerformer(int $splitPct = 65): PerformerProfile
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create([
-        'stage_name' => 'Perf ' . Str::random(4),
-        'slug' => 'perf-' . strtolower(Str::random(6)),
+        'stage_name' => 'Perf '.Str::random(4),
+        'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
         'level' => 'iniciante',
@@ -88,7 +87,7 @@ it('rejects a self tip through the web route', function () {
     // Give the consumer a performer profile so they can target themselves.
     $profile = $consumer->performerProfile()->create([
         'stage_name' => 'Self',
-        'slug' => 'self-' . strtolower(Str::random(6)),
+        'slug' => 'self-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
         'split_pct' => 65,

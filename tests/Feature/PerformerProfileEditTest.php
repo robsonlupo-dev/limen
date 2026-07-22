@@ -1,11 +1,13 @@
 <?php
 
+use App\Models\AuditLog;
+use App\Models\Follow;
+use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -94,8 +96,8 @@ it('makes the old public url 404 after a rename', function () {
 it('keeps followers and interests through a rename', function () {
     $profile = ppePerformer('Ana');
     $member = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
-    \App\Models\Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
-    \App\Models\PerformerInterest::create([
+    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $profile->id]);
+    PerformerInterest::create([
         'performer_profile_id' => $profile->id,
         'member_id' => $member->id,
         'status' => 'sent',
@@ -107,8 +109,8 @@ it('keeps followers and interests through a rename', function () {
         ->assertRedirect();
 
     // Follows e interesses referenciam o id, não o slug — o rename não os toca.
-    expect(\App\Models\Follow::where('performer_profile_id', $profile->id)->count())->toBe(1);
-    expect(\App\Models\PerformerInterest::where('performer_profile_id', $profile->id)->count())->toBe(1);
+    expect(Follow::where('performer_profile_id', $profile->id)->count())->toBe(1);
+    expect(PerformerInterest::where('performer_profile_id', $profile->id)->count())->toBe(1);
 });
 
 it('replaces the avatar and discards the previous file', function () {
@@ -325,7 +327,7 @@ it('records the rename in the audit log', function () {
         ->post(route('performer.profile.save'), ['stage_name' => 'Bianca'])
         ->assertRedirect();
 
-    $log = \App\Models\AuditLog::where('action', 'performer_profile_updated')->sole();
+    $log = AuditLog::where('action', 'performer_profile_updated')->sole();
     expect($log->user_id)->toBe($profile->user_id);
     expect($log->metadata['renamed'])->toBeTrue();
 });

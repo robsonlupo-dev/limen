@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Follow;
-use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -19,8 +18,8 @@ function makeWebPerformer(array $userAttrs = [], array $profileAttrs = []): arra
     ], $userAttrs));
 
     $profile = $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Ana Lima ' . Str::random(4),
-        'slug' => 'ana-lima-' . strtolower(Str::random(6)),
+        'stage_name' => 'Ana Lima '.Str::random(4),
+        'slug' => 'ana-lima-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
     ], $profileAttrs));
@@ -178,7 +177,7 @@ it('prevents a consumer from following its own performer profile', function () {
     $user = makeWebConsumer();
     $profile = $user->performerProfile()->create([
         'stage_name' => 'Self Performer',
-        'slug' => 'self-performer-' . strtolower(Str::random(6)),
+        'slug' => 'self-performer-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,
     ]);

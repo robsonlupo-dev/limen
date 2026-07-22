@@ -11,6 +11,8 @@ use App\Models\Message;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use App\Support\ChatContentFilter;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Chat pós-desbloqueio de Interesse. Ver docs/INTEREST_SYSTEM_SPEC.md §4-5 e
@@ -60,6 +62,8 @@ class ChatService
     public function sendMessage(Conversation $conversation, User $sender, string $body): Message
     {
         $conversation->loadMissing('performerProfile');
+
+        $this->assertContentAllowed($sender, $body);
 
         if (! $conversation->hasParticipant($sender)) {
             throw ChatException::notAParticipant();
@@ -118,6 +122,16 @@ class ChatService
             throw ChatException::notAParticipant();
         }
 
+        // ANTES da máscara de opt-out, e isso é o ponto: o caminho suprimido
+        // devolve 202 sem persistir nada, e o caminho normal cairia no 422 do
+        // filtro lá dentro (sendMessage). A performer que mandasse um termo
+        // barrado veria 202 para quem optou por sair e 422 para quem não optou
+        // — o par de respostas viraria oráculo do opt-out, que é exatamente o
+        // que INTEREST_ANONYMITY_FLOOR.md proíbe. Filtrando aqui em cima, o
+        // termo barrado devolve 422 para todo mundo, e a resposta volta a
+        // depender só do texto que a própria performer escreveu.
+        $this->assertContentAllowed($performerProfile->user, $body);
+
         // Máscara de opt-out: a resposta precisa ESPELHAR o status que a performer
         // vê (scopeDisplayedAsUnlocked), não o status real — senão a diferença
         // 202 vs 422 vaza o opt-out (INTEREST_ANONYMITY_FLOOR.md).
@@ -150,6 +164,76 @@ class ChatService
         $conversation->loadMissing('performerProfile');
 
         return $this->sendMessage($conversation, $performerProfile->user, $body);
+    }
+
+    /**
+     * Barra a mensagem que casa com a lista de termos proibidos.
+     *
+     * Roda ANTES de qualquer checagem de participação, acesso ou opt-out — de
+     * propósito. O resultado depende só do texto, então não distingue estado
+     * nenhum do destinatário e não vira oráculo de nada. Fosse depois do gate
+     * de acesso, o par de respostas passaria a contar ao remetente se ele tinha
+     * acesso, coisa que o filtro não precisa saber.
+     *
+     * @throws ChatException
+     */
+    private function assertContentAllowed(User $sender, string $body): void
+    {
+        $match = ChatContentFilter::match($body);
+
+        if ($match === null) {
+            return;
+        }
+
+        $isConduct = $match['category'] === ChatContentFilter::CONDUCT;
+
+        $this->auditBlock($sender, $body, $match, $isConduct);
+
+        throw $isConduct
+            ? ChatException::conductBlocked()
+            : ChatException::legalRiskBlocked();
+    }
+
+    /**
+     * Registra o bloqueio, deduplicado por (usuário, regra) na janela.
+     *
+     * A regra vai em HMAC; o CORPO da mensagem não vai de jeito nenhum —
+     * decisão do PO, e `audit_logs` é lido por admin e sobrevive ao Hard
+     * Delete: copiar a mensagem para cá criaria uma segunda cópia do conteúdo
+     * privado do chat, fora do soft-delete que o LGPD do projeto aplica em
+     * `messages`. A contrapartida é que a moderação age por REPETIÇÃO, não
+     * julgando o caso isolado.
+     *
+     * A deduplicação existe porque a lista é enumerável: sem ela, uma conta
+     * varrendo os termos escreve dezenas de linhas por minuto e enterra a
+     * trilha — o mesmo cuidado que o GeoBlock já toma.
+     *
+     * @param  array{category: string, rule: string}  $match
+     */
+    private function auditBlock(User $sender, string $body, array $match, bool $isConduct): void
+    {
+        $ruleHash = ChatContentFilter::digest($match['rule']);
+        $minutes = max(1, (int) config('chat_filters.audit_dedup_minutes'));
+
+        // add() é atômico: dois envios simultâneos não viram duas linhas.
+        if (! Cache::add('chatfilter:'.$sender->id.':'.substr($ruleHash, 0, 32), true, now()->addMinutes($minutes))) {
+            return;
+        }
+
+        AuditLog::create([
+            'user_id' => $sender->id,
+            'action' => 'chat.message_blocked',
+            'ip' => request()->ip(),
+            'metadata' => [
+                'category' => $match['category'],
+                'rule_hash' => $ruleHash,
+                'body_length' => mb_strlen($body),
+                // Só conduta vai para a fila de moderação. Risco legal é
+                // barrado e contado; conduta é barrada E olhada por gente,
+                // porque reincidência ali é caso de suspensão, não de config.
+                'flagged_for_review' => $isConduct,
+            ],
+        ]);
     }
 
     /**

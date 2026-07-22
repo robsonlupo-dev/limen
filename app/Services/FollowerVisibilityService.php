@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Follow;
 use App\Models\PerformerProfile;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
 /**

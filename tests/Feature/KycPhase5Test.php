@@ -1,29 +1,27 @@
 <?php
 
 use App\Models\IdentityVerification;
-use App\Models\PerformerProfile;
 use App\Models\User;
-use App\Services\Kyc\FakeKycClient;
-use App\Services\Kyc\KycClientInterface;
 use App\Services\Kyc\KycDocumentStore;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function makePendingPerformer(): array
 {
     $user = User::factory()->create([
-        'role'   => 'performer',
+        'role' => 'performer',
         'status' => 'pending',
     ]);
     $user->performerProfile()->create([
         'stage_name' => 'Test Performer',
-        'slug'       => 'test-performer-' . strtolower(\Illuminate\Support\Str::random(4)),
-        'category'   => 'mulheres',
+        'slug' => 'test-performer-'.strtolower(Str::random(4)),
+        'category' => 'mulheres',
         'is_verified' => false,
     ]);
     $token = $user->createToken('api')->plainTextToken;
@@ -33,7 +31,7 @@ function makePendingPerformer(): array
 
 function makeAdminUser(): array
 {
-    $user  = User::factory()->admin()->create();
+    $user = User::factory()->admin()->create();
     $token = $user->createToken('api')->plainTextToken;
 
     return [$user, $token];
@@ -42,10 +40,10 @@ function makeAdminUser(): array
 function validKycPayload(): array
 {
     return [
-        'document_type'   => 'rg',
-        'cpf'             => '529.982.247-25',
+        'document_type' => 'rg',
+        'cpf' => '529.982.247-25',
         'full_legal_name' => 'Maria Teste Silva',
-        'date_of_birth'   => now()->subYears(25)->format('Y-m-d'),
+        'date_of_birth' => now()->subYears(25)->format('Y-m-d'),
     ];
 }
 
@@ -53,11 +51,11 @@ function kycFiles(): array
 {
     return [
         'document_front' => UploadedFile::fake()->create('front.jpg', 500, 'image/jpeg'),
-        'selfie'         => UploadedFile::fake()->create('selfie.jpg', 300, 'image/jpeg'),
+        'selfie' => UploadedFile::fake()->create('selfie.jpg', 300, 'image/jpeg'),
     ];
 }
 
-function postKyc(mixed $test, array $payload = [], array $files = [], string $token = ''): \Illuminate\Testing\TestResponse
+function postKyc(mixed $test, array $payload = [], array $files = [], string $token = ''): TestResponse
 {
     return $test->postJson('/api/v1/performer/kyc/submit',
         array_merge($payload, $files),
@@ -80,7 +78,7 @@ it('performer submits KYC with valid CPF and receives 201 with pending status', 
 
     $this->assertDatabaseHas('identity_verifications', [
         'user_id' => $user->id,
-        'status'  => 'pending',
+        'status' => 'pending',
     ]);
 });
 
@@ -90,7 +88,7 @@ it('KycDocumentStore writes ciphertext at rest and decrypts on retrieve', functi
     Storage::fake('kyc');
 
     $store = app(KycDocumentStore::class);
-    $content = 'CONFIDENTIAL-IDENTITY-DOC-' . str_repeat('Z', 300);
+    $content = 'CONFIDENTIAL-IDENTITY-DOC-'.str_repeat('Z', 300);
     $file = UploadedFile::fake()->createWithContent('doc.jpg', $content);
 
     $path = $store->store(42, $file, 'document_front');
@@ -168,13 +166,13 @@ it('returns 422 for invalid file type (pdf) or file exceeding 10MB', function ()
     // PDF instead of jpeg/png
     postKyc($this, validKycPayload(), [
         'document_front' => UploadedFile::fake()->create('doc.pdf', 500, 'application/pdf'),
-        'selfie'         => UploadedFile::fake()->create('selfie.jpg', 300, 'image/jpeg'),
+        'selfie' => UploadedFile::fake()->create('selfie.jpg', 300, 'image/jpeg'),
     ], $token)->assertStatus(422)->assertJsonValidationErrors('document_front');
 
     // File >10MB
     postKyc($this, validKycPayload(), [
         'document_front' => UploadedFile::fake()->create('big.jpg', 11000, 'image/jpeg'),
-        'selfie'         => UploadedFile::fake()->create('selfie.jpg', 300, 'image/jpeg'),
+        'selfie' => UploadedFile::fake()->create('selfie.jpg', 300, 'image/jpeg'),
     ], $token)->assertStatus(422)->assertJsonValidationErrors('document_front');
 });
 
@@ -191,10 +189,10 @@ it('webhook approved transitions performer to active and verified and logs audit
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
     $payload = [
-        'session_id'   => $verification->provider_reference,
-        'status'       => 'Approved',
+        'session_id' => $verification->provider_reference,
+        'status' => 'Approved',
         'webhook_type' => 'status.updated',
-        'event_id'     => 'evt_' . uniqid(),
+        'event_id' => 'evt_'.uniqid(),
     ];
     $this->postJson('/api/v1/webhooks/kyc', $payload, kycV3Headers($payload));
 
@@ -225,11 +223,11 @@ it('webhook rejected keeps performer pending and logs audit', function () {
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
     $payload = [
-        'session_id'   => $verification->provider_reference,
-        'status'       => 'Declined',
+        'session_id' => $verification->provider_reference,
+        'status' => 'Declined',
         'webhook_type' => 'status.updated',
-        'event_id'     => 'evt_' . uniqid(),
-        'decision'     => ['reason' => 'Document unclear'],
+        'event_id' => 'evt_'.uniqid(),
+        'decision' => ['reason' => 'Document unclear'],
     ];
     $this->postJson('/api/v1/webhooks/kyc', $payload, kycV3Headers($payload));
 
@@ -255,13 +253,13 @@ it('webhook with invalid signature returns 401 and leaves verification unchanged
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
     $payload = [
-        'session_id'   => $verification->provider_reference,
-        'status'       => 'Approved',
+        'session_id' => $verification->provider_reference,
+        'status' => 'Approved',
         'webhook_type' => 'status.updated',
-        'event_id'     => 'evt_' . uniqid(),
+        'event_id' => 'evt_'.uniqid(),
     ];
     $this->postJson('/api/v1/webhooks/kyc', $payload, [
-        'X-Timestamp'    => (string) now()->getTimestamp(),
+        'X-Timestamp' => (string) now()->getTimestamp(),
         'X-Signature-V2' => 'wrong-signature',
     ])->assertStatus(401);
 
@@ -284,10 +282,10 @@ it('sending the same webhook twice processes only once (idempotent)', function (
 
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
     $payload = [
-        'session_id'   => $verification->provider_reference,
-        'status'       => 'Approved',
+        'session_id' => $verification->provider_reference,
+        'status' => 'Approved',
         'webhook_type' => 'status.updated',
-        'event_id'     => 'evt_idem_once',
+        'event_id' => 'evt_idem_once',
     ];
     $headers = kycV3Headers($payload);
 
@@ -397,10 +395,10 @@ it('performer appears in public catalog after KYC approval', function () {
     $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
 
     $payload = [
-        'session_id'   => $verification->provider_reference,
-        'status'       => 'Approved',
+        'session_id' => $verification->provider_reference,
+        'status' => 'Approved',
         'webhook_type' => 'status.updated',
-        'event_id'     => 'evt_' . uniqid(),
+        'event_id' => 'evt_'.uniqid(),
     ];
     $this->postJson('/api/v1/webhooks/kyc', $payload, kycV3Headers($payload));
 
@@ -413,16 +411,16 @@ it('performer appears in public catalog after KYC approval', function () {
 
 it('returns 422 when performer registers with invalid CPF', function () {
     $this->postJson('/api/v1/auth/register/performer', [
-        'name'         => 'Performer Test',
-        'email'        => 'perf@test.com',
-        'password'     => 'Secret123',
+        'name' => 'Performer Test',
+        'email' => 'perf@test.com',
+        'password' => 'Secret123',
         'password_confirmation' => 'Secret123',
-        'birthdate'    => now()->subYears(25)->format('Y-m-d'),
+        'birthdate' => now()->subYears(25)->format('Y-m-d'),
         'accept_terms' => true,
         'lgpd_consent' => true,
         'terms_version' => '1.0',
-        'stage_name'   => 'Test Stage',
-        'cpf'          => '000.000.000-00',
+        'stage_name' => 'Test Stage',
+        'cpf' => '000.000.000-00',
     ])->assertStatus(422)->assertJsonValidationErrors('cpf');
 });
 
