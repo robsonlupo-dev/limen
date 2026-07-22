@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
+use App\Http\Controllers\Web\Admin\PerformerTierController;
 use App\Http\Controllers\Web\Admin\ReportAdminController;
 use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\Auth\EmailVerificationController;
@@ -139,6 +140,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::patch('/reports/{report}', [ReportAdminController::class, 'update'])
         ->whereNumber('report')
         ->name('admin.reports.update');
+
+    // Grant de tier (verificada/select/maison). tier_granted_by é autoridade
+    // do servidor — os campos ficam fora do $fillable, gravação via forceFill.
+    Route::post('/performers/{profile}/tier', [PerformerTierController::class, 'store'])
+        ->whereNumber('profile')
+        ->name('admin.performers.tier.store');
 });
 
 // Authenticated area

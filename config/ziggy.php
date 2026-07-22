@@ -100,6 +100,9 @@ return [
         'subscribe.store',
         'subscribe.cancel',
 
+        // Admin back-office
+        'admin.performers.tier.store',
+
         // Chat (canal aberto pós-desbloqueio de Interesse)
         'chat.index',
         'chat.show',
