@@ -48,7 +48,8 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 
 ## Estado atual
 
-> **Base:** `main` em `229d852` (merge do PR #69) · **819 testes verdes**, 4291 asserts.
+> **Estado atual** (branch `feat/sprint6-final`, pós Sprint 6): **819 testes verdes**, 4291 asserts.
+> **Base original** (PR #69, `229d852`): 556 testes verdes, 2614 asserts.
 > O detalhe completo do que foi entregue vive em `docs/MASTER_HANDOFF_SPRINT6.md` —
 > esse é o doc a ler antes de pegar tarefa. Este resumo só situa.
 
