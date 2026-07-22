@@ -72,7 +72,7 @@
 | Jobs | 2 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 24 | `ls config/` |
-| Tag Git | `archive/qa-pre-prod-operation` (única) | `git tag` |
+| Tag Git | `v1.0-sprint6` (em `5070638`, fecho do Sprint 6; resta também `archive/qa-pre-prod-operation`) | `git tag` |
 
 **Branch atual:** `feat/sprint6-final`. Os últimos commits fecham o Sprint 6.
 Últimos commits relevantes (mais recente primeiro):
