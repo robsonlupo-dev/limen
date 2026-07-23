@@ -107,6 +107,55 @@ it('rejects an invalid tier with a validation error', function () {
     expect($profile->fresh()->tier)->toBeNull();
 });
 
+it('short-circuits a re-grant of the same tier keeping the original grant date', function () {
+    $admin = tierAdmin();
+    $profile = tierProfile();
+
+    // Grant original, ontem.
+    $this->travelTo(now()->subDay()->startOfSecond());
+    $this->actingAs($admin)
+        ->post(route('admin.performers.tier.store', $profile), ['tier' => 'select'])
+        ->assertSessionHas('success');
+    $this->travelBack();
+
+    $originalGrantedAt = $profile->fresh()->tier_granted_at;
+
+    // Re-grant do MESMO tier: flash 'info', nada regravado, nada auditado.
+    $this->actingAs($admin)
+        ->post(route('admin.performers.tier.store', $profile), ['tier' => 'select'])
+        ->assertRedirect()
+        ->assertSessionHas('info')
+        ->assertSessionMissing('success');
+
+    expect($profile->fresh()->tier_granted_at->equalTo($originalGrantedAt))->toBeTrue()
+        ->and(AuditLog::where('action', 'performer.tier_granted')->count())->toBe(1);
+});
+
+it('rolls back the grant when the audit write fails', function () {
+    $admin = tierAdmin();
+    $profile = tierProfile();
+
+    // Derruba o INSERT do audit no caminho real (Audit::log → AuditLog::create),
+    // dentro da transação do controller.
+    AuditLog::creating(function (): void {
+        throw new RuntimeException('audit store is down');
+    });
+
+    $this->withoutExceptionHandling();
+
+    expect(fn () => $this->actingAs($admin)
+        ->post(route('admin.performers.tier.store', $profile), ['tier' => 'maison'])
+    )->toThrow(RuntimeException::class);
+
+    // Rollback: mudança de privilégio sem trilha não pode persistir.
+    $profile->refresh();
+
+    expect($profile->tier)->toBeNull()
+        ->and($profile->tier_granted_at)->toBeNull()
+        ->and($profile->tier_granted_by)->toBeNull()
+        ->and(AuditLog::where('action', 'performer.tier_granted')->count())->toBe(0);
+});
+
 it('keeps tier fields out of mass assignment', function () {
     $profile = tierProfile();
 
