@@ -28,6 +28,7 @@
         .tag.approved { border-color: #3d7a55; color: #6fcf97; }
         .tag.rejected { border-color: #b3402f; color: #e5705e; }
         .tag.ip { border-color: #b3402f; color: #e5705e; margin-top: 4px; }
+        .tag.danger { border-color: #b3402f; background: #b3402f; color: #fff; font-weight: 600; margin-top: 4px; }
         form.act { display: inline; }
         button { font: inherit; font-size: 12px; padding: 5px 10px; margin-right: 4px; border-radius: 7px; border: 1px solid #262626; background: #141414; color: #cfc8bd; cursor: pointer; }
         button:hover { border-color: #C9A84C; color: #C9A84C; }
@@ -92,6 +93,10 @@
                                     @if ($v['shared_ip_others'] > 0)
                                         {{-- Sinal fraco sozinho (NAT, Wi-Fi compartilhado): sinaliza, nunca decide. --}}
                                         <span class="tag ip">IP de cadastro compartilhado com {{ $v['shared_ip_others'] }} outra{{ $v['shared_ip_others'] > 1 ? 's' : '' }}</span>
+                                    @endif
+                                    @if ($v['blacklist_hit'])
+                                        {{-- CPF/documento já associado a uma conta banida. Sinal, não veredito. --}}
+                                        <span class="tag danger">⚠️ CPF banido anteriormente</span>
                                     @endif
                                 </td>
                                 <td>

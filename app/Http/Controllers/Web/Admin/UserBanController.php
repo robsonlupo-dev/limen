@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\FraudBlacklist;
 use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
@@ -49,6 +50,13 @@ class UserBanController extends Controller
             // tokens Sanctum continuariam válidos até expirar. As sessões web
             // ficam de fora aqui (driver de sessão) — follow-up registrado.
             $user->tokens()->delete();
+
+            // Lista negra antifraude: grava o HMAC do CPF/documento (nunca a PII
+            // crua) para sinalizar recadastro. Na MESMA transação — se o registro
+            // falhar, o ban inteiro reverte, e a lista nunca fica dessincronizada
+            // de quem está banido. Devolve null quando a conta não tem
+            // verificação (nada a hashear); o ban segue.
+            FraudBlacklist::recordForBannedUser($user, $admin->id, $validated['reason']);
 
             Audit::log('user.banned', $user, [
                 'reason' => $validated['reason'],

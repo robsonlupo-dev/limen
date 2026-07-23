@@ -65,6 +65,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_confirmed_at' => 'datetime',
             'interests_opt_out' => 'boolean',
             'discrete_mode' => 'boolean',
+            // Sinal antifraude (fora do $fillable — set explícito no cadastro/KYC).
+            'blacklist_hit' => 'boolean',
             // Perks de privacidade Black/FC. NULL é significativo aqui ("nunca
             // escolheu" → vale o padrão do tier), e o cast preserva o null.
             'ghost_mode' => 'boolean',
