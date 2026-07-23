@@ -40,6 +40,33 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 - Cada sprint termina com: suíte de testes verde + passo de debug + revisão de segurança.
 - Antes de implementar algo sensível (cadastro, KYC, pagamento, payout), rodar o subagente de segurança.
 
+## Regra de Ouro — Git Flow
+
+**Nenhum commit direto na `main`.** O Limen lida com pagamentos e dados sensíveis;
+um erro na main derruba o site em produção.
+
+### Fluxo obrigatório para toda feature/fix do Sprint 7 em diante:
+
+1. Criar branch a partir da main:
+   `git checkout -b feat/sprint7-<descricao-curta>`
+
+2. Desenvolver e commitar na branch
+
+3. Abrir PR no GitHub apontando para main
+
+4. Aguardar aprovação do Robson antes de mergear
+
+5. Após aprovação: merge via GitHub (squash ou merge commit — nunca force push na main)
+
+### Nomenclatura de branches:
+- `feat/sprint7-<descricao>` — nova feature
+- `fix/sprint7-<descricao>` — correção de bug
+- `docs/<descricao>` — documentação apenas
+
+### Exceções permitidas (único caso):
+- Commits de documentação pura (ex: atualização de MASTER_HANDOFF_FINAL.md ou CLAUDE.md)
+  podem ir direto na main, desde que não toquem em código PHP, Vue ou configuração.
+
 ## Modelo de tokens (resumo — implementado na fundação)
 - Cliente compra pacotes de tokens via PIX.
 - Cliente gasta tokens (gorjeta, sessão privada).
