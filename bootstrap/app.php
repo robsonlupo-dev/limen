@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\BlockBannedUsers;
 use App\Http\Middleware\DocumentsAccepted;
 use App\Http\Middleware\EnsureActiveCircle;
 use App\Http\Middleware\EnsureUserHasRole;
@@ -41,6 +42,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [GeoBlock::class]);
         $middleware->web(append: [
             HandleInertiaRequests::class,
+            // Mata a sessão web viva de conta banida a cada request (o bloqueio
+            // no login só cobre o PRÓXIMO acesso). No grupo `web` inteiro, não
+            // por área: banido some do site todo, não só do dashboard. No-op
+            // para guest e para qualquer status que não seja `banned`.
+            BlockBannedUsers::class,
         ]);
         // UI-only flags written by the front-end in plaintext (age gate + intro).
         // They carry no secret, so they must be exempt from cookie encryption —

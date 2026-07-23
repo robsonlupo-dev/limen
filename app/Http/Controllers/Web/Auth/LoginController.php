@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Web\Auth;
 
+use App\Exceptions\AccountBlockedException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use App\Services\AuthService;
 use App\Services\TwoFactorService;
+use App\Support\Audit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -22,10 +24,25 @@ class LoginController extends Controller
 
     public function store(LoginRequest $request, AuthService $authService)
     {
-        $user = $authService->attemptLogin(
-            $request->validated('email'),
-            $request->validated('password'),
-        );
+        try {
+            $user = $authService->attemptLogin(
+                $request->validated('email'),
+                $request->validated('password'),
+            );
+        } catch (AccountBlockedException $e) {
+            // Conta suspensa/banida: mensagem específica, no mesmo campo `email`
+            // (o teste de bloqueio verifica erro nesse campo). Só chega aqui com
+            // a senha correta — ver AccountBlockedException. Auditado como na
+            // porta API, para a tentativa deixar trilha nos dois lados.
+            Audit::log('auth.login_blocked', metadata: [
+                'email' => $request->validated('email'),
+                'status' => $e->status,
+            ]);
+
+            throw ValidationException::withMessages([
+                'email' => [$e->userMessage()],
+            ]);
+        }
 
         if (! $user) {
             throw ValidationException::withMessages([

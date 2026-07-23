@@ -162,6 +162,25 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->activeCircle()?->slug;
     }
 
+    // ─── Estado da conta ─────────────────────────────────────────────────────
+    //
+    // `banned` é encerramento PERMANENTE por moderação — distinto de `suspended`
+    // (temporário, reversível). Nenhum dos dois consegue logar (AuthService::
+    // attemptLogin). `status` NÃO está no $fillable: a troca é ato de autoridade
+    // do servidor (forceFill no endpoint admin), nunca payload — mesma regra de
+    // `role` e `discrete_mode`.
+
+    /** @param  \Illuminate\Database\Eloquent\Builder<User>  $query */
+    public function scopeBanned($query)
+    {
+        return $query->where('status', 'banned');
+    }
+
+    public function isBanned(): bool
+    {
+        return $this->status === 'banned';
+    }
+
     // ─── Perks de privacidade (Black / Founders Circle) ──────────────────────
     //
     // Atalhos de leitura sobre o PrivacyPerkService, que é quem decide de fato
