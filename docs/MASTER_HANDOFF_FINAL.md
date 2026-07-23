@@ -1254,6 +1254,18 @@ conscientes, não bugs.
    disco periodicamente. Registrado em: c302560 (lockForUpdate KYC) —
    comportamento pré-existente, não regressão.
 
+10. **Divergência `category` ↔ `worlds` em performers legado.** Performers
+    criadas antes do Sprint 7 têm `worlds=null` e são servidas pelo fallback
+    `activeWorlds()=[category]`. Se uma dessas performers editar o perfil pelo
+    profile-edit (que só aceita `category`), `worlds` continua `null` — o
+    catálogo usa o fallback e tudo funciona. A pegadinha surge se no futuro
+    `worlds` for populado manualmente (ex: via tinker ou migration de backfill)
+    com valor diferente de `category`: o catálogo passa a usar `worlds` e a
+    performer some do mundo que `category` dizia. Correção futura: profile-edit
+    aceitar `worlds` (Sprint 8, já no backlog A.2). Até lá, **não backfill
+    `worlds` sem atualizar `category` junto.** Registrado em: 80ba300
+    (multi-worlds, Sprint 7).
+
 > **Disciplina de linguagem (transversal):** vários controles acima são
 > deliberadamente mais fracos do que parecem. **Não os descreva como mais fortes
 > do que são** em copy de produto, política de privacidade, contrato, pitch ou
