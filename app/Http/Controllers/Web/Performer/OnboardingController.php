@@ -8,6 +8,7 @@ use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
 use App\Models\AuditLog;
 use App\Models\IdentityVerification;
+use App\Services\Kyc\DuplicateKycSubmissionException;
 use App\Services\Kyc\KycSubmissionService;
 use App\Services\PerformerProfileService;
 use App\Support\Audit;
@@ -74,21 +75,17 @@ class OnboardingController extends Controller
      */
     public function submitKyc(SubmitKycRequest $request): RedirectResponse
     {
-        $user = $request->user();
-
-        if ($this->kycSubmission->hasActiveVerification($user)) {
-            return back()->withErrors([
-                'kyc' => 'Você já possui uma verificação ativa ou pendente.',
-            ]);
+        try {
+            $this->kycSubmission->submit(
+                $request->user(),
+                $request->only(['document_type', 'cpf', 'full_legal_name', 'date_of_birth']),
+                $request->file('document_front'),
+                $request->file('document_back'),
+                $request->file('selfie'),
+            );
+        } catch (DuplicateKycSubmissionException $e) {
+            return back()->withErrors(['kyc' => $e->getMessage()]);
         }
-
-        $this->kycSubmission->submit(
-            $user,
-            $request->only(['document_type', 'cpf', 'full_legal_name', 'date_of_birth']),
-            $request->file('document_front'),
-            $request->file('document_back'),
-            $request->file('selfie'),
-        );
 
         return back()->with('success', 'Verificação enviada com sucesso.');
     }

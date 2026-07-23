@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SubmitKycRequest;
+use App\Services\Kyc\DuplicateKycSubmissionException;
 use App\Services\Kyc\KycSubmissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,21 +15,19 @@ class KycController extends Controller
 
     public function submit(SubmitKycRequest $request): JsonResponse
     {
-        $user = $request->user();
-
-        if ($this->submission->hasActiveVerification($user)) {
-            return response()->json([
-                'message' => 'Você já possui uma verificação ativa ou pendente.',
-            ], 422);
+        try {
+            $this->submission->submit(
+                $request->user(),
+                $request->only(['document_type', 'cpf', 'full_legal_name', 'date_of_birth']),
+                $request->file('document_front'),
+                $request->file('document_back'),
+                $request->file('selfie'),
+            );
+        } catch (DuplicateKycSubmissionException $e) {
+            // 409, não 422: não é payload malformado — é conflito com o estado
+            // atual (verificação ativa já existe).
+            return response()->json(['message' => $e->getMessage()], 409);
         }
-
-        $this->submission->submit(
-            $user,
-            $request->only(['document_type', 'cpf', 'full_legal_name', 'date_of_birth']),
-            $request->file('document_front'),
-            $request->file('document_back'),
-            $request->file('selfie'),
-        );
 
         return response()->json([
             'status' => 'pending',

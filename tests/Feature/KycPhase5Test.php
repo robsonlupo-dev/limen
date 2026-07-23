@@ -433,5 +433,6 @@ it('performer cannot submit KYC twice while still pending', function () {
     [$user, $token] = makePendingPerformer();
 
     postKyc($this, validKycPayload(), kycFiles(), $token)->assertStatus(201);
-    postKyc($this, validKycPayload(), kycFiles(), $token)->assertStatus(422);
+    // 409, não 422: duplicata é conflito de estado, não payload inválido.
+    postKyc($this, validKycPayload(), kycFiles(), $token)->assertStatus(409);
 });
