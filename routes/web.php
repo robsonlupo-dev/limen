@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
+use App\Http\Controllers\Web\Admin\KycAdminController;
 use App\Http\Controllers\Web\Admin\PerformerTierController;
 use App\Http\Controllers\Web\Admin\ReportAdminController;
 use App\Http\Controllers\Web\Admin\WaitlistAdminController;
@@ -146,6 +147,18 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/performers/{profile}/tier', [PerformerTierController::class, 'store'])
         ->whereNumber('profile')
         ->name('admin.performers.tier.store');
+
+    // Fila de aprovação de KYC. A mutação delega a KycService (mesma fonte do
+    // webhook Didit e da API admin) — aqui é só a porta web. Os nomes levam o
+    // sufixo .panel porque admin.kyc.index/approve/reject já são da API
+    // (routes/api.php) — reusar o nome faria route() apontar para o JSON.
+    Route::get('/kyc', [KycAdminController::class, 'index'])->name('admin.kyc.panel');
+    Route::post('/kyc/{verification}/approve', [KycAdminController::class, 'approve'])
+        ->whereNumber('verification')
+        ->name('admin.kyc.panel.approve');
+    Route::post('/kyc/{verification}/reject', [KycAdminController::class, 'reject'])
+        ->whereNumber('verification')
+        ->name('admin.kyc.panel.reject');
 });
 
 // Authenticated area

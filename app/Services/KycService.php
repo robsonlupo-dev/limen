@@ -32,7 +32,11 @@ class KycService
                 'reviewed_by' => $reviewedBy,
             ]);
 
-            SendKycApprovedEmail::dispatch($user);
+            // afterCommit: o dispatch acontece dentro da transação (que pode
+            // estar aninhada na do chamador, como no painel admin) — sem isso
+            // um worker rápido leria o performer ainda 'pending', ou o e-mail
+            // sairia mesmo com rollback da transação externa.
+            SendKycApprovedEmail::dispatch($user)->afterCommit();
         });
     }
 
@@ -50,7 +54,8 @@ class KycService
                 'reviewed_by' => $reviewedBy,
             ]);
 
-            SendKycRejectedEmail::dispatch($verification->user, $reason);
+            // Mesma razão do afterCommit do approve.
+            SendKycRejectedEmail::dispatch($verification->user, $reason)->afterCommit();
         });
     }
 }
