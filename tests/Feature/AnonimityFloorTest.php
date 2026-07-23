@@ -738,15 +738,28 @@ it('rotula a contagem de seguidores por faixa', function (int $count, string $ex
 
 it('o catalogo publico nunca expoe o numero exato abaixo de 500', function () {
     $profile = floorPerformer();
-    $profile->forceFill(['followers_count' => 137])->save();
+    $profile->forceFill([
+        'followers_count' => 137,
+        // Identidade fixa: floorPerformer() sorteia slug/stage_name com
+        // Str::random (alfanumérico), que pode conter '137' e derrubar o
+        // assert abaixo sem vazamento nenhum.
+        'stage_name' => 'Perf Piso',
+        'slug' => 'perf-piso-catalogo',
+    ])->save();
 
     $response = $this->get(route('performers.public'));
 
     $response->assertOk();
-    // Nem no payload do Inertia, nem em campo que a UI não usa.
-    expect($response->getContent())->toContain('100+');
-    expect($response->getContent())->not->toContain('"followers_count"');
-    expect($response->getContent())->not->toContain('137');
+    // O alvo são as PROPS do Inertia — o que a UI (e um curioso no devtools)
+    // enxerga. O HTML completo carrega strings aleatórias (hash de versão do
+    // Inertia = md5 do manifest do Vite, token CSRF) que podem conter '137'
+    // por sorteio: foi o que quebrou o CI no PR do Sprint 7, que mudou o
+    // bundle e re-rolou o hash. Nem no payload, nem em campo que a UI não usa.
+    $props = json_encode($response->viewData('page')['props']);
+
+    expect($props)->toContain('100+');
+    expect($props)->not->toContain('"followers_count"');
+    expect($props)->not->toContain('137');
 });
 
 it('o perfil publico da performer mostra a faixa', function () {
