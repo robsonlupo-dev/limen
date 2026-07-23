@@ -58,9 +58,11 @@ it('regenerates the slug when the stage name changes so the old name leaves the 
     $profile->refresh();
     expect($profile->stage_name)->toBe('Bianca');
     expect($profile->slug)->not->toBe($oldSlug);
-    expect($profile->slug)->toStartWith('bianca-');
-    // O nome antigo não pode sobreviver em lugar nenhum da URL pública.
-    expect($profile->slug)->not->toContain('ana');
+    // Estrutura exata: nome novo + sufixo aleatório de 4 chars, e nada mais.
+    // Isto prova que o nome antigo não sobrevive na parte significativa do slug
+    // SEM depender de `->not->toContain('ana')`, que era frágil — o sufixo
+    // Str::random podia conter 'ana' por acaso (mesma classe do '137'/'42').
+    expect($profile->slug)->toMatch('/^bianca-[a-z0-9]{4}$/');
 });
 
 it('keeps the slug when only the bio changes', function () {
