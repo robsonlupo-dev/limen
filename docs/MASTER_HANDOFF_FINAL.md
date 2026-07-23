@@ -58,9 +58,9 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **819 testes verdes, 4291 asserts** | `php artisan test` (155 s) |
-| Migrations | **60** | `ls database/migrations/` |
-| Rotas registradas | **125** | `php artisan route:list --json` |
+| Suíte de testes | **859 testes verdes, 4547 asserts** | `php artisan test` (~145 s) |
+| Migrations | **62** | `php artisan migrate:status` (linhas *Ran*) |
+| Rotas registradas | **134** | `php artisan route:list \| wc -l` |
 | `Route::` em `routes/web.php` | 90 | `grep` |
 | Rotas HTTP em `routes/api.php` | 39 | `grep` |
 | Services | 24 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
@@ -72,9 +72,9 @@
 | Jobs | 2 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 24 | `ls config/` |
-| Tag Git | `v1.0-sprint6` (em `5070638`, fecho do Sprint 6; resta também `archive/qa-pre-prod-operation`) | `git tag` |
+| Tag Git | `v1.0-sprint7` (em `80ba300`, fecho do Sprint 7; restam `v1.0-sprint6` em `5070638` e `archive/qa-pre-prod-operation`) | `git tag` |
 
-**Branch atual:** `feat/sprint6-final`. Os últimos commits fecham o Sprint 6.
+**Branch atual:** `main` (em `80ba300`, com os PRs #80/#81/#82 do Sprint 7 mergeados). Os últimos commits fecham o Sprint 7.
 Últimos commits relevantes (mais recente primeiro):
 
 ```
@@ -124,6 +124,30 @@ bce263f feat: derive member pseudonyms per performer via FanAlias
 > existem porque **a superfície que eles protegeriam ainda não foi construída**.
 > Isso é uma janela: moderação e verificação de conteúdo devem ser construídas
 > **antes** do primeiro upload, não depois. Ver `docs/LEGAL_GAP_ANALYSIS.md`.
+
+---
+
+## Sprint 7 — O que foi entregue
+
+Fechado na tag `v1.0-sprint7` (`80ba300`). Todos os PRs seguiram a Regra de
+Ouro do Git Flow (branch + PR para `main`, sem commit direto). Suíte passou de
+819 → **859 testes** verdes.
+
+| Entrega | Commit/PR | Seção deste doc |
+|---|---|---|
+| Migration de **tier** (`verificada`/`select`/`maison`) em `performer_profiles` | PR #77 (Sprint 6→7) | §12, §19 |
+| Endpoint admin de **grant de tier** — `forceFill` + `Audit::log` + `DB::transaction`, campos `tier*` fora do `$fillable` | `admin.performers.tier.store` | §12.4 |
+| **KYC no onboarding web** — `KycSubmissionService` como fonte única (mesma da API e do webhook Didit), `lockForUpdate` + `DuplicateKycSubmissionException` na race do submit | Sprint 7 | §8 |
+| **Onboarding UX** — wizard de 5 passos, `KycGate`, `KycPendingBanner` no dashboard, empty states distintos (piso vs. lista vazia real) | PR #80 | §8 |
+| **Painel admin de KYC** (`/admin/kyc`) — fila com filtro allowlist, aprovar/rejeitar sob `lockForUpdate` + guard de status, delegando ao `KycService`; PII do documento nunca chega à view | PR #81 | §8 |
+| **Múltiplos mundos por performer** — coluna `worlds` (json), `activeWorlds()` (fallback para `category`), `scopeInWorld()` (`whereJsonContains` + fallback), step de mundo virou checkbox múltiplo; `category` derivada no servidor de `worlds[0]` | PR #82 | §5, §25 |
+| **Fix flaky** `AnonimityFloorTest` — assert do "nunca expõe o número exato" passou a mirar as **props do Inertia**, não o HTML inteiro (hash de versão do Vite / CSRF / slug aleatório podiam conter o número por sorteio) | PR #80 (`a70a56f`) | §13 |
+| **Git Flow obrigatório** (branch + PR a partir do Sprint 7) documentado no `CLAUDE.md` — exceção só para doc puro | `dd5cb03` | — |
+
+**Segurança:** os itens sensíveis (grant de tier, painel de KYC, cadastro
+multi-mundos) passaram pelo subagente de revisão antes do merge. Achado aplicado:
+os e-mails de aprovação/rejeição de KYC passaram a `->afterCommit()` (o dispatch
+dentro da transação aninhada podia vazar e-mail num rollback).
 
 ---
 
@@ -301,7 +325,7 @@ reconstruir o que a tela esconde. Sempre consulte a fonte única.
 | `WaitlistEntry` / `WaitlistReferral` / `WaitlistEmailLog` | waitlist | double opt-in, drip, Founding Members |
 | `PaymentEvent` | webhook Asaas | ver §7 |
 
-### 5.2 Migrations (60) — linha do tempo
+### 5.2 Migrations (62) — linha do tempo
 
 As três primeiras (`0001_01_01_*`) são o esqueleto do Laravel (users, cache,
 jobs). A partir de `2026_06_24` começa o Limen. Marcos:
@@ -326,6 +350,8 @@ jobs). A partir de `2026_06_24` começa o Limen. Marcos:
   `document_acceptances`, `registration_ip_hash` em users, `reports`,
   `deletion_columns` em users, `deletion_logs`, `profile_visits`,
   `privacy_perk_columns` em users, `two_factor_columns` em users.
+- **Sprint 7 (jul):** `add_tier_to_performer_profiles`,
+  `add_worlds_to_performer_profiles` (json, multi-mundos).
 
 > **`stage_name` é unique** (`2026_07_15_000001`) — foi bug de branch parada que
 > regrediu isso antes; não remover o índice.
@@ -1138,7 +1164,28 @@ CHAT_FILTER_ENABLED=true · CHAT_FILTER_AUDIT_DEDUP_MINUTES=10
       + preload; tornar condicional no código).
 - [ ] **Subir o Reverb** (chat em tempo real hoje em driver `log`).
 
-### A.2 Sprint 7 (previsto)
+### A.2 Sprint 8 (previsto)
+
+Novos para o Sprint 8:
+
+- [ ] **KYC Nível 2 para membros** — documento + selfie via Didit, fila de
+      revisão de 48h. Hoje o membro só passa por `cpf_dob` (§9); é o próximo
+      nível de verificação de idade/identidade do lado do consumidor.
+- [ ] **Status `banned` (permanente)** separado de `suspended` (temporário) —
+      hoje há só `active`/`pending`/`suspended`; expulsão definitiva e suspensão
+      reversível não devem colidir no mesmo estado.
+- [ ] **Lista negra antifraude** — hash de CPF + hash de documento, para barrar
+      recadastro de conta banida sem guardar a PII crua (mesma disciplina do
+      `CpfHash`/`ClientFingerprint`).
+- [ ] **Editar `worlds` pós-cadastro no profile-edit** — o Sprint 7 entregou
+      multi-mundos só no cadastro; o `UpdatePerformerProfileRequest` ainda só
+      aceita `category`. Sem isso, `category` e `worlds` podem divergir num
+      rename de mundo (§5, pegadinha registrada).
+- [ ] **Soft descriptor Asaas** (nome na fatura do cartão/PIX) — depende do CNPJ.
+- [ ] **KYC Didit em produção** — sair do driver `fake`, confirmar o encoding do
+      `x-signature` do webhook v3 contra o ambiente real.
+
+Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 
 - [ ] **Age verification contra base oficial** (Serpro/DataValid) — gravar
       `method = 'serpro'` na mesma tabela para distinguir níveis.
