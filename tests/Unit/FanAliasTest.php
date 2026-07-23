@@ -86,7 +86,16 @@ it('o handle é opaco e mais largo que o alias de exibição', function () {
     // 16 hex = 64 bits: adivinhar não é viável, e é isso que permite trocar o
     // member_id do POST por ele sem reabrir a enumeração.
     expect($handle)->toHaveLength(16)->toMatch('/^[0-9a-f]{16}$/');
-    expect($handle)->not->toContain('42');
+
+    // Opacidade: o handle não pode SER nem começar com o id cru (nem em decimal
+    // nem em hex). `->not->toContain('42')` era frágil — '42' aparece por acaso
+    // como substring de qualquer digest hex (mesma classe do falso positivo do
+    // '137' no AnonimityFloorTest). A garantia real é não igualar/derivar do id.
+    expect($handle)->not->toBe((string) 42)          // member_id decimal
+        ->not->toBe(dechex(42))                       // member_id hex ('2a')
+        ->not->toBe((string) 7)                       // performer_id decimal
+        ->not->toStartWith(dechex(42))                // não deriva do id em hex
+        ->not->toStartWith((string) 42);
 });
 
 it('handles não colidem entre pares distintos', function () {
