@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use App\Exceptions\AccountBlockedException;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\TwoFactorChallenge;
 use App\Http\Requests\Auth\LoginRequest;
@@ -20,10 +21,23 @@ class LoginController extends Controller
 
     public function __invoke(LoginRequest $request): JsonResponse
     {
-        $user = $this->authService->attemptLogin(
-            $request->validated('email'),
-            $request->validated('password'),
-        );
+        try {
+            $user = $this->authService->attemptLogin(
+                $request->validated('email'),
+                $request->validated('password'),
+            );
+        } catch (AccountBlockedException $e) {
+            // Credenciais OK, mas moderação barra. 401 (não 403) para manter o
+            // contrato do endpoint — o corpo carrega a mensagem específica.
+            Audit::log('auth.login_blocked', metadata: [
+                'email' => $request->validated('email'),
+                'status' => $e->status,
+            ]);
+
+            return response()->json([
+                'message' => $e->userMessage(),
+            ], 401);
+        }
 
         if (! $user) {
             Audit::log('auth.login_failed', metadata: ['email' => $request->validated('email')]);

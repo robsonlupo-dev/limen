@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AccountBlockedException;
 use App\Models\AgeVerification;
 use App\Models\IdentityVerification;
 use App\Models\TokenWallet;
@@ -118,8 +119,13 @@ class AuthService
             return null;
         }
 
+        // Credenciais OK, mas moderação barra. Distinto do `null` acima (senha
+        // errada): a exceção carrega o status para a porta escolher a mensagem —
+        // e por só ser lançada DEPOIS do Hash::check, não vaza status para quem
+        // não tem a senha. O bloqueio continua vivendo aqui, no service, não no
+        // controller: nenhuma porta de auth loga sem passar por este ponto.
         if ($user->status === 'suspended' || $user->status === 'banned') {
-            return null;
+            throw new AccountBlockedException($user->status);
         }
 
         return $user;

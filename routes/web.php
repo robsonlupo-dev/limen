@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionContro
 use App\Http\Controllers\Web\Admin\KycAdminController;
 use App\Http\Controllers\Web\Admin\PerformerTierController;
 use App\Http\Controllers\Web\Admin\ReportAdminController;
+use App\Http\Controllers\Web\Admin\UserBanController;
 use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\Auth\EmailVerificationController;
 use App\Http\Controllers\Web\Auth\ForgotPasswordController;
@@ -159,6 +160,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/kyc/{verification}/reject', [KycAdminController::class, 'reject'])
         ->whereNumber('verification')
         ->name('admin.kyc.panel.reject');
+
+    // Ban permanente de conta (moderação). `status='banned'` via forceFill —
+    // fora do $fillable, autoridade do servidor. Ação admin server-side; NÃO
+    // entra no allowlist do Ziggy (config/ziggy.php) — não é usada no JS.
+    Route::post('/users/{user}/ban', [UserBanController::class, 'ban'])
+        ->whereNumber('user')
+        ->name('admin.users.ban');
 });
 
 // Authenticated area
