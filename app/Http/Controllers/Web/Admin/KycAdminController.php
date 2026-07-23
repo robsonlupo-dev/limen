@@ -72,6 +72,7 @@ class KycAdminController extends Controller
             ],
             'reviewer' => $v->reviewer ? ['name' => $v->reviewer->name] : null,
             'shared_ip_others' => $sharedIpCounts[$v->user?->id] ?? 0,
+            'blacklist_hit' => (bool) $v->user?->blacklist_hit,
             'actionable' => in_array($v->status, self::ACTIONABLE, true),
         ]);
 

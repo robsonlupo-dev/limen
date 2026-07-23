@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\AccountBlockedException;
 use App\Models\AgeVerification;
+use App\Models\FraudBlacklist;
 use App\Models\IdentityVerification;
 use App\Models\TokenWallet;
 use App\Models\User;
@@ -33,6 +34,14 @@ class AuthService
             // preferred_world is intentionally kept out of $fillable and set
             // explicitly here to avoid mass-assignment of privileged fields.
             $user->preferred_world = $data['preferred_world'] ?? null;
+
+            // Lista negra antifraude: se o CPF já esteve associado a uma conta
+            // banida, marca a conta nova (SINAL, não bloqueio — mesma disciplina
+            // do shared-IP flag; a fila humana decide). O hash morre aqui, como
+            // no age_verification abaixo. `blacklist_hit` fica FORA do $fillable:
+            // atribuição explícita, nunca payload.
+            $cpfHash = isset($data['cpf']) ? CpfHash::make($data['cpf']) : null;
+            $user->blacklist_hit = $cpfHash !== null && FraudBlacklist::hasCpfHash($cpfHash);
             $user->save();
 
             // NOTA: `users.age_verified_at` NÃO é preenchido aqui, embora seja
@@ -45,8 +54,9 @@ class AuthService
             AgeVerification::create([
                 'user_id' => $user->id,
                 'method' => AgeVerification::METHOD_CPF_DOB,
-                // O CPF morre aqui: entra como argumento, sai como digest.
-                'cpf_hmac' => isset($data['cpf']) ? CpfHash::make($data['cpf']) : null,
+                // O CPF morre aqui: entra como argumento, sai como digest (o
+                // mesmo já computado acima para a checagem da lista negra).
+                'cpf_hmac' => $cpfHash,
                 'verified_at' => now(),
             ]);
 

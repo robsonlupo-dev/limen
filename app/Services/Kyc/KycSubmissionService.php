@@ -2,9 +2,12 @@
 
 namespace App\Services\Kyc;
 
+use App\Models\FraudBlacklist;
 use App\Models\IdentityVerification;
 use App\Models\User;
 use App\Support\Audit;
+use App\Support\CpfHash;
+use App\Support\DocumentHash;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -84,6 +87,17 @@ class KycSubmissionService
                 'provider_status' => $providerResponse['status'] ?? 'pending',
                 'status' => 'pending',
             ]);
+
+            // Lista negra antifraude: a porta onde o CPF do performer aparece é o
+            // KYC (no cadastro ele não coleta CPF — é o membro que coleta). Se
+            // o CPF ou o documento já esteve numa conta banida, marca a conta
+            // para a fila de KYC exibir o alerta. SINAL, não bloqueio: a decisão
+            // é do admin que aprova. `blacklist_hit` fica fora do $fillable.
+            if (FraudBlacklist::hasCpfHash(CpfHash::make($cpf))
+                || FraudBlacklist::hasDocumentHash(DocumentHash::make($cpf))) {
+                $user->blacklist_hit = true;
+                $user->save();
+            }
 
             Audit::log('kyc.submitted', $verification);
 
