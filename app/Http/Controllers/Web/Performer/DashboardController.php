@@ -12,8 +12,8 @@ use App\Models\User;
 use App\Services\FollowerVisibilityService;
 use App\Services\ProfileVisitService;
 use App\Support\FanAlias;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,12 +21,22 @@ class DashboardController extends Controller
 {
     public function __construct(private ProfileVisitService $visits) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
-        Gate::authorize('performer-active');
-
         $user = $request->user();
+
+        // Sprint 7: pendente (KYC em curso) também entra — é quem o
+        // KycPendingBanner existe para avisar. Suspensa segue 403; o corte de
+        // role já veio do middleware `role:performer` da rota.
+        abort_unless(in_array($user->status, ['active', 'pending'], true), 403);
+
         $profile = $user->performerProfile;
+
+        // Conta criada mas onboarding nunca concluído (sem perfil): não há
+        // painel para montar — devolve ao onboarding em vez de estourar.
+        if (! $profile) {
+            return redirect()->route('performer.onboarding');
+        }
         $visitorPanel = $this->visits->panelFor($profile);
 
         return Inertia::render('Performer/Dashboard', [
