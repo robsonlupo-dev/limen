@@ -267,6 +267,11 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::post('/performer/onboarding/foto', [OnboardingController::class, 'avatar'])
                 ->middleware('throttle:20,1')
                 ->name('performer.onboarding.avatar');
+            // Porta web do envio de KYC (a API Sanctum tem a dela em api.php);
+            // ambas delegam ao KycSubmissionService.
+            Route::post('/performer/onboarding/kyc', [OnboardingController::class, 'submitKyc'])
+                ->middleware('throttle:10,1')
+                ->name('performer.onboarding.kyc');
         });
 
         // Edição de perfil da performer já ativa. O onboarding continua sendo o

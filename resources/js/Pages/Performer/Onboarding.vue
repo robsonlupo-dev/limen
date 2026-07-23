@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useForm, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Input from '@/Components/Input.vue'
@@ -8,6 +8,7 @@ import Button from '@/Components/Button.vue'
 const props = defineProps({
     profile: { type: Object, default: null },
     kycStatus: { type: String, default: 'not_submitted' },
+    kycRejectionReason: { type: String, default: null },
 })
 
 const step = ref(1)
@@ -42,6 +43,52 @@ const profileForm = useForm({
 
 function saveProfile() {
     profileForm.post(route('performer.onboarding.profile'))
+}
+
+// ─── KYC (Step 3) ───────────────────────────────────────────────────────────
+// Estados do backend: not_submitted | pending | review | approved | rejected.
+// Form aparece só antes do envio ou após rejeição; pending/review é "aguarde".
+const showKycForm = computed(() => ['not_submitted', 'rejected'].includes(props.kycStatus))
+const kycInProgress = computed(() => ['pending', 'review'].includes(props.kycStatus))
+
+const documentTypes = [
+    { value: 'rg', label: 'RG' },
+    { value: 'cnh', label: 'CNH' },
+    { value: 'cpf', label: 'CPF' },
+]
+
+const kycForm = useForm({
+    document_type: 'rg',
+    cpf: '',
+    full_legal_name: '',
+    date_of_birth: '',
+    document_front: null,
+    document_back: null,
+    selfie: null,
+})
+
+const kycFileFields = [
+    { field: 'document_front', label: 'Frente do documento', required: true },
+    { field: 'document_back', label: 'Verso do documento (opcional)', required: false },
+    { field: 'selfie', label: 'Selfie segurando o documento', required: true },
+]
+
+const previews = ref({ document_front: null, document_back: null, selfie: null })
+
+function pickKycFile(field, e) {
+    const file = e.target.files[0] ?? null
+    kycForm[field] = file
+    if (previews.value[field]) URL.revokeObjectURL(previews.value[field])
+    previews.value[field] = file ? URL.createObjectURL(file) : null
+}
+
+function submitKyc() {
+    // No sucesso o back() do Inertia re-renderiza a página com props frescas do
+    // servidor — kycStatus já volta 'pending', sem estado local para manter.
+    kycForm.post(route('performer.onboarding.kyc'), {
+        forceFormData: true,
+        preserveScroll: true,
+    })
 }
 </script>
 
@@ -160,13 +207,111 @@ function saveProfile() {
                     </span>
                 </div>
 
-                <div class="rounded-xl border border-gold/30 bg-gold/5 p-4 text-sm text-muted">
-                    Sua verificação está sendo processada. Você poderá acompanhar o status no seu painel.
+                <!-- Aprovada -->
+                <div v-if="kycStatus === 'approved'" class="rounded-xl border border-success/30 bg-success/5 p-6 text-center space-y-3">
+                    <div class="text-4xl">✅</div>
+                    <p class="text-sm text-cream">Identidade verificada com sucesso.</p>
+                    <Link :href="route('catalog')" class="inline-block">
+                        <Button variant="primary">Explorar o portal</Button>
+                    </Link>
                 </div>
 
-                <div class="flex justify-between">
+                <!-- Enviada, aguardando análise -->
+                <div v-else-if="kycInProgress" class="rounded-xl border border-gold/30 bg-gold/5 p-6 text-center space-y-3">
+                    <div class="text-4xl">🕐</div>
+                    <p class="text-sm text-muted">
+                        Documentos recebidos — sua verificação está em andamento.
+                        Você receberá um e-mail quando concluída.
+                    </p>
+                </div>
+
+                <!-- Não enviada ou rejeitada: formulário -->
+                <form v-else class="space-y-6" @submit.prevent="submitKyc">
+                    <div
+                        v-if="kycStatus === 'rejected'"
+                        class="rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm"
+                    >
+                        <p class="font-medium text-danger">Sua verificação anterior foi rejeitada.</p>
+                        <p v-if="kycRejectionReason" class="text-muted mt-1">Motivo: {{ kycRejectionReason }}</p>
+                        <p class="text-muted mt-1">Corrija os documentos e envie novamente.</p>
+                    </div>
+
+                    <p v-if="kycForm.errors.kyc" class="rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
+                        {{ kycForm.errors.kyc }}
+                    </p>
+
+                    <div class="flex flex-col gap-1.5">
+                        <label for="document_type" class="text-sm font-medium text-cream">Tipo de documento</label>
+                        <select
+                            id="document_type"
+                            v-model="kycForm.document_type"
+                            class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                        >
+                            <option v-for="dt in documentTypes" :key="dt.value" :value="dt.value">{{ dt.label }}</option>
+                        </select>
+                        <p v-if="kycForm.errors.document_type" class="text-xs text-danger">{{ kycForm.errors.document_type }}</p>
+                    </div>
+
+                    <Input
+                        id="full_legal_name"
+                        v-model="kycForm.full_legal_name"
+                        label="Nome completo (como no documento)"
+                        :required="true"
+                        :error="kycForm.errors.full_legal_name"
+                    />
+
+                    <Input
+                        id="cpf"
+                        v-model="kycForm.cpf"
+                        label="CPF"
+                        placeholder="000.000.000-00"
+                        :required="true"
+                        :error="kycForm.errors.cpf"
+                    />
+
+                    <Input
+                        id="date_of_birth"
+                        v-model="kycForm.date_of_birth"
+                        label="Data de nascimento"
+                        type="date"
+                        :required="true"
+                        :error="kycForm.errors.date_of_birth"
+                    />
+
+                    <div v-for="{ field, label, required } in kycFileFields" :key="field" class="flex flex-col gap-1.5">
+                        <span class="text-sm font-medium text-cream">{{ label }}</span>
+                        <div class="flex items-center gap-4">
+                            <div class="h-20 w-28 rounded-lg overflow-hidden bg-surface-2 border border-frame flex items-center justify-center shrink-0">
+                                <img v-if="previews[field]" :src="previews[field]" :alt="label" class="h-full w-full object-cover" />
+                                <span v-else class="text-2xl">📄</span>
+                            </div>
+                            <label class="cursor-pointer">
+                                <span class="inline-flex items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
+                                    {{ kycForm[field] ? 'Trocar arquivo' : 'Escolher arquivo' }}
+                                </span>
+                                <input
+                                    type="file"
+                                    accept="image/jpeg,image/png"
+                                    :required="required && !kycForm[field]"
+                                    class="hidden"
+                                    @change="pickKycFile(field, $event)"
+                                />
+                            </label>
+                        </div>
+                        <p v-if="kycForm.errors[field]" class="text-xs text-danger">{{ kycForm.errors[field] }}</p>
+                    </div>
+
+                    <div class="flex justify-between">
+                        <Button variant="ghost" type="button" @click="step = 2">Voltar</Button>
+                        <Button variant="primary" type="submit" :loading="kycForm.processing">
+                            Enviar documentos para verificação
+                        </Button>
+                    </div>
+                </form>
+
+                <div v-if="!showKycForm" class="flex justify-between">
                     <Button variant="ghost" @click="step = 2">Voltar</Button>
-                    <Link :href="route('catalog')">
+                    <Link v-if="kycStatus !== 'approved'" :href="route('catalog')">
                         <Button variant="primary">Explorar o portal</Button>
                     </Link>
                 </div>

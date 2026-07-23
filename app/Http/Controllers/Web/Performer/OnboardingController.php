@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Web\Performer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SubmitKycRequest;
 use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
+use App\Models\AuditLog;
+use App\Models\IdentityVerification;
+use App\Services\Kyc\KycSubmissionService;
 use App\Services\PerformerProfileService;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
@@ -15,7 +19,10 @@ use Inertia\Response;
 
 class OnboardingController extends Controller
 {
-    public function __construct(private PerformerProfileService $profileService) {}
+    public function __construct(
+        private PerformerProfileService $profileService,
+        private KycSubmissionService $kycSubmission,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -36,7 +43,54 @@ class OnboardingController extends Controller
                     : null,
             ] : null,
             'kycStatus' => $verification?->status ?? 'not_submitted',
+            'kycRejectionReason' => $this->rejectionReasonFor($verification),
         ]);
+    }
+
+    /**
+     * A razão da rejeição não é coluna de identity_verifications: vive no
+     * metadata do audit `kyc.rejected` (KycService::reject). Lê de lá — criar
+     * uma segunda cópia da razão só para a tela dessincronizaria as duas.
+     */
+    private function rejectionReasonFor(?IdentityVerification $verification): ?string
+    {
+        if ($verification?->status !== 'rejected') {
+            return null;
+        }
+
+        $metadata = AuditLog::where('action', 'kyc.rejected')
+            ->where('subject_type', $verification->getMorphClass())
+            ->where('subject_id', $verification->getKey())
+            ->latest('id')
+            ->value('metadata');
+
+        return $metadata['reason'] ?? null;
+    }
+
+    /**
+     * Porta WEB do envio de KYC (o front Inertia fala com sessão + CSRF; a rota
+     * API `performer.kyc.submit` é Sanctum e não enxerga a sessão). As duas
+     * portas delegam ao mesmo KycSubmissionService.
+     */
+    public function submitKyc(SubmitKycRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($this->kycSubmission->hasActiveVerification($user)) {
+            return back()->withErrors([
+                'kyc' => 'Você já possui uma verificação ativa ou pendente.',
+            ]);
+        }
+
+        $this->kycSubmission->submit(
+            $user,
+            $request->only(['document_type', 'cpf', 'full_legal_name', 'date_of_birth']),
+            $request->file('document_front'),
+            $request->file('document_back'),
+            $request->file('selfie'),
+        );
+
+        return back()->with('success', 'Verificação enviada com sucesso.');
     }
 
     public function updateProfile(UpdatePerformerProfileRequest $request): RedirectResponse

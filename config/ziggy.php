@@ -57,6 +57,7 @@ return [
         'performer.onboarding',
         'performer.onboarding.profile',
         'performer.onboarding.avatar',
+        'performer.onboarding.kyc',
         'performer.documents',
         'performer.documents.accept',
         'performer.payouts.index',
