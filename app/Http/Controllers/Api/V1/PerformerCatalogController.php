@@ -14,8 +14,11 @@ class PerformerCatalogController extends Controller
     {
         $query = PerformerProfile::query()->publicCatalog();
 
-        if ($request->filled('category')) {
-            $query->where('category', $request->input('category'));
+        // Multi-worlds: matches the `worlds` list with a category fallback.
+        // Allowlist antes da query (paridade com o catálogo web) — mundo
+        // desconhecido simplesmente não filtra, em vez de vazar via query crua.
+        if ($request->filled('category') && in_array($request->input('category'), PerformerProfile::WORLDS, true)) {
+            $query->inWorld($request->input('category'));
         }
 
         if ($request->filled('work_mode')) {

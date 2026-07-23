@@ -89,6 +89,11 @@ class AuthService
             $user->performerProfile()->create([
                 'stage_name' => $data['stage_name'],
                 'category' => $data['category'] ?? 'mulheres',
+                // Multi-worlds source of truth. Null when the caller sent only
+                // `category` (legacy path) — activeWorlds() falls back to it.
+                'worlds' => ! empty($data['worlds'])
+                    ? array_values(array_unique($data['worlds']))
+                    : null,
             ]);
 
             IdentityVerification::create([
