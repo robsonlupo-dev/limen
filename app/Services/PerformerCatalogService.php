@@ -26,7 +26,9 @@ class PerformerCatalogService
             ->whereIn('category', self::PUBLIC_WORLDS);
 
         if ($world !== null && in_array($world, self::PUBLIC_WORLDS, true)) {
-            $query->where('category', $world);
+            // Multi-worlds: matches the `worlds` list, with a category fallback
+            // for rows not yet migrated. See PerformerProfile::scopeInWorld.
+            $query->inWorld($world);
         }
 
         return $query
@@ -52,8 +54,11 @@ class PerformerCatalogService
     {
         $query = PerformerProfile::query()->publicCatalog();
 
-        if (! empty($filters['category'])) {
-            $query->where('category', $filters['category']);
+        // Guard alinhado ao publicSearch(): só filtra por um mundo conhecido.
+        // O único chamador (CatalogController) já valida com Rule::in, mas o
+        // guard aqui impede que o próximo chamador reabra a assimetria.
+        if (! empty($filters['category']) && in_array($filters['category'], self::PUBLIC_WORLDS, true)) {
+            $query->inWorld($filters['category']);
         }
 
         if (! empty($filters['is_live'])) {

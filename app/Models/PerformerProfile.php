@@ -31,7 +31,7 @@ class PerformerProfile extends Model
      * padrão do discrete_mode (anti mass assignment).
      */
     protected $fillable = [
-        'stage_name', 'slug', 'bio', 'category', 'work_modes',
+        'stage_name', 'slug', 'bio', 'category', 'worlds', 'work_modes',
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
         'is_live', 'is_verified', 'avatar_path', 'cover_path',
     ];
@@ -39,6 +39,7 @@ class PerformerProfile extends Model
     protected function casts(): array
     {
         return [
+            'worlds' => 'array',
             'work_modes' => 'array',
             'is_live' => 'boolean',
             'is_verified' => 'boolean',
@@ -86,12 +87,42 @@ class PerformerProfile extends Model
         };
     }
 
+    /**
+     * The worlds this performer belongs to. `worlds` is the source of truth;
+     * a null column (row created before multi-worlds, or never migrated) falls
+     * back to the single `category`, so every read path sees a non-empty list
+     * without a data backfill having to run first.
+     *
+     * @return array<int, string>
+     */
+    public function activeWorlds(): array
+    {
+        return $this->worlds ?? [$this->category];
+    }
+
     public function scopePublicCatalog(Builder $query): Builder
     {
         return $query
             ->whereHas('user', fn (Builder $q) => $q->where('status', 'active'))
             ->where('is_verified', true)
             ->whereNotNull('slug');
+    }
+
+    /**
+     * Narrow the catalog to a single world. A performer matches when the world
+     * is in its `worlds` list (JSON_CONTAINS), OR — for rows not yet migrated —
+     * when `worlds` is null and its `category` equals the world. Kept as its own
+     * scope rather than folded into scopePublicCatalog(), which slug lookups
+     * also use and must NOT filter by world.
+     */
+    public function scopeInWorld(Builder $query, string $world): Builder
+    {
+        return $query->where(function (Builder $q) use ($world) {
+            $q->whereJsonContains('worlds', $world)
+                ->orWhere(fn (Builder $inner) => $inner
+                    ->whereNull('worlds')
+                    ->where('category', $world));
+        });
     }
 
     public function user(): BelongsTo

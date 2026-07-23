@@ -41,7 +41,7 @@ const worlds = [
 const stepTitles = {
     1: 'Crie seu acesso',
     2: 'Como devemos te chamar?',
-    3: 'Qual mundo você representa?',
+    3: 'Quais mundos você representa?',
     4: 'Conte sua história',
     5: 'Mostre seu melhor ângulo',
 }
@@ -55,10 +55,19 @@ const registerForm = useForm({
     password_confirmation: '',
     birthdate: '',
     stage_name: '',
+    // Multi-worlds: a performer pode representar mais de um mundo. `category`
+    // (compat) é derivada do primeiro selecionado no momento do POST.
+    worlds: [],
     category: '',
     accept_terms: false,
     lgpd_consent: false,
 })
+
+function toggleWorld(value) {
+    const i = registerForm.worlds.indexOf(value)
+    if (i === -1) registerForm.worlds.push(value)
+    else registerForm.worlds.splice(i, 1)
+}
 
 // ─── Fase profile: cada passo posta na rota de onboarding existente ─────────
 const bioForm = useForm({ bio: props.profile?.bio ?? '' })
@@ -116,7 +125,7 @@ const stepValid = computed(() => {
         case 2:
             return !fieldError.value.stage_name
         case 3:
-            return Boolean(registerForm.category) && registerForm.accept_terms && registerForm.lgpd_consent
+            return registerForm.worlds.length >= 1 && registerForm.accept_terms && registerForm.lgpd_consent
         case 4:
             return !fieldError.value.bio
         case 5:
@@ -139,6 +148,9 @@ function advance() {
     if (step.value === 3) {
         // Fim da fase register: POST único cria a conta; o servidor redireciona
         // para performer.onboarding, onde a fase profile assume no passo 4.
+        // category (compat) = primeiro mundo; o servidor re-deriva de qualquer
+        // forma, isto só mantém o payload coerente.
+        registerForm.category = registerForm.worlds[0] ?? ''
         registerForm.post(route('register.store'), {
             onFinish: () => registerForm.reset('password', 'password_confirmation'),
         })
@@ -310,24 +322,34 @@ const continueLabel = computed(() => {
                 </p>
             </div>
 
-            <!-- Passo 3 — categoria / mundo -->
+            <!-- Passo 3 — mundos (múltipla escolha) -->
             <div v-else-if="step === 3" class="space-y-6">
+                <p class="text-sm text-[#8a8280] -mt-4">
+                    Você pode escolher mais de um. Seu Portal aparece no catálogo de cada mundo marcado.
+                </p>
                 <div class="grid grid-cols-2 gap-3">
                     <button
                         v-for="world in worlds"
                         :key="world.value"
                         type="button"
-                        class="rounded-xl border px-4 py-5 text-sm transition-colors"
-                        :class="registerForm.category === world.value
+                        role="checkbox"
+                        :aria-checked="registerForm.worlds.includes(world.value)"
+                        class="relative rounded-xl border px-4 py-5 text-sm transition-colors"
+                        :class="registerForm.worlds.includes(world.value)
                             ? 'border-[#f3c97e] text-[#f3c97e] bg-[#f3c97e]/10'
                             : 'border-[#f2e8d6]/15 text-[#8a8280] hover:border-[#f3c97e]/50'"
-                        @click="registerForm.category = world.value"
+                        @click="toggleWorld(world.value)"
                     >
+                        <span
+                            v-if="registerForm.worlds.includes(world.value)"
+                            class="absolute top-2 right-2.5 text-[#f3c97e]"
+                            aria-hidden="true"
+                        >✓</span>
                         {{ world.label }}
                     </button>
                 </div>
-                <p v-if="registerForm.errors.category" class="text-xs text-red-400">
-                    {{ registerForm.errors.category }}
+                <p v-if="registerForm.errors.worlds || registerForm.errors.category" class="text-xs text-red-400">
+                    {{ registerForm.errors.worlds || registerForm.errors.category }}
                 </p>
 
                 <div class="space-y-3 pt-2">

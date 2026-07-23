@@ -26,6 +26,20 @@ class RegisterWebRequest extends FormRequest
         $this->merge([
             'role' => $tipo === 'performer' ? 'performer' : 'consumer',
         ]);
+
+        // Multi-worlds: a performer may pick more than one world. The primary
+        // `category` (kept for compatibility) is always derived server-side from
+        // the first selected world — never trusted from a separate field — so
+        // the two can't disagree. Old callers that still post only `category`
+        // keep working: no `worlds` here means the fallback below leaves it.
+        $worlds = $this->input('worlds');
+        if (is_array($worlds) && $worlds !== []) {
+            $worlds = array_values(array_unique($worlds));
+            $this->merge([
+                'worlds' => $worlds,
+                'category' => $worlds[0],
+            ]);
+        }
     }
 
     public function rules(): array
@@ -62,6 +76,13 @@ class RegisterWebRequest extends FormRequest
             ),
             'category' => ['required_if:role,performer', 'nullable', Rule::in(PerformerProfile::WORLDS)],
 
+            // Multi-worlds (performer). Optional at the schema level for
+            // backward compatibility with callers that send only `category`;
+            // when present it must be a non-empty list of known worlds. The
+            // wizard always sends it — an empty array is a real error there.
+            'worlds' => ['nullable', 'array', 'min:1'],
+            'worlds.*' => [Rule::in(PerformerProfile::WORLDS)],
+
             // Member-only "world" preference. Optional server-side (defaults to
             // "mulheres" in the catalog), required in the UI.
             'preferred_world' => ['nullable', Rule::in(PerformerProfile::WORLDS)],
@@ -78,6 +99,8 @@ class RegisterWebRequest extends FormRequest
             'cpf.required_if' => 'Informe seu CPF para confirmarmos que você é maior de 18 anos.',
             'stage_name.required_if' => 'Informe seu nome artístico.',
             'category.required_if' => 'Selecione o mundo que você representa.',
+            'worlds.min' => 'Selecione ao menos um mundo que você representa.',
+            'worlds.*.in' => 'Um dos mundos selecionados é inválido.',
         ];
     }
 }
