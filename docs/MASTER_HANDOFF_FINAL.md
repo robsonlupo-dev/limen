@@ -1197,6 +1197,16 @@ conscientes, não bugs.
    documentos KYC cifrados, CPF HMAC. Nada "quebra" catastroficamente, mas
    históricos/decodificações se perdem — planeje.
 
+9. **Arquivos KYC órfãos em falha do provider.** Quando
+   `kycClient->submitVerification()` lança exceção, a transação faz rollback
+   (nenhum registro criado no banco), mas os arquivos já gravados em
+   `storage/app/kyc/` pelo `KycDocumentStore::store()` permanecem no disco sem
+   referência. Não é exploitável (disco privado, não servível), mas acumula lixo
+   em falhas repetidas. Correção futura: mover o store para dentro da transação
+   com cleanup em caso de rollback, ou job de GC que compara paths no banco vs
+   disco periodicamente. Registrado em: c302560 (lockForUpdate KYC) —
+   comportamento pré-existente, não regressão.
+
 > **Disciplina de linguagem (transversal):** vários controles acima são
 > deliberadamente mais fracos do que parecem. **Não os descreva como mais fortes
 > do que são** em copy de produto, política de privacidade, contrato, pitch ou
