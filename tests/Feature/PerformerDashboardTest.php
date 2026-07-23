@@ -49,12 +49,18 @@ it('performer ativo acessa o dashboard', function () {
         ->assertInertia(fn (Assert $page) => $page->component('Performer/Dashboard'));
 });
 
-it('performer pending recebe 403', function () {
+// Sprint 7: pendente passou a VER o próprio painel (com o KycPendingBanner e o
+// "Ir ao vivo" travado) — é o destino do "Verificar depois" do KycGate. O 403
+// antigo mandava a performer em KYC para uma parede sem explicação.
+it('performer pending acessa o dashboard e recebe kycStatus pendente', function () {
     [$performer] = makeWebPerformer(['status' => 'pending']);
 
     $this->actingAs($performer)
         ->get('/performer/dashboard')
-        ->assertForbidden();
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Performer/Dashboard')
+            ->where('kycStatus', 'pending'));
 });
 
 it('performer suspended recebe 403', function () {

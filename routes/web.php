@@ -295,9 +295,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.profile.photo')
             ->can('performer-active');
 
+        // Sprint 7: sem `can('performer-active')` de propósito — a performer
+        // PENDENTE também vê o próprio painel, com o KycPendingBanner e o "Ir
+        // ao vivo" travado. É o destino do "Verificar depois" do KycGate; com o
+        // gate antigo esse link dava 403. Suspensa continua barrada — o corte
+        // por status vive no controller (só active|pending passam).
         Route::get('/performer/dashboard', [DashboardController::class, 'index'])
-            ->name('performer.dashboard')
-            ->can('performer-active');
+            ->middleware('role:performer')
+            ->name('performer.dashboard');
 
         // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer
         // pendente (em KYC) já tem senha, e-mail e documento enviado — é

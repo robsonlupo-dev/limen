@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
+import KycPendingBanner from '@/Components/KycPendingBanner.vue'
 
 const props = defineProps({
     wallet: { type: Number, required: true },
@@ -36,6 +37,10 @@ const canGoLive = computed(() => props.kycStatus === 'active')
 
 <template>
     <AppLayout title="Painel do performer">
+        <!-- Sprint 7: enquanto o KYC não está aprovado o perfil não existe no
+             catálogo — o banner fica até o status virar aprovado, sem fechar. -->
+        <KycPendingBanner :kyc-status="kycStatus" />
+
         <div class="max-w-6xl mx-auto px-6 py-10 space-y-8">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div class="space-y-1">
@@ -93,7 +98,7 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                 <h2 class="font-serif text-xl text-cream">Últimas gorjetas</h2>
 
                 <div v-if="tips.length === 0" class="rounded-xl border border-frame bg-surface p-8 text-center text-muted text-sm">
-                    Nenhuma gorjeta ainda.
+                    Seus primeiros apoiadores estão a um post de distância.
                 </div>
 
                 <div v-else class="rounded-xl border border-frame bg-surface overflow-hidden">

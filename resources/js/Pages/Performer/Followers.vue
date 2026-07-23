@@ -102,8 +102,8 @@ async function sendInterest(follower) {
                     v-else-if="followers.data.length === 0"
                     class="rounded-xl border border-frame bg-surface p-10 text-center space-y-2"
                 >
-                    <p class="text-cream font-serif text-lg">Ninguém te segue ainda</p>
-                    <p class="text-muted text-sm">Quando alguém seguir seu perfil, aparece aqui.</p>
+                    <p class="text-cream font-serif text-lg">Seu Portal ainda não foi descoberto.</p>
+                    <p class="text-muted text-sm">Complete seu perfil para aparecer no catálogo.</p>
                 </div>
 
                 <div
