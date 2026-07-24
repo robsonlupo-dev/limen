@@ -38,6 +38,11 @@ class ProfileController extends Controller
                 'stage_name' => $profile->stage_name,
                 'bio' => $profile->bio,
                 'slug' => $profile->slug,
+                // `worlds` pode ser null (linha anterior ao multi-worlds); a
+                // tela usa `worlds ?? [category]` para pré-selecionar. Mando os
+                // dois para o legado cair no fallback sem uma query extra.
+                'worlds' => $profile->worlds,
+                'category' => $profile->category,
                 'avatar_url' => $profile->avatar_path
                     ? URL::temporarySignedRoute('performer.media', now()->addMinutes(60), [
                         'profile_id' => $profile->id,
@@ -55,10 +60,25 @@ class ProfileController extends Controller
         $profile = $request->user()->performerProfile;
         abort_if(! $profile, 404);
 
+        $validated = $request->validated();
+
         // Só os campos desta tela. O request valida o perfil inteiro (é o mesmo
-        // do onboarding), então filtrar aqui impede que categoria/tarifas sejam
-        // alteradas por um POST forjado a partir de uma tela que não as oferece.
-        $data = array_intersect_key($request->validated(), array_flip(['stage_name', 'bio']));
+        // do onboarding), então filtrar aqui impede que tarifas — e a `category`
+        // crua — sejam alteradas por um POST forjado a partir de uma tela que
+        // não as oferece.
+        $data = array_intersect_key($validated, array_flip(['stage_name', 'bio']));
+
+        // Multi-worlds: se a tela mandou a seleção de mundos, ela é a fonte da
+        // verdade. A `category` (compat legado) é DERIVADA de worlds[0] aqui no
+        // servidor — nunca vinda do request — para os dois nunca discordarem.
+        // Mesma regra do cadastro (RegisterWebRequest::prepareForValidation).
+        // Sem `worlds` no request, `category`/`worlds` ficam intocados: é o
+        // caminho legado, que continua igual (POST só de category é ignorado).
+        if (! empty($validated['worlds'])) {
+            $worlds = array_values(array_unique($validated['worlds']));
+            $data['worlds'] = $worlds;
+            $data['category'] = $worlds[0];
+        }
 
         $renamed = isset($data['stage_name']) && $data['stage_name'] !== $profile->stage_name;
 

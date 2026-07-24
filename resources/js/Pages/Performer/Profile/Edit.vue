@@ -12,10 +12,32 @@ const props = defineProps({
 const avatarForm = useForm({ file: null })
 const avatarPreview = ref(null)
 
+// Os quatro mundos oficiais (espelha PerformerProfile::WORLDS). O servidor
+// revalida com Rule::in — isto é só o rótulo da tela.
+const WORLDS = [
+    { value: 'mulheres', label: 'Mulheres' },
+    { value: 'homens', label: 'Homens' },
+    { value: 'casais', label: 'Casais' },
+    { value: 'trans', label: 'Trans' },
+]
+
 const profileForm = useForm({
     stage_name: props.profile.stage_name ?? '',
     bio: props.profile.bio ?? '',
+    // Pré-seleção: `worlds` é a fonte da verdade; perfil legado (worlds null)
+    // cai no único mundo da `category`.
+    worlds: props.profile.worlds ?? [props.profile.category].filter(Boolean),
 })
+
+function toggleWorld(value) {
+    const i = profileForm.worlds.indexOf(value)
+    if (i === -1) profileForm.worlds.push(value)
+    else profileForm.worlds.splice(i, 1)
+}
+
+// Pelo menos um mundo é obrigatório. Validação inline (o servidor também
+// recusa min:1) — trava o submit e mostra o aviso.
+const worldsInvalid = computed(() => profileForm.worlds.length === 0)
 
 // Trocar o nome regenera o slug: a URL pública muda e a antiga deixa de existir.
 // Avisar antes de salvar, não depois — depois o link já quebrou.
@@ -39,6 +61,7 @@ function submitAvatar(event) {
 }
 
 function save() {
+    if (worldsInvalid.value) return
     profileForm.post(route('performer.profile.save'), { preserveScroll: true })
 }
 </script>
@@ -110,6 +133,37 @@ function save() {
                     <p v-if="profileForm.errors.bio" class="text-xs text-danger">{{ profileForm.errors.bio }}</p>
                 </div>
 
+                <!-- Mundos: onde a performer aparece no catálogo. Múltipla
+                     escolha; ao menos um. A category é derivada de worlds[0]
+                     no servidor. -->
+                <div class="flex flex-col gap-2">
+                    <span class="text-sm font-medium text-cream">Mundos</span>
+                    <p class="text-xs text-muted">Em quais mundos você aparece no catálogo. Escolha ao menos um.</p>
+
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <label
+                            v-for="world in WORLDS"
+                            :key="world.value"
+                            class="flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm cursor-pointer transition-colors"
+                            :class="profileForm.worlds.includes(world.value)
+                                ? 'border-gold bg-gold/10 text-gold'
+                                : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                        >
+                            <input
+                                type="checkbox"
+                                class="accent-gold h-4 w-4"
+                                :value="world.value"
+                                :checked="profileForm.worlds.includes(world.value)"
+                                @change="toggleWorld(world.value)"
+                            />
+                            {{ world.label }}
+                        </label>
+                    </div>
+
+                    <p v-if="worldsInvalid" class="text-xs text-danger">Selecione pelo menos um mundo.</p>
+                    <p v-else-if="profileForm.errors.worlds" class="text-xs text-danger">{{ profileForm.errors.worlds }}</p>
+                </div>
+
                 <!-- Public address -->
                 <div class="rounded-lg border border-frame bg-surface-2 p-4 space-y-1">
                     <p class="text-xs text-muted uppercase tracking-wide">Endereço do seu perfil</p>
@@ -123,7 +177,7 @@ function save() {
                 </div>
 
                 <div class="flex justify-end">
-                    <Button type="submit" variant="primary" :loading="profileForm.processing">
+                    <Button type="submit" variant="primary" :loading="profileForm.processing" :disabled="worldsInvalid">
                         Salvar alterações
                     </Button>
                 </div>

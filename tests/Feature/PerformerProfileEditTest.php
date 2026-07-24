@@ -331,3 +331,109 @@ it('records the rename in the audit log', function () {
     expect($log->user_id)->toBe($profile->user_id);
     expect($log->metadata['renamed'])->toBeTrue();
 });
+
+// ─── Multi-worlds na edição de perfil ────────────────────────────────────────
+
+it('lets a performer update her worlds to multiple worlds', function () {
+    $profile = ppePerformer('Ana');
+
+    $this->actingAs($profile->user)
+        ->post(route('performer.profile.save'), [
+            'stage_name' => 'Ana',
+            'worlds' => ['homens', 'casais'],
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($profile->fresh()->worlds)->toBe(['homens', 'casais']);
+});
+
+it('derives category from worlds[0] server-side, ignoring a forged category', function () {
+    $profile = ppePerformer('Ana');
+
+    // O request tenta cravar uma category que não bate com worlds[0]. O servidor
+    // deriva de worlds[0] e descarta a category crua — os dois nunca discordam.
+    $this->actingAs($profile->user)
+        ->post(route('performer.profile.save'), [
+            'stage_name' => 'Ana',
+            'worlds' => ['casais', 'homens'],
+            'category' => 'trans',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $profile->refresh();
+    expect($profile->category)->toBe('casais')
+        ->and($profile->worlds)->toBe(['casais', 'homens']);
+});
+
+it('rejects an unknown world with a validation error', function () {
+    $profile = ppePerformer('Ana');
+
+    $this->actingAs($profile->user)
+        ->post(route('performer.profile.save'), [
+            'stage_name' => 'Ana',
+            'worlds' => ['mulheres', 'marte'],
+        ])
+        ->assertSessionHasErrors('worlds.1');
+
+    // Nada foi salvo: continua no mundo original (worlds null → category).
+    expect($profile->fresh()->worlds)->toBeNull();
+});
+
+it('rejects an empty worlds array with a validation error', function () {
+    $profile = ppePerformer('Ana');
+
+    $this->actingAs($profile->user)
+        ->post(route('performer.profile.save'), [
+            'stage_name' => 'Ana',
+            'worlds' => [],
+        ])
+        ->assertSessionHasErrors('worlds');
+
+    expect($profile->fresh()->worlds)->toBeNull();
+});
+
+it('lets a legacy performer (worlds null) set worlds for the first time', function () {
+    $profile = ppePerformer('Ana');
+    // Perfil legado: só category, worlds nunca preenchido.
+    expect($profile->worlds)->toBeNull();
+
+    $this->actingAs($profile->user)
+        ->post(route('performer.profile.save'), [
+            'stage_name' => 'Ana',
+            'worlds' => ['homens'],
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $profile->refresh();
+    expect($profile->worlds)->toBe(['homens'])
+        ->and($profile->category)->toBe('homens');
+});
+
+it('reflects the updated worlds in the catalog', function () {
+    $profile = ppePerformer('Ana'); // nasce em 'mulheres' (worlds null)
+    $member = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
+
+    $this->actingAs($profile->user)
+        ->post(route('performer.profile.save'), [
+            'stage_name' => 'Ana',
+            'worlds' => ['homens', 'casais'],
+        ])
+        ->assertRedirect();
+
+    // Aparece nos dois mundos escolhidos…
+    foreach (['homens', 'casais'] as $world) {
+        $this->actingAs($member)
+            ->get(route('catalog', ['category' => $world]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('performers.data', 1)
+                ->where('performers.data.0.slug', $profile->slug));
+    }
+
+    // …e some do mundo original, que não está mais na lista de worlds.
+    $this->actingAs($member)
+        ->get(route('catalog', ['category' => 'mulheres']))
+        ->assertInertia(fn (Assert $page) => $page->has('performers.data', 0));
+});
