@@ -41,6 +41,9 @@ class RegisterController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('verification.notice');
+        // Membro nasce em pending_kyc: o destino do cadastro é o envio da
+        // selfie de verificação, não mais o aviso de e-mail. O EnsureMemberVerified
+        // devolveria aqui de qualquer forma se ele tentasse pular direto para o painel.
+        return redirect()->route('consumer.kyc.index');
     }
 }

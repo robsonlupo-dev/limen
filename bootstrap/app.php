@@ -3,6 +3,7 @@
 use App\Http\Middleware\BlockBannedUsers;
 use App\Http\Middleware\DocumentsAccepted;
 use App\Http\Middleware\EnsureActiveCircle;
+use App\Http\Middleware\EnsureMemberVerified;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\GeoBlock;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -59,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureUserHasRole::class,
             'circle' => EnsureActiveCircle::class,
             'documents.accepted' => DocumentsAccepted::class,
+            'member.verified' => EnsureMemberVerified::class,
             '2fa' => TwoFactorChallenge::class,
             'asaas.webhook_ip' => VerifyAsaasWebhookIp::class,
         ]);

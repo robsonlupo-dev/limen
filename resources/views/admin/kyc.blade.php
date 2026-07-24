@@ -29,6 +29,8 @@
         .tag.rejected { border-color: #b3402f; color: #e5705e; }
         .tag.ip { border-color: #b3402f; color: #e5705e; margin-top: 4px; }
         .tag.danger { border-color: #b3402f; background: #b3402f; color: #fff; font-weight: 600; margin-top: 4px; }
+        .tag.membro { border-color: #4a7fb5; color: #7fb0e0; }
+        .tag.performer { border-color: #8a6fc0; color: #b39ae0; }
         form.act { display: inline; }
         button { font: inherit; font-size: 12px; padding: 5px 10px; margin-right: 4px; border-radius: 7px; border: 1px solid #262626; background: #141414; color: #cfc8bd; cursor: pointer; }
         button:hover { border-color: #C9A84C; color: #C9A84C; }
@@ -76,7 +78,8 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Performer</th>
+                            <th>Tipo</th>
+                            <th>Usuário</th>
                             <th>Status</th>
                             <th>Enviado em</th>
                             <th>Revisado por</th>
@@ -87,6 +90,13 @@
                         @foreach ($verifications as $v)
                             <tr>
                                 <td>{{ $v['id'] }}</td>
+                                <td>
+                                    @if (($v['user']['role'] ?? null) === 'consumer')
+                                        <span class="tag membro">Membro</span>
+                                    @else
+                                        <span class="tag performer">Performer</span>
+                                    @endif
+                                </td>
                                 <td>
                                     {{ $v['user']['stage_name'] ?? $v['user']['name'] ?? '—' }}
                                     <div class="muted" style="font-size:12px">{{ $v['user']['email'] }}</div>

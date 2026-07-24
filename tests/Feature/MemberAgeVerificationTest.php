@@ -91,7 +91,7 @@ it('aceita quem completa 18 anos hoje', function () {
 it('aceita membro maior de idade e nao grava o CPF em lugar nenhum', function () {
     $this->post('/cadastro', registerMemberPayload())
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('verification.notice'));
+        ->assertRedirect(route('consumer.kyc.index'));
 
     $user = User::where('email', 'membro@example.com')->firstOrFail();
 
@@ -100,9 +100,11 @@ it('aceita membro maior de idade e nao grava o CPF em lugar nenhum', function ()
         ->and($verification->verified_at)->not->toBeNull()
         ->and($verification->cpf_hmac)->toBe(CpfHash::make(CPF_VALIDO));
 
-    // O digest não pode ser o CPF, nem conter o CPF.
+    // O digest não pode SER o CPF. Já provamos acima que É o HMAC
+    // (toBe(CpfHash::make(...))); um `->not->toContain($digits)` sobre o hex era
+    // a mesma fragilidade do '137' — dígitos do CPF podem calhar no hex por acaso.
     $digits = preg_replace('/\D/', '', CPF_VALIDO);
-    expect($verification->cpf_hmac)->not->toContain($digits);
+    expect($verification->cpf_hmac)->not->toBe($digits);
 
     // Varredura de verdade: nenhuma coluna de nenhuma tabela guarda o número.
     // É o que pega uma regressão do tipo "alguém adicionou users.cpf".

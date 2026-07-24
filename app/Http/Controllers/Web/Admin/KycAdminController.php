@@ -68,6 +68,7 @@ class KycAdminController extends Controller
                 'id' => $v->user?->id,
                 'name' => $v->user?->name,
                 'email' => $v->user?->email,
+                'role' => $v->user?->role,
                 'stage_name' => $v->user?->performerProfile?->stage_name,
             ],
             'reviewer' => $v->reviewer ? ['name' => $v->reviewer->name] : null,

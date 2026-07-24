@@ -76,8 +76,10 @@ it('records a blacklist entry with cpf_hash AND document_hash when banning a per
         ->and($entry->banned_user_id)->toBe($performer->id)
         ->and($entry->banned_by)->toBe($admin->id)
         ->and($entry->reason)->toBe('Conteúdo proibido.')
-        // Nunca a PII crua.
-        ->and($entry->cpf_hash)->not->toContain(FB_CPF);
+        // Nunca a PII crua: é o HMAC (provado no toBe acima), não o CPF.
+        // `not->toBe` em vez de `not->toContain(FB_CPF)` — o substring sobre hex
+        // era frágil (mesma classe do '137'/'42').
+        ->and($entry->cpf_hash)->not->toBe(FB_CPF);
 });
 
 it('records the hash when banning a performer whose KYC is still pending', function () {

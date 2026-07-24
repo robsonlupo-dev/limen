@@ -33,7 +33,7 @@ it('renders login page as Inertia Auth/Login component', function () {
 
 // ─── 4. Successful registration ──────────────────────────────────────────────
 
-it('registers a new consumer and redirects to email verification', function () {
+it('registers a new consumer and redirects to identity verification (KYC)', function () {
     $response = $this->post('/cadastro', [
         'name' => 'Maria Silva',
         'email' => 'maria@example.com',
@@ -45,8 +45,13 @@ it('registers a new consumer and redirects to email verification', function () {
         'lgpd_consent' => true,
     ]);
 
-    $response->assertRedirect(route('verification.notice'));
-    $this->assertDatabaseHas('users', ['email' => 'maria@example.com', 'role' => 'consumer']);
+    // KYC Nível 2: o membro nasce pending_kyc e cai no envio da selfie.
+    $response->assertRedirect(route('consumer.kyc.index'));
+    $this->assertDatabaseHas('users', [
+        'email' => 'maria@example.com',
+        'role' => 'consumer',
+        'status' => 'pending_kyc',
+    ]);
     $this->assertAuthenticated();
 });
 

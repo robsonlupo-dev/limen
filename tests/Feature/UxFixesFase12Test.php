@@ -51,7 +51,7 @@ it('creates a consumer when registering with tipo=membro', function () {
         'preferred_world' => 'homens',
         'accept_terms' => true,
         'lgpd_consent' => true,
-    ])->assertRedirect(route('verification.notice'));
+    ])->assertRedirect(route('consumer.kyc.index'));
 
     $this->assertDatabaseHas('users', [
         'email' => 'maria.membro@example.com',

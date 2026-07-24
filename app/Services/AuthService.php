@@ -30,7 +30,11 @@ class AuthService
                 'terms_version' => $data['terms_version'],
             ]);
             $user->role = 'consumer';
-            $user->status = 'active';
+            // KYC Nível 2: o membro nasce em 'pending_kyc' e só vira 'active'
+            // quando a selfie é aprovada (KycService::approve). O
+            // EnsureMemberVerified segura o acesso às áreas de membro nesse
+            // intervalo, redirecionando para o envio da selfie.
+            $user->status = 'pending_kyc';
             // preferred_world is intentionally kept out of $fillable and set
             // explicitly here to avoid mass-assignment of privileged fields.
             $user->preferred_world = $data['preferred_world'] ?? null;
