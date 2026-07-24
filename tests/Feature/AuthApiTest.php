@@ -40,10 +40,13 @@ it('registers a consumer with wallet and returns a working token', function () {
     $response->assertStatus(201)
         ->assertJsonStructure(['data' => ['id', 'name', 'email', 'role'], 'token']);
 
+    // KYC Nível 2: o membro nasce pending_kyc (as duas portas de cadastro
+    // delegam ao mesmo AuthService::registerConsumer) e só vira active na
+    // aprovação da selfie.
     $this->assertDatabaseHas('users', [
         'email' => 'consumer@example.com',
         'role' => 'consumer',
-        'status' => 'active',
+        'status' => 'pending_kyc',
     ]);
 
     $this->assertDatabaseHas('token_wallets', [

@@ -104,4 +104,58 @@ class KycSubmissionService
             return $verification;
         });
     }
+
+    /**
+     * KYC Nível 2 do MEMBRO — selfie-only. Mesma fonte única do envio da
+     * performer (idêntico lock + checagem de duplicata + audit), mas sem
+     * documento: o membro só envia a selfie, e o provider faz o casamento
+     * facial / liveness. O documento em si fica para o Sprint 9 — as colunas
+     * de documento nascem nulas (ver migração que as tornou nullable).
+     *
+     * O CPF do membro NÃO é recoletado aqui: ele foi apresentado no cadastro e
+     * mora hasheado em `age_verifications` (CpfHash), sem retornar em claro. Por
+     * isso a checagem de lista negra do membro vive no cadastro
+     * (AuthService::registerConsumer), não aqui — repeti-la exigiria o CPF cru
+     * que este fluxo, de propósito, não tem.
+     *
+     * @throws DuplicateKycSubmissionException já há verificação ativa
+     */
+    public function submitMemberSelfie(User $user, UploadedFile $selfie): IdentityVerification
+    {
+        return DB::transaction(function () use ($user, $selfie) {
+            // Mesmo idioma de lock do submit() da performer: trava a linha do
+            // usuário antes de olhar as verificações, senão o primeiro envio
+            // (sem linha para o lockForUpdate do exists() travar) deixa dois
+            // POSTs simultâneos criarem duas verificações.
+            User::whereKey($user->id)->lockForUpdate()->first();
+
+            $active = $user->identityVerifications()
+                ->whereNotIn('status', ['rejected'])
+                ->lockForUpdate()
+                ->exists();
+
+            if ($active) {
+                throw DuplicateKycSubmissionException::make();
+            }
+
+            $selfiePath = $this->documents->store($user->id, $selfie, 'selfie');
+
+            $providerResponse = $this->kycClient->submitVerification([
+                'type' => 'selfie',
+            ]);
+
+            $verification = $user->identityVerifications()->create([
+                // document_type/number/nome/nascimento ficam nulos: selfie-only.
+                'selfie_path' => $selfiePath,
+                'provider' => config('kyc.provider'),
+                'provider_reference' => $providerResponse['reference'] ?? null,
+                'provider_status' => $providerResponse['status'] ?? 'pending',
+                'status' => 'pending',
+            ]);
+
+            Audit::log('kyc.submitted', $verification);
+
+            return $verification;
+        });
+    }
 }

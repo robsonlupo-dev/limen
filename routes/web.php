@@ -13,6 +13,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\ChatController;
+use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
@@ -261,7 +262,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->can('performer-active')
         ->name('chat.performer.start');
 
-    Route::middleware(['role:consumer', 'throttle:30,1'])->group(function () {
+    Route::middleware(['role:consumer', 'throttle:30,1', 'member.verified'])->group(function () {
         Route::post('/catalogo/{slug}/seguir', [FollowController::class, 'store'])->name('catalog.follow');
         Route::delete('/catalogo/{slug}/seguir', [FollowController::class, 'destroy'])->name('catalog.unfollow');
     });
@@ -399,7 +400,28 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->middleware('throttle:10,1')
         ->name('account.deletion.cancel');
 
-    Route::middleware(['role:consumer'])->group(function () {
+    // KYC Nível 2 do membro (envio de selfie). FORA de role:consumer/member.verified
+    // de propósito: é o destino do redirect do EnsureMemberVerified — gatear a
+    // própria tela de saída daria loop. O corte por papel vive no controller.
+    // O membro em pending_kyc ainda não é 'active', então precisa alcançar estas
+    // rotas antes de qualquer área de membro.
+    Route::get('/verificacao', [ConsumerKycController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('consumer.kyc.index');
+
+    Route::post('/verificacao/enviar', [ConsumerKycController::class, 'submit'])
+        ->middleware('throttle:5,1')
+        ->name('consumer.kyc.submit');
+
+    Route::get('/verificacao/aguardando', [ConsumerKycController::class, 'waiting'])
+        ->middleware('throttle:60,1')
+        ->name('consumer.kyc.waiting');
+
+    // `member.verified` no grupo INTEIRO: toda área de membro (painel, gorjetas,
+    // interesses, configurações, assinaturas, carteira) exige a selfie aprovada.
+    // O middleware ignora quem não é consumer/pending_kyc, então não afeta as
+    // sub-rotas nem quebra o padrão dos outros grupos.
+    Route::middleware(['role:consumer', 'member.verified'])->group(function () {
         // Home da área logada do membro.
         Route::get('/painel', [ConsumerDashboardController::class, 'index'])
             ->middleware('throttle:60,1')

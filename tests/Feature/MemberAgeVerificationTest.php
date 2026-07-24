@@ -91,7 +91,7 @@ it('aceita quem completa 18 anos hoje', function () {
 it('aceita membro maior de idade e nao grava o CPF em lugar nenhum', function () {
     $this->post('/cadastro', registerMemberPayload())
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('verification.notice'));
+        ->assertRedirect(route('consumer.kyc.index'));
 
     $user = User::where('email', 'membro@example.com')->firstOrFail();
 

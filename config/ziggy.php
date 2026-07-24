@@ -79,6 +79,11 @@ return [
         'performer.2fa.challenge',
         'performer.2fa.verify',
 
+        // Consumer KYC Nível 2 (envio de selfie)
+        'consumer.kyc.index',
+        'consumer.kyc.submit',
+        'consumer.kyc.waiting',
+
         // Consumer panel
         'consumer.dashboard',
 
