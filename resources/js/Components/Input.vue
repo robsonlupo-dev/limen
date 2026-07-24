@@ -56,7 +56,7 @@ const inputType = computed(() =>
                 tabindex="-1"
                 :aria-label="revealed ? 'Ocultar senha' : 'Mostrar senha'"
                 :aria-pressed="revealed"
-                class="absolute inset-y-0 right-0 flex items-center px-3 text-[#8a8280] transition-colors duration-150 hover:text-[#f3c97e] focus:outline-none focus-visible:text-[#f3c97e]"
+                class="absolute inset-y-0 right-0 flex items-center px-3 text-muted transition-colors duration-150 hover:text-gold-light focus:outline-none focus-visible:text-gold-light"
                 @click="revealed = !revealed"
             >
                 <!-- olho aberto: senha oculta, clique para revelar -->
