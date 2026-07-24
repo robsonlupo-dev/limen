@@ -23,6 +23,14 @@ class UpdatePerformerProfileRequest extends FormRequest
                 PerformerProfile::stageNameRules($this->user()?->performerProfile?->id),
             ),
             'bio' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            // Multi-worlds: a performer pode pertencer a mais de um mundo. Se
+            // `worlds` vier, ele é a fonte da verdade e `category` é DERIVADA de
+            // worlds[0] no servidor (controller) — nunca do request. `min:1`
+            // quando presente: array vazio é escolha inválida, não "sem
+            // alteração" (esse é o campo ausente). `category` continua aceito
+            // para o caminho legado que ainda posta só ele.
+            'worlds' => ['sometimes', 'nullable', 'array', 'min:1'],
+            'worlds.*' => [Rule::in(PerformerProfile::WORLDS)],
             'category' => ['sometimes', 'required', Rule::in(PerformerProfile::WORLDS)],
             'work_modes' => ['sometimes', 'nullable', 'array'],
             'work_modes.*' => ['string', Rule::in(['live', 'video', 'chat', 'fotos', 'privado', 'exclusivo'])],
