@@ -1196,6 +1196,32 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
       verificação **antes** do primeiro upload. Vincular conteúdo↔pessoa
       verificada. Ver `docs/LEGAL_GAP_ANALYSIS.md`.
 
+### Sprint 9 — UX e Monetização (baseado em SEEKING_UX_CASE_STUDY.md)
+
+**Alta prioridade:**
+- [ ] Verificação de documento como produto (RG/CNH via Didit) — R$9,90 taxa única
+      para performers SEM assinatura ativa de Círculo. Performers com Círculo ativo
+      recebem o badge de documento incluído sem custo adicional.
+      Badge "✓ ID Verificado" aparece no catálogo com destaque (posição + ícone).
+      Receita estimada: R$2–5 de margem por verificação (custo Didit ~R$5–8).
+
+**Média prioridade:**
+- [ ] Tutorial de produto em 4 slides (first-run overlay) para membros na primeira
+      entrada no catálogo. Catálogo real aparece desfocado ao fundo.
+      Slides: (1) Explore criadores verificados, (2) Tokens, (3) Gorjetas, (4) CTA "Entrar no Portal →"
+
+**Baixa prioridade (copy e UX):**
+- [ ] Contador de caracteres inline no bio de performer com copy de progresso
+      (ex: "Ótimo! Perfis com bio completa recebem 3x mais interesse")
+- [ ] Placeholder com audiência definida nos campos de bio
+      (ex: "Conte aos membros premium o que te torna única")
+- [ ] "Pagamento único. Verificação permanente." abaixo de todo checkout de KYC pago
+- [ ] Item pré-selecionado no checkout de KYC pago (borda dourada, sem precisar clicar)
+- [ ] Soft descriptor proativo: mostrar como o pagamento aparece na fatura ANTES de cobrar
+      (elimina chargeback na origem — também é bloqueador de go-live, confirmar com Asaas)
+
+**Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
+
 ### A.3 Higiene / dívida técnica
 
 - [ ] CI de lint (Pint `--test`) — hoje não existe; a árvore está limpa (`e043077`)
