@@ -316,17 +316,44 @@ arquivos estão vencidos-e-ainda-presentes; número persistente não-zero é o a
 `Schedule::command(...)->hourly()->withoutOverlapping()`, no padrão de
 `visits:purge` — não um Job.
 
-#### 🔴 1.4 EXIF/GPS — nada no repo remove metadado de imagem hoje
+#### ✅ 1.4 EXIF/GPS — DECIDIDO (24/07/2026)
 
 Foto de celular carrega coordenadas GPS e identificador de dispositivo. Um membro
 que manda uma "foto privada efêmera" entrega as coordenadas de casa,
 permanentemente, num arquivo que a performer pode baixar antes do TTL. É maior que
 o TTL, e não estava na lista original de vetores.
 
-**Decisão:** **re-encodar a imagem no servidor** para um JPEG canônico na
-ingestão — mata EXIF e polyglot no mesmo passo, porque o arquivo servido deixa de
-ser o arquivo enviado. Somar `X-Content-Type-Options: nosniff` e `Content-Type`
-derivado de re-sniff no servidor, nunca do upload.
+> **Decisão do PO:** instalar `intervention/image` para re-encodar a foto na
+> ingestão. Remove EXIF/GPS antes de cifrar. O processamento ocorre só no upload
+> (uma vez por foto), impacto de performance negligenciável (<1s para 5 MB).
+
+Acolhe a recomendação da revisão: o re-encode mata EXIF **e polyglot** no mesmo
+passo, porque o arquivo servido deixa de ser o arquivo enviado. Somar
+`X-Content-Type-Options: nosniff` e `Content-Type` derivado de re-sniff no
+servidor, nunca do upload.
+
+**Verificado neste ambiente (24/07/2026):**
+- `intervention/image` **não está no projeto** — é dependência nova, primeira do
+  tipo. Entra no `composer.json`, não é só código.
+- **GD disponível, Imagick ausente** (PHP 8.4.23). A v3 do Intervention roda em
+  GD, então funciona — mas **fixar o driver explicitamente** na config em vez de
+  confiar no autodetect: se produção tiver Imagick e dev não, o mesmo upload
+  produz bytes diferentes, e a divergência aparece como bug de imagem, não de
+  ambiente.
+- Extensão `exif` presente — útil para **testar** que o strip funcionou (asserção
+  de que o arquivo re-encodado não tem tags GPS), não para fazer o strip.
+
+⚠️ **Consequência que a decisão traz junto:** `intervention/image` passa a parsear
+**arquivo controlado pelo atacante** via GD — é exatamente a superfície onde vivem
+os CVEs de biblioteca de imagem (leitura fora de limites, exaustão de memória em
+imagem-bomba). Dois complementos, nenhum deles opcional:
+- **Limite de dimensões**, não só de bytes. Um PNG de 200 KB pode declarar
+  30000×30000 e estourar a memória do PHP no `imagecreatefrom*` antes de qualquer
+  validação de tamanho de arquivo adiantar.
+- **`composer audit` hoje é `|| true` no CI** (registrado em A.3 do handoff).
+  Adicionar uma dependência que processa entrada hostil enquanto o audit é soft
+  significa que um advisory nela não quebra o build. Vale promover o audit a hard
+  fail junto desta feature, não depois.
 
 #### 🔴 1.5 `DeletionService` não cobre — e faltam os dois lados
 
@@ -337,27 +364,68 @@ exato de `purgeVisitsToOwnProfile()`); e coletar os caminhos para o `deleteFiles
 pós-commit. Vale o aviso do item 11 do CLAUDE.md verbatim: **as FKs
 `cascadeOnDelete` não disparam**, porque os dois lados são soft-delete.
 
-#### 🔴 1.6 Sem quota, a feature é DoS de disco
+#### ✅ 1.6 Quota de disco — DECIDIDO (24/07/2026)
 
-Nada na spec limita quantidade. Custo medido nesta revisão:
+Nada na spec limitava quantidade. Custo medido nesta revisão:
 **`Crypt::encryptString` tem overhead de 1.78x** (1 MiB → 1.86 MiB; base64
 aplicado duas vezes na serialização). Com `max:5120` — o limite de
 `UploadMediaRequest` — cada foto ocupa ~9 MB em disco.
 
-**Decisão:** cap de fotos **ativas** simultâneas por membro (não de uploads
-totais), `max:5120`, `throttle:` no endpoint (o projeto já usa 10/min em gorjeta),
-e dimensionar disco com o 1.78x na conta.
+> **Decisão do PO:** máximo **5 fotos ativas simultâneas** por membro. Cap
+> verificado **no submit**, não no job de limpeza.
 
-#### 🔴 1.7 Backup de 14 dias sobrevive ao TTL de 24h
+Teto por membro: 5 × ~9 MB ≈ **45 MB**, e ele não cresce com o tempo — é o ponto
+de contar ativas em vez de uploads totais.
+
+**"No submit, não no job" é o que torna o cap um cap.** Verificar na limpeza
+deixaria a janela aberta justamente onde o abuso acontece: o job roda de hora em
+hora (item 1.3), então um laço de upload gravaria centenas de arquivos e só seria
+podado no próximo tick — o disco já teria enchido. A checagem no submit é
+autorização; a do job seria contabilidade tardia.
+
+Dois detalhes que a implementação não pode reinterpretar:
+- **"Ativas" = não expiradas e não revogadas**, contadas pelo mesmo critério que
+  o serving usa (item 1.3: expiração é verificada na leitura). Se o cap contar
+  linhas ainda presentes no disco mas já vencidas, o membro fica travado em 5
+  fotos mortas esperando o GC — e o cap vira bug de produto, não defesa.
+- **Contagem sob lock ou constraint**, não `count()` seguido de `insert()`. Dois
+  submits concorrentes leem 4 e gravam os dois, e o cap de 5 vira 6. Mesmo padrão
+  do `lockForUpdate` que o recovery code de 2FA já usa.
+
+Mantidos da recomendação original: `max:5120` no Form Request, `throttle:` no
+endpoint (o projeto já usa 10/min em gorjeta) e o 1.78x no dimensionamento de
+disco.
+
+#### ✅ 1.7 Backup vs TTL — DECIDIDO (24/07/2026)
 
 `docs/backup.sh` tarballa `storage/app/private` **e** `storage/app/kyc` com
 `RETENTION_DAYS=14`. Uma foto com TTL de 24h que caia em qualquer disco coberto
 sobrevive duas semanas no backup — cifrada por GPG, mas presente. "Expira em 24h"
 vira falso na primeira noite.
 
-**Decisão:** o disco de mídia efêmera fica **fora** do backup, explicitamente e
-com comentário dizendo por quê. Mesma lógica de `profile_visits`: dado sem valor
-fiscal nem trilha legal não entra em retenção longa.
+> **Decisão do PO:** o disco de fotos efêmeras fica **fora** do `backup.sh`,
+> explicitamente. Perda aceitável e consistente com o produto — foto efêmera por
+> design não deve persistir além do TTL. Adicionar a exclusão explícita no
+> `backup.sh` **antes** da implementação.
+
+Mesma lógica de `profile_visits`: dado sem valor fiscal nem trilha legal não entra
+em retenção longa. E a perda em caso de restore é o comportamento correto, não um
+efeito colateral — restaurar um backup de ontem devolveria fotos que o titular já
+viu expirarem, o que é pior que perdê-las.
+
+**"Antes da implementação" é a parte operacional, e é a que costuma escapar:** o
+`backup.sh` não vive no deploy automático — o cabeçalho do próprio arquivo diz
+"instalar em `/home/deploy/backup.sh` no servidor e agendar via cron". Editar o
+arquivo no repo **não** altera o script que roda em produção. A ordem correta é:
+1. escolher o caminho do disco **fora** de `storage/app/private` e de
+   `storage/app/kyc` (dentro de qualquer um dos dois, o tar já o captura por
+   diretório — nenhuma exclusão no repo salva);
+2. atualizar `docs/backup.sh` com a exclusão e o comentário do porquê;
+3. **substituir a cópia instalada no servidor** e conferir que o próximo tarball
+   não contém o diretório novo.
+
+Sem o passo 3 a decisão fica só no papel e a foto continua indo para o backup por
+14 dias.
 
 #### ⚠️ 1.8 `member_photo_access` é metadado que sobrevive ao conteúdo
 

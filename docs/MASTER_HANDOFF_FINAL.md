@@ -1230,6 +1230,14 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 - [ ] Tabela: member_photos (id, user_id, path_encrypted, expires_at, deleted_at)
 - [ ] Tabela: member_photo_access (photo_id, performer_id, granted_at, expires_at, viewed_at)
 - [ ] Job: DeleteExpiredMemberPhotos (roda a cada hora)
+- [ ] Backup: disco de fotos efêmeras fica FORA do backup.sh, explicitamente.
+      Perda aceitável — foto efêmera por design não persiste além do TTL.
+      Adicionar a exclusão no backup.sh (e na cópia instalada no servidor)
+      ANTES da implementação.
+- [ ] EXIF/GPS: instalar intervention/image e re-encodar a foto na ingestão,
+      removendo metadado antes de cifrar. Só no upload, uma vez por foto.
+- [ ] Cap: máximo 5 fotos ativas simultâneas por membro, verificado no submit
+      (não no job de limpeza).
 
 **Feature: Stories da Performer (feed efêmero — Modelo C)**
 - [ ] Performer posta foto/vídeo curto com expiração de 24h fixo
@@ -1252,10 +1260,11 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 - [ ] Mídia: v1 só imagem, vídeo no Sprint 10
 
 > **Revisão de segurança pré-implementação:** `docs/SECURITY_ISSUES.md`, seção
-> "Sprint 9 — Pré-análise de Segurança". Ler antes de escrever código: há 14
-> bloqueadores 🔴 nas duas features, incluindo moderação de Stories (o backlog já
-> exige pipeline de moderação **antes** do primeiro upload) e o padrão de URL
-> assinada que destruiria o paywall do Modelo C.
+> "Sprint 9 — Pré-análise de Segurança". Ler antes de escrever código: restam 11
+> bloqueadores 🔴 abertos nas duas features (3 fechados pelas decisões de
+> 24/07/2026), incluindo moderação de Stories — o backlog já exige pipeline de
+> moderação **antes** do primeiro upload — e o padrão de URL assinada que
+> destruiria o paywall do Modelo C.
 
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
 
