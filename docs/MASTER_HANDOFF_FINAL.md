@@ -1220,6 +1220,33 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 - [ ] Soft descriptor proativo: mostrar como o pagamento aparece na fatura ANTES de cobrar
       (elimina chargeback na origem — também é bloqueador de go-live, confirmar com Asaas)
 
+**Feature: Controle de Visibilidade de Foto do Membro**
+- [ ] Membro escolhe entre foto pública (permanente) ou perfil sem foto
+- [ ] Se sem foto: pode enviar fotos privadas efêmeras para performers específicas no chat
+- [ ] Foto efêmera: cifrada, TTL configurável pelo membro (24h / 72h / 7 dias)
+- [ ] Após expirar: arquivo deletado do disco automaticamente
+- [ ] Membro pode revogar acesso antes de expirar
+- [ ] Performer vê indicador de tempo restante
+- [ ] Tabela: member_photos (id, user_id, path_encrypted, expires_at, deleted_at)
+- [ ] Tabela: member_photo_access (photo_id, performer_id, granted_at, expires_at, viewed_at)
+- [ ] Job: DeleteExpiredMemberPhotos (roda a cada hora)
+
+**Feature: Stories da Performer (feed efêmero — Modelo C)**
+- [ ] Performer posta foto/vídeo curto com expiração de 24h fixo
+- [ ] Seguir é automático — membro clica "Seguir" e já acessa
+- [ ] Stories em 3 níveis de visibilidade (performer escolhe por post):
+      Nível 1 — Público: todos os seguidores veem
+      Nível 2 — Assinantes: só membros com Círculo ativo (qualquer tier)
+      Nível 3 — Exclusivo: só membros Black e Founders Circle
+- [ ] Membros Black/FC podem ver Stories públicos de performers que não seguem ainda
+- [ ] Indicador de Stories não vistos no catálogo (ponto dourado no avatar)
+- [ ] Stories expirados: arquivo deletado do disco, removido do feed
+- [ ] Job: DeleteExpiredStories (roda a cada hora)
+- [ ] Tabela: performer_stories (id, performer_profile_id, media_path_encrypted, 
+      visibility_level enum(public/subscribers/exclusive), expires_at, deleted_at)
+- [ ] Decisão de produto: Modelo C — seguir é livre, controle é por nível de conteúdo,
+      não por aprovação de seguidor. Cria incentivo para assinar Círculo.
+
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
 
 ### A.3 Higiene / dívida técnica
