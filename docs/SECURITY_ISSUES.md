@@ -430,8 +430,9 @@ invisibilidade** (`PrivacyPerkService::MIN_TIER = 'black'` — Ghost Mode, Statu
 Invisível, Read Receipts) **viraria o mais identificável da plataforma.** O Nível
 3 vende ao Black o oposto do que o Black já comprou.
 
-**Decisão:** sem contador e sem lista nos Níveis 2 e 3. Se a performer precisar de
-métrica, agregar **através de todos os stories do dia**, sem quebrar por nível.
+**Decisão do PO (24/07/2026) — ✅ FECHADO, Opção B:** Nível 3 sem contador;
+Níveis 1 e 2 com faixa de membros únicos. Detalhe e rationale na decisão nº 3 do
+bloco de decisões, abaixo.
 
 #### 🔴 2.3 Copiar o padrão `performer.media` destrói o paywall
 
@@ -537,7 +538,7 @@ explícito.
 
 ### Decisões de produto — RESOLVIDAS pelo PO (24/07/2026)
 
-As duas travavam a Feature 2. Ambas decididas; a implementação está liberada nos
+Travavam a Feature 2. As três estão decididas; a implementação está liberada nos
 termos abaixo.
 
 1. **Lista/contador de viewers de Story — ✅ DECIDIDO**
@@ -567,14 +568,8 @@ termos abaixo.
      valem 2.6 (hard delete nos dois sentidos do `DeletionService`) e a retenção
      curta. A decisão fecha a superfície de exibição, não a de banco.
 
-   ⚠️ **Aberto dentro desta decisão:** 2.2 recomendava **nenhum** sinal de
-   audiência nos Níveis 2 e 3, e a decisão não distingue por nível. A faixa
-   mitiga bastante o ataque (a granularidade grossa não aponta indivíduo), mas
-   não o zera: a diferença de faixa entre um Nível 1 e um Nível 3 postados juntos
-   ainda estima quantos seguidores são Black/FC, e em perfil pequeno a faixa
-   `Menos de 5` num Nível 3 é informativa. Se a intenção do PO for aplicar o
-   contador aos três níveis, registrar como risco aceito; se não, o Nível 3 sai
-   sem contador. **Confirmar antes de implementar.**
+   A ressalva que esta decisão deixou aberta — o contador por nível de
+   visibilidade — foi fechada na decisão nº 3, abaixo.
 
 2. **Vídeo na v1 — ✅ DECIDIDO**
 
@@ -592,6 +587,49 @@ termos abaixo.
      ver 2.5 (envelope encryption é o caminho travado das FC Sessions) e 2.3 (a
      rota autenticada com authz por request vale igual para vídeo).
 
+3. **Contador por nível de visibilidade — ✅ DECIDIDO (Opção B)**
+
+   > Nível 3 sem contador. Stories Exclusivos (Black/FC) não exibem contador de
+   > visualizações. Níveis 1 e 2 exibem faixa de membros únicos normalmente.
+   >
+   > **Rationale:** consistente com Ghost Mode e Status Invisível do Black —
+   > membro que pagou por invisibilidade não aparece em nenhum contador, nem
+   > agregado. A performer sabe que o conteúdo foi entregue aos membros premium
+   > mas não sabe quantos viram.
+   >
+   > **Implementação:** `StoryViewService` verifica o nível antes de retornar o
+   > contador — Nível 3 retorna `null`, **não zero**.
+
+   Fecha o vazamento de tier de 2.2: sem contador no Nível 3, não há par de
+   números para subtrair, e o ataque de diferença de conjuntos (postar Nível 1 e
+   Nível 3 juntos e comparar) fica sem o segundo operando.
+
+   **`null` e não zero, e a distinção é de segurança, não de estilo.** Zero é um
+   valor no mesmo domínio da faixa: uma tela que trate `0` como "ninguém viu"
+   afirmaria algo falso sobre a audiência, e é o mesmo erro que a copy do painel
+   de visitantes evita de propósito ("Nada a mostrar", deliberadamente ambígua,
+   porque distinguir "zero" de "abaixo de k" já diria à performer que alguém
+   passou). `null` significa *"esta pergunta não é respondida neste nível"* —
+   estado distinto de toda contagem possível. A UI renderiza ausência, não `0`.
+
+   **Não vaza pela ausência:** a performer escolheu o nível ao postar, então ela
+   já sabe por que não há contador ali. A ausência é função do nível, que é dado
+   dela — não do conjunto de quem viu.
+
+   **Nível 2 mantém contador e isso é coerente**, não uma inconsistência: Nível 2
+   é "qualquer Círculo ativo", e `PrivacyPerkService::MIN_TIER = 'black'` — ser
+   assinante de algum tier não é a categoria que comprou invisibilidade. O que a
+   faixa do Nível 2 revela é quantos seguidores assinam alguma coisa, que é
+   métrica de negócio legítima. A linha do corte cai exatamente onde o perk
+   começa.
+
+   **O guard vive no `StoryViewService`**, não no controller nem no componente
+   Vue — mesma razão do item 2.7 e do item 9 do CLAUDE.md: a segunda superfície
+   que pedisse o contador (API, painel, export de métricas) nasceria vazando.
+   Filtrar no front seria pior ainda: o número trafegaria nas props do Inertia e
+   bastaria abrir o DevTools — o mesmo erro que o `FanAlias` evitou ao tirar o
+   `member_id` cru do payload.
+
 ---
 
 ### Ordem recomendada
@@ -599,8 +637,9 @@ termos abaixo.
 1. **Feature 1 antes da Feature 2.** Escopo menor, risco contido, e força
    construir `MemberPhotoStore` + expiração-na-leitura + os passos do
    `DeletionService` que a Feature 2 reusa.
-2. **Feature 2 destravada** pelas duas decisões acima (24/07/2026), com a ressalva
-   aberta do contador nos Níveis 2 e 3 — confirmar antes de implementar.
+2. **Feature 2 destravada.** As três decisões de produto estão fechadas
+   (24/07/2026) e nenhuma questão de escopo segue aberta. O que resta é
+   engenharia: os 🔴 desta seção continuam valendo como requisitos.
 3. **O refactor de `role`** destrava a moderação de Stories (2.4) e o Curador das
    FC Sessions de uma vez. Duas features travadas no mesmo pré-requisito.
 

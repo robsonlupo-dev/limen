@@ -1247,6 +1247,8 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 - [ ] Decisão de produto: Modelo C — seguir é livre, controle é por nível de conteúdo,
       não por aprovação de seguidor. Cria incentivo para assinar Círculo.
 - [ ] Visualizações: faixa de membros únicos (não lista, não repetições)
+- [ ] Nível 3 (Exclusivo): sem contador de visualizações — retorna null, não zero.
+      Níveis 1 e 2: faixa de membros únicos.
 - [ ] Mídia: v1 só imagem, vídeo no Sprint 10
 
 > **Revisão de segurança pré-implementação:** `docs/SECURITY_ISSUES.md`, seção
