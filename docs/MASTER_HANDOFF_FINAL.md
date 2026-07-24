@@ -1246,6 +1246,14 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
       visibility_level enum(public/subscribers/exclusive), expires_at, deleted_at)
 - [ ] Decisão de produto: Modelo C — seguir é livre, controle é por nível de conteúdo,
       não por aprovação de seguidor. Cria incentivo para assinar Círculo.
+- [ ] Visualizações: faixa de membros únicos (não lista, não repetições)
+- [ ] Mídia: v1 só imagem, vídeo no Sprint 10
+
+> **Revisão de segurança pré-implementação:** `docs/SECURITY_ISSUES.md`, seção
+> "Sprint 9 — Pré-análise de Segurança". Ler antes de escrever código: há 14
+> bloqueadores 🔴 nas duas features, incluindo moderação de Stories (o backlog já
+> exige pipeline de moderação **antes** do primeiro upload) e o padrão de URL
+> assinada que destruiria o paywall do Modelo C.
 
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
 

@@ -415,7 +415,7 @@ piso baseado em follows fora do circuito.
 `FollowerVisibilityService::canRevealList()` + `FanAlias` + faixa + k-anonimato,
 igual ao painel de visitantes. **Recomendado: contagem agregada em faixa e nada
 mais** — coerente com a regra 5 do CLAUDE.md ("contagem sempre em faixa, inclusive
-para a própria performer"). Ver decisão pendente nº 1.
+para a própria performer"). **Decidido pelo PO em 24/07/2026** — ver decisão nº 1.
 
 #### 🔴 2.2 Níveis 2 e 3 vazam o tier — e vazam de quem paga por invisibilidade
 
@@ -491,7 +491,7 @@ maior, conteúdo que a performer **escolheu publicar** → cifrar compra pouco e
 custa muito. Para Story: v1 só imagem, ou disco privado sem cifra com authz na
 camada de serving (risco "quem tem SSH lê", que já é verdade para os avatares).
 Envelope encryption + KMS é o caminho das FC Sessions — projeto, não feature.
-Ver decisão pendente nº 2.
+**Decidido pelo PO em 24/07/2026: v1 só imagem** — ver decisão nº 2.
 
 #### 🔴 2.6 `story_views` no `DeletionService`, nos dois sentidos
 
@@ -535,19 +535,62 @@ explícito.
 
 ---
 
-### Decisões de produto — ⏸️ PENDENTE DE DECISÃO DO PO
+### Decisões de produto — RESOLVIDAS pelo PO (24/07/2026)
 
-As duas travam a Feature 2. Sem elas, não começar a implementação.
+As duas travavam a Feature 2. Ambas decididas; a implementação está liberada nos
+termos abaixo.
 
-1. **Existe lista/contador de viewers de Story?**
-   Recomendação da revisão: nenhuma lista; no máximo contagem agregada em faixa,
-   nunca quebrada por nível de visibilidade. Ver 2.1 e 2.2 — qualquer sinal de
-   audiência em Nível 2/3 vaza o tier do membro.
+1. **Lista/contador de viewers de Story — ✅ DECIDIDO**
 
-2. **Vídeo entra na v1 ou v1 é só imagem?**
-   Recomendação da revisão: v1 só imagem. Vídeo cifrado com `Crypt` é DoS de
-   memória (2.5); vídeo não cifrado é decisão de risco a registrar; envelope
-   encryption é o projeto travado das FC Sessions.
+   > Contador em faixa de membros únicos — mesmo padrão do contador de seguidores
+   > (5+ / 10+ / 50+ / etc). Cada membro conta 1 vez independente de quantas vezes
+   > abriu o Story. Performer não vê lista de quem viu, só a faixa de quantos
+   > viram. Implementar via `story_views` com `DISTINCT member_id` antes de
+   > aplicar as faixas.
+
+   Acolhe a recomendação de 2.1 (sem lista de viewers). A faixa reusa
+   `PerformerProfile::followersLabelFor()`, que já é a tabela vigente
+   (`Menos de 5` / `5+` / `10+` / `50+` / `100+`, exato a partir de 500) — **não
+   criar uma segunda tabela de faixas**, pela mesma razão que o critério de
+   elegibilidade do piso tem uma dona só: duas tabelas divergem, e divergiriam no
+   sentido permissivo.
+
+   Detalhes que a decisão fixa e que a implementação não pode reinterpretar:
+   - **`DISTINCT member_id` ANTES da faixa**, nunca depois. Faixar o total de
+     aberturas devolveria "quantas vezes abriram", que é comportamento do membro,
+     não audiência — e um membro que reabre 5 vezes empurraria sozinho a faixa de
+     `Menos de 5` para `5+`.
+   - **A faixa não substitui os guards de 2.7:** view de membro com Ghost Mode ou
+     Modo Discreto não é gravada em `story_views`, então não conta para o
+     `DISTINCT`. Guard no service, não no controller.
+   - **`story_views` continua sendo tabela de correlação** mesmo sem lista na UI:
+     valem 2.6 (hard delete nos dois sentidos do `DeletionService`) e a retenção
+     curta. A decisão fecha a superfície de exibição, não a de banco.
+
+   ⚠️ **Aberto dentro desta decisão:** 2.2 recomendava **nenhum** sinal de
+   audiência nos Níveis 2 e 3, e a decisão não distingue por nível. A faixa
+   mitiga bastante o ataque (a granularidade grossa não aponta indivíduo), mas
+   não o zera: a diferença de faixa entre um Nível 1 e um Nível 3 postados juntos
+   ainda estima quantos seguidores são Black/FC, e em perfil pequeno a faixa
+   `Menos de 5` num Nível 3 é informativa. Se a intenção do PO for aplicar o
+   contador aos três níveis, registrar como risco aceito; se não, o Nível 3 sai
+   sem contador. **Confirmar antes de implementar.**
+
+2. **Vídeo na v1 — ✅ DECIDIDO**
+
+   > V1 aceita apenas imagem (jpeg/png). Vídeo entra no Sprint 10 após preparar
+   > a estratégia de serving sem cifra em memória.
+
+   Acolhe a recomendação de 2.5 e neutraliza o DoS de memória do
+   `Crypt::encryptString` na v1. Consequências para a implementação:
+   - Form Request com `mimes:jpeg,png` (mesmo conjunto do `SubmitKycRequest`),
+     validado no servidor — não por extensão do filename.
+   - O re-encode do item 1.4 vale aqui também: imagem publicada por performer
+     também carrega EXIF/GPS, e um Story revela a localização de quem tem KYC na
+     plataforma. **Strip obrigatório**, não opcional.
+   - A estratégia de serving do Sprint 10 é o pré-requisito, não um follow-up:
+     ver 2.5 (envelope encryption é o caminho travado das FC Sessions) e 2.3 (a
+     rota autenticada com authz por request vale igual para vídeo).
 
 ---
 
@@ -556,7 +599,8 @@ As duas travam a Feature 2. Sem elas, não começar a implementação.
 1. **Feature 1 antes da Feature 2.** Escopo menor, risco contido, e força
    construir `MemberPhotoStore` + expiração-na-leitura + os passos do
    `DeletionService` que a Feature 2 reusa.
-2. **Feature 2 não começa antes das duas decisões acima.**
+2. **Feature 2 destravada** pelas duas decisões acima (24/07/2026), com a ressalva
+   aberta do contador nos Níveis 2 e 3 — confirmar antes de implementar.
 3. **O refactor de `role`** destrava a moderação de Stories (2.4) e o Curador das
    FC Sessions de uma vez. Duas features travadas no mesmo pré-requisito.
 
