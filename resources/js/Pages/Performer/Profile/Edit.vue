@@ -29,6 +29,19 @@ const profileForm = useForm({
     worlds: props.profile.worlds ?? [props.profile.category].filter(Boolean),
 })
 
+// Feedback de preenchimento da bio: só empurra a performer a escrever mais.
+// Não é validação — o servidor não exige tamanho mínimo e nada aqui trava o
+// submit. Ordem decrescente: o primeiro `min` alcançado ganha.
+const BIO_TIERS = [
+    { min: 300, text: 'Perfil completo atrai mais membros ✓', class: 'text-success' },
+    { min: 150, text: 'Você está indo bem! 🔥', class: 'text-gold' },
+    { min: 50, text: 'Bom começo! Continue...', class: 'text-muted' },
+    { min: 0, text: 'Conte mais sobre você...', class: 'text-muted' },
+]
+
+const bioLength = computed(() => profileForm.bio.length)
+const bioTier = computed(() => BIO_TIERS.find((tier) => bioLength.value >= tier.min))
+
 function toggleWorld(value) {
     const i = profileForm.worlds.indexOf(value)
     if (i === -1) profileForm.worlds.push(value)
@@ -127,9 +140,13 @@ function save() {
                         v-model="profileForm.bio"
                         rows="5"
                         maxlength="5000"
-                        placeholder="Fale sobre você..."
+                        placeholder="Conte aos membros premium o que te torna única..."
                         class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
                     />
+                    <div class="flex items-baseline justify-between gap-3">
+                        <p class="text-xs transition-colors" :class="bioTier.class">{{ bioTier.text }}</p>
+                        <span class="text-xs text-muted tabular-nums shrink-0">{{ bioLength }}/5000</span>
+                    </div>
                     <p v-if="profileForm.errors.bio" class="text-xs text-danger">{{ profileForm.errors.bio }}</p>
                 </div>
 
