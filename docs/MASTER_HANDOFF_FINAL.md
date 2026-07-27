@@ -7,6 +7,7 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
+> **Última atualização:** 27/07/2026 — fecho do Sprint 8 (`main`, tag `v1.0-sprint8`)
 > **Método:** escrito a partir da **inspeção do código real** — `git log`,
 > `route:list`, `composer.json`, migrations, services, controllers, configs e a
 > suíte de testes rodada de ponta a ponta. Onde um doc antigo contradiz o código,
@@ -58,47 +59,47 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **859 testes verdes, 4547 asserts** | `php artisan test` (~145 s) |
-| Migrations | **62** | `php artisan migrate:status` (linhas *Ran*) |
-| Rotas registradas | **134** | `php artisan route:list \| wc -l` |
-| `Route::` em `routes/web.php` | 90 | `grep` |
+| Suíte de testes | **912 testes verdes, 4817 asserts** | `php artisan test` (~245 s) |
+| Migrations | **66** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **134** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 99 | `grep` |
 | Rotas HTTP em `routes/api.php` | 39 | `grep` |
-| Services | 24 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
-| Models | 27 | `ls app/Models/` |
-| Controllers Web | 37 | `find app/Http/Controllers/Web` |
+| Services | 22 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
+| Models | 28 | `ls app/Models/` |
+| Controllers Web | 40 | `find app/Http/Controllers/Web` |
 | Controllers API | 21 | `find app/Http/Controllers/Api` |
-| Middleware | 8 | `ls app/Http/Middleware/` |
+| Middleware | 10 | `ls app/Http/Middleware/` |
 | Commands (agendáveis) | 9 | `ls app/Console/Commands/` |
 | Jobs | 2 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 24 | `ls config/` |
-| Tag Git | `v1.0-sprint7` (em `80ba300`, fecho do Sprint 7; restam `v1.0-sprint6` em `5070638` e `archive/qa-pre-prod-operation`) | `git tag` |
+| Tag Git | `v1.0-sprint8` (em `93b2878`, fecho do Sprint 8; restam `v1.0-sprint7` em `80ba300`, `v1.0-sprint6` em `5070638` e `archive/qa-pre-prod-operation`) | `git tag` |
 
-**Branch atual:** `main` (em `80ba300`, com os PRs #80/#81/#82 do Sprint 7 mergeados). Os últimos commits fecham o Sprint 7.
+**Branch atual:** `main` (em `93b2878`, com os PRs #83/#84/#85/#86/#87 do Sprint 8 mergeados). Os últimos commits fecham o Sprint 8.
 Últimos commits relevantes (mais recente primeiro):
 
 ```
-6007c1c docs: clarify test count reflects current branch state in CLAUDE.md
-2cd5932 docs: update test count to 819 in CLAUDE.md
-e043077 style: apply Pint across repo (cosmetic only, no logic changed)
-d9594ab refactor: chat filter — allow contact sharing, focus on legal risk + conduct
-85eb33c feat: geo-block US (FOSTA-SESTA) + chat word filter (Sprint 6 final)
-3ebda19 Merge pull request #76 from robsonlupo-dev/feat/2fa-performers
-7fa7502 fix: close 2FA bypass on the Sanctum port + TOTP replay (security review)
-a046d2b feat: TOTP 2FA for performers (Sprint 6)
-acf1df2 Merge pull request #75 from robsonlupo-dev/feat/privacy-tiers
-9160df8 feat: k-anonymity per slot in visitor panel (k=3) + update CLAUDE.md
-7dc29da Merge pull request #74 from robsonlupo-dev/feat/hard-delete
-91d4735 feat: LGPD hard delete with 30-day grace period (Sprint 6)
-28285ea Merge pull request #73 from robsonlupo-dev/feat/report-system
-07e6efa Merge pull request #72 from robsonlupo-dev/age-verification
-080cb1e Merge pull request #71 from robsonlupo-dev/age-verification
-0372e1e feat: panic button with session logout (Sprint 6)
-acb788f Merge pull request #70 from robsonlupo-dev/age-verification
-552b82c fix: close document acceptance gate bypasses (chat + API + version ordering)
-34ac192 feat: document acceptance infrastructure (content policy + performance contract)
-bce263f feat: derive member pseudonyms per performer via FanAlias
-7374b40 feat: age verification via CPF+DOB for member registration (ECA Digital)
+93b2878 Merge pull request #87 from robsonlupo-dev/feat/sprint8-password-toggle
+6551d6e docs: decisões PO Sprint 9 — foto efêmera (backup, EXIF, cap 5 fotos)
+db8827a docs: decisão PO — Nível 3 Stories sem contador (fecha vazamento de tier)
+23fa409 docs: decisões PO Sprint 9 — contador em faixa único + v1 só imagem nos Stories
+99a936b docs: security review pré-implementação Sprint 9 — foto efêmera e stories
+b538f08 use design system tokens for password toggle colors
+9d18840 add password visibility toggle to Input component
+c5a6dfe docs: registra features Foto Efêmera de Membro e Stories da Performer no backlog Sprint 9
+c724ca0 docs: registra backlog Sprint 9 — UX e monetização baseado no Seeking case study
+630bbb3 Merge pull request #86 from robsonlupo-dev/feat/sprint8-edit-worlds
+a0964f6 feat: edição de worlds no profile-edit — checkboxes, category derivada server-side
+2fbc60a Merge pull request #85 from robsonlupo-dev/feat/sprint8-member-kyc
+b1b9849 feat: KYC Nível 2 para membros — pending_kyc, selfie via Didit, middleware member.verified
+cc2516a test: replace fragile substring asserts over slug/HMAC with real opacity checks
+8c6b4e8 test: replace fragile FanAlias '42' substring assert with real opacity checks
+f53eb6e Merge pull request #84 from robsonlupo-dev/feat/sprint8-fraud-blacklist
+e3b9211 feat: fraud blacklist — HMAC of CPF/document on ban, signal on re-registration
+18bbede Merge pull request #83 from robsonlupo-dev/feat/sprint8-banned-status
+3c04b7a feat: banned status — permanent account closure by moderation
+e70b8dc docs: registra B.10 — divergência category↔worlds em performers legado
+7109025 docs: handoff Sprint 7 — 859 testes, tag v1.0-sprint7
 ```
 
 **O que o Sprint 6 entregou (todos confirmados no `git log`):**
@@ -148,6 +149,74 @@ Ouro do Git Flow (branch + PR para `main`, sem commit direto). Suíte passou de
 multi-mundos) passaram pelo subagente de revisão antes do merge. Achado aplicado:
 os e-mails de aprovação/rejeição de KYC passaram a `->afterCommit()` (o dispatch
 dentro da transação aninhada podia vazar e-mail num rollback).
+
+---
+
+## Sprint 8 — O que foi entregue
+
+Fechado na tag `v1.0-sprint8` (`93b2878`). Todos os PRs seguiram a Regra de Ouro
+do Git Flow (branch + PR para `main`); os únicos commits diretos na `main` foram
+doc puro, que é a exceção prevista. Suíte passou de 859 → **912 testes** verdes
+(4817 asserts).
+
+| Entrega | Commit/PR | Seção deste doc |
+|---|---|---|
+| **Status `banned` (permanente)** separado de `suspended` + middleware de sessão viva | `3c04b7a` / PR #83 | §12 |
+| **Lista negra antifraude** (hash de CPF + hash de documento + `blacklist_hit`) | `e3b9211` / PR #84 | §8, §12.4 |
+| **KYC Nível 2 para membros** (selfie via Didit, `pending_kyc`, middleware `member.verified`) | `b1b9849` / PR #85 | §8, §9 |
+| **Editar `worlds` no profile-edit** (checkboxes, `category` derivada no servidor) | `a0964f6` / PR #86 | §5 |
+| **Toggle de visibilidade de senha** (`Input.vue`, tokens do design system) | `9d18840`, `b538f08` / PR #87 | — |
+| **Varredura preventiva de falsos positivos na suíte** (3 asserts frágeis corrigidos) | `8c6b4e8`, `cc2516a` | — |
+| **Security review pré-implementação Sprint 9** | `99a936b` → `docs/SECURITY_ISSUES.md` | Apêndice A |
+| **Decisões de produto do Sprint 9** (foto efêmera + Stories) | `23fa409`, `db8827a`, `6551d6e` | Apêndice A |
+
+### Detalhes que não se deduzem do diff
+
+**Status `banned` — a mensagem específica só vai para quem tem a senha.**
+`AccountBlockedException` é lançada por `attemptLogin` **depois** do
+`Hash::check` passar. Senha errada continua recebendo "credenciais inválidas"
+genérico: se a mensagem "conta encerrada permanentemente" viesse antes da prova
+de senha, o login viraria **oráculo de enumeração de status** de qualquer e-mail.
+Web e API mapeiam a exceção para mensagens distintas, ambas com audit
+`auth.login_blocked`. `status` segue fora do `$fillable`; o ban passa por
+`UserBanController` (`forceFill` sob `lockForUpdate` + transação, motivo
+obrigatório, revoga tokens Sanctum, guardas contra auto-ban e ban de outro
+admin, re-ban idempotente).
+
+**`BlockBannedUsers` é do grupo `web` e é `banned`-only, de propósito.** O bloqueio
+de login só cobre o *próximo* login — sem o middleware, o admin banindo alguém
+com sessão aberta não derrubava essa sessão. Não vale para `suspended`: o
+suspenso tem gates 403 por área, e o middleware transformaria um 403 já
+estabelecido em 302.
+
+**A blacklist SINALIZA, nunca bloqueia** — mesma disciplina do shared-IP flag.
+Guarda só HMAC (`CpfHash`, e o novo `DocumentHash` com namespace `doc:` para um
+CPF-como-documento nunca colidir com o próprio `cpf_hash`), nunca a PII crua. A
+entrada **sobrevive ao Hard Delete LGPD**, porque o valor está no hash e não no
+titular. `recordForBannedUser` deriva o hash do documento de KYC em **qualquer
+status, inclusive `pending`** — é o caso comum de ban de performer — ou do
+`age_verifications.cpf_hmac` no caso do membro. `blacklist_hit` fica fora do
+`$fillable`; a fila `/admin/kyc` mostra o badge "CPF banido anteriormente".
+
+**KYC de membro reusa a fonte única.** `KycSubmissionService` continua sendo a
+única porta (mesma da performer, da API e do webhook Didit) — não nasceu um
+segundo caminho de submissão. O novo status `pending_kyc` e as colunas de
+documento nullable são migrations; o gate é o middleware `member.verified`.
+
+**A varredura de asserts frágeis foi preventiva, não correção de bug.** A classe
+é `'137'`/`'42'`: agulha curta procurada dentro de saída opaca que varia por
+`APP_KEY`, build ou RNG — o teste passa por sorteio e um dia falha sem que nada
+tenha quebrado. Os três casos (sufixo `Str::random(4)` do slug, dígitos de CPF
+dentro do hex do HMAC, `'42'` dentro do handle do `FanAlias`) viraram asserts de
+opacidade real (estrutura exata, `not->toBe` do valor cru). Asserts de substring
+negativa legítimos — agulha longa/específica de PII, nome de campo, agulha com
+maiúscula ou ponto que não ocorre em hex minúsculo — foram deixados como estavam.
+
+> **Sprint 8 não abriu módulo de conteúdo.** A janela descrita no §1 continua
+> aberta: moderação e pipeline de verificação devem ser construídos **antes** do
+> primeiro upload — e o Sprint 9 (foto efêmera + Stories) é exatamente o sprint
+> que abre essa superfície. Ler a pré-análise em `docs/SECURITY_ISSUES.md` antes
+> de escrever a primeira linha.
 
 ---
 
@@ -1164,26 +1233,21 @@ CHAT_FILTER_ENABLED=true · CHAT_FILTER_AUDIT_DEDUP_MINUTES=10
       + preload; tornar condicional no código).
 - [ ] **Subir o Reverb** (chat em tempo real hoje em driver `log`).
 
-### A.2 Sprint 8 (previsto)
+### A.2 Sprint 8 — o que sobrou
 
-Novos para o Sprint 8:
+O Sprint 8 fechou (tag `v1.0-sprint8`): status `banned`, lista negra antifraude,
+KYC Nível 2 de membro, edição de `worlds` no profile-edit e o toggle de senha
+saíram da lista — o registro do que foi entregue está na seção
+"Sprint 8 — O que foi entregue". **Seguem abertos**, arrastados do Sprint 8:
 
-- [ ] **KYC Nível 2 para membros** — documento + selfie via Didit, fila de
-      revisão de 48h. Hoje o membro só passa por `cpf_dob` (§9); é o próximo
-      nível de verificação de idade/identidade do lado do consumidor.
-- [ ] **Status `banned` (permanente)** separado de `suspended` (temporário) —
-      hoje há só `active`/`pending`/`suspended`; expulsão definitiva e suspensão
-      reversível não devem colidir no mesmo estado.
-- [ ] **Lista negra antifraude** — hash de CPF + hash de documento, para barrar
-      recadastro de conta banida sem guardar a PII crua (mesma disciplina do
-      `CpfHash`/`ClientFingerprint`).
-- [ ] **Editar `worlds` pós-cadastro no profile-edit** — o Sprint 7 entregou
-      multi-mundos só no cadastro; o `UpdatePerformerProfileRequest` ainda só
-      aceita `category`. Sem isso, `category` e `worlds` podem divergir num
-      rename de mundo (§5, pegadinha registrada).
 - [ ] **Soft descriptor Asaas** (nome na fatura do cartão/PIX) — depende do CNPJ.
+      Também aparece como item de UX no Sprint 9 (mostrar o descriptor **antes**
+      de cobrar) e é bloqueador de go-live.
 - [ ] **KYC Didit em produção** — sair do driver `fake`, confirmar o encoding do
-      `x-signature` do webhook v3 contra o ambiente real.
+      `x-signature` do webhook v3 contra o ambiente real. Agora vale para as duas
+      trilhas: performer (Sprint 5) **e** membro Nível 2 (Sprint 8).
+- [ ] **Fila de revisão de 48h do KYC de membro** — a submissão, o `pending_kyc`
+      e a fila admin existem; o SLA de 48h não é medido nem alertado por nada.
 
 Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 
@@ -1197,6 +1261,13 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
       verificada. Ver `docs/LEGAL_GAP_ANALYSIS.md`.
 
 ### Sprint 9 — UX e Monetização (baseado em SEEKING_UX_CASE_STUDY.md)
+
+> **Backlog conferido no fecho do Sprint 8 — está completo, é o próximo sprint.**
+> Escopo, decisões de produto do PO (24/07/2026: contador em faixa único, v1 só
+> imagem nos Stories, Nível 3 sem contador, backup/EXIF/cap de 5 fotos) e a
+> pré-análise de segurança estão todos registrados. **Nada de código foi escrito
+> para o Sprint 9** — o que existe é decisão e análise. Não há item pendente de
+> documentação; o próximo passo é implementação, e ela começa pelos 🔴.
 
 **Alta prioridade:**
 - [ ] Verificação de documento como produto (RG/CNH via Didit) — R$9,90 taxa única
@@ -1443,7 +1514,7 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 ## Checklist de continuidade para o próximo chat
 
 - [ ] Ler o `CLAUDE.md` inteiro (é o cérebro; este handoff é o mapa).
-- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **819 verdes** antes de
+- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **912 verdes** antes de
       começar.
 - [ ] Antes de tarefa sensível (cadastro, KYC, pagamento, payout, privacidade),
       rodar o **subagente de segurança** (`security-reviewer`).
@@ -1459,5 +1530,6 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 ---
 
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
-real na branch `feat/sprint6-final`. Onde este doc e o código divergirem no
+real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
+(`main`, `93b2878`, tag `v1.0-sprint8`). Onde este doc e o código divergirem no
 futuro, o código vence — e a divergência deve ser registrada aqui ou no CLAUDE.md.*
