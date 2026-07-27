@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\PerformerProfile;
+use App\Rules\NoProhibitedOffer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,7 +23,12 @@ class UpdatePerformerProfileRequest extends FormRequest
                 ['sometimes', 'required'],
                 PerformerProfile::stageNameRules($this->user()?->performerProfile?->id),
             ),
-            'bio' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            // NoProhibitedOffer: a bio é publicada em página pública indexável,
+            // então oferta de encontro pago é barrada aqui como é no chat. Este
+            // Form Request é compartilhado pelas TRÊS portas que escrevem o
+            // perfil (edição web, onboarding e a API v1) — colocar a regra numa
+            // só teria deixado as outras duas abertas.
+            'bio' => ['sometimes', 'nullable', 'string', 'max:5000', new NoProhibitedOffer],
             // Multi-worlds: a performer pode pertencer a mais de um mundo. Se
             // `worlds` vier, ele é a fonte da verdade e `category` é DERIVADA de
             // worlds[0] no servidor (controller) — nunca do request. `min:1`
@@ -67,7 +73,7 @@ class UpdatePerformerProfileRequest extends FormRequest
 
             // Texto livre exibido no perfil PÚBLICO, como a bio. Teto menor que o
             // da bio de propósito: é um parágrafo, não uma segunda biografia.
-            'looking_for' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'looking_for' => ['sometimes', 'nullable', 'string', 'max:1000', new NoProhibitedOffer],
         ];
     }
 
