@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
+import VerificationBadges from '@/Components/VerificationBadges.vue'
 import StarRating from '@/Components/StarRating.vue'
 import FollowButton from '@/Components/FollowButton.vue'
 
@@ -51,8 +52,13 @@ const categoryLabels = {
             <div class="px-4 pt-9 pb-3 space-y-1.5">
                 <div class="flex items-center gap-1.5 min-w-0">
                     <h3 class="font-serif text-lg text-cream truncate">{{ performer.stage_name }}</h3>
-                    <VerifiedBadge />
+                    <VerifiedBadge :category="performer.category" />
                 </div>
+                <VerificationBadges
+                    :is-verified="performer.is_verified"
+                    :email-verified="performer.email_verified"
+                    :category="performer.category"
+                />
                 <p class="text-xs text-muted uppercase tracking-wide">
                     {{ categoryLabels[performer.category] ?? performer.category }}
                 </p>

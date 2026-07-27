@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
+import VerificationBadges from '@/Components/VerificationBadges.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
 
 defineProps({
@@ -47,16 +48,18 @@ defineProps({
         <div class="px-4 pt-9 pb-4 space-y-1.5">
             <div class="flex items-center gap-1.5 min-w-0">
                 <h3 class="font-serif text-lg text-cream truncate">{{ performer.stage_name }}</h3>
-                <VerifiedBadge />
+                <VerifiedBadge :category="performer.category" />
             </div>
+            <VerificationBadges
+                :is-verified="performer.is_verified"
+                :email-verified="performer.email_verified"
+                :category="performer.category"
+            />
             <p class="text-xs text-muted uppercase tracking-wide flex items-center gap-1">
                 <span aria-hidden="true">{{ WORLD_ICONS[performer.category] }}</span>
                 {{ WORLD_LABELS[performer.category] ?? performer.category }}
             </p>
-            <div class="flex items-center justify-between pt-1">
-                <span class="text-[11px] rounded-full border border-gold/30 text-gold/90 px-2 py-0.5">Verificada</span>
-                <span class="text-xs text-muted">{{ performer.followers_label }} apoiadores</span>
-            </div>
+            <p class="text-xs text-muted pt-1">{{ performer.followers_label }} apoiadores</p>
         </div>
     </Link>
 </template>
