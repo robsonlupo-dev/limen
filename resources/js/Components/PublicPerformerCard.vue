@@ -1,7 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
-import LiveBadge from '@/Components/LiveBadge.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
 
 defineProps({
@@ -24,9 +23,12 @@ defineProps({
             />
             <div v-else class="h-full w-full bg-gradient-to-br from-gold/25 via-surface-2 to-background" />
 
-            <div v-if="performer.is_live" class="absolute top-2 left-2">
-                <LiveBadge />
-            </div>
+            <div
+                v-if="performer.is_live"
+                role="img"
+                aria-label="Ao vivo"
+                class="absolute bottom-2 left-2 h-3 w-3 rounded-full bg-green-500 ring-2 ring-white animate-pulse"
+            />
 
             <div class="absolute -bottom-6 left-4">
                 <div class="h-14 w-14 rounded-full border-2 border-gold bg-surface-2 overflow-hidden flex items-center justify-center shadow-lg">
