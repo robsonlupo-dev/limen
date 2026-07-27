@@ -21,6 +21,16 @@ class PerformerPublicResource extends JsonResource
             // activeWorlds(), então nunca chega vazio ao front.
             'worlds' => $this->activeWorlds(),
             'work_modes' => $this->work_modes,
+            // "Sobre mim" (Sprint 9) — auto-declarado pela performer e exibido no
+            // perfil público. Nada aqui é coletado pela plataforma nem cruza com
+            // o KYC: são os mesmos campos que ela preenche na tela de edição.
+            // `tags` sai como lista de slugs; o rótulo é do frontend.
+            'tags' => $this->tagSlugs(),
+            'languages' => $this->languages ?? [],
+            'drinks' => $this->drinks,
+            'smokes' => $this->smokes,
+            'height_cm' => $this->height_cm,
+            'looking_for' => $this->looking_for,
             'is_live' => $this->is_live,
             'rating_avg' => $this->rating_avg,
             'rating_count' => $this->rating_count,

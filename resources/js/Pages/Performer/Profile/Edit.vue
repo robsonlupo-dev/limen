@@ -4,6 +4,15 @@ import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
+import {
+    TAG_GROUPS,
+    MAX_TAGS,
+    LANGUAGES,
+    DRINKS,
+    SMOKES,
+    HEIGHT_MIN_CM,
+    HEIGHT_MAX_CM,
+} from '@/lib/performerAttributes'
 
 const props = defineProps({
     profile: { type: Object, required: true },
@@ -27,6 +36,14 @@ const profileForm = useForm({
     // Pré-seleção: `worlds` é a fonte da verdade; perfil legado (worlds null)
     // cai no único mundo da `category`.
     worlds: props.profile.worlds ?? [props.profile.category].filter(Boolean),
+    // "Sobre mim". O servidor revalida tudo (Rule::in + max) — o que a tela faz
+    // aqui é impedir o estado inválido, não substituir a validação.
+    tags: [...(props.profile.tags ?? [])],
+    languages: [...(props.profile.languages ?? [])],
+    drinks: props.profile.drinks ?? null,
+    smokes: props.profile.smokes ?? null,
+    height_cm: props.profile.height_cm ?? null,
+    looking_for: props.profile.looking_for ?? '',
 })
 
 // Feedback de preenchimento da bio: só empurra a performer a escrever mais.
@@ -46,6 +63,38 @@ function toggleWorld(value) {
     const i = profileForm.worlds.indexOf(value)
     if (i === -1) profileForm.worlds.push(value)
     else profileForm.worlds.splice(i, 1)
+}
+
+// Tags: teto de MAX_TAGS. Desmarcar sempre funciona; marcar só até o teto —
+// senão a performer no limite fica sem entender por que o clique não pega.
+const tagCount = computed(() => profileForm.tags.length)
+const tagLimitReached = computed(() => tagCount.value >= MAX_TAGS)
+
+function isTagSelected(value) {
+    return profileForm.tags.includes(value)
+}
+
+function toggleTag(value) {
+    const i = profileForm.tags.indexOf(value)
+    if (i !== -1) {
+        profileForm.tags.splice(i, 1)
+        return
+    }
+    if (tagLimitReached.value) return
+    profileForm.tags.push(value)
+}
+
+function toggleLanguage(value) {
+    const i = profileForm.languages.indexOf(value)
+    if (i === -1) profileForm.languages.push(value)
+    else profileForm.languages.splice(i, 1)
+}
+
+// Radio que aceita desmarcar: clicar na opção já ativa limpa o campo. Sem isso
+// não haveria como voltar a "não informado" depois do primeiro clique — e o
+// campo é nullable no banco justamente porque informar é opcional.
+function toggleChoice(field, value) {
+    profileForm[field] = profileForm[field] === value ? null : value
 }
 
 // Pelo menos um mundo é obrigatório. Validação inline (o servidor também
@@ -179,6 +228,193 @@ function save() {
 
                     <p v-if="worldsInvalid" class="text-xs text-danger">Selecione pelo menos um mundo.</p>
                     <p v-else-if="profileForm.errors.worlds" class="text-xs text-danger">{{ profileForm.errors.worlds }}</p>
+                </div>
+
+                <!-- Sobre mim: tudo opcional e auto-declarado. Aparece no seu
+                     perfil público — a copy abaixo diz isso à performer antes
+                     de ela preencher, não depois. -->
+                <div class="border-t border-frame pt-5 space-y-6">
+                    <div class="space-y-1">
+                        <h2 class="font-serif text-xl text-cream">Sobre mim</h2>
+                        <p class="text-xs text-muted">
+                            Tudo aqui é opcional e aparece no seu perfil público. Preencha só o que
+                            quiser mostrar.
+                        </p>
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <span class="text-sm font-medium text-cream">Tags</span>
+                            <span class="text-xs text-muted tabular-nums shrink-0">
+                                {{ tagCount }}/{{ MAX_TAGS }} selecionadas
+                            </span>
+                        </div>
+                        <p class="text-xs text-muted">
+                            Escolha até {{ MAX_TAGS }} que te descrevem. Membros usam as tags para
+                            te encontrar.
+                        </p>
+
+                        <div v-for="group in TAG_GROUPS" :key="group.key" class="space-y-2">
+                            <p class="text-xs text-muted uppercase tracking-wide">{{ group.label }}</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    v-for="tag in group.tags"
+                                    :key="tag.value"
+                                    type="button"
+                                    :disabled="!isTagSelected(tag.value) && tagLimitReached"
+                                    :aria-pressed="isTagSelected(tag.value)"
+                                    class="rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    :class="isTagSelected(tag.value)
+                                        ? 'border-gold bg-gold/10 text-gold'
+                                        : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                                    @click="toggleTag(tag.value)"
+                                >
+                                    {{ tag.label }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <p v-if="tagLimitReached" class="text-xs text-muted">
+                            Limite atingido. Desmarque uma tag para escolher outra.
+                        </p>
+                        <p v-if="profileForm.errors.tags" class="text-xs text-danger">{{ profileForm.errors.tags }}</p>
+                    </div>
+
+                    <!-- Idiomas -->
+                    <div class="flex flex-col gap-2">
+                        <span class="text-sm font-medium text-cream">Idiomas</span>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                            <label
+                                v-for="language in LANGUAGES"
+                                :key="language.value"
+                                class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
+                                :class="profileForm.languages.includes(language.value)
+                                    ? 'border-gold bg-gold/10 text-gold'
+                                    : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                            >
+                                <input
+                                    type="checkbox"
+                                    class="accent-gold h-4 w-4"
+                                    :value="language.value"
+                                    :checked="profileForm.languages.includes(language.value)"
+                                    @change="toggleLanguage(language.value)"
+                                />
+                                {{ language.label }}
+                            </label>
+                        </div>
+                        <p v-if="profileForm.errors.languages" class="text-xs text-danger">{{ profileForm.errors.languages }}</p>
+                    </div>
+
+                    <!-- Bebida / Fumo -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div class="flex flex-col gap-2">
+                            <span class="text-sm font-medium text-cream">Bebida</span>
+                            <div class="flex flex-col gap-2 pt-1">
+                                <label
+                                    v-for="option in DRINKS"
+                                    :key="option.value"
+                                    class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
+                                    :class="profileForm.drinks === option.value
+                                        ? 'border-gold bg-gold/10 text-gold'
+                                        : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="drinks"
+                                        class="accent-gold h-4 w-4"
+                                        :value="option.value"
+                                        :checked="profileForm.drinks === option.value"
+                                        @click="toggleChoice('drinks', option.value)"
+                                    />
+                                    {{ option.label }}
+                                </label>
+                            </div>
+                            <p v-if="profileForm.errors.drinks" class="text-xs text-danger">{{ profileForm.errors.drinks }}</p>
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                            <span class="text-sm font-medium text-cream">Fumo</span>
+                            <div class="flex flex-col gap-2 pt-1">
+                                <label
+                                    v-for="option in SMOKES"
+                                    :key="option.value"
+                                    class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
+                                    :class="profileForm.smokes === option.value
+                                        ? 'border-gold bg-gold/10 text-gold'
+                                        : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="smokes"
+                                        class="accent-gold h-4 w-4"
+                                        :value="option.value"
+                                        :checked="profileForm.smokes === option.value"
+                                        @click="toggleChoice('smokes', option.value)"
+                                    />
+                                    {{ option.label }}
+                                </label>
+                            </div>
+                            <p v-if="profileForm.errors.smokes" class="text-xs text-danger">{{ profileForm.errors.smokes }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Altura. O slider não consegue expressar "não informado",
+                         então o campo nasce vazio e há como voltar a vazio. -->
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <label for="height_cm" class="text-sm font-medium text-cream">Altura</label>
+                            <span class="text-xs tabular-nums shrink-0" :class="profileForm.height_cm ? 'text-gold' : 'text-muted'">
+                                {{ profileForm.height_cm ? `${profileForm.height_cm} cm` : 'Não informado' }}
+                            </span>
+                        </div>
+
+                        <div v-if="profileForm.height_cm" class="flex items-center gap-3">
+                            <span class="text-xs text-muted tabular-nums shrink-0">{{ HEIGHT_MIN_CM }}</span>
+                            <input
+                                id="height_cm"
+                                v-model.number="profileForm.height_cm"
+                                type="range"
+                                class="accent-gold w-full"
+                                :min="HEIGHT_MIN_CM"
+                                :max="HEIGHT_MAX_CM"
+                                step="1"
+                            />
+                            <span class="text-xs text-muted tabular-nums shrink-0">{{ HEIGHT_MAX_CM }}</span>
+                            <button
+                                type="button"
+                                class="text-xs text-muted underline underline-offset-4 hover:text-cream transition-colors shrink-0"
+                                @click="profileForm.height_cm = null"
+                            >
+                                Limpar
+                            </button>
+                        </div>
+                        <button
+                            v-else
+                            type="button"
+                            class="self-start rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream hover:border-gold/50 transition-colors"
+                            @click="profileForm.height_cm = 165"
+                        >
+                            Informar altura
+                        </button>
+
+                        <p v-if="profileForm.errors.height_cm" class="text-xs text-danger">{{ profileForm.errors.height_cm }}</p>
+                    </div>
+
+                    <!-- O que estou procurando -->
+                    <div class="flex flex-col gap-1.5">
+                        <label for="looking_for" class="text-sm font-medium text-cream">O que estou procurando</label>
+                        <textarea
+                            id="looking_for"
+                            v-model="profileForm.looking_for"
+                            rows="3"
+                            maxlength="1000"
+                            placeholder="Descreva o tipo de conexão que você busca..."
+                            class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
+                        />
+                        <span class="text-xs text-muted tabular-nums self-end">{{ profileForm.looking_for.length }}/1000</span>
+                        <p v-if="profileForm.errors.looking_for" class="text-xs text-danger">{{ profileForm.errors.looking_for }}</p>
+                    </div>
                 </div>
 
                 <!-- Public address -->

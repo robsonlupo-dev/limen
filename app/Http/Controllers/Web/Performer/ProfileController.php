@@ -43,6 +43,14 @@ class ProfileController extends Controller
                 // dois para o legado cair no fallback sem uma query extra.
                 'worlds' => $profile->worlds,
                 'category' => $profile->category,
+                // "Sobre mim". `tags` sai da junção como lista de slugs — a tela
+                // marca os chips por slug, e o rótulo é dela.
+                'tags' => $profile->tagSlugs(),
+                'languages' => $profile->languages ?? [],
+                'drinks' => $profile->drinks,
+                'smokes' => $profile->smokes,
+                'height_cm' => $profile->height_cm,
+                'looking_for' => $profile->looking_for,
                 'avatar_url' => $profile->avatar_path
                     ? URL::temporarySignedRoute('performer.media', now()->addMinutes(60), [
                         'profile_id' => $profile->id,
@@ -66,7 +74,12 @@ class ProfileController extends Controller
         // do onboarding), então filtrar aqui impede que tarifas — e a `category`
         // crua — sejam alteradas por um POST forjado a partir de uma tela que
         // não as oferece.
-        $data = array_intersect_key($validated, array_flip(['stage_name', 'bio']));
+        $data = array_intersect_key($validated, array_flip([
+            'stage_name', 'bio',
+            // "Sobre mim" (Sprint 9). `tags` NÃO entra aqui: não é coluna, vai
+            // pela junção logo abaixo.
+            'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',
+        ]));
 
         // Multi-worlds: se a tela mandou a seleção de mundos, ela é a fonte da
         // verdade. A `category` (compat legado) é DERIVADA de worlds[0] aqui no
@@ -84,8 +97,19 @@ class ProfileController extends Controller
 
         $this->profileService->update($profile, $data);
 
+        // Tags vão pela junção, não pelo update de colunas. `array_key_exists` e
+        // não `! empty`: a tela manda `tags: []` quando a performer desmarca
+        // todas, e isso precisa apagar o conjunto. Com `! empty` o array vazio
+        // seria lido como "campo ausente" e as tags antigas sobreviveriam a uma
+        // limpeza deliberada.
+        $syncedTags = array_key_exists('tags', $validated);
+
+        if ($syncedTags) {
+            $profile->syncTags($validated['tags'] ?? []);
+        }
+
         Audit::log('performer_profile_updated', $profile, [
-            'fields' => array_keys($data),
+            'fields' => $syncedTags ? [...array_keys($data), 'tags'] : array_keys($data),
             'renamed' => $renamed,
         ], $request);
 
