@@ -460,11 +460,26 @@ class DeletionService
             // continua único (a coluna tem índice único desde 15/07).
             'slug' => 'removido-'.$profile->id,
             'bio' => null,
+            // "Sobre mim" (Sprint 9): auto-descrição do titular, mesma natureza
+            // da bio e sem valor fiscal nem trilha legal. `looking_for` é texto
+            // livre; os demais desenham um retrato dela.
+            'languages' => null,
+            'drinks' => null,
+            'smokes' => null,
+            'height_cm' => null,
+            'looking_for' => null,
             'avatar_path' => null,
             'cover_path' => null,
             'is_live' => false,
             'is_verified' => false,
         ])->save();
+
+        // DELETE real, dentro da transação do expurgo. A FK cascadeOnDelete de
+        // performer_tag NÃO dispara aqui: o `delete()` abaixo é soft (o model usa
+        // SoftDeletes), então a linha do perfil continua na tabela e o banco não
+        // tem o que cascatear. Mesma armadilha do item 11 do CLAUDE.md para
+        // profile_visits. Sem esta linha as tags sobreviveriam ao Hard Delete.
+        $profile->tags()->delete();
 
         $profile->delete();
 

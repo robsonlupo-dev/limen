@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -26,6 +27,61 @@ class PerformerProfile extends Model
     public const TIERS = ['verificada', 'select', 'maison'];
 
     /**
+     * Tags da performer, agrupadas pela seção em que a tela as mostra. O grupo
+     * é APRESENTAÇÃO — a validação e o filtro trabalham sobre o conjunto achatado
+     * (allTags()), e a junção guarda só o slug. Uma tag pode mudar de grupo sem
+     * migration nem reescrita de dado.
+     *
+     * Fonte única: o Form Request valida daqui, a tela de edição desenha daqui e
+     * o catálogo filtra daqui. Uma segunda lista em qualquer um dos três abriria
+     * a porta para a tela oferecer uma tag que o servidor recusa.
+     */
+    public const TAG_GROUPS = [
+        'estilo_de_vida' => [
+            'viajante', 'fitness', 'gourmet', 'praia', 'arte', 'musica',
+            'moda', 'yoga', 'games', 'aventura', 'festa', 'luxo',
+        ],
+        'personalidade' => [
+            'extrovertida', 'misteriosa', 'divertida', 'intelectual',
+            'carinhosa', 'discreta', 'apaixonada', 'dominante', 'submissa',
+        ],
+        'oferece' => [
+            'conversa', 'companhia', 'conteudo_exclusivo', 'live',
+            'fantasia', 'roleplay', 'danca', 'striptease',
+        ],
+    ];
+
+    /**
+     * Teto de tags por performer. Vale como regra de produto (um perfil com 29
+     * tags não diz nada) e como limite do que a junção aceita por perfil.
+     */
+    public const MAX_TAGS = 8;
+
+    public const LANGUAGES = [
+        'portugues', 'ingles', 'espanhol', 'frances', 'italiano', 'alemao', 'japones',
+    ];
+
+    public const DRINKS = ['nao_bebe', 'bebe_socialmente', 'bebe_frequentemente'];
+
+    public const SMOKES = ['nao_fuma', 'fuma_socialmente', 'fuma'];
+
+    /** Faixa do slider de altura, em cm. Espelhada na tela e no Form Request. */
+    public const HEIGHT_MIN_CM = 140;
+
+    public const HEIGHT_MAX_CM = 190;
+
+    /**
+     * O conjunto válido de tags, achatado. É o que a validação e o filtro usam —
+     * o agrupamento só interessa a quem desenha a tela.
+     *
+     * @return array<int, string>
+     */
+    public static function allTags(): array
+    {
+        return array_merge(...array_values(self::TAG_GROUPS));
+    }
+
+    /**
      * tier, tier_granted_at e tier_granted_by ficam FORA do $fillable —
      * escrita somente via forceFill() em endpoint admin dedicado, mesmo
      * padrão do discrete_mode (anti mass assignment).
@@ -34,6 +90,7 @@ class PerformerProfile extends Model
         'stage_name', 'slug', 'bio', 'category', 'worlds', 'work_modes',
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
         'is_live', 'is_verified', 'avatar_path', 'cover_path',
+        'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',
     ];
 
     protected function casts(): array
@@ -41,6 +98,8 @@ class PerformerProfile extends Model
         return [
             'worlds' => 'array',
             'work_modes' => 'array',
+            'languages' => 'array',
+            'height_cm' => 'integer',
             'is_live' => 'boolean',
             'is_verified' => 'boolean',
             'rating_avg' => 'decimal:2',
@@ -106,11 +165,14 @@ class PerformerProfile extends Model
      * dispara 24 SELECTs. Carrega a linha inteira de propósito — restringir as
      * colunas aqui deixaria `$profile->user->status`/`->email` null para todo
      * chamador do scope, e o scope tem sete deles.
+     *
+     * `tags` entra pelo mesmo motivo: o resource expõe os slugs em todo card, e
+     * a junção sem eager load devolveria exatamente o N+1 que ela veio evitar.
      */
     public function scopePublicCatalog(Builder $query): Builder
     {
         return $query
-            ->with('user')
+            ->with(['user', 'tags'])
             ->whereHas('user', fn (Builder $q) => $q->where('status', 'active'))
             ->where('is_verified', true)
             ->whereNotNull('slug');
@@ -151,6 +213,76 @@ class PerformerProfile extends Model
     public function sentInterests(): HasMany
     {
         return $this->hasMany(PerformerInterest::class);
+    }
+
+    /**
+     * As tags do perfil, na junção `performer_tag`.
+     *
+     * É hasMany e não belongsToMany porque não existe o outro lado: uma relação
+     * many-to-many precisa de uma tabela `tags` para dar JOIN, e aqui o slug É o
+     * valor — não há entidade a referenciar. O que a arquitetura pedia (junção
+     * indexada em vez de json[], filtro por whereHas, escrita idempotente) está
+     * inteiro; muda o nome da relação e o método de escrita, que é syncTags()
+     * em vez do sync() do BelongsToMany.
+     */
+    public function tags(): HasMany
+    {
+        return $this->hasMany(PerformerTag::class);
+    }
+
+    /**
+     * Os slugs das tags deste perfil.
+     *
+     * Lê da relação já carregada quando houver — o catálogo faz eager load, e
+     * uma query por card aqui devolveria o N+1 que a junção veio evitar.
+     *
+     * @return array<int, string>
+     */
+    public function tagSlugs(): array
+    {
+        return $this->relationLoaded('tags')
+            ? $this->tags->pluck('tag_slug')->all()
+            : $this->tags()->pluck('tag_slug')->all();
+    }
+
+    /**
+     * Substitui o conjunto de tags do perfil, no espírito do sync() do
+     * BelongsToMany: idempotente, e mexe só no que mudou.
+     *
+     * O diff não é otimização prematura — apagar tudo e reinserir faria toda
+     * gravação de perfil (inclusive as que nem tocam em tag) queimar ids e
+     * sujar o binlog. Ficar só no delta também mantém o índice único como rede:
+     * reenviar a mesma seleção não tenta reinserir nada.
+     *
+     * @param  array<int, string>  $slugs  já validados contra allTags()
+     */
+    public function syncTags(array $slugs): void
+    {
+        $slugs = array_values(array_unique(array_filter($slugs, 'is_string')));
+        $current = $this->tags()->pluck('tag_slug')->all();
+
+        $toAdd = array_diff($slugs, $current);
+        $toRemove = array_diff($current, $slugs);
+
+        if ($toAdd === [] && $toRemove === []) {
+            return;
+        }
+
+        DB::transaction(function () use ($toAdd, $toRemove) {
+            if ($toRemove !== []) {
+                $this->tags()->whereIn('tag_slug', $toRemove)->delete();
+            }
+
+            if ($toAdd !== []) {
+                $this->tags()->createMany(
+                    array_map(fn (string $slug) => ['tag_slug' => $slug], array_values($toAdd)),
+                );
+            }
+        });
+
+        // A relação em memória ficou velha: quem leu $profile->tags antes do
+        // sync veria a lista anterior no mesmo request (a resposta do update).
+        $this->unsetRelation('tags');
     }
 
     /**
