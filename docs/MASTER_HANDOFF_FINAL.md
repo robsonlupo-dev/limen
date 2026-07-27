@@ -1362,9 +1362,14 @@ afinidade.
 - [ ] `drinks` enum — Não bebe / Bebe socialmente / Bebe frequentemente
 - [ ] `smokes` enum — Não fuma / Fuma socialmente / Fuma
 - [ ] `height_cm` smallint nullable — altura em cm (slider 140–190)
-- [ ] `ethnicity` enum nullable — Branca/Negra/Latina/Asiática/Indígena/Mestiça/Outra
-      ⚠️ **dado sensível LGPD — ver ressalva R1 abaixo antes de criar a coluna**
 - [ ] `looking_for` text nullable — "O que estou procurando" (texto livre, exibido no perfil)
+
+> **`ethnicity` foi cortado do escopo (decisão do PO, 27/07/2026)** — dado pessoal
+> sensível na LGPD (Art. 5º, II, "origem racial ou étnica"). Registrado aqui para
+> **não voltar como novidade** num sprint futuro: não é lacuna do backlog, é
+> remoção deliberada. Se um dia for reproposto, entra pela porta do princípio 4
+> (tabela isolada, cifrada, consentimento específico) e não como coluna em claro
+> nem como faceta de filtro público.
 
 **Campos do membro (consumer):**
 
@@ -1382,16 +1387,15 @@ afinidade.
 - [ ] Fumo: Não fuma / Fuma socialmente / Fuma
 - [ ] Idiomas: Português / Inglês / Espanhol / Francês / Italiano / Alemão / Japonês
 - [ ] Altura: slider 140cm → 190cm
-- [ ] Etnia: Branca / Negra / Latina / Asiática / Indígena / Mestiça / Outra (ver R1)
 - [ ] Localização: cidade/estado
 - [ ] Busca por texto: busca em `stage_name` e `bio`
 - [ ] Salvar busca: filtros favoritos — **o texto de origem diz "performer pode
-      salvar"; é o MEMBRO quem filtra performers** (ver R4)
+      salvar"; é o MEMBRO quem filtra performers** (ver R3)
 
 **Cruzamento de afinidade (futuro Sprint 10):**
 Tags do membro (`interests`) cruzadas com tags da performer → score de afinidade.
 Ex.: membro marca "Gourmet" e performer também tem "Gourmet" → aparece em destaque.
-Base para "Compatíveis com você" no catálogo. **Ver R5 — é superfície nova de
+Base para "Compatíveis com você" no catálogo. **Ver R4 — é superfície nova de
 exposição do membro à performer.**
 
 #### Outros itens do Sprint 9 identificados nas telas do Seeking
@@ -1410,7 +1414,7 @@ o Sprint 9 reimplementar o que já roda.
 - [ ] Carrossel de até 6 fotos (hoje só `avatar_path` + `cover_path` — confirmado)
 - [ ] Compressão no servidor via `intervention/image` — **não é dependência do
       projeto ainda**; entra junto com o EXIF da foto efêmera
-- [ ] Qualidade: 80% JPEG, máx 1200px, ~~guardar original~~ **ver R2 — guardar o
+- [ ] Qualidade: 80% JPEG, máx 1200px, ~~guardar original~~ **ver R1 — guardar o
       original colide com a decisão de EXIF já travada pelo PO**
 - [ ] Contador de fotos no card ("📷 11" como no Seeking)
 
@@ -1419,7 +1423,7 @@ o Sprint 9 reimplementar o que já roda.
       desde o Nível 2 do Sprint 8)
 - [ ] ✓ ID verificado (Sprint 9 — KYC com documento)
 - [ ] ✓ Email verificado (já existe)
-- [ ] ✓ Instagram (OAuth Meta — Sprint 10; ver R6)
+- [ ] ✓ Instagram (OAuth Meta — Sprint 10; ver R5)
 
 **Contador de caracteres motivacional no bio:**
 - [ ] 0–49: "Conte mais sobre você..." · 50–149: "Bom começo! Continue..." ·
@@ -1429,17 +1433,17 @@ o Sprint 9 reimplementar o que já roda.
 - [ ] Email pessoal de Robson + Bruno para cada novo membro/performer aprovado
 - [ ] Inspirado na carta do CEO Brandon Wade do Seeking
 - [ ] Conteúdo: história do Limen, o que esperar, próximos passos
-- [ ] Enviado via Resend após KYC aprovado — **ver R7 (assunto e remetente não
+- [ ] Enviado via Resend após KYC aprovado — **ver R6 (assunto e remetente não
       podem expor o destinatário na caixa de entrada)**
 
 **hCaptcha no login e cadastro:**
 - [ ] Proteção anti-bot no formulário de login e cadastro (hCaptcha, não
-      reCAPTCHA — mesmo modelo do Seeking). Nada de captcha existe hoje. Ver R8.
+      reCAPTCHA — mesmo modelo do Seeking). Nada de captcha existe hoje. Ver R7.
 
 **Geolocalização no perfil:**
 - [ ] Pedir permissão de localização durante onboarding
 - [ ] Gravar cidade/estado (**não** coordenadas exatas — LGPD)
-- [ ] Exibir "Agora: São Paulo" no perfil da performer — **ver R3**
+- [ ] Exibir "Agora: São Paulo" no perfil da performer — **ver R2**
 - [ ] Opt-in — performer pode recusar
 
 #### Ressalvas registradas antes de implementar
@@ -1448,37 +1452,30 @@ Levantadas no fecho do Sprint 8, na conferência do texto contra o código. Não
 vetos — são pontos que colidem com decisão já travada ou com princípio do
 `CLAUDE.md`, e que ficam mais baratos de resolver agora do que depois da migration.
 
-- **R1 — `ethnicity` é dado pessoal sensível (LGPD Art. 5º, II: "origem racial ou
-  étnica").** O princípio 4 do projeto isola PII sensível em tabela separada,
-  cifrada, em storage privado. O item pede o oposto: coluna em claro em
-  `performer_profiles` **e** facetada como filtro público de catálogo. Se entrar
-  assim, é dado sensível em texto plano na tabela principal e consultável por
-  terceiros. Precisa de decisão do PO: (a) coluna cifrada + auto-declarada +
-  consentimento específico e destacado, (b) só exibição no perfil sem virar
-  filtro, ou (c) cortar o campo. Vale para `ethnicity` — os demais (`height_cm`,
-  `drinks`, `smokes`, `languages`) não são sensíveis na lei e não têm esse
-  problema.
+> A ressalva sobre `ethnicity` saiu junto com o campo: o PO cortou o escopo em
+> 27/07/2026 e não há mais o que ressalvar. O registro da remoção está na lista de
+> campos acima.
 
-- **R2 — "guardar original" contradiz a decisão de EXIF do PO (24/07/2026).** A
+- **R1 — "guardar original" contradiz a decisão de EXIF do PO (24/07/2026).** A
   decisão travada na Feature de foto efêmera é *re-encodar na ingestão, removendo
   metadado antes de cifrar*. Guardar o original preserva exatamente o EXIF/GPS que
   a decisão manda remover — e, no caso da performer, a coordenada costuma ser a
   casa dela. Se o original for necessário por qualidade, tem que ser o original
   **já re-encodado sem metadado**, não o arquivo cru do upload.
 
-- **R3 — "Agora: São Paulo" + `is_live` é presença em tempo real com
+- **R2 — "Agora: São Paulo" + `is_live` é presença em tempo real com
   localização.** Cidade sozinha é grosseira; cidade **combinada com "online
   agora"** estreita muito, e é a performer (lado com KYC, endereço e rosto) que
   fica exposta. O `opt-in` cobre a parte legal, não a de segurança física. Sugerido
   ao PO: desacoplar — ou localização **ou** presença ao vivo visível, não os dois
   no mesmo card; e considerar granularidade de estado em vez de cidade.
 
-- **R4 — "performer pode salvar filtros favoritos" está trocado.** A seção inteira
+- **R3 — "performer pode salvar filtros favoritos" está trocado.** A seção inteira
   é "membro filtra performers"; quem salva a busca é o **membro**. Mantido acima o
   texto original com a marcação, para o PO confirmar em vez de o implementador
   adivinhar.
 
-- **R5 — o cruzamento de afinidade cria superfície nova de membro → performer.**
+- **R4 — o cruzamento de afinidade cria superfície nova de membro → performer.**
   Regra do `CLAUDE.md`: *toda* exposição de membro à performer passa por
   `FanAlias`, nunca pelo id. Além disso, "Compatíveis com você" pode deixar a
   performer **inferir os `interests` do membro** — e o `FanAlias` é estável por
@@ -1486,22 +1483,22 @@ vetos — são pontos que colidem com decisão já travada ou com princípio do
   seguidores e visitas. Entra na pré-análise de segurança antes de virar código
   (é Sprint 10, então há tempo).
 
-- **R6 — OAuth de Instagram liga o perfil adulto a uma identidade real.** Badge de
+- **R5 — OAuth de Instagram liga o perfil adulto a uma identidade real.** Badge de
   Instagram na performer é vetor de deanonimização dela (e o inverso do que o
   projeto faz pelo membro). É Sprint 10; registrar agora para não virar
   descoberta tardia.
 
-- **R7 — o e-mail do fundador cai numa caixa de entrada que pode ser compartilhada.**
+- **R6 — o e-mail do fundador cai numa caixa de entrada que pode ser compartilhada.**
   Mesma disciplina do drip da waitlist e do Modo Discreto: remetente e assunto não
   podem denunciar que a pessoa se cadastrou numa plataforma adulta. O corpo pode
   ser pessoal; o envelope, não.
 
-- **R8 — hCaptcha é subprocessador terceiro vendo IP no login/cadastro** de
+- **R7 — hCaptcha é subprocessador terceiro vendo IP no login/cadastro** de
   plataforma adulta. Não é bloqueador, mas entra na política de privacidade e no
   registro de subprocessadores antes de subir.
 
-- **R9 — filtro sobre json[] não usa índice.** `tags`, `languages` e `interests`
-  são json, e `whereJsonContains` faz varredura. Com ~13 facetas combináveis, o
+- **R8 — filtro sobre json[] não usa índice.** `tags`, `languages` e `interests`
+  são json, e `whereJsonContains` faz varredura. Com ~12 facetas combináveis, o
   catálogo vira full scan por request. O `worlds` (Sprint 7) já tem esse formato e
   hoje escapa por volume baixo. Decidir na migration: coluna gerada + índice,
   tabela de junção, ou aceitar e medir — mas decidir, não descobrir em produção.
