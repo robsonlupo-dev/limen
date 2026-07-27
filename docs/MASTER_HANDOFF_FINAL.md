@@ -1339,6 +1339,175 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
 
+---
+
+### Sprint 9 — Sistema de Tags, Filtros e Descoberta
+
+**Contexto:** baseado em análise de 37 telas reais do Seeking.com (julho/2026).
+Objetivo: transformar o catálogo de grade de fotos em sistema de descoberta por
+afinidade.
+
+**Tags da performer** (campo `tags` json[] em `performer_profiles`, máx 8):
+
+- *Estilo de vida:* Viajante · Fitness · Gourmet · Praia · Arte · Música · Moda ·
+  Yoga · Games · Aventura · Festa · Luxo
+- *Personalidade:* Extrovertida · Misteriosa · Divertida · Intelectual ·
+  Carinhosa · Discreta · Apaixonada · Dominante · Submissa
+- *O que oferece:* Conversa · Companhia · Conteúdo exclusivo · Live · Fantasia ·
+  Roleplay · Dança · Striptease
+
+**Campos adicionais da performer** (nenhum existe hoje — todos são migration nova):
+
+- [ ] `languages` json[] — idiomas (Português/Inglês/Espanhol/Francês/Italiano/Alemão/Japonês)
+- [ ] `drinks` enum — Não bebe / Bebe socialmente / Bebe frequentemente
+- [ ] `smokes` enum — Não fuma / Fuma socialmente / Fuma
+- [ ] `height_cm` smallint nullable — altura em cm (slider 140–190)
+- [ ] `ethnicity` enum nullable — Branca/Negra/Latina/Asiática/Indígena/Mestiça/Outra
+      ⚠️ **dado sensível LGPD — ver ressalva R1 abaixo antes de criar a coluna**
+- [ ] `looking_for` text nullable — "O que estou procurando" (texto livre, exibido no perfil)
+
+**Campos do membro (consumer):**
+
+- [ ] `interests` json[] — tags de interesse (mesmo conjunto das tags de performer)
+- [ ] `seeking` text nullable — "O que estou buscando" (texto livre)
+
+**Filtros do catálogo** (membro filtra performers):
+
+- [ ] Verificação: Selfie verificada · ID verificado · Com fotos · **Online agora (já existe)**
+- [ ] Mundo: Mulheres / Homens / Trans / Casais (já existe)
+- [ ] Tier: Verificada / Select / Maison
+- [ ] Estilo de vida: qualquer tag do conjunto acima
+- [ ] O que oferece: qualquer tag do conjunto acima
+- [ ] Bebida: Não bebe / Bebe socialmente / Bebe frequentemente
+- [ ] Fumo: Não fuma / Fuma socialmente / Fuma
+- [ ] Idiomas: Português / Inglês / Espanhol / Francês / Italiano / Alemão / Japonês
+- [ ] Altura: slider 140cm → 190cm
+- [ ] Etnia: Branca / Negra / Latina / Asiática / Indígena / Mestiça / Outra (ver R1)
+- [ ] Localização: cidade/estado
+- [ ] Busca por texto: busca em `stage_name` e `bio`
+- [ ] Salvar busca: filtros favoritos — **o texto de origem diz "performer pode
+      salvar"; é o MEMBRO quem filtra performers** (ver R4)
+
+**Cruzamento de afinidade (futuro Sprint 10):**
+Tags do membro (`interests`) cruzadas com tags da performer → score de afinidade.
+Ex.: membro marca "Gourmet" e performer também tem "Gourmet" → aparece em destaque.
+Base para "Compatíveis com você" no catálogo. **Ver R5 — é superfície nova de
+exposição do membro à performer.**
+
+#### Outros itens do Sprint 9 identificados nas telas do Seeking
+
+**Indicador de online no card do catálogo — ⚠️ JÁ IMPLEMENTADO, é restyle:**
+O texto de origem diz "só falta aparecer no catálogo". **Aparece.** Os dois cards
+(`PerformerCard.vue` do catálogo autenticado e `PublicPerformerCard.vue` do
+público) já renderizam `<LiveBadge />` em `absolute top-2 left-2` sob
+`v-if="performer.is_live"`, e `is_live` já é filtro funcionando na API
+(`PerformerCatalogController`), na web (`CatalogController`) e no
+`FilterPanel.vue`. O que o item pede de verdade é **trocar o estilo** (bolinha
+verde, canto inferior esquerdo) — não construir a feature. Tratar como novo faria
+o Sprint 9 reimplementar o que já roda.
+
+**Múltiplas fotos no perfil da performer:**
+- [ ] Carrossel de até 6 fotos (hoje só `avatar_path` + `cover_path` — confirmado)
+- [ ] Compressão no servidor via `intervention/image` — **não é dependência do
+      projeto ainda**; entra junto com o EXIF da foto efêmera
+- [ ] Qualidade: 80% JPEG, máx 1200px, ~~guardar original~~ **ver R2 — guardar o
+      original colide com a decisão de EXIF já travada pelo PO**
+- [ ] Contador de fotos no card ("📷 11" como no Seeking)
+
+**Badges de verificação visíveis no perfil:**
+- [ ] ✓ Selfie verificada (já existe via KYC — performer desde o Sprint 5, membro
+      desde o Nível 2 do Sprint 8)
+- [ ] ✓ ID verificado (Sprint 9 — KYC com documento)
+- [ ] ✓ Email verificado (já existe)
+- [ ] ✓ Instagram (OAuth Meta — Sprint 10; ver R6)
+
+**Contador de caracteres motivacional no bio:**
+- [ ] 0–49: "Conte mais sobre você..." · 50–149: "Bom começo! Continue..." ·
+      150–299: "Você está indo bem! 🔥" · 300+: "Perfil completo atrai mais membros ✓"
+
+**Email de boas-vindas do fundador:**
+- [ ] Email pessoal de Robson + Bruno para cada novo membro/performer aprovado
+- [ ] Inspirado na carta do CEO Brandon Wade do Seeking
+- [ ] Conteúdo: história do Limen, o que esperar, próximos passos
+- [ ] Enviado via Resend após KYC aprovado — **ver R7 (assunto e remetente não
+      podem expor o destinatário na caixa de entrada)**
+
+**hCaptcha no login e cadastro:**
+- [ ] Proteção anti-bot no formulário de login e cadastro (hCaptcha, não
+      reCAPTCHA — mesmo modelo do Seeking). Nada de captcha existe hoje. Ver R8.
+
+**Geolocalização no perfil:**
+- [ ] Pedir permissão de localização durante onboarding
+- [ ] Gravar cidade/estado (**não** coordenadas exatas — LGPD)
+- [ ] Exibir "Agora: São Paulo" no perfil da performer — **ver R3**
+- [ ] Opt-in — performer pode recusar
+
+#### Ressalvas registradas antes de implementar
+
+Levantadas no fecho do Sprint 8, na conferência do texto contra o código. Não são
+vetos — são pontos que colidem com decisão já travada ou com princípio do
+`CLAUDE.md`, e que ficam mais baratos de resolver agora do que depois da migration.
+
+- **R1 — `ethnicity` é dado pessoal sensível (LGPD Art. 5º, II: "origem racial ou
+  étnica").** O princípio 4 do projeto isola PII sensível em tabela separada,
+  cifrada, em storage privado. O item pede o oposto: coluna em claro em
+  `performer_profiles` **e** facetada como filtro público de catálogo. Se entrar
+  assim, é dado sensível em texto plano na tabela principal e consultável por
+  terceiros. Precisa de decisão do PO: (a) coluna cifrada + auto-declarada +
+  consentimento específico e destacado, (b) só exibição no perfil sem virar
+  filtro, ou (c) cortar o campo. Vale para `ethnicity` — os demais (`height_cm`,
+  `drinks`, `smokes`, `languages`) não são sensíveis na lei e não têm esse
+  problema.
+
+- **R2 — "guardar original" contradiz a decisão de EXIF do PO (24/07/2026).** A
+  decisão travada na Feature de foto efêmera é *re-encodar na ingestão, removendo
+  metadado antes de cifrar*. Guardar o original preserva exatamente o EXIF/GPS que
+  a decisão manda remover — e, no caso da performer, a coordenada costuma ser a
+  casa dela. Se o original for necessário por qualidade, tem que ser o original
+  **já re-encodado sem metadado**, não o arquivo cru do upload.
+
+- **R3 — "Agora: São Paulo" + `is_live` é presença em tempo real com
+  localização.** Cidade sozinha é grosseira; cidade **combinada com "online
+  agora"** estreita muito, e é a performer (lado com KYC, endereço e rosto) que
+  fica exposta. O `opt-in` cobre a parte legal, não a de segurança física. Sugerido
+  ao PO: desacoplar — ou localização **ou** presença ao vivo visível, não os dois
+  no mesmo card; e considerar granularidade de estado em vez de cidade.
+
+- **R4 — "performer pode salvar filtros favoritos" está trocado.** A seção inteira
+  é "membro filtra performers"; quem salva a busca é o **membro**. Mantido acima o
+  texto original com a marcação, para o PO confirmar em vez de o implementador
+  adivinhar.
+
+- **R5 — o cruzamento de afinidade cria superfície nova de membro → performer.**
+  Regra do `CLAUDE.md`: *toda* exposição de membro à performer passa por
+  `FanAlias`, nunca pelo id. Além disso, "Compatíveis com você" pode deixar a
+  performer **inferir os `interests` do membro** — e o `FanAlias` é estável por
+  par, então o inferido cola no mesmo pseudônimo que já carrega gorjetas,
+  seguidores e visitas. Entra na pré-análise de segurança antes de virar código
+  (é Sprint 10, então há tempo).
+
+- **R6 — OAuth de Instagram liga o perfil adulto a uma identidade real.** Badge de
+  Instagram na performer é vetor de deanonimização dela (e o inverso do que o
+  projeto faz pelo membro). É Sprint 10; registrar agora para não virar
+  descoberta tardia.
+
+- **R7 — o e-mail do fundador cai numa caixa de entrada que pode ser compartilhada.**
+  Mesma disciplina do drip da waitlist e do Modo Discreto: remetente e assunto não
+  podem denunciar que a pessoa se cadastrou numa plataforma adulta. O corpo pode
+  ser pessoal; o envelope, não.
+
+- **R8 — hCaptcha é subprocessador terceiro vendo IP no login/cadastro** de
+  plataforma adulta. Não é bloqueador, mas entra na política de privacidade e no
+  registro de subprocessadores antes de subir.
+
+- **R9 — filtro sobre json[] não usa índice.** `tags`, `languages` e `interests`
+  são json, e `whereJsonContains` faz varredura. Com ~13 facetas combináveis, o
+  catálogo vira full scan por request. O `worlds` (Sprint 7) já tem esse formato e
+  hoje escapa por volume baixo. Decidir na migration: coluna gerada + índice,
+  tabela de junção, ou aceitar e medir — mas decidir, não descobrir em produção.
+
+**Referência:** docs/SEEKING_UX_CASE_STUDY.md · análise de 37 telas (julho/2026)
+
 ### A.3 Higiene / dívida técnica
 
 - [ ] CI de lint (Pint `--test`) — hoje não existe; a árvore está limpa (`e043077`)
