@@ -1,5 +1,17 @@
+<script setup>
+import { computed } from 'vue'
+import { verifiedLabel } from '@/lib/worlds'
+
+const props = defineProps({
+    // Mundo da performer, para a concordância. Sem ela cai no feminino.
+    category: { type: String, default: null },
+})
+
+const verified = computed(() => verifiedLabel(props.category))
+</script>
+
 <template>
-    <span class="inline-flex items-center gap-1 text-xs font-medium text-gold" title="Performer verificado">
+    <span class="inline-flex items-center gap-1 text-xs font-medium text-gold" :title="verified.title">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" class="shrink-0">
             <path
                 fill-rule="evenodd"
@@ -11,6 +23,6 @@
                 d="M13.6 7.3a.75.75 0 010 1.06l-3.8 3.8a.75.75 0 01-1.06 0L6.9 10.3a.75.75 0 111.06-1.06l1.3 1.3 3.27-3.27a.75.75 0 011.07 0z"
             />
         </svg>
-        Verificado
+        {{ verified.label }}
     </span>
 </template>

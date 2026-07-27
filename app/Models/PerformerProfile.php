@@ -100,9 +100,17 @@ class PerformerProfile extends Model
         return $this->worlds ?? [$this->category];
     }
 
+    /**
+     * O eager load do `user` existe pelo badge de e-mail verificado
+     * (PerformerPublicResource): sem ele uma página de catálogo com 24 cards
+     * dispara 24 SELECTs. Carrega a linha inteira de propósito — restringir as
+     * colunas aqui deixaria `$profile->user->status`/`->email` null para todo
+     * chamador do scope, e o scope tem sete deles.
+     */
     public function scopePublicCatalog(Builder $query): Builder
     {
         return $query
+            ->with('user')
             ->whereHas('user', fn (Builder $q) => $q->where('status', 'active'))
             ->where('is_verified', true)
             ->whereNotNull('slug');

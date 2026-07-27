@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
+import VerificationBadges from '@/Components/VerificationBadges.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
@@ -109,13 +110,18 @@ const lockedTiles = 6
                     <div class="space-y-2">
                         <div class="flex items-center gap-2 flex-wrap">
                             <h1 class="font-serif text-4xl text-cream">{{ performer.stage_name }}</h1>
-                            <VerifiedBadge />
+                            <VerifiedBadge :category="performer.category" />
                         </div>
                         <p class="text-sm text-gold uppercase tracking-wide flex items-center gap-1.5">
                             <span aria-hidden="true">{{ WORLD_ICONS[performer.category] }}</span>
                             {{ WORLD_LABELS[performer.category] ?? performer.category }}
-                            <span class="text-muted normal-case tracking-normal">· Verificada</span>
                         </p>
+                        <VerificationBadges
+                            :is-verified="performer.is_verified"
+                            :email-verified="performer.email_verified"
+                            :category="performer.category"
+                            size="md"
+                        />
                     </div>
 
                     <div class="flex items-center gap-3 flex-wrap">

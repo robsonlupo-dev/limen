@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
+import VerificationBadges from '@/Components/VerificationBadges.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import StarRating from '@/Components/StarRating.vue'
 import FollowButton from '@/Components/FollowButton.vue'
@@ -78,11 +79,17 @@ function onTipSent(data) {
                     <div class="space-y-2">
                         <div class="flex items-center gap-2 flex-wrap">
                             <h1 class="font-serif text-4xl text-cream">{{ performer.stage_name }}</h1>
-                            <VerifiedBadge />
+                            <VerifiedBadge :category="performer.category" />
                         </div>
                         <p class="text-sm text-gold uppercase tracking-wide">
                             {{ categoryLabels[performer.category] ?? performer.category }}
                         </p>
+                        <VerificationBadges
+                            :is-verified="performer.is_verified"
+                            :email-verified="performer.email_verified"
+                            :category="performer.category"
+                            size="md"
+                        />
                         <StarRating :rating="performer.rating_avg" />
                     </div>
 
