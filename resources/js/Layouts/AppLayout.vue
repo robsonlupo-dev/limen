@@ -97,6 +97,16 @@ function logout() {
                         >
                             Meu Painel
                         </Link>
+                        <!-- "Meu Perfil" e "Interesses" são coisas diferentes e
+                             ficam lado a lado de propósito: Interesses é a caixa
+                             do Interesse Controlado (o que performers mandaram),
+                             Meu Perfil é a auto-declaração do membro. -->
+                        <Link
+                            :href="route('consumer.profile.edit')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Meu Perfil
+                        </Link>
                         <Link
                             :href="route('interests.index')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"

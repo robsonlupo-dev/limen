@@ -7,12 +7,14 @@ use App\Notifications\VerifyEmailNotification;
 use App\Services\PrivacyPerkService;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -20,10 +22,23 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
+    /**
+     * Teto de interesses por membro (Sprint 9). Espelha
+     * PerformerProfile::MAX_TAGS pelo mesmo motivo do conjunto de slugs ser
+     * compartilhado: um lado com teto maior desequilibraria o cruzamento de
+     * afinidade do Sprint 10, onde a interseção é a medida.
+     */
+    public const MAX_INTERESTS = 8;
+
     protected $fillable = [
         'name', 'email', 'password', 'phone', 'birthdate',
         'lgpd_consent_at', 'terms_version', 'last_login_at', 'asaas_customer_id',
         'interests_opt_out',
+        // Texto livre auto-declarado pelo próprio titular, da mesma natureza de
+        // `name` e `phone` — não é privilégio (`discrete_mode`, `role`,
+        // `status`) nem material de autenticação, então o $fillable serve. O
+        // conteúdo passa por NoProhibitedOffer no Form Request.
+        'seeking',
     ];
 
     // Colunas de exclusão ficam FORA do $fillable de propósito (mesma regra do
@@ -141,6 +156,81 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Subscription::class);
     }
 
+    // ─── Interesses do membro (Sprint 9) ─────────────────────────────────────
+    //
+    // Espelho exato das tags da performer (PerformerProfile::tags/syncTags), e
+    // sobre o MESMO conjunto de slugs — ver o cabeçalho de MemberInterest para
+    // por quê, e para a regra de privacidade que proíbe expô-los à performer.
+
+    /**
+     * Os interesses do membro, na junção `member_interest`.
+     *
+     * hasMany e não belongsToMany pela mesma razão das tags: uma relação
+     * many-to-many precisa de uma tabela `tags` para dar JOIN, e aqui o slug É
+     * o valor — não há entidade a referenciar. A escrita é syncInterests(), no
+     * lugar do sync() do BelongsToMany.
+     */
+    public function interests(): HasMany
+    {
+        return $this->hasMany(MemberInterest::class);
+    }
+
+    /**
+     * Os slugs dos interesses deste membro.
+     *
+     * Lê da relação já carregada quando houver — mesma razão do tagSlugs() da
+     * performer: uma query por linha numa listagem devolveria o N+1 que a
+     * junção veio evitar.
+     *
+     * @return array<int, string>
+     */
+    public function interestSlugs(): array
+    {
+        return $this->relationLoaded('interests')
+            ? $this->interests->pluck('tag_slug')->all()
+            : $this->interests()->pluck('tag_slug')->all();
+    }
+
+    /**
+     * Substitui o conjunto de interesses do membro, no espírito do sync() do
+     * BelongsToMany: idempotente, e mexe só no que mudou.
+     *
+     * O diff não é otimização prematura — apagar tudo e reinserir faria toda
+     * gravação de perfil (inclusive as que nem tocam em interesse) queimar ids
+     * e sujar o binlog. Ficar só no delta também mantém o índice único como
+     * rede: reenviar a mesma seleção não tenta reinserir nada.
+     *
+     * @param  array<int, string>  $slugs  já validados contra allTags()
+     */
+    public function syncInterests(array $slugs): void
+    {
+        $slugs = array_values(array_unique(array_filter($slugs, 'is_string')));
+        $current = $this->interests()->pluck('tag_slug')->all();
+
+        $toAdd = array_diff($slugs, $current);
+        $toRemove = array_diff($current, $slugs);
+
+        if ($toAdd === [] && $toRemove === []) {
+            return;
+        }
+
+        DB::transaction(function () use ($toAdd, $toRemove) {
+            if ($toRemove !== []) {
+                $this->interests()->whereIn('tag_slug', $toRemove)->delete();
+            }
+
+            if ($toAdd !== []) {
+                $this->interests()->createMany(
+                    array_map(fn (string $slug) => ['tag_slug' => $slug], array_values($toAdd)),
+                );
+            }
+        });
+
+        // A relação em memória ficou velha: quem leu $user->interests antes do
+        // sync veria a lista anterior no mesmo request (a resposta do update).
+        $this->unsetRelation('interests');
+    }
+
     /** The user's live subscription (active + inside the paid period), or null. */
     public function activeSubscription(): ?Subscription
     {
@@ -172,7 +262,7 @@ class User extends Authenticatable implements MustVerifyEmail
     // do servidor (forceFill no endpoint admin), nunca payload — mesma regra de
     // `role` e `discrete_mode`.
 
-    /** @param  \Illuminate\Database\Eloquent\Builder<User>  $query */
+    /** @param  Builder<User>  $query */
     public function scopeBanned($query)
     {
         return $query->where('status', 'banned');

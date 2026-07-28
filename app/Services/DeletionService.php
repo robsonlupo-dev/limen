@@ -295,6 +295,7 @@ class DeletionService
             $summary['age_verification_scrubbed'] = $this->scrubAgeVerification($user);
             $summary['follows'] = $this->purgeFollows($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
+            $summary['member_interests'] = $this->purgeMemberInterests($user);
             $summary['profile_visits'] = $this->purgeProfileVisits($user);
             $summary['profile_visits_received'] = $this->purgeVisitsToOwnProfile($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
@@ -422,6 +423,26 @@ class DeletionService
         }
 
         return $deleted;
+    }
+
+    /**
+     * Interesses do membro (Sprint 9). DELETE real, dentro da transação.
+     *
+     * A FK cascadeOnDelete de `member_interest` NÃO dispara aqui: `users` usa
+     * SoftDeletes, então a linha do usuário continua na tabela e o banco não
+     * tem o que cascatear. Mesma armadilha do item 11 do CLAUDE.md para
+     * profile_visits e das tags da performer logo abaixo — sem esta linha os
+     * interesses sobreviveriam ao Hard Delete.
+     *
+     * Vai inteiro, sem esfregar nem preservar: é dado sensível de vida sexual
+     * (LGPD art. 5º, II) — o mapa de desejo do titular, da mesma família do
+     * `preferred_world` que anonymizeUser() já zera. Não tem valor fiscal nem
+     * trilha legal. O `seeking`, que é a outra metade do mesmo formulário, sai
+     * no scrub do usuário porque é coluna, não linha.
+     */
+    private function purgeMemberInterests(User $user): int
+    {
+        return $user->interests()->delete();
     }
 
     /**
@@ -664,6 +685,11 @@ class DeletionService
             // interessa. Sai junto, e com ele as preferências que só fazem
             // sentido enquanto existe alguém para preferir.
             'preferred_world' => null,
+            // "O que estou buscando" (Sprint 9). Texto livre sobre o que o
+            // titular procura — mesma natureza sensível do preferred_world logo
+            // acima, e sem lastro fiscal nem legal. A outra metade do mesmo
+            // formulário (os interesses) sai em purgeMemberInterests().
+            'seeking' => null,
             // Digest do IP de cadastro: é o que permite dizer "esta conta veio
             // do mesmo IP que aquela". Serve à detecção de sybil enquanto a
             // conta existe; depois do encerramento é só um identificador de
