@@ -1,10 +1,11 @@
 <script setup>
-import { computed } from 'vue'
-import { useForm, Link } from '@inertiajs/vue3'
+import { computed, ref } from 'vue'
+import { useForm, Link, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
+import HCaptcha from '@/Components/HCaptcha.vue'
 import PerformerOnboardingWizard from '@/Components/Onboarding/PerformerOnboardingWizard.vue'
 
 const props = defineProps({
@@ -34,10 +35,19 @@ const form = useForm({
     accept_terms: false,
     lgpd_consent: false,
     preferred_world: '',
+    'h-captcha-response': '',
 })
+
+// Desligado (o padrão) o widget nem monta, e o servidor não exige o campo.
+const hcaptcha = usePage().props.hcaptcha ?? { enabled: false, sitekey: null }
+const captcha = ref(null)
 
 function submit() {
     form.post(route('register.store'), {
+        // Token de uso único: recusado o cadastro (e-mail já existe, senha
+        // fraca), o token foi junto e queimou. Sem rearmar, a correção do
+        // formulário esbarraria no captcha em vez de passar.
+        onError: () => captcha.value?.reset(),
         // O CPF também sai do form após o submit: ele não é persistido no
         // servidor, então não faz sentido continuar vivo no state do cliente.
         onFinish: () => form.reset('password', 'password_confirmation', 'cpf'),
@@ -183,6 +193,17 @@ function submit() {
                                 </span>
                             </label>
                             <p v-if="form.errors.lgpd_consent" class="text-xs text-danger ml-7">{{ form.errors.lgpd_consent }}</p>
+                        </div>
+
+                        <div v-if="hcaptcha.enabled">
+                            <HCaptcha
+                                ref="captcha"
+                                :sitekey="hcaptcha.sitekey"
+                                v-model="form['h-captcha-response']"
+                            />
+                            <p v-if="form.errors['h-captcha-response']" class="pt-1 text-xs text-danger">
+                                {{ form.errors['h-captcha-response'] }}
+                            </p>
                         </div>
 
                         <Button

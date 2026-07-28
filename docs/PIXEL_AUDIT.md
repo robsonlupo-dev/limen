@@ -168,3 +168,42 @@ vez de ficar verde sem ter lido nada.
 1. **`.env` local do dev ainda tem `APP_NAME=Laravel`.** O `.env.example` foi
    corrigido para `Limen`; ambientes já provisionados não herdam isso e precisam
    de ajuste manual (o `.env` não é versionado).
+
+---
+
+## Atualização 28/07/2026 — hCaptcha (Sprint 9)
+
+Entrou o **primeiro terceiro literal** do frontend, e ele muda o texto acima:
+a afirmação "não há uma única tag `<script src>` externa" continua verdadeira
+para os Blades, mas o bundle Vue passa a buscar um script de terceiro em duas
+telas.
+
+| Arquivo | O que é | Classificação |
+|---|---|---|
+| `resources/js/Components/HCaptcha.vue` | SDK do hCaptcha (`js.hcaptcha.com`), injetado em runtime | **ATENÇÃO — área PÚBLICA, gated por config** |
+
+**Por que não é violação do invariante.** A regra que este documento protege é
+"zero pixels de terceiros **em área logada**". O componente só é montado em
+`/login` e `/cadastro` — públicas e deslogadas —, e só quando
+`HCAPTCHA_ENABLED=true` (padrão: `false`, e desligado nenhum byte sai).
+
+O script **não** está no `app.blade.php` justamente por isso: aquela view é a
+raiz de toda página Inertia, e um `<script src>` ali carregaria em catálogo,
+chat, carteira e painel da performer — reintroduzindo, com outro nome, o mesmo
+problema que o self-host das fontes fechou. **Não mova o SDK para o Blade.**
+
+**O que o terceiro vê.** IP, User-Agent e horário de quem abre as telas de auth.
+Com `Referrer-Policy: strict-origin-when-cross-origin` (`SecurityHeaders.php:21`)
+ele recebe só a origem, nunca o caminho — mas em `/login` e `/cadastro` o
+caminho não acrescenta nada: a origem já diz o que interessa.
+
+**Pendência de conformidade (bloqueia a ativação, não o merge):** hCaptcha é
+subprocessador e precisa entrar na política de privacidade e no registro de
+subprocessadores, com DPA assinado, antes de `HCAPTCHA_ENABLED=true` em
+produção. Detalhe em `docs/HCAPTCHA.md`.
+
+**Sentinela:** `js.hcaptcha.com` foi acrescentado a `ALLOWED_JS_ORIGINS` em
+`tests/Unit/ExternalAssetPolicyTest.php` — a primeira entrada da lista. A URL é
+mantida **literal** no componente de propósito: a varredura só enxerga literal,
+e escondê-la atrás de uma constante faria este terceiro passar despercebido pela
+auditoria que existe para pegá-lo.
