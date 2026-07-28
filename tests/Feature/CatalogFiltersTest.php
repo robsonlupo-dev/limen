@@ -353,6 +353,60 @@ it('caps the number of tags a single request may filter by', function () {
         ->assertSessionHasErrors('tags');
 });
 
+// ─── Tier no resource (o selo do card) ──────────────────────────────────────
+
+it('exposes the tier slug on every surface that renders a card', function () {
+    cfPerformer('Maison', ['tier' => 'maison']);
+    cfPerformer('SemTier');
+
+    // O slug, nunca o rótulo — a tela traduz (tierBadgeLabel). Null para quem
+    // não recebeu curadoria, e é o null que faz o selo não renderizar.
+    $byName = collect(test()->get(route('performers.public'))->assertOk()
+        ->viewData('page')['props']['performers']['data'])
+        ->keyBy('stage_name');
+
+    expect($byName['Maison']['tier'])->toBe('maison')
+        ->and($byName['SemTier']['tier'])->toBeNull();
+
+    // Perfil público e API pelo mesmo resource.
+    $profile = PerformerProfile::where('stage_name', 'Maison')->firstOrFail();
+
+    expect(test()->get(route('performers.public.show', $profile->slug))->assertOk()
+        ->viewData('page')['props']['performer']['tier'])->toBe('maison');
+
+    test()->getJson(route('performers.show', $profile->slug))
+        ->assertOk()
+        ->assertJsonPath('data.tier', 'maison');
+});
+
+it('exposes the tier on the authenticated catalog and profile too', function () {
+    $profile = cfPerformer('Select', ['tier' => 'select']);
+    $member = cfMember();
+
+    expect(collect(test()->actingAs($member)->get(route('catalog'))->assertOk()
+        ->viewData('page')['props']['performers']['data'])->firstWhere('stage_name', 'Select')['tier'])
+        ->toBe('select');
+
+    expect(test()->actingAs($member)->get(route('catalog.show', $profile->slug))->assertOk()
+        ->viewData('page')['props']['performer']['tier'])->toBe('select');
+});
+
+it('never exposes who granted the tier or when', function () {
+    $profile = cfPerformer('Maison', ['tier' => 'maison']);
+    $admin = User::factory()->create(['role' => 'admin']);
+    $profile->forceFill(['tier_granted_at' => now(), 'tier_granted_by' => $admin->id])->save();
+
+    // `tier_granted_by` é o id do ADMIN que concedeu — identificador interno de
+    // funcionário — e a data dataria a curadoria. Nem um nem outro tem função
+    // no card; só o slug sai.
+    $card = collect(test()->get(route('performers.public'))->assertOk()
+        ->viewData('page')['props']['performers']['data'])->firstWhere('stage_name', 'Maison');
+
+    expect($card)->toHaveKey('tier')
+        ->and($card)->not->toHaveKey('tier_granted_at')
+        ->and($card)->not->toHaveKey('tier_granted_by');
+});
+
 // ─── Recorte de segurança: nenhuma faceta o afrouxa ─────────────────────────
 
 it('never surfaces an unverified or inactive performer through a filter', function () {

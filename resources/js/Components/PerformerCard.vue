@@ -58,6 +58,7 @@ const categoryLabels = {
                     :is-verified="performer.is_verified"
                     :email-verified="performer.email_verified"
                     :category="performer.category"
+                    :tier="performer.tier"
                 />
                 <p class="text-xs text-muted uppercase tracking-wide">
                     {{ categoryLabels[performer.category] ?? performer.category }}

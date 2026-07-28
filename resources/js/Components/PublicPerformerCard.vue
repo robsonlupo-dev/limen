@@ -54,6 +54,7 @@ defineProps({
                 :is-verified="performer.is_verified"
                 :email-verified="performer.email_verified"
                 :category="performer.category"
+                :tier="performer.tier"
             />
             <p class="text-xs text-muted uppercase tracking-wide flex items-center gap-1">
                 <span aria-hidden="true">{{ WORLD_ICONS[performer.category] }}</span>
