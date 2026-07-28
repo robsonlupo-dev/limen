@@ -74,6 +74,18 @@ class UpdatePerformerProfileRequest extends FormRequest
             // Texto livre exibido no perfil PÚBLICO, como a bio. Teto menor que o
             // da bio de propósito: é um parágrafo, não uma segunda biografia.
             'looking_for' => ['sometimes', 'nullable', 'string', 'max:1000', new NoProhibitedOffer],
+
+            // Localização opt-in (Sprint 9). `sometimes` + `nullable` como o
+            // resto do bloco: ausente é "não mexe", presente-e-nulo é "limpa" —
+            // que é o que o link "Não compartilhar localização" manda.
+            //
+            // `state` é fechado em Rule::in(STATES): é o único campo dos dois que
+            // vira dado público, então não aceita texto livre. `city` é livre
+            // porque é interno e a lista de municípios do Brasil não cabe numa
+            // constante — mas justamente por ser livre é que ela não sai em
+            // resource nenhum.
+            'state' => ['sometimes', 'nullable', Rule::in(PerformerProfile::STATES)],
+            'city' => ['sometimes', 'nullable', 'string', 'max:100'],
         ];
     }
 
@@ -87,6 +99,7 @@ class UpdatePerformerProfileRequest extends FormRequest
             'tags.*.in' => 'Uma das tags escolhidas não existe.',
             'tags.*.distinct' => 'A mesma tag foi enviada duas vezes.',
             'languages.*.in' => 'Um dos idiomas escolhidos não existe.',
+            'state.in' => 'Selecione um estado válido.',
             'height_cm.min' => 'A altura deve ficar entre '.PerformerProfile::HEIGHT_MIN_CM.' e '.PerformerProfile::HEIGHT_MAX_CM.' cm.',
             'height_cm.max' => 'A altura deve ficar entre '.PerformerProfile::HEIGHT_MIN_CM.' e '.PerformerProfile::HEIGHT_MAX_CM.' cm.',
         ];

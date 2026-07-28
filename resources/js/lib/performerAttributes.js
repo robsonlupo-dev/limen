@@ -88,6 +88,51 @@ export const SMOKES = [
 export const HEIGHT_MIN_CM = 140
 export const HEIGHT_MAX_CM = 190
 
+// As 26 UFs + DF. Espelha PerformerProfile::STATES, que é quem valida.
+//
+// O `value` (UF) é o que trafega e o que fica no banco; o `label` só existe
+// porque o PERFIL exibe o nome por extenso ("Estado: São Paulo") enquanto o
+// CARD exibe a sigla. Duas grafias da mesma coisa, uma tabela só.
+//
+// Não existe lista de cidades aqui, e não deve passar a existir: `city` é campo
+// interno e não chega ao frontend (ver PerformerPublicResource).
+export const STATES = [
+    { value: 'AC', label: 'Acre' },
+    { value: 'AL', label: 'Alagoas' },
+    { value: 'AM', label: 'Amazonas' },
+    { value: 'AP', label: 'Amapá' },
+    { value: 'BA', label: 'Bahia' },
+    { value: 'CE', label: 'Ceará' },
+    { value: 'DF', label: 'Distrito Federal' },
+    { value: 'ES', label: 'Espírito Santo' },
+    { value: 'GO', label: 'Goiás' },
+    { value: 'MA', label: 'Maranhão' },
+    { value: 'MG', label: 'Minas Gerais' },
+    { value: 'MS', label: 'Mato Grosso do Sul' },
+    { value: 'MT', label: 'Mato Grosso' },
+    { value: 'PA', label: 'Pará' },
+    { value: 'PB', label: 'Paraíba' },
+    { value: 'PE', label: 'Pernambuco' },
+    { value: 'PI', label: 'Piauí' },
+    { value: 'PR', label: 'Paraná' },
+    { value: 'RJ', label: 'Rio de Janeiro' },
+    { value: 'RN', label: 'Rio Grande do Norte' },
+    { value: 'RO', label: 'Rondônia' },
+    { value: 'RR', label: 'Roraima' },
+    { value: 'RS', label: 'Rio Grande do Sul' },
+    { value: 'SC', label: 'Santa Catarina' },
+    { value: 'SE', label: 'Sergipe' },
+    { value: 'SP', label: 'São Paulo' },
+    { value: 'TO', label: 'Tocantins' },
+]
+
+const STATE_LABELS = Object.fromEntries(STATES.map((state) => [state.value, state.label]))
+
+/** Nome do estado por extenso; cai na própria UF se ela for desconhecida. */
+export function stateLabel(uf) {
+    return STATE_LABELS[uf] ?? uf
+}
+
 // Espelha PerformerProfile::TIERS. Curadoria concedida por admin — a performer
 // não escolhe o seu. Aparece aqui porque o filtro do catálogo (Sprint 9) a
 // oferece como faceta; o rótulo é o mesmo vocabulário que o PO usa no produto.

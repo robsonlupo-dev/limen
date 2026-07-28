@@ -55,6 +55,10 @@ class PerformerCatalogService
             'tier' => ['nullable', Rule::in(PerformerProfile::TIERS)],
             'has_photo' => ['nullable', 'boolean'],
 
+            // Localização (Sprint 9): filtra por UF e só por UF. Não existe
+            // faceta de cidade e não deve existir — `city` não é dado público.
+            'state' => ['nullable', Rule::in(PerformerProfile::STATES)],
+
             'height_min' => [
                 'nullable', 'integer',
                 'min:'.PerformerProfile::HEIGHT_MIN_CM,
@@ -133,6 +137,14 @@ class PerformerCatalogService
                     $q->orWhereJsonContains('languages', $language);
                 }
             });
+        }
+
+        // Localização. Quem não preencheu o estado simplesmente não casa com
+        // nenhuma UF — e isso é o comportamento certo, não uma performer
+        // "perdida": o campo é opt-in, e filtrar por SP é pedir explicitamente
+        // quem se declarou em SP. Sem filtro, todo mundo continua aparecendo.
+        if (! empty($filters['state']) && in_array($filters['state'], PerformerProfile::STATES, true)) {
+            $query->where('state', $filters['state']);
         }
 
         if (! empty($filters['drinks']) && in_array($filters['drinks'], PerformerProfile::DRINKS, true)) {

@@ -31,6 +31,17 @@ class PerformerPublicResource extends JsonResource
             'smokes' => $this->smokes,
             'height_cm' => $this->height_cm,
             'looking_for' => $this->looking_for,
+            // Localização opt-in — SÓ a UF, e null para quem não preencheu.
+            //
+            // **`city` NÃO entra aqui, e não é esquecimento.** A cidade é dado
+            // interno: guardada porque a performer a digitou, nunca publicada.
+            // Estado é grosso o bastante (27 unidades) para não localizar
+            // ninguém; município nomeia um lugar, e num produto onde a
+            // performer depende de não ser encontrada isso é outra categoria de
+            // dado. Esta é a única porta pelos dois catálogos e pelo perfil
+            // público — acrescentar `city` aqui vaza em todas de uma vez.
+            // Travado por teste (LocationTest).
+            'state' => $this->state,
             'is_live' => $this->is_live,
             'rating_avg' => $this->rating_avg,
             'rating_count' => $this->rating_count,

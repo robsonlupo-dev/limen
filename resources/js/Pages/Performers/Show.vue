@@ -10,6 +10,7 @@ import ReportModal from '@/Components/ReportModal.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
+import { stateLabel } from '@/lib/performerAttributes'
 import { postJson } from '@/lib/http'
 
 const props = defineProps({
@@ -179,6 +180,20 @@ const lockedTiles = 6
                         <span class="text-cream font-medium">{{ performer.followers_label }}</span> apoiadores
                     </div>
                 </div>
+
+                <!-- Estado por extenso. Some por inteiro para quem não preencheu
+                     — o campo é opt-in, então "não informado" não é uma lacuna a
+                     anunciar. A cidade NÃO chega nesta prop, por construção:
+                     PerformerPublicResource não a expõe.
+
+                     Some TAMBÉM enquanto ela está ao vivo, que é a mesma regra
+                     do card: esta página carrega o selo "ao vivo" no topo, então
+                     sem o `!performer.is_live` a correlação "está transmitindo
+                     AGORA + está em SP" continuava de pé aqui depois de ter sido
+                     fechada no catálogo — e é a página que um link direto abre. -->
+                <p v-if="performer.state && !performer.is_live" class="mt-4 text-sm text-muted">
+                    Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
+                </p>
 
                 <!-- Bio -->
                 <div v-if="performer.bio" class="mt-8 space-y-2">

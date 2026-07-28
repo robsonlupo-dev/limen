@@ -7,6 +7,7 @@ import {
     DRINKS,
     SMOKES,
     TIERS,
+    STATES,
     HEIGHT_MIN_CM,
     HEIGHT_MAX_CM,
 } from '@/lib/performerAttributes'
@@ -45,6 +46,7 @@ const form = reactive({
     has_photo: !!props.filters.has_photo,
     level: props.filters.level || '',
     tier: props.filters.tier || '',
+    state: props.filters.state || '',
     sort: props.filters.sort || 'rating_avg',
     tags: [...(props.filters.tags ?? [])],
     languages: [...(props.filters.languages ?? [])],
@@ -60,6 +62,7 @@ const sections = reactive({
     disponibilidade: true,
     tags: true,
     tier: false,
+    estado: false,
     nivel: false,
     habitos: false,
     idiomas: false,
@@ -90,6 +93,9 @@ function apply() {
             has_photo: form.has_photo ? 1 : undefined,
             level: form.level || undefined,
             tier: form.tier || undefined,
+            // Só a UF vira faceta. Não existe filtro por cidade e não deve
+            // existir: `city` é dado interno (ver PerformerPublicResource).
+            state: form.state || undefined,
             sort: form.sort !== 'rating_avg' ? form.sort : undefined,
             tags: form.tags.length ? form.tags : undefined,
             languages: form.languages.length ? form.languages : undefined,
@@ -143,6 +149,7 @@ function clearFilters() {
         has_photo: false,
         level: '',
         tier: '',
+        state: '',
         sort: 'rating_avg',
         tags: [],
         languages: [],
@@ -161,6 +168,7 @@ const activeCount = computed(() => {
     if (form.has_photo) n++
     if (form.level) n++
     if (form.tier) n++
+    if (form.state) n++
     if (form.sort !== 'rating_avg') n++
     if (form.drinks) n++
     if (form.smokes) n++
@@ -281,6 +289,28 @@ const activeCount = computed(() => {
                         >
                             {{ t.label }}
                         </button>
+                    </div>
+                </section>
+
+                <!-- Estado. Dropdown com as mesmas 27 UFs do formulário de
+                     edição (STATES é a fonte única). Sem faceta de cidade. -->
+                <section class="border-b border-frame py-3">
+                    <button type="button" class="flex w-full items-center justify-between py-1" @click="toggleSection('estado')">
+                        <span class="text-xs uppercase tracking-wide text-muted">Estado</span>
+                        <span class="text-muted text-xs">{{ sections.estado ? '−' : '+' }}</span>
+                    </button>
+                    <div v-if="sections.estado" class="pt-2">
+                        <select
+                            v-model="form.state"
+                            aria-label="Estado"
+                            class="w-full rounded-lg border border-frame bg-surface px-3 py-2 text-sm text-cream focus:outline-none focus:border-gold"
+                            @change="apply"
+                        >
+                            <option value="">Todos os estados</option>
+                            <option v-for="uf in STATES" :key="uf.value" :value="uf.value">
+                                {{ uf.label }}
+                            </option>
+                        </select>
                     </div>
                 </section>
 

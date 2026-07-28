@@ -51,6 +51,12 @@ class ProfileController extends Controller
                 'smokes' => $profile->smokes,
                 'height_cm' => $profile->height_cm,
                 'looking_for' => $profile->looking_for,
+                // Localização. `city` aparece AQUI e em nenhum outro lugar: é a
+                // tela em que a própria performer edita o que ela mesma digitou,
+                // não uma superfície de exibição. A regra de privacidade é sobre
+                // publicar a cidade para terceiros — ver PerformerPublicResource.
+                'state' => $profile->state,
+                'city' => $profile->city,
                 'avatar_url' => $profile->avatar_path
                     ? URL::temporarySignedRoute('performer.media', now()->addMinutes(60), [
                         'profile_id' => $profile->id,
@@ -79,6 +85,10 @@ class ProfileController extends Controller
             // "Sobre mim" (Sprint 9). `tags` NÃO entra aqui: não é coluna, vai
             // pela junção logo abaixo.
             'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',
+            // Localização opt-in. Os dois entram como null quando a performer
+            // usa "Não compartilhar localização" — a tela manda o par vazio, e
+            // `nullable` no request deixa isso chegar até aqui como limpeza.
+            'state', 'city',
         ]));
 
         // Multi-worlds: se a tela mandou a seleção de mundos, ela é a fonte da

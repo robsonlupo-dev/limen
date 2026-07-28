@@ -71,6 +71,21 @@ class PerformerProfile extends Model
     public const HEIGHT_MAX_CM = 190;
 
     /**
+     * As 26 UFs + DF. Fonte única da validação (Form Request), do filtro do
+     * catálogo e do dropdown da tela — que espelha esta lista em
+     * `resources/js/lib/performerAttributes.js` só para ter o nome por extenso.
+     *
+     * É a UF que fica no banco e sai no resource, nunca o nome escrito: mesmo
+     * padrão de `languages`/`drinks`/`tier`. E é a ÚNICA granularidade que sai
+     * daqui — `city` existe na tabela, mas não é público (ver a migration e
+     * PerformerPublicResource).
+     */
+    public const STATES = [
+        'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA',
+        'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+    ];
+
+    /**
      * O conjunto válido de tags, achatado. É o que a validação e o filtro usam —
      * o agrupamento só interessa a quem desenha a tela.
      *
@@ -91,6 +106,10 @@ class PerformerProfile extends Model
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
         'is_live', 'is_verified', 'avatar_path', 'cover_path',
         'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',
+        // Localização opt-in. `city` é fillable porque a performer a escreve na
+        // própria tela — o que a mantém interna é não sair em resource nenhum,
+        // não a ausência daqui. Ver PerformerPublicResource.
+        'state', 'city',
     ];
 
     protected function casts(): array

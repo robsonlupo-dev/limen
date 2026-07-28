@@ -60,6 +60,11 @@ defineProps({
                 <span aria-hidden="true">{{ WORLD_ICONS[performer.category] }}</span>
                 {{ WORLD_LABELS[performer.category] ?? performer.category }}
             </p>
+            <!-- Mesma regra do PerformerCard: UF só, fora da foto (onde mora a
+                 bolinha de ao vivo) e ausente enquanto ela estiver ao vivo. -->
+            <p v-if="performer.state && !performer.is_live" class="text-xs text-muted">
+                <span class="rounded border border-frame px-1.5 py-0.5 tracking-wide">{{ performer.state }}</span>
+            </p>
             <p class="text-xs text-muted pt-1">{{ performer.followers_label }} apoiadores</p>
         </div>
     </Link>
