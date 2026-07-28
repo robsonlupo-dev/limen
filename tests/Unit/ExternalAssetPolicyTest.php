@@ -42,16 +42,31 @@ use Symfony\Component\Finder\Finder;
 const ALLOWED_BLADE_ORIGINS = [];
 
 /**
- * Origens externas permitidas em Vue/JS. Vazia — e não é omissão: o único
- * terceiro que o front legitimamente contata é o servidor Reverb, que vem de
- * `import.meta.env.VITE_REVERB_*` e portanto não é literal nenhum no código.
+ * Origens externas permitidas em Vue/JS.
+ *
+ * O servidor Reverb não aparece aqui porque vem de `import.meta.env.VITE_REVERB_*`
+ * e portanto não é literal nenhum no código.
  *
  * Listas separadas de propósito: liberar um host no e-mail não é a mesma
  * decisão que liberar no bundle que roda na área logada.
  *
+ * `js.hcaptcha.com` (Sprint 9, aval do PO): SDK do hCaptcha, carregado por
+ * resources/js/Components/HCaptcha.vue. É a primeira entrada desta lista e vale
+ * uma leitura antes de a próxima ser acrescentada:
+ *
+ *  - o componente só é montado em /login e /cadastro, que são PÚBLICAS e
+ *    deslogadas — o invariante que este teste protege ("zero terceiros em área
+ *    logada") continua de pé, e é por isso que o script NÃO está no
+ *    app.blade.php, que renderiza toda tela logada;
+ *  - o SDK só é buscado com HCAPTCHA_ENABLED=true; desligado (o padrão) nenhum
+ *    byte sai;
+ *  - hCaptcha é SUBPROCESSADOR e vê IP de quem abre as telas de auth. Ligar em
+ *    produção depende de política de privacidade, registro de subprocessadores
+ *    e DPA assinado. Ver docs/HCAPTCHA.md.
+ *
  * @var list<string>
  */
-const ALLOWED_JS_ORIGINS = [];
+const ALLOWED_JS_ORIGINS = ['js.hcaptcha.com'];
 
 /** Tags cujo atributo dispara download automático pelo cliente. */
 const ASSET_PATTERN = '/<(?:script|img|iframe|source|embed|object|video|audio|link)\b[^>]*?\b(?:src|href|data|poster)\s*=\s*["\'](?<url>(?:https?:)?\/\/[^"\']+)/i';

@@ -71,6 +71,19 @@ class HandleInertiaRequests extends Middleware
             'panicRedirectUrl' => config('app.panic_redirect_url'),
             'ageConfirmed' => (bool) $request->cookie('limen_age_confirmed'),
             'introSeen' => (bool) $request->cookie('limen_intro_seen'),
+            // hCaptcha. Só a chave PÚBLICA (a secreta nunca sai do servidor), e
+            // só quando ligado — desligado, a tela não recebe nem o sitekey e o
+            // componente do widget nem monta, então nenhuma requisição sai para
+            // hcaptcha.com.
+            //
+            // Compartilhado globalmente, mas isso NÃO significa carregado
+            // globalmente: quem decide buscar o SDK é o componente HCaptcha.vue,
+            // que só existe nas telas de login e cadastro. O script de terceiro
+            // não pode entrar no app.blade.php — ver docs/PIXEL_AUDIT.md.
+            'hcaptcha' => [
+                'enabled' => (bool) config('hcaptcha.enabled'),
+                'sitekey' => config('hcaptcha.enabled') ? config('hcaptcha.sitekey') : null,
+            ],
         ]);
     }
 }
