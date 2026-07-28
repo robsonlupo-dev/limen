@@ -63,6 +63,18 @@ const categoryLabels = {
                 <p class="text-xs text-muted uppercase tracking-wide">
                     {{ categoryLabels[performer.category] ?? performer.category }}
                 </p>
+                <!-- Estado: SÓ a UF, e some quando a performer está ao vivo.
+                     São duas regras distintas do PO no mesmo elemento:
+                     1. Fica na área de info, NUNCA sobre a foto — a bolinha
+                        verde de "ao vivo" mora lá, e o pedido é separá-los.
+                     2. Nunca no mesmo card que o indicador ao vivo: "está
+                        transmitindo AGORA" + "está em SP" é uma correlação em
+                        tempo real que o estado sozinho não dá. Por isso o
+                        `!performer.is_live`, e não só o afastamento visual.
+                     A cidade não existe nesta prop (ver PerformerPublicResource). -->
+                <p v-if="performer.state && !performer.is_live" class="text-xs text-muted">
+                    <span class="rounded border border-frame px-1.5 py-0.5 tracking-wide">{{ performer.state }}</span>
+                </p>
                 <div class="flex items-center justify-between pt-1">
                     <StarRating :rating="performer.rating_avg" />
                     <span class="text-xs text-muted">{{ performer.followers_label }} seguidores</span>

@@ -9,6 +9,7 @@ import FollowButton from '@/Components/FollowButton.vue'
 import Button from '@/Components/Button.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
+import { stateLabel } from '@/lib/performerAttributes'
 
 const props = defineProps({
     performer: { type: Object, required: true },
@@ -113,6 +114,15 @@ function onTipSent(data) {
                         <span class="text-cream font-medium">{{ tipsCount }}</span> gorjetas recebidas
                     </div>
                 </div>
+
+                <!-- Estado por extenso; ausente para quem não preencheu. A
+                     cidade não existe nesta prop (ver PerformerPublicResource).
+                     Ausente também enquanto ela está ao vivo — mesma regra do
+                     card e da página pública: o selo "ao vivo" desta tela mais a
+                     UF entregam onde ela está NESTE momento. -->
+                <p v-if="performer.state && !performer.is_live" class="mt-4 text-sm text-muted">
+                    Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
+                </p>
 
                 <!-- Bio -->
                 <div v-if="performer.bio" class="mt-8 space-y-2">

@@ -51,6 +51,9 @@ class CatalogFilterRequest extends FormRequest
             'is_live' => $this->boolean('is_live'),
             'has_photo' => $this->boolean('has_photo'),
             'tier' => $this->input('tier'),
+            // UF, validada por Rule::in(STATES) nas rules(). Não há entrada de
+            // cidade aqui e não deve haver: `city` não é dado público.
+            'state' => $this->input('state'),
             'tags' => (array) $this->input('tags', []),
             'languages' => (array) $this->input('languages', []),
             'drinks' => $this->input('drinks'),

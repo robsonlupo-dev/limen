@@ -489,6 +489,11 @@ class DeletionService
             'smokes' => null,
             'height_cm' => null,
             'looking_for' => null,
+            // Localização (Sprint 9). `city` sai junto mesmo nunca tendo sido
+            // pública: o Hard Delete apaga o que a titular deu, não só o que
+            // estava à vista. Nenhum dos dois tem valor fiscal ou trilha legal.
+            'state' => null,
+            'city' => null,
             'avatar_path' => null,
             'cover_path' => null,
             'is_live' => false,

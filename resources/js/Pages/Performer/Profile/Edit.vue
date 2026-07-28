@@ -12,6 +12,7 @@ import {
     SMOKES,
     HEIGHT_MIN_CM,
     HEIGHT_MAX_CM,
+    STATES,
 } from '@/lib/performerAttributes'
 
 const props = defineProps({
@@ -44,6 +45,10 @@ const profileForm = useForm({
     smokes: props.profile.smokes ?? null,
     height_cm: props.profile.height_cm ?? null,
     looking_for: props.profile.looking_for ?? '',
+    // Localização opt-in. Os dois começam nulos/vazios para quem nunca
+    // preencheu — não há valor "padrão" a sugerir aqui.
+    state: props.profile.state ?? null,
+    city: props.profile.city ?? '',
 })
 
 // Feedback de preenchimento da bio: só empurra a performer a escrever mais.
@@ -95,6 +100,17 @@ function toggleLanguage(value) {
 // campo é nullable no banco justamente porque informar é opcional.
 function toggleChoice(field, value) {
     profileForm[field] = profileForm[field] === value ? null : value
+}
+
+// Localização: os dois campos são independentes e opcionais, então "tem
+// localização" é ter QUALQUER um dos dois — é o que decide se o link de limpar
+// aparece. Limpar manda o par vazio, e o servidor (nullable) apaga as colunas;
+// `city: ''` chega como null pela normalização do Form Request do Laravel.
+const hasLocation = computed(() => Boolean(profileForm.state) || profileForm.city.trim() !== '')
+
+function clearLocation() {
+    profileForm.state = null
+    profileForm.city = ''
 }
 
 // Pelo menos um mundo é obrigatório. Validação inline (o servidor também
@@ -414,6 +430,71 @@ function save() {
                         />
                         <span class="text-xs text-muted tabular-nums self-end">{{ profileForm.looking_for.length }}/1000</span>
                         <p v-if="profileForm.errors.looking_for" class="text-xs text-danger">{{ profileForm.errors.looking_for }}</p>
+                    </div>
+
+                    <!-- Localização: opt-in, e o aviso vem ANTES dos campos.
+                         Depois deles a performer já teria digitado a cidade sem
+                         saber para onde ela vai. -->
+                    <div class="flex flex-col gap-3 border-t border-frame pt-5">
+                        <div class="flex items-start gap-2 rounded-lg border border-frame bg-surface-2 px-3 py-2.5">
+                            <svg
+                                class="h-4 w-4 shrink-0 text-gold mt-0.5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M10 1a4 4 0 00-4 4v3H5.5A1.5 1.5 0 004 9.5v7A1.5 1.5 0 005.5 18h9a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 8H14V5a4 4 0 00-4-4zm2.5 7V5a2.5 2.5 0 10-5 0v3h5z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                            <p class="text-xs leading-relaxed text-muted">
+                                Sua localização exata nunca é revelada. Apenas seu estado aparecerá no
+                                catálogo.
+                            </p>
+                        </div>
+
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="flex flex-col gap-1.5">
+                                <label for="state" class="text-sm font-medium text-cream">Estado</label>
+                                <select
+                                    id="state"
+                                    v-model="profileForm.state"
+                                    class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                                >
+                                    <option :value="null">Não informado</option>
+                                    <option v-for="uf in STATES" :key="uf.value" :value="uf.value">
+                                        {{ uf.label }}
+                                    </option>
+                                </select>
+                                <p v-if="profileForm.errors.state" class="text-xs text-danger">{{ profileForm.errors.state }}</p>
+                            </div>
+
+                            <div class="flex flex-col gap-1.5">
+                                <label for="city" class="text-sm font-medium text-cream">Cidade</label>
+                                <Input
+                                    id="city"
+                                    v-model="profileForm.city"
+                                    type="text"
+                                    maxlength="100"
+                                    placeholder="Opcional"
+                                />
+                                <!-- Dito na tela, não só no código: a cidade fica
+                                     guardada mas não é publicada em lugar nenhum. -->
+                                <p class="text-xs text-muted">Não aparece no seu perfil nem no catálogo.</p>
+                                <p v-if="profileForm.errors.city" class="text-xs text-danger">{{ profileForm.errors.city }}</p>
+                            </div>
+                        </div>
+
+                        <button
+                            v-if="hasLocation"
+                            type="button"
+                            class="self-start text-xs text-muted underline underline-offset-2 hover:text-cream transition-colors"
+                            @click="clearLocation"
+                        >
+                            Não compartilhar localização
+                        </button>
                     </div>
                 </div>
 
