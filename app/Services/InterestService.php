@@ -31,9 +31,20 @@ class InterestService
         return (int) config('interest.unlock_cost');
     }
 
-    private function dailyLimit(): int
+    /** Origens possíveis de um envio. Espelha o enum da coluna `source`. */
+    public const SOURCE_FOLLOWER = 'follower';
+
+    public const SOURCE_VISITOR = 'visitor';
+
+    /**
+     * Cota diária da origem. São SEPARADAS por decisão do PO — o teto diário
+     * total da performer é a soma (hoje 5 + 3 = 8), e não 5.
+     */
+    private function dailyLimit(string $source = self::SOURCE_FOLLOWER): int
     {
-        return (int) config('interest.daily_limit');
+        return $source === self::SOURCE_VISITOR
+            ? (int) config('interest.visitor_daily_limit')
+            : (int) config('interest.daily_limit');
     }
 
     private function cooldownDays(): int
@@ -51,16 +62,32 @@ class InterestService
      * linha), a performer detectava o opt-out reenviando e não tomando cooldown
      * (docs/INTEREST_SYSTEM_SPEC.md, seção 6).
      *
+     * `$source` diz de QUAL tela partiu o envio (lista de seguidores ou painel
+     * de visitantes). Ele não muda nada do que o membro vê — a notificação é a
+     * mesma cega, o custo de revelação é o mesmo, o cooldown é o mesmo — e
+     * serve a duas coisas só: a cota diária, que é separada por origem, e a
+     * trilha de auditoria. Quem resolve o alvo (e portanto quem garante que a
+     * origem confere) é o Form Request de cada porta.
+     *
+     * O COOLDOWN é deliberadamente comum às duas origens: são 30 dias por par
+     * (performer, membro), independentemente de por onde o envio passou. Sem
+     * isso a performer mandaria pela lista de seguidores e, em seguida, pelo
+     * painel — dobrando as cutucadas que o cooldown existe para impedir. É
+     * também o que responde ao "interesse duplicado não pode duplicar".
+     *
      * @throws InterestException target inválido, cooldown ativo ou limite diário
      */
-    public function send(PerformerProfile $performerProfile, User $member): PerformerInterest
-    {
+    public function send(
+        PerformerProfile $performerProfile,
+        User $member,
+        string $source = self::SOURCE_FOLLOWER,
+    ): PerformerInterest {
         // Só é possível demonstrar interesse em um membro (consumer).
         if ($member->role !== 'consumer') {
             throw InterestException::invalidTarget();
         }
 
-        return DB::transaction(function () use ($performerProfile, $member) {
+        return DB::transaction(function () use ($performerProfile, $member, $source) {
             // Serializa os envios DESTA performer travando a linha do perfil
             // como primeira instrução da transação. Sends concorrentes da mesma
             // performer passam a esperar; e, por ser a 1ª leitura, o read-view
@@ -81,13 +108,25 @@ class InterestService
                 throw InterestException::cooldown($cooldownDays);
             }
 
-            // Limite diário por performer (piso; escala por tier — follow-up).
+            // Limite diário por performer E POR ORIGEM (piso; escala por tier —
+            // follow-up). O filtro por `source` é o que torna as duas cotas
+            // independentes: gastar os 5 da lista de seguidores não consome os
+            // 3 do painel de visitantes, nem o contrário.
+            //
+            // Contado DENTRO da transação que já travou a linha do perfil (o
+            // lockForUpdate acima), então dois envios simultâneos da mesma
+            // performer não passam os dois pela checagem — sem isso a cota de 3
+            // seria furada por corrida, que é o caminho mais barato para varrer
+            // uma faixa inteira do painel.
+            $limit = $this->dailyLimit($source);
+
             $sentToday = PerformerInterest::where('performer_profile_id', $performerProfile->id)
+                ->where('source', $source)
                 ->where('sent_at', '>=', now()->startOfDay())
                 ->count();
 
-            if ($sentToday >= $this->dailyLimit()) {
-                throw InterestException::dailyLimit($this->dailyLimit());
+            if ($sentToday >= $limit) {
+                throw InterestException::dailyLimit($limit);
             }
 
             // Se o membro já desbloqueou esta performer em um interesse anterior,
@@ -111,6 +150,7 @@ class InterestService
             $interest = PerformerInterest::create([
                 'performer_profile_id' => $performerProfile->id,
                 'member_id' => $member->id,
+                'source' => $source,
                 'status' => $status,
                 'sent_at' => now(),
                 'unlocked_at' => $status === 'unlocked' ? now() : null,
@@ -124,6 +164,7 @@ class InterestService
                 'ip' => request()->ip(),
                 'metadata' => [
                     'member_id' => $member->id,
+                    'source' => $source,
                     'auto_unlocked' => $status === 'unlocked',
                     'suppressed' => $optOut,
                 ],

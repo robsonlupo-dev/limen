@@ -384,6 +384,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.interests.send')
             ->can('performer-active');
 
+        // Interesse a partir do PAINEL DE VISITANTES. Rota separada da de cima
+        // de propósito: a origem decide contra qual conjunto o handle é
+        // resolvido, e um `source` no payload deixaria essa escolha com o
+        // cliente. Throttle mais apertado que o da outra porta porque a cota
+        // diária aqui é 3, não 5.
+        Route::post('/performer/interesses/visitante', [PerformerInterestController::class, 'storeForVisitor'])
+            ->middleware('throttle:6,1')
+            ->name('performer.interests.send-visitor')
+            ->can('performer-active');
+
         // Histórico dos envios desta performer (para quem, quem revelou, cota do dia).
         Route::get('/performer/interesses', [SentInterestsController::class, 'index'])
             ->middleware('throttle:60,1')

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PerformerInterest extends Model
 {
     protected $fillable = [
-        'performer_profile_id', 'member_id', 'status',
+        'performer_profile_id', 'member_id', 'source', 'status',
         'sent_at', 'unlocked_at', 'unlock_ledger_id',
     ];
 
