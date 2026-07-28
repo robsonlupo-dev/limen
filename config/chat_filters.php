@@ -55,6 +55,13 @@ return [
             'programa completo',
             'fazer programa',
             'faz programa',
+            // Primeira pessoa. A lista nasceu calibrada para CONVERSA, onde a
+            // frase aparece em segunda pessoa ("você faz programa?"). Desde que
+            // o filtro passou a valer na bio e no looking_for (Sprint 9), o
+            // texto é a performer falando de si — e "faço programa" é a
+            // conjugação mais provável ali, que escapava.
+            'faço programa',
+            'faco programa',
             'gfe',
             'girlfriend experience',
             'pix fora',

@@ -67,6 +67,21 @@ it('bloqueia frase inequívoca de programa pago', function () {
         ->and(F::categoryOf('oferece GFE?'))->toBe(F::LEGAL);
 });
 
+it('bloqueia a oferta em primeira pessoa, não só em segunda', function () {
+    // A lista nasceu calibrada para CONVERSA, onde a frase vem em segunda
+    // pessoa ("você faz programa?"). Desde que o filtro passou a valer na bio e
+    // no looking_for, o texto é a performer falando de si — e 'faço programa'
+    // escapava. A cedilha é redundante (Str::ascii normaliza), mas as duas
+    // entradas ficam na lista para o casamento não depender do normalizador.
+    expect(F::categoryOf('faço programa'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('faco programa'))->toBe(F::LEGAL);
+
+    // E o que já passava continua passando: 'programa' segue sendo palavra
+    // comum, e o casamento exige a frase inteira, sem palavra no meio.
+    expect(F::blocks('faço um programa de tv'))->toBeFalse()
+        ->and(F::blocks('qual seu programa favorito'))->toBeFalse();
+});
+
 it('bloqueia transação fora da plataforma', function () {
     expect(F::categoryOf('faz o pix fora da plataforma'))->toBe(F::LEGAL)
         ->and(F::categoryOf('me paga fora, sai mais barato'))->toBe(F::LEGAL)
