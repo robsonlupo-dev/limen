@@ -68,6 +68,9 @@ class User extends Authenticatable implements MustVerifyEmail
             'phone_verified_at' => 'datetime',
             'birthdate' => 'date',
             'age_verified_at' => 'datetime',
+            // Carta dos fundadores. Fora do $fillable de propósito — é trava de
+            // idempotência interna, escrita só pelo SendWelcomeEmail.
+            'welcome_email_sent_at' => 'datetime',
             'lgpd_consent_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
