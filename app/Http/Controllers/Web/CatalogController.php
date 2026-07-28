@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CatalogFilterRequest;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
@@ -22,13 +23,13 @@ class CatalogController extends Controller
         private ProfileVisitService $profileVisits,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(CatalogFilterRequest $request): Response
     {
+        // `category` fica fora do CatalogFilterRequest: o mundo é do catálogo
+        // autenticado (o público usa `mundo`), e as duas telas compartilham só
+        // as facetas do Sprint 9.
         $request->validate([
             'category' => ['nullable', Rule::in(PerformerProfile::WORLDS)],
-            'search' => 'nullable|string|max:100',
-            'sort' => 'nullable|in:rating_avg,followers_count,newest',
-            'level' => 'nullable|in:iniciante,estrela,premium,vip',
         ]);
 
         // The member browses within a single "world". Default to their chosen
@@ -36,13 +37,10 @@ class CatalogController extends Controller
         $defaultWorld = $request->user()->preferred_world ?? 'mulheres';
         $currentWorld = $request->input('category', $defaultWorld);
 
-        $filters = [
+        $filters = array_merge($request->filters(), [
             'category' => $currentWorld,
-            'is_live' => $request->boolean('is_live'),
-            'search' => $request->input('search'),
             'sort' => $request->input('sort', 'rating_avg'),
-            'level' => $request->input('level'),
-        ];
+        ]);
 
         $performers = $this->catalogService->search($filters);
 
@@ -67,7 +65,12 @@ class CatalogController extends Controller
 
         return Inertia::render('Catalog/Index', [
             'performers' => $paginated,
-            'filters' => $filters,
+            // filterState() e não $filters: a tela precisa dos extremos do
+            // slider resolvidos em número para renderizar os controles.
+            'filters' => array_merge($request->filterState(), [
+                'category' => $currentWorld,
+                'sort' => $filters['sort'],
+            ]),
             'currentWorld' => $currentWorld,
             'userWorld' => $request->user()->preferred_world,
         ]);

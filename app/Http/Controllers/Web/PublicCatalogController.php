@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CatalogFilterRequest;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Conversation;
 use App\Services\ChatAccessService;
@@ -28,15 +29,19 @@ class PublicCatalogController extends Controller
         private ProfileVisitService $profileVisits,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(CatalogFilterRequest $request): Response
     {
+        // `mundo` (e não `category`) é o nome do parâmetro nesta porta desde
+        // sempre, e /performers?mundo=mulheres é URL pública já indexada —
+        // renomear quebraria links vivos. As facetas do Sprint 9 usam os mesmos
+        // nomes das duas portas; só o mundo diverge, por compatibilidade.
         $validated = $request->validate([
             'mundo' => 'nullable|in:mulheres,homens,casais,trans',
         ]);
 
         $world = $validated['mundo'] ?? null;
 
-        $performers = $this->catalogService->publicSearch($world);
+        $performers = $this->catalogService->publicSearch($world, $request->filters());
 
         // PerformerPublicResource is already PII-free (slug, stage_name, bio,
         // category, work_modes, is_live, ratings, followers_count, signed media
@@ -47,7 +52,7 @@ class PublicCatalogController extends Controller
 
         return Inertia::render('Performers/Index', [
             'performers' => $paginated,
-            'filters' => ['mundo' => $world],
+            'filters' => array_merge($request->filterState(), ['mundo' => $world]),
             'meta' => [
                 'title' => 'Performers verificadas · Limen',
                 'description' => 'Descubra performers verificadas no Limen. Conteúdo adulto premium, privacidade total. Crie sua conta para interagir.',

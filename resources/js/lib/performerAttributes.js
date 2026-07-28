@@ -88,6 +88,28 @@ export const SMOKES = [
 export const HEIGHT_MIN_CM = 140
 export const HEIGHT_MAX_CM = 190
 
+// Espelha PerformerProfile::TIERS. Curadoria concedida por admin — a performer
+// não escolhe o seu. Aparece aqui porque o filtro do catálogo (Sprint 9) a
+// oferece como faceta; o rótulo é o mesmo vocabulário que o PO usa no produto.
+export const TIERS = [
+    { value: 'verificada', label: 'Verificada' },
+    { value: 'select', label: 'Select' },
+    { value: 'maison', label: 'Maison' },
+]
+
+// Os grupos de tag que o FILTRO do catálogo oferece. É um subconjunto
+// deliberado (decisão do PO): personalidade descreve quem a performer é, e
+// filtrar por isso empurra o membro a tratar traço de pessoa como faceta de
+// busca. Estilo de vida e o que ela oferece são o que se procura.
+//
+// A validação do servidor aceita QUALQUER tag do catálogo (allTags), então
+// abrir personalidade depois é acrescentar a chave aqui — não mexe no backend.
+export const FILTERABLE_TAG_GROUP_KEYS = ['estilo_de_vida', 'oferece']
+
+export const FILTERABLE_TAG_GROUPS = TAG_GROUPS.filter((group) =>
+    FILTERABLE_TAG_GROUP_KEYS.includes(group.key),
+)
+
 // Slug → rótulo, achatado. Para as telas que exibem tags sem se importar com o
 // grupo (perfil público, chips do card).
 const TAG_LABELS = Object.fromEntries(
