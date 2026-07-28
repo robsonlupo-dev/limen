@@ -87,6 +87,10 @@ return [
         // Consumer panel
         'consumer.dashboard',
 
+        // Perfil do membro (interesses + "o que estou buscando")
+        'consumer.profile.edit',
+        'consumer.profile.update',
+
         // Consumer tips
         'tips.send',
 

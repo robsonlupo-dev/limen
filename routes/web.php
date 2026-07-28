@@ -17,6 +17,7 @@ use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
+use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileController;
 use App\Http\Controllers\Web\Consumer\ReportController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
@@ -443,6 +444,18 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::patch('/interesses/opt-out', [ConsumerInterestController::class, 'optOut'])
             ->middleware('throttle:30,1')
             ->name('interests.opt-out');
+
+        // Perfil do membro: interesses + "o que estou buscando". Separado de
+        // /configuracoes de propósito — lá é privacidade e conta, aqui é
+        // auto-declaração. Nada do que se escreve aqui volta para uma
+        // superfície da performer (ver Consumer\ProfileController).
+        Route::get('/meu-perfil', [ConsumerProfileController::class, 'edit'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.profile.edit');
+
+        Route::put('/meu-perfil', [ConsumerProfileController::class, 'update'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.profile.update');
 
         // Configurações do membro (hoje: Modo Discreto).
         Route::get('/configuracoes', [ConsumerPreferencesController::class, 'index'])
