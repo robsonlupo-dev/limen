@@ -4,6 +4,9 @@ use App\Models\Follow;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\DeletionService;
+use App\Services\ProfileVisitService;
+use App\Services\TipService;
+use App\Services\TokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -273,31 +276,66 @@ function miContains(mixed $haystack, string $needle): bool
     return is_string($haystack) && str_contains($haystack, $needle);
 }
 
+/**
+ * Membro ELEGÍVEL para o Piso de Anonimato: 30 dias de conta e e-mail
+ * verificado. O default da UserFactory é `created_at = now()`, que o piso não
+ * conta — um teste montado com ele deixa a lista fechada e a varredura de
+ * ausência sem palheiro.
+ */
+function miEligibleMember(): User
+{
+    return User::factory()->create([
+        'role' => 'consumer',
+        'status' => 'active',
+        'created_at' => now()->subDays(30),
+        'email_verified_at' => now()->subDays(30),
+    ]);
+}
+
 it('never exposes the member interests or seeking to the performer', function () {
     $profile = miPerformer();
-    $member = miMember();
+    $member = miEligibleMember();
 
     // Slug e frase escolhidos para serem inconfundíveis na varredura.
     $member->syncInterests(['striptease', 'submissa']);
     $member->update(['seeking' => 'SEGREDO-DO-MEMBRO']);
 
-    Follow::create([
-        'user_id' => $member->id,
-        'performer_profile_id' => $profile->id,
-        'discrete_mode' => false,
-    ]);
+    // O piso são 5 seguidores ELEGÍVEIS (7+ dias e e-mail verificado). Abaixo
+    // dele a tela não renderiza membro nenhum, e a varredura de ausência
+    // passaria sobre o vazio — luz verde sem função. Por isso o arrange
+    // DESTRAVA a lista: o que se prova é que a superfície carregada, com este
+    // membro dentro dela, não carrega o que ele escreveu.
+    $others = collect(range(1, 5))->map(fn () => miEligibleMember());
 
-    // As superfícies em que a performer vê membro hoje. A lista pode estar
-    // fechada pelo Piso de Anonimato — a asserção é de AUSÊNCIA, então vale
-    // igual, e o teste continua válido quando o piso destravar.
+    foreach ([$member, ...$others] as $follower) {
+        Follow::create([
+            'user_id' => $follower->id,
+            'performer_profile_id' => $profile->id,
+            'discrete_mode' => false,
+        ]);
+    }
+
+    // Gorjeta: a lista de gorjetas do dashboard não passa por piso nenhum e é a
+    // superfície que motivou o FanAlias. Precisa render linha para valer.
+    $member->tokenWallet()->create(['balance' => 0]);
+    app(TokenService::class)->credit($member, 500, 'purchase');
+    app(TipService::class)->send($member, $profile, 100, (string) Str::uuid());
+
+    // Visita: o painel de visitantes tem piso próprio (o mesmo número, contado
+    // sobre visitantes distintos elegíveis) e k-anonimato de 3 por faixa.
+    foreach ([$member, ...$others] as $visitor) {
+        app(ProfileVisitService::class)->record($visitor, $profile);
+    }
+
     foreach ([route('performer.followers'), route('performer.dashboard')] as $url) {
         $response = $this->actingAs($profile->user)->get($url)->assertOk();
         $props = $response->viewData('page')['props'] ?? [];
 
-        // Guard contra asserção vazia: um `props` vazio (rota que mudou de
-        // forma, redirect engolido) faria todas as asserções abaixo passarem
-        // sem ter olhado nada, e o teste viraria uma luz verde sem função.
-        expect($props)->not->toBeEmpty();
+        // Controle POSITIVO, e é ele que dá sentido ao resto: a página tem que
+        // estar exibindo membro de verdade. Sem isso a varredura abaixo é uma
+        // asserção de ausência sobre palheiro vazio — foi assim que a primeira
+        // versão deste teste passou verde sem olhar nada.
+        expect(miContains($props, 'Membro #') || miContains($props, 'Fã #'))->toBeTrue();
 
         expect(miContains($props, 'SEGREDO-DO-MEMBRO'))->toBeFalse()
             ->and(miContains($props, 'seeking'))->toBeFalse()

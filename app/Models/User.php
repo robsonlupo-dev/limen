@@ -59,6 +59,13 @@ class User extends Authenticatable implements MustVerifyEmail
         // dizer "esta conta veio do mesmo IP que aquela". Uma linha fecha a
         // classe inteira de regressão.
         'registration_ip_hash',
+        // "O que estou buscando". Mesmo argumento do registration_ip_hash logo
+        // acima, e com mais peso: numa plataforma adulta o que o membro procura
+        // é dado sensível de vida sexual (LGPD art. 5º, II). Hoje não vaza
+        // (os resources montam array explícito), mas um `response()->json($user)`
+        // futuro o exporia — e a regra do produto é que ele nunca chega à
+        // performer. Uma linha fecha a classe inteira de regressão.
+        'seeking',
     ];
 
     protected function casts(): array
