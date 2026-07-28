@@ -88,6 +88,7 @@ function onTipSent(data) {
                             :is-verified="performer.is_verified"
                             :email-verified="performer.email_verified"
                             :category="performer.category"
+                            :tier="performer.tier"
                             size="md"
                         />
                         <StarRating :rating="performer.rating_avg" />

@@ -41,6 +41,15 @@ class PerformerPublicResource extends JsonResource
             // visitante anônimo, e o badge não precisa dele para renderizar.
             'is_verified' => (bool) $this->is_verified,
             'email_verified' => $this->user?->email_verified_at !== null,
+            // Curadoria concedida por admin (verificada/select/maison), ou null
+            // para quem ainda não recebeu nenhuma. Sai o SLUG, nunca o rótulo —
+            // a tela traduz, mesma regra dos enums de "Sobre mim".
+            //
+            // Só o tier: `tier_granted_at` e `tier_granted_by` ficam de fora.
+            // A data dataria a curadoria e o `tier_granted_by` é o id do admin
+            // que a concedeu — nenhum dos dois tem função no card, e o segundo
+            // é identificador interno de funcionário numa resposta pública.
+            'tier' => $this->tier,
             'avatar_url' => $this->mediaUrl('avatar'),
             'cover_url' => $this->mediaUrl('cover'),
         ];

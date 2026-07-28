@@ -120,6 +120,7 @@ const lockedTiles = 6
                             :is-verified="performer.is_verified"
                             :email-verified="performer.email_verified"
                             :category="performer.category"
+                            :tier="performer.tier"
                             size="md"
                         />
                     </div>

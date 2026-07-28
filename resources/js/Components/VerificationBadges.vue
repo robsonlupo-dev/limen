@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { verifiedLabel } from '@/lib/worlds'
+import { tierBadgeLabel } from '@/lib/performerAttributes'
 
 /**
  * Selos de verificação da performer, exibidos abaixo do nome no card do
@@ -25,9 +26,19 @@ const props = defineProps({
     category: { type: String, default: null },
     // 'sm' no card do catálogo, 'md' no perfil (mesmo text-xs, só respira mais).
     size: { type: String, default: 'sm' },
+    // Curadoria (verificada/select/maison), ou null. Entra AQUI e não em cada
+    // card porque a posição pedida é "na mesma linha dos selos, depois deles" —
+    // e são quatro superfícies (dois cards, dois perfis). Quatro cópias da
+    // mesma marcação divergiriam no primeiro ajuste de estilo.
+    tier: { type: String, default: null },
 })
 
 const verified = computed(() => verifiedLabel(props.category))
+
+// null para `verificada` e para null: o tier base não vira selo — ver
+// BADGED_TIERS. Maison ganha destaque; Select fica no dourado discreto.
+const tierLabel = computed(() => tierBadgeLabel(props.tier))
+const isMaison = computed(() => props.tier === 'maison')
 
 const pill = computed(() =>
     props.size === 'md'
@@ -37,7 +48,7 @@ const pill = computed(() =>
 </script>
 
 <template>
-    <div v-if="isVerified || emailVerified" class="flex items-center gap-1.5 flex-wrap">
+    <div v-if="isVerified || emailVerified || tierLabel" class="flex items-center gap-1.5 flex-wrap">
         <span
             v-if="isVerified"
             :class="pill"
@@ -63,5 +74,25 @@ const pill = computed(() =>
         </span>
 
         <!-- Reservado: badge "ID verificado" (documento) entra aqui no Sprint 9. -->
+
+        <!-- Curadoria. Último da linha de propósito: os selos anteriores são
+             VERIFICAÇÃO (fato conferido pela plataforma) e este é CURADORIA
+             (juízo dela). Vir depois mantém a leitura "quem ela é" antes de
+             "como a classificamos", e o estilo discreto impede o selo de
+             curadoria de gritar mais alto que o de identidade. -->
+        <span
+            v-if="tierLabel"
+            :class="[
+                pill,
+                isMaison
+                    ? 'border-gold/50 bg-gold/15 text-gold font-medium'
+                    : 'border-gold/25 bg-gold/5 text-gold',
+            ]"
+            class="inline-flex items-center rounded-full border"
+            :title="`Curadoria Limen · ${tierLabel}`"
+        >
+            <span v-if="isMaison" aria-hidden="true" class="text-[9px] leading-none">◆</span>
+            {{ tierLabel }}
+        </span>
     </div>
 </template>
