@@ -15,7 +15,21 @@ return [
 
     // Teto de interesses que uma performer pode enviar por dia. É o piso;
     // tiers superiores elevam o limite (tabela por tier é follow-up).
+    //
+    // Conta só a origem SEGUIDORES desde o Sprint 9 — a cota de visitantes é
+    // separada, logo abaixo.
     'daily_limit' => (int) env('INTEREST_DAILY_LIMIT', 5),
+
+    // Cota diária da origem VISITANTES (painel do dashboard), separada da de
+    // seguidores por decisão do PO. Consequência a registrar: o teto DIÁRIO
+    // TOTAL de uma performer passa de 5 para 8 (5 + 3).
+    //
+    // O número não é arbitrário do ponto de vista de privacidade e merece
+    // atenção de quem for mexer nele: 3 é exatamente SLOT_MIN_K, o k-anonimato
+    // por faixa do painel. Com 3 envios/dia a performer alcança uma faixa
+    // inteira num único dia — ver a ressalva em docs/SECURITY_ISSUES.md.
+    // Subir este valor barateia a sondagem; descer encarece.
+    'visitor_daily_limit' => (int) env('INTEREST_VISITOR_DAILY_LIMIT', 3),
 
     // Uma performer não pode reenviar interesse ao mesmo membro dentro desta
     // janela (em dias), mesmo sem desbloqueio — evita "cutucadas" repetidas.

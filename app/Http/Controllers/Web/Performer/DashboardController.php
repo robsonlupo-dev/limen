@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Web\Performer;
 
 use App\Http\Controllers\Controller;
 use App\Models\IdentityVerification;
+use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\Tip;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\FollowerVisibilityService;
+use App\Services\InterestService;
 use App\Services\ProfileVisitService;
 use App\Support\FanAlias;
 use Illuminate\Http\RedirectResponse;
@@ -58,8 +60,33 @@ class DashboardController extends Controller
             'visitors' => $visitorPanel['visitors'],
             'visitorsVisible' => $visitorPanel['visible'],
             'visitorsWindowHours' => ProfileVisitService::RECENT_HOURS,
+            // Interesse a partir do painel (Sprint 9). Só performer VERIFICADA
+            // envia por esta via — o botão nem renderiza para as demais, e o
+            // Form Request recusa de qualquer forma (a tela não é o guard).
+            'canSendVisitorInterest' => (bool) $profile->is_verified,
+            // Cota do dia da origem VISITANTES, separada da de seguidores. Vai
+            // para a tela só para o botão poder se desabilitar antes do 422;
+            // quem enforça é o InterestService, dentro da transação travada.
+            'visitorInterestRemaining' => $this->visitorInterestRemaining($profile),
             'anonymityFloor' => app(FollowerVisibilityService::class)->floor(),
         ]);
+    }
+
+    /**
+     * Quantos interesses a performer ainda pode enviar HOJE pela origem
+     * visitantes. Conta a mesma coisa que o InterestService checa — o filtro
+     * por `source` é o que mantém as duas cotas independentes.
+     */
+    private function visitorInterestRemaining(PerformerProfile $profile): int
+    {
+        $limit = (int) config('interest.visitor_daily_limit');
+
+        $sentToday = PerformerInterest::where('performer_profile_id', $profile->id)
+            ->where('source', InterestService::SOURCE_VISITOR)
+            ->where('sent_at', '>=', now()->startOfDay())
+            ->count();
+
+        return max(0, $limit - $sentToday);
     }
 
     private function walletBalance(User $user): int

@@ -1,9 +1,10 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
+import { postJson } from '@/lib/http'
 
 const props = defineProps({
     wallet: { type: Number, required: true },
@@ -22,7 +23,62 @@ const props = defineProps({
     visitorsVisible: { type: Boolean, default: false },
     visitorsWindowHours: { type: Number, default: 24 },
     anonymityFloor: { type: Number, default: 5 },
+    // Só performer verificada envia interesse pelo painel (regra do PO). A tela
+    // esconde o botão; quem recusa de fato é o Form Request.
+    canSendVisitorInterest: { type: Boolean, default: false },
+    visitorInterestRemaining: { type: Number, default: 0 },
 })
+
+// Interesse a partir do painel de visitantes. Mesmo fluxo do botão da tela de
+// Seguidores: manda o member_handle (16 hex do FanAlias), nunca um id.
+const visitorQuota = ref(props.visitorInterestRemaining)
+const justSent = ref({})
+const sendingHandle = ref(null)
+const errorFor = ref({})
+const toastMessage = ref('')
+
+function canSendTo(visit) {
+    return (
+        props.canSendVisitorInterest &&
+        visitorQuota.value > 0 &&
+        !justSent.value[visit.member_handle] &&
+        sendingHandle.value === null
+    )
+}
+
+async function sendVisitorInterest(visit) {
+    if (!canSendTo(visit)) return
+
+    errorFor.value = { ...errorFor.value, [visit.member_handle]: '' }
+    sendingHandle.value = visit.member_handle
+
+    try {
+        await postJson(route('performer.interests.send-visitor'), {
+            member_handle: visit.member_handle,
+        })
+
+        justSent.value[visit.member_handle] = true
+        visitorQuota.value = Math.max(0, visitorQuota.value - 1)
+        toastMessage.value = 'Interesse enviado'
+        setTimeout(() => (toastMessage.value = ''), 4000)
+    } catch (error) {
+        // 404 aqui NÃO significa "erro do sistema": o alvo pode ter saído do
+        // painel entre o render e o clique (janela de 24h, k-anonimato, conta
+        // encerrada). A copy é deliberadamente a mesma para todos os casos —
+        // distinguir "não existe" de "existe mas saiu da lista" devolveria à
+        // performer o sinal que os pisos e o k removem.
+        const message =
+            error.status === 429
+                ? 'Muitos envios em pouco tempo. Aguarde um instante.'
+                : error.status === 404
+                  ? 'Este visitante não está mais disponível no painel.'
+                  : (error.data?.message ?? 'Não foi possível enviar. Tente novamente.')
+
+        errorFor.value = { ...errorFor.value, [visit.member_handle]: message }
+    } finally {
+        sendingHandle.value = null
+    }
+}
 
 const kycBadge = computed(() => {
     return {
@@ -158,6 +214,7 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                             <tr class="border-b border-frame text-left text-xs text-muted uppercase tracking-wide">
                                 <th class="px-5 py-3 font-medium">Fã</th>
                                 <th class="px-5 py-3 font-medium">Visita</th>
+                                <th v-if="canSendVisitorInterest" class="px-5 py-3 font-medium text-right">Interesse</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -171,10 +228,36 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                                      a performer casar um envio de link com o alias que
                                      aparece logo depois. Ver ProfileVisitService::slot(). -->
                                 <td class="px-5 py-3 text-muted">{{ visit.visited_slot }}</td>
+                                <td v-if="canSendVisitorInterest" class="px-5 py-3 text-right">
+                                    <span v-if="justSent[visit.member_handle]" class="text-xs text-success">
+                                        Enviado
+                                    </span>
+                                    <template v-else>
+                                        <button
+                                            type="button"
+                                            :disabled="!canSendTo(visit)"
+                                            class="rounded-lg border border-gold px-3 py-1.5 text-xs text-gold hover:bg-gold/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            @click="sendVisitorInterest(visit)"
+                                        >
+                                            {{ sendingHandle === visit.member_handle ? 'Enviando...' : 'Demonstrar' }}
+                                        </button>
+                                        <p v-if="errorFor[visit.member_handle]" class="pt-1 text-xs text-danger">
+                                            {{ errorFor[visit.member_handle] }}
+                                        </p>
+                                    </template>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+
+                <p v-if="visitorsVisible && canSendVisitorInterest" class="text-xs text-muted">
+                    Você pode demonstrar interesse para {{ visitorQuota }}
+                    {{ visitorQuota === 1 ? 'visitante' : 'visitantes' }} hoje. O sinal não leva
+                    texto — quem recebe decide se quer revelar quem é você.
+                </p>
+
+                <p v-if="toastMessage" class="text-xs text-success">{{ toastMessage }}</p>
 
                 <!-- Nem toda visita aparece aqui, e a tela diz isso: sem o aviso,
                      a lista vazia se lê como "ninguém veio", e a performer tira

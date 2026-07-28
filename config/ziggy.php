@@ -65,6 +65,7 @@ return [
         'performer.payouts.store',
         'performer.followers',
         'performer.interests.send',
+        'performer.interests.send-visitor',
         'performer.interests.index',
         'performer.profile.edit',
         'performer.profile.save',

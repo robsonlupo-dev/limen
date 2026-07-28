@@ -156,9 +156,85 @@ class ProfileVisitService
      * mecanismos respondem perguntas diferentes — "esta performer pode ver uma
      * lista?" e "esta faixa já dilui quem está nela?".
      *
-     * @return array{visible:bool,visitors:array<int,array{fan:string,visited_slot:string}>}
+     * Cada linha leva também o `member_handle` (16 hex do FanAlias), que é o
+     * que o Interesse Controlado a partir do painel manda de volta no POST. O
+     * `fan` de 4 dígitos NÃO serve para isso: ele colide de propósito (ver
+     * FanAlias), e usá-lo como chave mandaria o interesse para a pessoa errada.
+     * O `visitor_id` continua sem sair daqui.
+     *
+     * @return array{visible:bool,visitors:array<int,array{fan:string,member_handle:string,visited_slot:string}>}
      */
     public function panelFor(PerformerProfile $profile, int $limit = 10): array
+    {
+        $rows = $this->revealableVisitorRows($profile, $limit);
+
+        if ($rows === null) {
+            return ['visible' => false, 'visitors' => []];
+        }
+
+        return [
+            'visible' => true,
+            // `visitor_id` é chave interna e não sai do service (item 10 do
+            // CLAUDE.md). A tela recebe alias + handle + faixa, nada mais.
+            'visitors' => array_map(fn (array $row) => [
+                'fan' => $row['fan'],
+                'member_handle' => $row['member_handle'],
+                'visited_slot' => $row['visited_slot'],
+            ], $rows),
+        ];
+    }
+
+    /**
+     * Handle do painel → id do membro, ou null.
+     *
+     * É a porta de entrada do Interesse Controlado a partir do painel, e a
+     * regra que a governa é a mesma que o CLAUDE.md trava para a tela de
+     * seguidores: **o envio e a tela têm que concordar**. Se discordarem, o par
+     * 404/201 do envio vira oráculo para reconstruir o que a tela esconde.
+     *
+     * Aqui a concordância não é por convenção, é POR CONSTRUÇÃO: este método e
+     * o panelFor() consomem a MESMA revealableVisitorRows(), então tudo o que
+     * esconde a linha da tela — os dois pisos, o k-anonimato por faixa, o corte
+     * em $limit — esconde igualmente o alvo do envio. Duas travessias
+     * "equivalentes" divergiriam no primeiro ajuste de uma delas, e a
+     * divergência apareceria justamente no sentido permissivo.
+     *
+     * Por isso o $limit tem que ser o MESMO que a tela usou (o default dos
+     * dois): resolver com um limite maior aceitaria alvo que a performer não
+     * está vendo, e é exatamente aí que o oráculo nasceria.
+     *
+     * Ghost Mode e Modo Discreto não precisam de checagem: quem os tem nunca
+     * gerou linha em `profile_visits` (ver record()), então não há o que
+     * resolver. A ausência de linha É o produto.
+     */
+    public function resolveVisitorHandle(PerformerProfile $profile, string $handle, int $limit = 10): ?int
+    {
+        $rows = $this->revealableVisitorRows($profile, $limit);
+
+        if ($rows === null) {
+            return null;
+        }
+
+        foreach ($rows as $row) {
+            if (hash_equals($row['member_handle'], $handle)) {
+                return $row['visitor_id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * As linhas que o painel REVELARIA, com o `visitor_id` ainda dentro.
+     *
+     * Null quando o painel está travado (qualquer um dos dois pisos), que é
+     * diferente de array vazio — vazio é "destravado, mas nenhuma faixa reuniu
+     * k aliases". Os dois casos escondem tudo; a distinção existe porque
+     * `visible` é decidido só pelos pisos (ver panelFor).
+     *
+     * @return array<int,array{visitor_id:int,fan:string,member_handle:string,visited_slot:string}>|null
+     */
+    private function revealableVisitorRows(PerformerProfile $profile, int $limit): ?array
     {
         $floor = $this->visibility->floor();
 
@@ -187,28 +263,26 @@ class ProfileVisitService
             );
         }
 
-        $hidden = ['visible' => false, 'visitors' => []];
-
         if (! $this->visibility->canRevealList($profile->id)) {
-            return $hidden;
+            return null;
         }
 
         if ($this->floorEligibleVisitorCount($profile) < $floor) {
-            return $hidden;
+            return null;
         }
 
         $rows = $this->distinctVisitors($profile, $limit);
 
-        return [
-            'visible' => true,
-            'visitors' => $this->revealableSlots(array_map(fn (object $row) => [
-                // Mesmo pseudônimo por par (perfil, membro) das gorjetas e da
-                // lista de seguidores: a performer reconhece "o Fã #0042 de
-                // sempre" entre as telas, sem que o id cru saia daqui.
-                'fan' => FanAlias::label($profile->id, (int) $row->visitor_id),
-                'visited_slot' => $this->slot(Carbon::parse($row->visited_at)),
-            ], $rows)),
-        ];
+        return $this->revealableSlots(array_map(fn (object $row) => [
+            'visitor_id' => (int) $row->visitor_id,
+            // Mesmo pseudônimo por par (perfil, membro) das gorjetas e da
+            // lista de seguidores: a performer reconhece "o Fã #0042 de
+            // sempre" entre as telas, sem que o id cru saia daqui.
+            'fan' => FanAlias::label($profile->id, (int) $row->visitor_id),
+            // 16 hex: é IDENTIFICAÇÃO, e o `fan` acima não serve porque colide.
+            'member_handle' => FanAlias::handle($profile->id, (int) $row->visitor_id),
+            'visited_slot' => $this->slot(Carbon::parse($row->visited_at)),
+        ], $rows));
     }
 
     /**
@@ -260,8 +334,8 @@ class ProfileVisitService
      * As faixas mantêm a ordem entre si (mais recente primeiro), que é a
      * informação que a tela legitimamente dá.
      *
-     * @param  array<int,array{fan:string,visited_slot:string}>  $visitors
-     * @return array<int,array{fan:string,visited_slot:string}>
+     * @param  array<int,array<string,mixed>>  $visitors
+     * @return array<int,array<string,mixed>>
      */
     private function revealableSlots(array $visitors): array
     {
