@@ -350,7 +350,7 @@ class DeletionService
             return $log;
         });
 
-        $this->deleteFiles($filePaths);
+        $this->deleteFiles($filePaths, $log->id);
 
         return $log;
     }
@@ -408,14 +408,19 @@ class DeletionService
      * no volume. O log é o único sinal que sobra — sem o caminho, que carrega o
      * id do titular (princípio 4).
      *
+     * O log leva o `deletion_log_id`, e não o caminho: o caminho carrega o id do
+     * titular (princípio 4), enquanto o id do log dá ao operador por onde puxar
+     * o fio sem que a PII entre na trilha.
+     *
      * @param  array<int, array{disk: string, path: string}>  $paths
      */
-    private function deleteFiles(array $paths): void
+    private function deleteFiles(array $paths, int $logId): void
     {
         foreach ($paths as $file) {
             if (! Storage::disk($file['disk'])->delete($file['path'])) {
                 Log::warning('deletion: arquivo do titular não pôde ser destruído', [
                     'disk' => $file['disk'],
+                    'deletion_log_id' => $logId,
                 ]);
             }
         }

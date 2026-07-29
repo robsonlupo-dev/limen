@@ -8,10 +8,12 @@ use App\Models\MemberPhoto;
 use App\Models\MemberPhotoAccess;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -181,7 +183,25 @@ class MemberPhotoService
 
         // Escrita explícita, e não `updateOrCreate`: as duas FKs e o `expires_at`
         // saíram do `$fillable` (o prazo é DERIVADO do clamp acima — aceitá-lo
-        // por payload devolveria ao cliente justamente o que o clamp tira).
+        // por payload devolveria ao cliente justamente o que o clamp tira), e o
+        // `fill()` interno do updateOrCreate DESCARTARIA o prazo em silêncio: o
+        // acesso deixaria de renovar sem ninguém perceber.
+        //
+        // O catch repõe o que se perdeu junto com o updateOrCreate. Ele cai em
+        // `createOrFirst()`, que trata a violação do índice único re-consultando;
+        // um select-then-insert cru devolve 500 quando dois grants do mesmo par
+        // chegam juntos — duplo clique em "compartilhar" ou retry do cliente.
+        // O índice segura o dado; o que falta tratar é a resposta.
+        try {
+            return $this->writeAccess($photo, $profile, $expiresAt);
+        } catch (UniqueConstraintViolationException) {
+            return $this->writeAccess($photo, $profile, $expiresAt);
+        }
+    }
+
+    /** Insere ou renova a linha do par. Ver o catch em grantTo(). */
+    private function writeAccess(MemberPhoto $photo, PerformerProfile $profile, $expiresAt): MemberPhotoAccess
+    {
         $access = MemberPhotoAccess::query()
             ->where('member_photo_id', $photo->id)
             ->where('performer_profile_id', $profile->id)
@@ -254,11 +274,30 @@ class MemberPhotoService
     }
 
     /**
-     * Destrói UMA foto: bytes do disco, acessos do banco, linha soft-deletada.
+     * Revoke pelo TITULAR — a porta que o endpoint de revoke (PR 3) chama.
      *
-     * É o primitivo que o GC e o encerramento de conta (PR 4) compartilham —
-     * duas cópias divergiriam, e a que esquecesse os acessos deixaria de pé o
-     * mapa de quem mostrou o rosto para quem (§ 1.8).
+     * `destroy()` é primitivo de sistema (GC, encerramento de conta) e não tem
+     * ator; esta é a versão com dono, pela mesma razão dos outros três verbos:
+     * com route-model binding em `DELETE /fotos/{photo}` e um controller que só
+     * delega, um `destroy($photo)` exposto deixaria qualquer membro autenticado
+     * apagar a foto de outro — bytes, acessos e linha.
+     *
+     * @throws MemberPhotoException não é o dono
+     */
+    public function destroyForMember(User $member, MemberPhoto $photo): void
+    {
+        $this->assertOwns($member, $photo);
+
+        $this->destroy($photo);
+    }
+
+    /**
+     * Destrói UMA foto: bytes do disco, acessos e linha, tudo de vez.
+     *
+     * É o primitivo que o GC e o encerramento de conta compartilham — duas
+     * cópias divergiriam, e a que esquecesse os acessos deixaria de pé o mapa de
+     * quem mostrou o rosto para quem (§ 1.8). **Sem ator**: quem vem do request
+     * entra por destroyForMember().
      *
      * A ordem é bytes → banco. Falha ao apagar o arquivo ABORTA e deixa a linha
      * de pé, para a rodada seguinte tentar de novo: soft-deletar aqui esconderia
@@ -270,22 +309,36 @@ class MemberPhotoService
      * lá, esta linha seguiria em frente com o arquivo intacto. As duas coisas
      * são uma decisão só; não desfaça uma sem a outra.
      *
-     * O DELETE dos acessos é explícito porque o `cascadeOnDelete` da FK **não
-     * dispara**: a foto sai por soft delete (item 11 do CLAUDE.md, verbatim).
+     * ── A linha sai em HARD delete, e só depois de confirmar os bytes ───────
+     * O `exists()` entre as duas etapas não é paranoia com o retorno do
+     * `delete()`: é o que garante que a linha só é largada quando não há mais
+     * nada para varrer. Enquanto o arquivo estiver lá, a linha é o ÚNICO ponteiro
+     * para ele — todo o GC parte da tabela.
+     *
+     * E é `forceDelete` porque a linha morta não é neutra: guarda `user_id`,
+     * `size_bytes` e `created_at`, ou seja "o membro X mandou 43 fotos, nestes
+     * horários". Guardá-la indefinidamente reporia, em metadado, a retenção que
+     * a foto efêmera existe para não ter — a mesma razão dos 7 dias de
+     * `profile_visits`. O `deleted_at` continua existindo como estado
+     * INTERMEDIÁRIO (uma rodada que apagou a linha mas não os bytes, por outro
+     * caminho), e é isso que a varredura `withTrashed()` do GC recolhe.
+     *
+     * O DELETE dos acessos é explícito porque o `cascadeOnDelete` da FK só
+     * dispararia no hard delete — e o caminho que importa proteger é o soft
+     * (item 11 do CLAUDE.md, verbatim). Explícito nos dois, para não depender de
+     * qual deles rodou.
      */
     public function destroy(MemberPhoto $photo): void
     {
         $this->store->delete($photo->path_encrypted);
 
+        if ($this->store->exists($photo->path_encrypted)) {
+            throw new RuntimeException('Foto efêmera continua no disco após o delete.');
+        }
+
         DB::transaction(function () use ($photo) {
             $photo->accesses()->delete();
-
-            // Já soft-deletada (re-tentativa do GC sobre linha cujos bytes não
-            // saíram na rodada anterior): não reescreve `deleted_at`, que é o
-            // registro de QUANDO a foto morreu.
-            if (! $photo->trashed()) {
-                $photo->delete();
-            }
+            $photo->forceDelete();
         });
     }
 
@@ -301,17 +354,19 @@ class MemberPhotoService
      * na leitura, isso é custo de disco, não de privacidade.
      *
      * ── A varredura é `withTrashed()`, e isso não é detalhe ─────────────────
-     * A linha soft-deletada some do escopo padrão. Se a rodada anterior apagou a
-     * linha mas NÃO conseguiu apagar o arquivo, uma varredura sem `withTrashed`
-     * nunca mais olharia para aquele arquivo — o rosto do membro ficaria no
-     * disco indefinidamente e o alarme marcaria zero, que é o pior dos dois
-     * mundos. Hoje `destroy()` aborta antes de soft-deletar, então esse estado
-     * não deveria acontecer; a varredura ampla é a rede para quando acontecer
-     * por outro caminho (revoke manual, hard delete de conta, um bug novo).
+     * A linha soft-deletada some do escopo padrão. Se algum caminho apagou a
+     * linha mas NÃO o arquivo, uma varredura sem `withTrashed` nunca mais
+     * olharia para aquele arquivo — o rosto do membro ficaria no disco
+     * indefinidamente e o alarme marcaria zero, que é o pior dos dois mundos.
+     * `destroy()` não produz esse estado (aborta antes, e termina em hard
+     * delete); a varredura ampla é a rede para quando ele chegar por outro
+     * caminho.
      *
      * Linha já soft-deletada E sem arquivo é o trabalho concluído: sai da
-     * contagem e não é re-destruída, senão toda linha morta voltaria a ser
-     * processada de hora em hora, para sempre.
+     * contagem e não é re-destruída. Como `destroy()` apaga a linha de vez, esse
+     * `continue` é caso de borda e não o caso comum — o ramo trashed não cresce
+     * com o histórico, senão cada rodada horária decifraria `path_encrypted` de
+     * toda foto que já existiu só para pular.
      *
      * @return array{expired:int,deleted:int,stale:int,failed:int}
      */

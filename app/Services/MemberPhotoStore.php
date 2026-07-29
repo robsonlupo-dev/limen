@@ -72,6 +72,12 @@ class MemberPhotoStore
             // listaria "compartilhada" e o serving nunca abriria os bytes:
             // exatamente o estado que a ordem bytes-primeiro existe para evitar.
             if (! Storage::disk(self::DISK)->put($path, Crypt::encryptString($bytes))) {
+                // O `write` do Flysystem local é `file_put_contents`: disco cheio
+                // devolve `false` DEPOIS de deixar um arquivo truncado. Sem esta
+                // limpeza, o resto fica no volume como ciphertext indecifrável e
+                // sem linha — órfão desde o nascimento, e o GC parte da tabela.
+                Storage::disk(self::DISK)->delete($path);
+
                 throw new RuntimeException('Falha ao gravar a foto efêmera no disco.');
             }
 
