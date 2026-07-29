@@ -55,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: [
             'limen_age_confirmed',
             'limen_intro_seen',
+            'limen_tutorial_seen',
         ]);
         $middleware->alias([
             'role' => EnsureUserHasRole::class,

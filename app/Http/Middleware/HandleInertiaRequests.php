@@ -71,6 +71,12 @@ class HandleInertiaRequests extends Middleware
             'panicRedirectUrl' => config('app.panic_redirect_url'),
             'ageConfirmed' => (bool) $request->cookie('limen_age_confirmed'),
             'introSeen' => (bool) $request->cookie('limen_intro_seen'),
+            // Tutorial de primeira entrada no catálogo (membro). Flag SEPARADA do
+            // `introSeen`: aquele é a splash de marca do visitante, disparada por
+            // GuestLayout na landing/login/cadastro — ou seja, já vem marcada
+            // ANTES de o membro chegar ao catálogo. Reusá-la faria o tutorial
+            // nunca aparecer para quem entrou pelo funil normal.
+            'tutorialSeen' => (bool) $request->cookie('limen_tutorial_seen'),
             // hCaptcha. Só a chave PÚBLICA (a secreta nunca sai do servidor), e
             // só quando ligado — desligado, a tela não recebe nem o sitekey e o
             // componente do widget nem monta, então nenhuma requisição sai para
