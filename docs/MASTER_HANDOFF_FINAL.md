@@ -7,8 +7,11 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 29/07/2026 — fecho do **Sprint 9A** (`main`, `1a51d77`;
-> **sem tag** — ver §1)
+> **Última atualização:** 29/07/2026 — **Sprint 9B PARCIAL** (`main`, `b620e9e`,
+> PRs #101–#104). O Sprint 9A fechou antes, no mesmo dia, e **ganhou a tag
+> `v1.0-sprint9a`** depois que este doc registrou a ausência dela — ver §1.
+> **O 9B não está fechado:** a Foto Efêmera existe ponta a ponta e **não pode ir
+> a go-live** com os 🔴 da seção "Sprint 9B — Em andamento" abertos.
 > **Método:** escrito a partir da **inspeção do código real** — `git log`,
 > `route:list`, `composer.json`, migrations, services, controllers, configs e a
 > suíte de testes rodada de ponta a ponta. Onde um doc antigo contradiz o código,
@@ -60,32 +63,48 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1059 testes verdes, 5644 asserts** | `php artisan test` (~106 s) |
-| Migrations | **73** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **137** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 102 | `grep` |
-| Rotas HTTP em `routes/api.php` | 39 | `grep` |
-| Services | 23 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
-| Models | 30 | `ls app/Models/` |
-| Controllers Web | 41 | `find app/Http/Controllers/Web` |
+| Suíte de testes | **1141 testes verdes, 5956 asserts** | `php artisan test` (~120 s) |
+| Migrations | **75** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **142** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 107 | `grep` |
+| Rotas HTTP em `routes/api.php` | 39 (**nenhuma de foto** — a Foto Efêmera é só web) | `grep` |
+| Services | 26 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
+| Models | 32 | `ls app/Models/` |
+| Controllers Web | 43 | `find app/Http/Controllers/Web` |
 | Controllers API | 21 | `find app/Http/Controllers/Api` |
 | Middleware | 10 | `ls app/Http/Middleware/` |
-| Commands (agendáveis) | 9 | `ls app/Console/Commands/` |
+| Commands (agendáveis) | 10 | `ls app/Console/Commands/` |
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
-| Configs | 25 | `ls config/` |
-| Tag Git | **o Sprint 9A NÃO tem tag.** Existem `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`) e `archive/qa-pre-prod-operation` | `git tag` |
+| Configs | 26 | `ls config/` |
+| Tag Git | `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation`. **O Sprint 9B não tem tag — está em andamento** | `git tag` |
 
-> **A quebra de padrão da tag é real, não esquecimento de registro.** Os Sprints
-> 6, 7 e 8 fecharam com tag; o 9A não tem. Quem for cortar release ou comparar
-> ranges usa `93b2878..1a51d77`, que é o intervalo exato do sprint. Criar
-> `v1.0-sprint9a` é decisão do PO — este doc só registra que hoje ela não existe.
+> **Correção do que este doc dizia no fecho do 9A: a tag `v1.0-sprint9a` EXISTE**
+> (`1a51d77`, criada em 29/07/2026, depois da redação daquela seção). O parágrafo
+> anterior registrava a ausência dela como quebra de padrão deliberada; o PO
+> cortou a tag em seguida e o padrão dos Sprints 6→9A está restaurado. Fica o
+> registro para quem cruzar as duas versões do doc. **O 9B, esse sim, não tem tag
+> — e não deve ter enquanto estiver em andamento.** Range do 9B até aqui:
+> `1a51d77..b620e9e`.
 
-**Branch atual:** `main` (em `1a51d77`, com os PRs #88→#100 do Sprint 9A mergeados).
-Últimos commits relevantes (mais recente primeiro):
+**Branch atual:** `main` (em `b620e9e`, com os PRs #101→#104 do **Sprint 9B**
+mergeados por cima dos #88→#100 do 9A). Últimos commits relevantes (mais recente
+primeiro):
 
 ```
-1a51d77 Merge pull request #100 from robsonlupo-dev/fix/panic-button-z-index
+b620e9e Merge pull request #104 from robsonlupo-dev/feat/sprint9b-photo-endpoints
+4a0a972 fix the three defects the verification found
+4a454f9 close the review findings on the photo endpoints
+83ce137 add ephemeral photo endpoints, sharing gate and chat UI
+6e32cbe Merge pull request #103 from robsonlupo-dev/fix/sprint9b-ephemeral-fixes
+ce3ef60 close the gaps the review verification found
+1c54015 Merge pull request #102 from robsonlupo-dev/feat/sprint9b-ephemeral-photos
+245b097 harden ephemeral photo storage after security review
+a85cd81 add ephemeral member photo storage and expiry mechanics
+9ddddfb Merge pull request #101 from robsonlupo-dev/feat/sprint9b-image-processing
+15d6e87 add image processing service that strips EXIF on ingestion
+9a9193e docs: registra o fecho do Sprint 9A no MASTER_HANDOFF_FINAL
+1a51d77 Merge pull request #100 from robsonlupo-dev/fix/panic-button-z-index (tag v1.0-sprint9a)
 8039287 promote the panic button to a reserved top layer
 bb18fdd Merge pull request #99 from robsonlupo-dev/feat/sprint9-onboarding-tutorial
 2f7abf4 add first-run onboarding tutorial to the member catalogue
@@ -125,11 +144,23 @@ c376b75 add opt-in location to the performer profile
 | Geobloqueio FOSTA-SESTA | `85eb33c` | §22 |
 | Filtro de conteúdo do chat | `85eb33c`, `d9594ab` | §17 |
 
-> **Estado de módulo de conteúdo:** **NÃO EXISTE** pipeline de publicação de
-> conteúdo. Não há model de post, feed, vídeo ou mídia paga — só `avatar_path` e
-> `cover_path` no perfil da performer. Vários controles de "conteúdo" ainda não
-> existem porque **a superfície que eles protegeriam ainda não foi construída**.
-> Isso é uma janela: moderação e verificação de conteúdo devem ser construídas
+> **Estado de módulo de conteúdo — MUDOU NO SPRINT 9B. Leia com atenção.**
+> Continua **não existindo** pipeline de **publicação**: não há model de post,
+> feed, vídeo ou mídia paga, e o perfil da performer segue com `avatar_path` e
+> `cover_path` e mais nada.
+>
+> **O que mudou:** o Sprint 9B abriu a **primeira superfície de upload de mídia
+> por usuário** do projeto — a Foto Efêmera do Membro (seção "Sprint 9B — Em
+> andamento"). Ela é 1:1 e privada
+> (membro → performer com chat ativo, TTL, sem URL assinada, sem feed), então
+> **não** é o "módulo de conteúdo" do `LEGAL_GAP_ANALYSIS.md` chegando. Mas é
+> arquivo de usuário entrando no volume, e a consequência prática é imediata:
+> **hoje uma foto enviada não pode ser denunciada** — `Report::REPORTABLE_TYPES`
+> só conhece `performer` e `message` — e o GC apaga por TTL sem saber se alguém
+> denunciou. É o primeiro 🔴 daquela seção e **bloqueia o go-live da feature**.
+>
+> A janela original **segue aberta e vale para Stories** (Sprint 9C), que é
+> publicação de verdade: moderação e verificação de conteúdo devem ser construídas
 > **antes** do primeiro upload, não depois. Ver `docs/LEGAL_GAP_ANALYSIS.md`.
 
 ---
@@ -328,6 +359,186 @@ propósito. Ver §15.1.
 
 ---
 
+## Sprint 9B — Em andamento
+
+> **NÃO FECHADO. Sem tag.** Range até aqui: `1a51d77..b620e9e` — **4 PRs, #101 a
+> #104**, todos pela Regra de Ouro do Git Flow. Suíte: 912 (fecho do Sprint 8) →
+> **1141 testes verdes** (5956 asserts), somando o 9A e o 9B.
+>
+> **O que "em andamento" quer dizer aqui:** a Foto Efêmera do Membro está
+> **completa ponta a ponta** — processamento, storage cifrado, expiração,
+> endpoints, UI de chat e GC — e a suíte está verde. Ela **não pode ser ligada
+> para usuário real** enquanto os 🔴 abaixo estiverem abertos. Terminar a feature
+> não é escrever mais tela; é fechar aquela lista.
+
+### ENTREGUE
+
+| Entrega | PR |
+|---|---|
+| **`ImageProcessingService`** — re-encode que mata EXIF/GPS na ingestão, com guardas de imagem-bomba lidas do header antes de qualquer decodificação | #101 |
+| **Models, store, service e GC da foto efêmera** — `MemberPhoto`, `MemberPhotoAccess`, `MemberPhotoStore` (Crypt sobre disco privado), `MemberPhotoService`, command `DeleteExpiredMemberPhotos` | #102 |
+| **Endurecimento pós-revisão de segurança** — IDOR nos quatro verbos, race do grant, teto de imagem-bomba, GC que não "limpa" em silêncio, cobertura no Hard Delete LGPD | #103 |
+| **Endpoints + UI + gates** — `upload` / `share` / `revoke` / `serve`, gate de compartilhamento, `EphemeralPhotoPanel.vue` e `SharePhotoModal.vue` no chat | #104 |
+
+**Migrations novas (2):** `create_member_photos_table`,
+`create_member_photo_access_table` (73 → **75**).
+**Models novos (2):** `MemberPhoto`, `MemberPhotoAccess`.
+**Services novos (3):** `ImageProcessingService`, `MemberPhotoService`,
+`MemberPhotoStore`. **Support novo:** `ExpirySlot`. **Command novo:**
+`DeleteExpiredMemberPhotos`. **Config novo:** `config/image.php`.
+**Dependência nova:** `intervention/image` — **a primeira do projeto que parseia
+arquivo controlado pelo atacante** (ver o 🟡 do `composer audit`).
+
+**Rotas (4, todas web — não há porta de API para foto):** `member.photos.store`,
+`member.photos.share`, `member.photos.destroy`, `member.photos.image`, mais
+`performer.photos.image` do lado que recebe. Todas dentro dos grupos que já
+carregam `2fa` e `documents.accepted`, e todas em `config/ziggy.php`.
+
+### Decisões tomadas (e o porquê de cada uma)
+
+**Chat ativo é o gate para compartilhar.** O membro só manda foto para performer
+com quem tem chat ativo — o gate vive em `MemberPhotoService::shareWith()`, e
+`grantTo()` segue sem ele de propósito (é o primitivo que `shareWith()` usa
+depois de checar; **chamador novo entra por `shareWith()`**). "Chat ativo"
+pergunta ao `ChatAccessService` se o membro **pode enviar mensagem agora**
+(`can_send`), e não se existe linha em `chat_access`: assinante de Círculo tem
+chat livre e **não gera linha** — a leitura literal recusaria justamente quem
+paga mais. Carência (`grace`) não passa: quem não pode nem responder não recebe
+rosto novo. A recusa é sempre a mesma (`no_active_chat`), para não devolver ao
+membro o estado da conta dela.
+
+**Teto de 13 MP na imagem-bomba** (`config/image.php`, `max_pixels`). Não é
+número redondo escolhido por gosto: 49 MP pedem ~200 MB dentro do
+`imagecreatefrom*`, e estourar `memory_limit` em PHP é **fatal error, não
+`Throwable`** — não cai no catch, o worker php-fpm morre, o cliente leva 502 e o
+temporário **em claro** fica órfão em `/tmp`. Em laço, derruba o pool. E o teto
+não podia ser menor: 4 MP são 2000x2000 e recusariam a foto de um iPhone
+(4032x3024 = 12,2 MP), que é a entrada primária do produto. A conta está escrita
+no config para quem for mexer. **Pendência registrada lá: ninguém verificou o
+`memory_limit` real do php-fpm em produção**, que é o número do qual a conta
+depende.
+
+**Tempo restante em FAIXA, nunca em relógio** (`app/Support/ExpirySlot.php`).
+"Expira hoje" / "em alguns dias" / "nesta semana", pelo mesmo motivo do
+`visited_slot` do painel de visitantes (item 12 do `CLAUDE.md`): um countdown
+"expira em 71h48" com TTL de 72h devolve o `granted_at` ao minuto — e é pior que
+o caso original, porque o TTL vem de um menu de três opções e a performer conhece
+a base da subtração. O TTL escolhido **também não é exibido**: 24h vs 7 dias é
+postura do membro. `ExpirySlot` é classe própria porque a faixa tem dois
+consumidores (o acesso da performer e a lista do membro) e duas cópias
+divergiriam.
+
+**Des-anonimização consentida — a feature não é de privacidade.** Registrado
+porque é o eixo do desenho, não uma ressalva de rodapé: o `FanAlias` deriva o
+pseudônimo **por par** para que nada correlacione entre perfis, e **o rosto é uma
+chave de join global** — duas performers que receberam foto do mesmo membro
+comparam as imagens fora da plataforma e desfazem exatamente esse isolamento. O
+TTL protege o arquivo, **não a memória nem o print**. A UI diz isso no momento do
+envio, não nos Termos. **Não descreva esta feature como "a performer não guarda
+sua foto"** — mesma disciplina de linguagem do painel de visitantes e do
+geobloqueio.
+
+### Detalhes que não se deduzem do diff
+
+**Expiração vale na LEITURA; o job é só garbage collection.** Se o único
+mecanismo que corta o acesso fosse o job apagando o arquivo, job parado não
+custaria disco — custaria privacidade. `readForPerformer()` confere os dois
+prazos a cada request. É o precedente do `ChatAccess`.
+
+**A linha morre em hard delete, não em soft.** A linha soft-deletada guardava
+`user_id`, `size_bytes` e `created_at` indefinidamente — *"o membro X mandou 43
+fotos, nestes horários"* — e a varredura do GC decifraria `path_encrypted` de
+todas elas a cada hora só para pular. `deleted_at` sobrou como **estado
+intermediário** (linha ida, bytes de pé), que é o que a varredura recolhe; a
+linha só sai depois de confirmado que os bytes saíram do disco.
+
+**Validação em rota web não vira JSON sozinha.** `shouldRenderJsonWhen` só liga
+o JSON em `api/*`: uma `ValidationException` num endpoint web vira
+redirect-com-erros-de-sessão mesmo com `Accept: application/json`, e o `fetch` do
+front receberia HTML. Resolvido com o trait `Web\Concerns\FailsValidationAsJson`.
+**Vale para todo endpoint web novo que o JavaScript consumir** — não é detalhe
+desta feature.
+
+**`SubstituteBindings` roda ANTES do middleware de rota.** Um teste de gate com
+id inexistente recebe 404 do binding e **passa sem nunca exercitar o gate**. Os
+testes de `role` e de `2fa` usam id existente de propósito. Pegadinha
+transversal, registrada aqui porque foi aqui que apareceu.
+
+**O serving não usa URL assinada.** A autorização é por sessão, a cada request.
+`Content-Type` sai de re-sniff no servidor (`finfo` sobre os bytes decifrados,
+allowlist de `image/jpeg`), nunca do que o upload declarou; `Content-Disposition:
+inline` com nome genérico e `Cache-Control: no-store`.
+
+**403 vs 404 no serving é decisão do PO, com custo conhecido.** Acesso de outra
+performer dá 403; vencido dá 404. O custo: o par diz que aquele id de acesso
+existe. É sinal fraco (não diz de quem para quem, e a mensagem é uniforme) — se
+incomodar, o conserto é 404 nos dois.
+
+**O disco de fotos fica fora do backup por construção.** `docs/backup.sh` é
+**allowlist** — só `storage/app/private` e `storage/app/kyc` entram no tarball —
+e o disco novo é `storage/app/member-photos`. Era a decisão § 1.7 (foto efêmera
+não sobrevive ao TTL num backup), e ela está satisfeita **sem** ter sido escrita
+como exclusão explícita: quem trocar aquele script por denylist reintroduz o
+problema em silêncio.
+
+### 🔴 BLOQUEADORES ANTES DO GO-LIVE DA FEATURE
+
+Nenhum destes impede desenvolver; todos impedem **ligar para usuário real**.
+
+- 🔴 **Foto não é denunciável.** `Report::REPORTABLE_TYPES` só conhece
+  `performer` e `message`. O produto passou a transportar imagem de usuário e
+  **não há caminho de denúncia para ela** — nem da performer que recebe algo
+  ilegal, nem do membro. Numa plataforma adulta isso é exposição de compliance,
+  não dívida de UX.
+- 🔴 **Quarentena: o GC tem de pular foto denunciada.** Depende do item acima e
+  é o outro lado dele: hoje `purgeExpired()` apaga por TTL sem consultar nada, e
+  a denúncia de uma foto que expira em 24h chega para um arquivo que já não
+  existe. Denúncia sem prova é denúncia que não sustenta ação — e é a mesma
+  classe do 🔴 2.4 dos Stories ("auto-delete é destruição de prova embutida no
+  produto").
+- 🔴 **Nenhum `audit_log` no fluxo.** Upload, share, revoke e leitura pela
+  performer não deixam trilha. É a única trilha que sobraria depois que os
+  acessos são apagados no TTL. Quando entrar: **id da foto/acesso e nada mais** —
+  sem caminho, sem nome de arquivo, sem bytes (mesma regra do filtro de chat).
+- 🔴 **Extrair `canMemberSend()` — fonte única entre chat e foto.** As duas
+  portas do gate (`can_send` + `conversation->status === 'active'`) são hoje uma
+  **cópia** do que `ChatService::sendMessage()` faz, e cópia diverge — foi assim
+  que o `status === 'active'` passou batido na primeira versão. Não foi unificado
+  porque `sendMessage()` distingue as duas falhas em exceções diferentes
+  (`conversationArchived` vs `accessRequired`) e unificar mudaria a resposta do
+  chat. **Enquanto não for unificado: regra nova no envio de mensagem tem de ser
+  replicada em `MemberPhotoService::shareWith()`.**
+
+### 🟡 Aberto — não bloqueia go-live, mas está em dívida
+
+- 🟡 **Cap de performers por foto (§ 1.1 do `SECURITY_ISSUES.md`).** `grantTo()`
+  não limita com quantas performers a mesma foto é compartilhada, e o agregado
+  *"você compartilhou sua foto com N performers"* não existe. É a **única
+  mitigação registrada** do risco central da feature (o rosto como chave de join
+  entre perfis) — não previne, põe o agregado na frente de quem carrega o risco.
+- 🟡 **Varredura de órfãos no disco.** Os bytes são gravados **fora** da
+  transação e a compensação é só o `catch`: timeout, OOM ou SIGKILL entre a
+  gravação e o commit deixam arquivo cifrado **sem linha** — e como todo o GC
+  parte da tabela, esse arquivo nunca é recolhido (retenção infinita, com o id do
+  titular legível no nome do diretório). O Hard Delete de conta **agravou**: as
+  linhas saem por `forceDelete()` na transação e os bytes depois, em best-effort.
+  Mitigação barata enquanto a varredura não existe: `deleteFiles()` conferir
+  `exists()` depois do delete e adiar o `forceDelete()` da linha para a rodada
+  seguinte (`deletions:process` é diário e idempotente).
+- 🟡 **`composer audit` como hard fail no CI.** Hoje `|| true`
+  (`.github/workflows/deploy.yml`, linha 66). Era item de higiene genérico; o 9B
+  **mudou o peso dele** ao adicionar `intervention/image`, a primeira dependência
+  que parseia arquivo controlado pelo atacante.
+
+### Onde está o registro completo
+
+`docs/SECURITY_ISSUES.md`, seções "Sprint 9B — Revisão pós-implementação da Foto
+Efêmera", "Follow-ups aceitos pelo PO", "Bloqueadores para o PR dos endpoints —
+FECHADOS" e "Gate de compartilhamento — RESOLVIDO". A pré-análise que originou o
+desenho é a seção "Sprint 9 — Pré-análise de Segurança", itens § 1.1 a § 1.11.
+
+---
+
 ## 2. Stack e versões
 
 | Camada | Tecnologia | Versão / restrição |
@@ -386,7 +597,7 @@ php artisan test
 > Pest re-roda `migrate:fresh` a cada teste e o processo *parece travar*. Para
 > ver a exceção real, rode `php artisan migrate:fresh` sozinho.
 
-> A suíte tem 819 testes e leva **~2min30s**. Em foreground isso estoura o
+> A suíte tem **1141 testes** e leva **~2min**. Em foreground isso estoura o
 > timeout de 120s de uma chamada de shell; rode em background e aguarde a
 > notificação de conclusão.
 
@@ -503,6 +714,8 @@ reconstruir o que a tela esconde. Sempre consulte a fonte única.
 | `PaymentEvent` | webhook Asaas | ver §7 |
 | `PerformerTag` | tags da performer (Sprint 9A) | **tabela de junção** com índice — decisão R8, não `whereJsonContains` |
 | `MemberInterest` | interesses do membro (Sprint 9A) | idem R8; mesmo conjunto de tags da performer |
+| `MemberPhoto` | foto efêmera do membro (Sprint 9B) | `path_encrypted`; `user_id` e `expires_at` em `$hidden`; `ACTIVE_LIMIT` 5, `TTL_HOURS` [24,72,168]; morre em **hard delete** |
+| `MemberPhotoAccess` | acesso de uma performer a uma foto (Sprint 9B) | FKs e `expires_at` **fora do `$fillable`** (o prazo é derivado do clamp) |
 
 ### 5.2 Migrations (73) — linha do tempo
 
@@ -537,6 +750,10 @@ jobs). A partir de `2026_06_24` começa o Limen. Marcos:
   `add_seeking_to_users`, `add_source_to_performer_interests` (cota por origem),
   `add_location_to_performer_profiles` (`state` público / `city` interno),
   `add_welcome_email_sent_at_to_users`.
+- **Sprint 9B (jul):** `create_member_photos_table`,
+  `create_member_photo_access_table`. Disco novo `member_photos`
+  (`storage/app/member-photos`) em `config/filesystems.php` — privado,
+  `serve => false`, e **fora do `backup.sh`** (que é allowlist).
 
 > **`stage_name` é unique** (`2026_07_15_000001`) — foi bug de branch parada que
 > regrediu isso antes; não remover o índice.
@@ -1404,24 +1621,27 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 
 ### Sprint 9 — UX e Monetização (baseado em SEEKING_UX_CASE_STUDY.md)
 
-> **⚠️ Atualizado no fecho do Sprint 9A (29/07/2026). O Sprint 9 foi entregue pela
-> METADE, e a metade que sobrou é a perigosa.**
+> **⚠️ Atualizado no Sprint 9B (29/07/2026). Das três trilhas do Sprint 9, duas
+> saíram e a terceira — a mais perigosa — segue sem uma linha de código.**
 >
 > - ✅ **Trilha de UX e descoberta — ENTREGUE** (PRs #88–#100): tags, campos
 >   adicionais, interesses do membro, filtros do catálogo, badges, contador de
 >   bio, localização opt-in, hCaptcha, e-mail do fundador, tutorial de onboarding.
 >   Ver "Sprint 9A — O que foi entregue".
-> - 🔴 **Trilha de conteúdo efêmero — NÃO INICIADA.** Foto Efêmera do Membro e
->   Stories da Performer (logo abaixo) **não têm uma linha de código**. As
->   decisões do PO de 24/07/2026 (contador em faixa único, v1 só imagem, Nível 3
->   sem contador, backup/EXIF/cap de 5 fotos) continuam sendo só decisão, e os
->   **11 bloqueadores 🔴** da pré-análise seguem abertos — incluindo o pipeline de
->   moderação exigido **antes** do primeiro upload.
+> - 🟡 **Foto Efêmera do Membro — IMPLEMENTADA, NÃO LIBERADA** (PRs #101–#104).
+>   Existe ponta a ponta e a suíte está verde; **4 bloqueadores 🔴 impedem o
+>   go-live da feature** (denúncia de foto, quarentena no GC, audit log,
+>   `canMemberSend`). Os itens `[x]` logo abaixo são o registro do escopo
+>   entregue. Ver "Sprint 9B — Em andamento".
+> - 🔴 **Stories da Performer — NÃO INICIADA.** Nenhuma linha de código. É o
+>   Sprint 9C (§ próprio, abaixo) e continua com os **7 🔴** da pré-análise
+>   abertos — incluindo o pipeline de moderação exigido **antes** do primeiro
+>   upload.
 >
-> **Consequência para quem pega o próximo sprint:** a janela do §1 **continua
-> aberta**. Nada no Sprint 9A abriu superfície de publicação de conteúdo — o que
-> entrou foi perfil, filtro e onboarding. Começar a trilha de conteúdo pelos 🔴,
-> não pela feature.
+> **Consequência para quem pega o próximo sprint:** a janela do §1 continua aberta
+> **para Stories**, que é publicação de conteúdo de verdade. A Foto Efêmera abriu
+> upload 1:1 privado e trouxe os próprios 🔴 junto — fechar os dela **não** fecha
+> os de Stories. Começar a trilha de Stories pelos 🔴, não pela feature.
 >
 > **Itens de alta prioridade do Sprint 9 que NÃO saíram:** a verificação de
 > documento como produto (R$9,90, badge "✓ ID Verificado") — que é a fonte de dado
@@ -1450,26 +1670,37 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 - [ ] Soft descriptor proativo: mostrar como o pagamento aparece na fatura ANTES de cobrar
       (elimina chargeback na origem — também é bloqueador de go-live, confirmar com Asaas)
 
-**Feature: Controle de Visibilidade de Foto do Membro**
-- [ ] Membro escolhe entre foto pública (permanente) ou perfil sem foto
-- [ ] Se sem foto: pode enviar fotos privadas efêmeras para performers específicas no chat
-- [ ] Foto efêmera: cifrada, TTL configurável pelo membro (24h / 72h / 7 dias)
-- [ ] Após expirar: arquivo deletado do disco automaticamente
-- [ ] Membro pode revogar acesso antes de expirar
-- [ ] Performer vê indicador de tempo restante
-- [ ] Tabela: member_photos (id, user_id, path_encrypted, expires_at, deleted_at)
-- [ ] Tabela: member_photo_access (photo_id, performer_id, granted_at, expires_at, viewed_at)
-- [ ] Job: DeleteExpiredMemberPhotos (roda a cada hora)
-- [ ] Backup: disco de fotos efêmeras fica FORA do backup.sh, explicitamente.
-      Perda aceitável — foto efêmera por design não persiste além do TTL.
-      Adicionar a exclusão no backup.sh (e na cópia instalada no servidor)
-      ANTES da implementação.
-- [ ] EXIF/GPS: instalar intervention/image e re-encodar a foto na ingestão,
-      removendo metadado antes de cifrar. Só no upload, uma vez por foto.
-- [ ] Cap: máximo 5 fotos ativas simultâneas por membro, verificado no submit
-      (não no job de limpeza).
+**Feature: Controle de Visibilidade de Foto do Membro — ✅ IMPLEMENTADA no Sprint
+9B (PRs #101–#104), 🔴 NÃO LIBERADA.** Lista mantida como memória do escopo; o
+que falta para ligar está em "Sprint 9B — Em andamento", não aqui.
 
-**Feature: Stories da Performer (feed efêmero — Modelo C)**
+- [x] Envio de fotos privadas efêmeras para performers específicas no chat —
+      **com gate: só performer com chat ativo** (decisão do PO de 29/07/2026, que
+      a lista original não previa)
+- [x] Foto efêmera: cifrada (`Crypt` sobre disco privado `member_photos`), TTL
+      escolhido pelo membro entre 24h / 72h / 7 dias (`MemberPhoto::TTL_HOURS`)
+- [x] Após expirar: arquivo deletado do disco. **E a expiração vale na LEITURA** —
+      o job é só GC, não é o que corta o acesso
+- [x] Membro pode revogar acesso antes de expirar (`member.photos.destroy`)
+- [x] Performer vê indicador de tempo restante — **em FAIXA, nunca em relógio**
+      (`ExpirySlot`), e o TTL escolhido não é exibido
+- [x] Tabela: `member_photos` · [x] Tabela: `member_photo_access`
+- [x] Command: `DeleteExpiredMemberPhotos` (GC; a linha sai em **hard delete**,
+      só depois de confirmar que os bytes saíram)
+- [x] Backup: o disco fica fora do `backup.sh` — **por allowlist, não por exclusão
+      explícita** (o script só leva `storage/app/private` e `storage/app/kyc`).
+      Quem trocar aquele script por denylist reintroduz o problema em silêncio
+- [x] EXIF/GPS: `intervention/image` + re-encode na ingestão
+      (`ImageProcessingService`), uma vez por foto, antes de cifrar
+- [x] Cap: máximo 5 fotos ativas por membro (`MemberPhoto::ACTIVE_LIMIT`),
+      verificado no submit, não no GC
+- [ ] ~~Membro escolhe entre foto pública (permanente) ou perfil sem foto~~ —
+      **não implementado.** Não há foto pública de membro no produto; a metade
+      "ou perfil sem foto" é o estado atual por omissão, e a efêmera não ficou
+      condicionada a ela. Se a escolha explícita for para valer, é escopo novo.
+
+**Feature: Stories da Performer (feed efêmero — Modelo C) → virou o SPRINT 9C.
+Ver a seção própria abaixo. A lista de escopo continua aqui.**
 - [ ] Performer posta foto/vídeo curto com expiração de 24h fixo
 - [ ] Seguir é automático — membro clica "Seguir" e já acessa
 - [ ] Stories em 3 níveis de visibilidade (performer escolhe por post):
@@ -1490,11 +1721,20 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 - [ ] Mídia: v1 só imagem, vídeo no Sprint 10
 
 > **Revisão de segurança pré-implementação:** `docs/SECURITY_ISSUES.md`, seção
-> "Sprint 9 — Pré-análise de Segurança". Ler antes de escrever código: restam 11
-> bloqueadores 🔴 abertos nas duas features (3 fechados pelas decisões de
-> 24/07/2026), incluindo moderação de Stories — o backlog já exige pipeline de
-> moderação **antes** do primeiro upload — e o padrão de URL assinada que
-> destruiria o paywall do Modelo C.
+> "Sprint 9 — Pré-análise de Segurança". A pré-análise registrou **11
+> bloqueadores 🔴** somando as duas features. Estado em 29/07/2026:
+>
+> - **Feature 1 (Foto Efêmera) — os 4 🔴 foram endereçados no Sprint 9B**
+>   (§ 1.1 des-anonimização consentida, § 1.2 faixa em vez de relógio,
+>   § 1.3 expiração na leitura, § 1.5 cobertura no `DeletionService`). **Dois
+>   deixaram resíduo aberto**: o cap de performers por foto (§ 1.1) e a varredura
+>   de órfãos (§ 1.5), ambos 🟡 na seção do 9B. Os títulos seguem marcados 🔴 no
+>   `SECURITY_ISSUES.md` porque aquela seção é o registro da pré-análise, não um
+>   painel de status — **o status vive na seção do 9B**.
+> - **Feature 2 (Stories) — os 7 🔴 continuam ABERTOS, todos** (§ 2.1 a § 2.7).
+>   Nenhum foi tocado: nada de Stories foi codificado. Incluem a moderação — o
+>   backlog exige pipeline **antes** do primeiro upload — e o padrão de URL
+>   assinada que destruiria o paywall do Modelo C.
 
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
 
@@ -1731,11 +1971,36 @@ vetos — são pontos que colidem com decisão já travada ou com princípio do
 
 ---
 
+### Sprint 9C — Stories da Performer (backlog)
+
+**Nenhuma linha de código escrita.** O escopo do produto é a lista "Feature:
+Stories da Performer (Modelo C)" acima; esta seção registra só o que trava.
+
+- 🔴 **7 bloqueadores abertos** na pré-análise (`docs/SECURITY_ISSUES.md`,
+  § 2.1 a § 2.7): lista de "quem viu meu story" derrubando o Piso de Anonimato,
+  vazamento de tier nos Níveis 2 e 3, URL assinada destruindo o paywall,
+  auto-delete de 24h como destruição de prova, `media_path_encrypted` para vídeo
+  batendo no bloqueio das FC Sessions, `story_views` no `DeletionService` nos dois
+  sentidos, e o guard de Ghost Mode / Modo Discreto no Service desde o dia 1.
+- ⛔ **Depende do pipeline de moderação, que tem de existir ANTES do primeiro
+  upload.** Não é recomendação: é a regra que o backlog já fixou para o módulo de
+  conteúdo, e **Stories é o primeiro upload publicado** do projeto. A Foto
+  Efêmera do 9B **não** satisfaz este pré-requisito — ela é 1:1 privada, e o
+  próprio 9B abriu 🔴 de denúncia e quarentena que Stories herda ampliados.
+- ⛔ **Depende do refactor de `role` para moderação** (§ 2.4). Hoje moderador =
+  admin, e um admin vê tudo. O mesmo refactor destrava o Curador das FC Sessions:
+  **duas features travadas no mesmo pré-requisito** — ver a memória
+  `fc-sessions-vault-blocked`.
+- **O que o 9B deixa pronto para reuso:** `ImageProcessingService` (compartilhado
+  de propósito — não salva, não cifra, não conhece disco), o padrão
+  expiração-na-leitura, `ExpirySlot` e os passos do `DeletionService`.
+
 ### Sprint 10 — Backlog
 
-Aberto no fecho do Sprint 9A. Além do que já estava marcado como Sprint 10 acima
-(cruzamento de afinidade / "Compatíveis com você" — ver **R4**; badge de Instagram
-via OAuth Meta — ver **R5**; vídeo nos Stories), entram os dois caminhos abaixo.
+Aberto no fecho do Sprint 9A e ampliado no 9B. Além do que já estava marcado como
+Sprint 10 acima (cruzamento de afinidade / "Compatíveis com você" — ver **R4**;
+badge de Instagram via OAuth Meta — ver **R5**; vídeo nos Stories), entram os
+caminhos abaixo.
 
 > **Registrados por título, spec pendente.** O PO nomeou os dois no fecho do 9A;
 > o detalhe de escopo **não foi transferido para este doc** e não está em nenhum
@@ -1773,11 +2038,50 @@ segunda porta (seguidores + visitantes, PR #95).
       performer** e entra pela regra do `CLAUDE.md`: passa por `FanAlias`, nunca
       pelo id, e entra na pré-análise de segurança antes de virar código.
 
+**OTP passwordless por e-mail** (inspirado no Seeking)
+- [ ] Spec pendente com o PO.
+- **A tese:** sem senha armazenada, **dump de banco não dá login**. Elimina de uma
+      vez credential stuffing, reuso de senha e o valor do hash vazado — que numa
+      plataforma adulta é o dado que mais machuca o titular se for correlacionado.
+- **Colide com coisas já travadas — resolver antes de codar, não depois:**
+      (1) o **2FA da performer** pressupõe senha como primeiro fator; OTP por
+      e-mail sozinho **rebaixa** a conta que guarda o KYC a fator único, com a
+      caixa de e-mail virando a chave inteira. (2) A **caixa compartilhada** é
+      ameaça registrada neste projeto (R6, Modo Discreto, drip da waitlist):
+      quem lê o e-mail entra na conta. (3) O **login web em dois passos**, já no
+      backlog, muda o mesmo fluxo — fazer os dois de uma vez, não em sequência.
+- **Perguntas em aberto:** vale para os dois papéis ou só para membro?; convive
+      com senha (opcional) ou substitui?; TTL e uso único do código (o projeto já
+      tem o precedente do TOTP e do recovery code sob `lockForUpdate`); e o que
+      acontece com quem perde acesso ao e-mail, que hoje cai no reset de senha.
+
+**Expansão LATAM** — pós go-live, **não antes**
+- [ ] Ordem definida pelo PO: **Argentina → Chile → Paraguai.**
+- **Quatro pilares, cada um com dono técnico diferente:**
+      **payout** (Wise / dLocal — o Asaas é Brasil-only, e a porta `needs_review`
+      e o furo 429/408 do §21 valem por país); **KYC** (Didit multi-país — o
+      `x-api-key` e o webhook v3 já servem; o que muda é workflow e documento
+      aceito); **age verification** (**documento direto** — o `cpf_dob` é
+      brasileiro e não tem análogo, então o `method` da `age_verifications`
+      passa a distinguir mais níveis, que é exatamente por que aquela coluna
+      existe); **pagamento** (Stripe / dLocal — PIX não atravessa a fronteira).
+- **O que não é pilar mas quebra junto:** moeda e `TIER_ORDER` (preço de tier em
+      centavos de BRL), i18n (o produto é PT-BR inteiro, incluindo o filtro de
+      chat, que é uma lista de termos **em português** — em espanhol ele
+      simplesmente não barra nada), e o geobloqueio, que hoje tem allowlist de um
+      país só.
+- **Antes de qualquer código:** cada país novo é jurisdição nova de conteúdo
+      adulto. É análise legal (a mesma classe do `LEGAL_GAP_ANALYSIS.md`), não
+      sprint de engenharia.
+
 ### A.3 Higiene / dívida técnica
 
 - [ ] CI de lint (Pint `--test`) — hoje não existe; a árvore está limpa (`e043077`)
       mas nada impede regressão.
-- [ ] `composer audit` como hard fail (hoje `|| true`).
+- [ ] **`composer audit` como hard fail** (hoje `|| true`, linha 66 do
+      `deploy.yml`). **Subiu de prioridade no Sprint 9B:** entrou
+      `intervention/image`, a primeira dependência do projeto que parseia arquivo
+      controlado pelo atacante. Também listado como 🟡 na seção do 9B.
 - [ ] Retenção/expurgo de documentos KYC (follow-up).
 - [ ] `.env.example` induz a SQLite (P2) — documentar/ajustar.
 
@@ -1843,6 +2147,24 @@ conscientes, não bugs.
     `worlds` sem atualizar `category` junto.** Registrado em: 80ba300
     (multi-worlds, Sprint 7).
 
+11. **Foto Efêmera é des-anonimização consentida, não feature de privacidade**
+    (Sprint 9B). O rosto é **chave de join global**: duas performers que
+    receberam foto do mesmo membro comparam as imagens fora da plataforma e
+    desfazem o isolamento cross-perfil que o `FanAlias` existe para dar. O TTL
+    protege o arquivo, **não a memória nem o print** — apagar depois não desfaz o
+    download. **Não descreva como "a performer não guarda sua foto".**
+
+12. **O indicador de tempo restante reduz a resolução, não elimina o sinal.**
+    Uma foto que nasce em "Expira nesta semana" não escolheu 24h, e isso é
+    visível no primeiro carregamento. O que a faixa compra é que o **instante**
+    do envio não sai junto. **Não descreva o indicador como "não revela nada
+    sobre o envio"** (a ressalva está escrita também no `ExpirySlot.php`).
+
+13. **A conta do teto de 13 MP depende de um número que ninguém verificou:** o
+    `memory_limit` real do php-fpm em produção. 13 MP dão ~55 MB de pico no GD —
+    seguro em 128M, confortável em 256M. Conferir antes do go-live, e refazer a
+    conta antes de mexer no `max_pixels`.
+
 > **Disciplina de linguagem (transversal):** vários controles acima são
 > deliberadamente mais fracos do que parecem. **Não os descreva como mais fortes
 > do que são** em copy de produto, política de privacidade, contrato, pitch ou
@@ -1865,6 +2187,9 @@ conscientes, não bugs.
 | **k-anonimato (k=3)** | faixa de horário do painel de visitantes só aparece com ≥3 aliases |
 | **suppressed** | status de interesse mascarado pelo opt-out do membro |
 | **Founding Members** | primeiros assinantes (trial 7d, `FOUNDER_CUTOFF_AT`) |
+| **Foto Efêmera** | foto privada membro→performer, cifrada, TTL 24h/72h/7d, gate de chat ativo (Sprint 9B) |
+| **ExpirySlot** | tempo restante em faixa ("expira hoje"), nunca em relógio — o `visited_slot` da foto |
+| **Des-anonimização consentida** | o que a Foto Efêmera é: o rosto revoga o `FanAlias` entre perfis, e a UI diz isso no envio |
 | **Duas portas de auth** | API = Sanctum (token); Web = sessão + CSRF |
 | **Fonte única** | serviço dono de uma regra; duplicar cria oráculo |
 | **Sprint N** | única numeração válida (Fase N em docs antigos é legado, ≠ Sprint N) |
@@ -1888,6 +2213,7 @@ ChatService · ChatAccessService
 FollowerVisibilityService · DiscreteModeService · ProfileVisitService · PrivacyPerkService
 DocumentAcceptanceService · DeletionService · TwoFactorService
 GeoLocationService · SharedRegistrationIpService · HCaptchaVerifier
+ImageProcessingService · MemberPhotoService · MemberPhotoStore   (Sprint 9B)
 Asaas/ (AsaasHttpClient, FakeAsaasClient) · Kyc/ (DiditKycClient, KycHttpClient,
 FakeKycClient, KycDocumentStore) · Waitlist/ (FounderPresenter, …)
 ```
@@ -1895,8 +2221,8 @@ FakeKycClient, KycDocumentStore) · Waitlist/ (FounderPresenter, …)
 ### Support (`app/Support/`)
 
 ```
-FanAlias · ReporterAlias · ClientFingerprint · CpfHash · Audit
-ChatContentFilter · AvatarPlaceholder
+FanAlias · ReporterAlias · ClientFingerprint · CpfHash · DocumentHash · Audit
+ChatContentFilter · AvatarPlaceholder · ExpirySlot   (ExpirySlot: Sprint 9B)
 ```
 
 ### Middleware (`app/Http/Middleware/`)
@@ -1912,15 +2238,21 @@ EnsureActiveCircle · DocumentsAccepted · TwoFactorChallenge · VerifyAsaasWebh
 ExpireSubscriptions · ProcessScheduledDeletions · PurgeExpiredChatAccess
 PurgeExpiredProfileVisits · ReconcilePayments · ReconcilePayouts
 ReconcileWallets · SendWaitlistNurture · BackfillPerformerAvatars
+DeleteExpiredMemberPhotos   (Sprint 9B — GC; a expiração vale na LEITURA)
 ```
 
 ### Configs (`config/`)
 
 ```
 app · asaas · auth · broadcasting · cache · chat · chat_filters · cors · database
-documents · filesystems · geo · hcaptcha · inertia · interest · kyc · logging · mail
-queue · reverb · sanctum · services · session · waitlist · ziggy
+documents · filesystems · geo · hcaptcha · image · inertia · interest · kyc · logging
+mail · queue · reverb · sanctum · services · session · waitlist · ziggy
 ```
+
+> `config/image.php` é config **do Limen**, não do pacote: o projeto usa a lib
+> standalone `intervention/image`, não o wrapper `intervention/image-laravel`
+> (que publicaria um `config/image.php` próprio). Se o wrapper entrar um dia,
+> **renomeie o nosso, não o dele.**
 
 ### Docs relevantes (`docs/`)
 
@@ -1948,8 +2280,15 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 ## Checklist de continuidade para o próximo chat
 
 - [ ] Ler o `CLAUDE.md` inteiro (é o cérebro; este handoff é o mapa).
-- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **1059 verdes** antes de
+- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **1141 verdes** antes de
       começar.
+- [ ] **A Foto Efêmera está implementada e NÃO liberada.** Antes de ligar para
+      usuário real, fechar os 4 🔴 da seção "Sprint 9B — Em andamento".
+- [ ] Endpoint web novo que o JavaScript consumir → trait
+      `Web\Concerns\FailsValidationAsJson` (senão a validação vira redirect).
+- [ ] Regra nova no envio de mensagem do chat → **replicar em
+      `MemberPhotoService::shareWith()`** enquanto `canMemberSend` não for
+      extraído para fonte única.
 - [ ] Overlay novo entra **abaixo de `z-index 10001`** — a camada é reservada ao
       PanicButton e `PanicButtonLayerTest` cobra (§15.1).
 - [ ] Antes de tarefa sensível (cadastro, KYC, pagamento, payout, privacidade),
@@ -1967,6 +2306,10 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
 real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
-(`main`, `93b2878`, tag `v1.0-sprint8`) e em 29/07/2026 no fecho do **Sprint 9A**
-(`main`, `1a51d77`, sem tag). Onde este doc e o código divergirem no futuro, o
-código vence — e a divergência deve ser registrada aqui ou no CLAUDE.md.*
+(`main`, `93b2878`, tag `v1.0-sprint8`), em 29/07/2026 no fecho do **Sprint 9A**
+(`main`, `1a51d77`, hoje com a tag `v1.0-sprint9a`) e em 29/07/2026 com o
+**Sprint 9B PARCIAL** (`main`, `b620e9e`, PRs #101–#104, sem tag — em andamento).
+Números do snapshot e do 9B conferidos contra `git log`, `route:list`, o
+filesystem e a suíte rodada de ponta a ponta (1141 verdes, 5956 asserts). Onde
+este doc e o código divergirem no futuro, o código vence — e a divergência deve
+ser registrada aqui ou no CLAUDE.md.*
