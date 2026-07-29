@@ -557,10 +557,11 @@ it('apaga do disco as fotos vencidas e os acessos delas', function () {
         ->expectsOutputToContain('expired=1 deleted=1')
         ->assertSuccessful();
 
-    // Bytes fora do disco, linha soft-deletada.
+    // Bytes fora do disco e linha apagada DE VEZ: a linha morta guardaria
+    // `user_id`, tamanho e horário do envio — "o membro X mandou N fotos, nestes
+    // horários" —, que é a retenção que a foto efêmera existe para não ter.
     expect(photoStore()->exists($expired->path_encrypted))->toBeFalse()
-        ->and(MemberPhoto::find($expired->id))->toBeNull()
-        ->and(MemberPhoto::withTrashed()->find($expired->id)->trashed())->toBeTrue();
+        ->and(MemberPhoto::withTrashed()->find($expired->id))->toBeNull();
 
     // O acesso morre JUNTO com a foto (§ 1.8): a tabela é um mapa persistente de
     // quem mostrou o rosto para quem, e sobreviver aos bytes é o risco inteiro.
@@ -605,7 +606,33 @@ it('destrói bytes, acessos e linha num passo só', function () {
 
     expect(photoStore()->exists($photo->path_encrypted))->toBeFalse()
         ->and(MemberPhotoAccess::whereKey($access->id)->exists())->toBeFalse()
-        ->and(MemberPhoto::withTrashed()->find($photo->id)->trashed())->toBeTrue();
+        ->and(MemberPhoto::withTrashed()->find($photo->id))->toBeNull();
+});
+
+it('deixa o titular destruir a própria foto e mais ninguém', function () {
+    $owner = ephemeralMember();
+    $intruder = ephemeralMember();
+
+    $photo = photoService()->create($owner, ephemeralUpload(), 24);
+
+    // O endpoint de revoke (PR 3) chama destroyForMember, não destroy: com
+    // route-model binding em `DELETE /fotos/{photo}` e um controller que só
+    // delega, o primitivo sem ator deixaria qualquer membro apagar a foto de
+    // outro — bytes, acessos e linha.
+    try {
+        photoService()->destroyForMember($intruder, $photo);
+        $this->fail('Destruir foto alheia deveria ter sido recusado.');
+    } catch (MemberPhotoException $e) {
+        expect($e->reason)->toBe(MemberPhotoException::FORBIDDEN);
+    }
+
+    expect(photoStore()->exists($photo->path_encrypted))->toBeTrue()
+        ->and(MemberPhoto::find($photo->id))->not->toBeNull();
+
+    photoService()->destroyForMember($owner, $photo);
+
+    expect(photoStore()->exists($photo->path_encrypted))->toBeFalse()
+        ->and(MemberPhoto::withTrashed()->find($photo->id))->toBeNull();
 });
 
 it('mantém a linha de pé quando o disco recusa apagar os bytes', function () {
@@ -659,12 +686,15 @@ it('não reprocessa para sempre a foto já recolhida', function () {
 
     $this->artisan('member-photos:purge')->assertSuccessful();
 
-    // Linha morta E sem arquivo é trabalho concluído: sai da contagem. Sem este
-    // corte, toda linha soft-deletada voltaria a ser destruída de hora em hora,
-    // para sempre, e `expired` cresceria sem parar.
+    // A rodada normal termina em hard delete, então não sobra linha nenhuma. E
+    // mesmo que sobrasse (uma soft-deletada vinda de outro caminho), linha morta
+    // sem arquivo sai da contagem: sem esse corte, cada rodada horária
+    // decifraria `path_encrypted` de toda foto que já existiu só para pular.
     $this->artisan('member-photos:purge')
         ->expectsOutputToContain('expired=0 deleted=0 stale=0 failed=0')
         ->assertSuccessful();
+
+    expect(MemberPhoto::withTrashed()->count())->toBe(0);
 });
 
 // ─── Modo Discreto (§ 1.11) ──────────────────────────────────────────────────

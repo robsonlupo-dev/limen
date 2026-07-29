@@ -254,14 +254,14 @@ it('recusa a imagem que passa nos eixos mas estoura a área', function () {
 });
 
 it('recusa a imagem grande o bastante para estourar a memória do GD', function () {
-    // O corte de área foi de 50 MP para 4 MP na revisão de 29/07/2026, e este
-    // teste é o que guarda o número. 2500x2500 = 6,25 MP: passa folgado nos
-    // eixos, é um arquivo pequeno (o corpo tem 4x4 pixels) e pediria ~25 MB no
-    // GD — a versão de 49 MP do mesmo ataque pedia ~200 MB e matava o worker
-    // com FATAL ERROR, que não é Throwable e não cai no catch do service.
-    $upload = uploadFrom(pngDeclaring(2500, 2500), 'bomba-memoria.png', 'image/png');
+    // O corte de área foi de 50 MP para 12 MP na revisão de 29/07/2026, e este
+    // teste é o que guarda o número. 4500x4500 = 20 MP: passa folgado nos eixos,
+    // é um arquivo pequeno (o corpo tem 4x4 pixels) e pediria ~80 MB no GD — a
+    // versão de 49 MP do mesmo ataque pedia ~200 MB e matava o worker com FATAL
+    // ERROR, que não é Throwable e não cai no catch do service.
+    $upload = uploadFrom(pngDeclaring(4500, 4500), 'bomba-memoria.png', 'image/png');
 
-    expect(getimagesize($upload->getRealPath()))->toMatchArray([0 => 2500, 1 => 2500]);
+    expect(getimagesize($upload->getRealPath()))->toMatchArray([0 => 4500, 1 => 4500]);
 
     try {
         processor()->process($upload);
@@ -271,11 +271,20 @@ it('recusa a imagem grande o bastante para estourar a memória do GD', function 
     }
 });
 
-it('mantém o teto de área acima do que o redimensionamento consegue usar', function () {
-    // O corte não pode ter descido a ponto de recusar o que a saída aproveita:
-    // `scaleDown(1200, 1200)` reduz qualquer coisa para no máximo ~1,4 MP, então
-    // o teto tem de ficar confortavelmente acima disso. Fixa a relação entre os
-    // dois números para que baixar mais o teto quebre aqui, e não em produção.
+it('mantém o teto de área acima da câmera que a feature existe para receber', function () {
+    // Aritmética de propósito: montar uma fixture de 12 MP alocaria ~48 MB no
+    // teste para provar uma comparação de dois inteiros.
+    //
+    // O corte protege a memória, mas não pode ficar ABAIXO da entrada primária
+    // do produto — "o membro tira uma selfie no celular". Um teto de 4 MP
+    // (2000x2000) recusaria a foto de um iPhone, e o membro não tem como
+    // redimensionar antes de enviar: viraria bug de produto no endpoint.
+    $iphone = 4032 * 3024; // 12,2 MP
+
+    expect((int) config('image.max_pixels'))->toBeGreaterThanOrEqual($iphone);
+
+    // E o limite inferior do outro lado: `scaleDown(1200, 1200)` produz no
+    // máximo ~1,4 MP, então o teto tem de ficar confortavelmente acima disso.
     $maxOutput = (int) config('image.max_width') * (int) config('image.max_height');
 
     expect((int) config('image.max_pixels'))->toBeGreaterThan($maxOutput * 2);

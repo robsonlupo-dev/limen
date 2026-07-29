@@ -67,7 +67,7 @@ return [
     | megapixels, que é exatamente a imagem-bomba que o doc descreve. GD aloca
     | ~4 bytes por pixel, então é a ÁREA que amarra o consumo de memória.
     |
-    | ── Por que 4 MP e não 50 (revisão de segurança, 29/07/2026) ────────────
+    | ── Por que 13 MP e não 50 (revisão de segurança, 29/07/2026) ───────────
     | O teto anterior era calibrado por "cabe uma câmera de celular", que é o
     | critério errado: o que importa é quanto o GD aloca ANTES de o re-encode
     | reduzir. 49 MP (um PNG 7000x7000, que comprime para poucas centenas de KB)
@@ -76,12 +76,23 @@ return [
     | php-fpm morre, o cliente leva 502 e o temporário EM CLARO fica órfão em
     | /tmp. Em laço, derruba o pool.
     |
-    | A saída é `scaleDown(1200, 1200)`, então nada acima de ~1,4 MP sobrevive
-    | ao processamento de qualquer forma: aceitar 49 MP não comprava resolução
-    | nenhuma, só superfície. 4 MP (2000x2000) são ~16 MB no GD — folga de sobra
-    | para o teto de exibição e ordens de grandeza abaixo de qualquer
-    | `memory_limit` de produção.
+    | ── A conta, para quem for mexer neste número ───────────────────────────
+    |     max_pixels × 4 bytes (bitmap de origem) + o destino já reduzido
+    | tem de caber COM FOLGA no `memory_limit` do php-fpm. Em 13 MP dá ~52 MB de
+    | origem e ~55 MB de pico: seguro em 128M, confortável em 256M. Não suba sem
+    | refazer a conta contra o `memory_limit` REAL do servidor — que, registrado
+    | aqui porque tudo isto depende dele, ninguém verificou ainda em produção.
+    |
+    | ── E por que não menos ─────────────────────────────────────────────────
+    | A tentação é cortar em 4 MP, já que a saída é `scaleDown(1200, 1200)` e
+    | nada acima de ~1,4 MP sobrevive ao processamento. Mas o corte é lido na
+    | ENTRADA: 4 MP são 2000x2000, e a foto de um iPhone (4032x3024 = 12,2 MP)
+    | seria RECUSADA — a entrada primária do produto é exatamente "o membro tira
+    | uma selfie no celular", e ele não tem como redimensionar antes de enviar.
+    | O teto protege a memória; ele não pode ficar abaixo da câmera que a feature
+    | existe para receber. Daí 13 MP e não 12: 12,2 MP é a foto do iPhone, e um
+    | teto redondo logo abaixo dela recusaria justamente o caso comum.
     */
-    'max_pixels' => 4_000_000,
+    'max_pixels' => 13_000_000,
 
 ];
