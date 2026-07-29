@@ -1,11 +1,12 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import FilterPanel from '@/Components/Catalog/FilterPanel.vue'
 import PerformerCard from '@/Components/PerformerCard.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
+import OnboardingTutorial from '@/Components/OnboardingTutorial.vue'
 
 const props = defineProps({
     performers: { type: Object, required: true },
@@ -27,6 +28,15 @@ const loading = ref(false)
 const showWorldPicker = ref(false)
 let removeStart, removeFinish
 
+// First-run tutorial. Read once into local state (not a computed over the prop)
+// so dismissing it closes the overlay immediately — the cookie the component
+// writes is client-side, and the shared `tutorialSeen` prop only catches up on
+// the next server response.
+const page = usePage()
+const showTutorial = ref(
+    !page.props.tutorialSeen && page.props.auth?.user?.role === 'consumer'
+)
+
 onMounted(() => {
     removeStart = router.on('start', () => (loading.value = true))
     removeFinish = router.on('finish', () => (loading.value = false))
@@ -45,6 +55,8 @@ function selectWorld(value) {
 
 <template>
     <AppLayout title="Catálogo">
+        <OnboardingTutorial v-if="showTutorial" @close="showTutorial = false" />
+
         <div class="max-w-6xl mx-auto px-6 py-10 space-y-8">
             <div class="flex items-start justify-between gap-4">
                 <div class="space-y-2">
