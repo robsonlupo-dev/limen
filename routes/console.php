@@ -54,6 +54,20 @@ Schedule::command('chat:purge-expired-access')->dailyAt('03:30')->withoutOverlap
 // segunda apagar caminhos já removidos e falhar o lote por um erro inócuo.
 Schedule::command('deletions:process')->dailyAt('04:00')->withoutOverlapping(30);
 
+// Fotos efêmeras do membro: recolhe do disco o que já venceu. De hora em hora
+// porque o TTL mais curto do menu é 24h e o dado é o rosto de quem enviou —
+// deixar os bytes um dia inteiro além do prazo seria o contrário do produto.
+//
+// Isto é GC, não a expiração: quem nega a foto vencida é a leitura, no
+// MemberPhotoService (docs/SECURITY_ISSUES.md § 1.3). Uma rodada perdida custa
+// disco, nunca acesso indevido.
+//
+// withoutOverlapping: a rodada apaga arquivo do disco e só então soft-deleta a
+// linha — duas varreduras concorrentes fariam a segunda tropeçar em caminhos que
+// a primeira já removeu e contariam falha onde não houve. Mesmo motivo do
+// `deletions:process`.
+Schedule::command('member-photos:purge')->hourly()->withoutOverlapping(10);
+
 // Retenção das visitas a perfis: o painel mostra 24h, guardamos 7 dias. Diário
 // basta — o prazo é em dias, e um DELETE por faixa de data não disputa nada com
 // o resto da madrugada.

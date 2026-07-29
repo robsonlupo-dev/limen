@@ -65,10 +65,23 @@ return [
     |
     | O corte por eixo sozinho aceita 30000x30000 (nenhum eixo o excede) = 900
     | megapixels, que é exatamente a imagem-bomba que o doc descreve. GD aloca
-    | ~4 bytes por pixel, então o teto abaixo (50 MP ≈ 200 MB) é o que amarra o
-    | consumo de memória. Cobre com folga qualquer câmera de celular (até
-    | ~50 MP); acima disso é upload que não vem de uma foto.
+    | ~4 bytes por pixel, então é a ÁREA que amarra o consumo de memória.
+    |
+    | ── Por que 4 MP e não 50 (revisão de segurança, 29/07/2026) ────────────
+    | O teto anterior era calibrado por "cabe uma câmera de celular", que é o
+    | critério errado: o que importa é quanto o GD aloca ANTES de o re-encode
+    | reduzir. 49 MP (um PNG 7000x7000, que comprime para poucas centenas de KB)
+    | pedem ~200 MB dentro do `imagecreatefrom*` — e estourar `memory_limit` em
+    | PHP é FATAL ERROR, não Throwable: não cai no catch do service, o worker
+    | php-fpm morre, o cliente leva 502 e o temporário EM CLARO fica órfão em
+    | /tmp. Em laço, derruba o pool.
+    |
+    | A saída é `scaleDown(1200, 1200)`, então nada acima de ~1,4 MP sobrevive
+    | ao processamento de qualquer forma: aceitar 49 MP não comprava resolução
+    | nenhuma, só superfície. 4 MP (2000x2000) são ~16 MB no GD — folga de sobra
+    | para o teto de exibição e ordens de grandeza abaixo de qualquer
+    | `memory_limit` de produção.
     */
-    'max_pixels' => 50_000_000,
+    'max_pixels' => 4_000_000,
 
 ];

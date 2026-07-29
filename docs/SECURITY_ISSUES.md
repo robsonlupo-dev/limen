@@ -716,3 +716,72 @@ termos abaixo.
 Revisão conduzida em pré-implementação (julho/2026) antes de qualquer código.
 Nenhum dos problemas listados existe no código atual — são riscos do desenho
 proposto.
+
+---
+
+## Sprint 9B — Revisão pós-implementação da Foto Efêmera (29/07/2026)
+
+Revisão de segurança sobre a branch `feat/sprint9b-ephemeral-photos`, que entrega
+a camada de service/model da Feature 1 (sem controller, rota, Form Request nem
+Policy — esses são o PR seguinte).
+
+### Corrigido nesta branch
+
+1. **`destroy()` soft-deletava a linha com o arquivo ainda no disco.** O disco
+   roda com `throw => false` e o retorno de `Storage::delete()` não era
+   conferido: uma permissão errada num deploy fazia o GC "limpar" em silêncio,
+   e a linha soft-deletada saía do escopo padrão — nenhuma rodada futura voltava
+   a olhar aquele arquivo. O rosto do membro ficava no volume indefinidamente com
+   o alarme `stale` marcando zero. Agora `MemberPhotoStore::delete()` lança
+   quando o disco recusa (apagar caminho inexistente segue sendo sucesso), e
+   `purgeExpired()` varre com `withTrashed()`.
+2. **`Storage::put()` sem checar retorno** — disco cheio devolvia `false` e o
+   Store entregava um caminho válido para bytes que nunca foram gravados.
+3. **Sem guard de propriedade em `grantTo`/`readForMember`/`readForPerformer`.**
+   Os três recebem o ATOR e conferem o vínculo no Service. Com route-model
+   binding, `readForPerformer($access)` entregava a foto que o membro mandou para
+   OUTRA performer e carimbava `viewed_at` na conta errada.
+4. **Teto de imagem-bomba de 50 MP → 4 MP.** 49 MP pedem ~200 MB no GD, e
+   estourar `memory_limit` é fatal error (não `Throwable`): o worker morre, o
+   temporário em claro fica órfão em `/tmp`. Como a saída é `scaleDown(1200)`,
+   o teto antigo não comprava resolução nenhuma.
+5. **`DeletionService` não cobria as fotos** (§ 1.5, era 🔴): o Hard Delete LGPD
+   deixava o rosto no disco por até 7 dias. Agora `purgeMemberPhotos()` (linhas,
+   acessos e bytes, hard delete) e `purgePhotoAccessToOwnProfile()` (o análogo de
+   `purgeVisitsToOwnProfile()` para quando quem encerra é a performer).
+6. **`MemberPhoto`: `user_id` e `expires_at` em `$hidden`** — o primeiro é o
+   `member_id` cru que o `FanAlias` tira de circulação; o segundo é relógio, e
+   com o TTL vindo de um menu de três opções devolve `granted_at` ao minuto.
+7. **`MemberPhotoAccess`: FKs e `expires_at` fora do `$fillable`** — o prazo é
+   derivado do clamp, e aceitá-lo por payload fura a regra "acesso não sobrevive
+   ao conteúdo".
+
+### Follow-ups aceitos pelo PO — NÃO corrigidos nesta branch
+
+- **Arquivo órfão no disco.** Os bytes são gravados fora da transação e a
+  compensação é só o `catch`: timeout, OOM ou SIGKILL entre a gravação e o commit
+  deixam arquivo cifrado SEM linha. Como todo o GC parte da tabela, esse arquivo
+  nunca é recolhido — retenção infinita, com o id do titular legível no nome do
+  diretório. Falta uma varredura do disco reconciliando com `member_photos`
+  (inclusive trashed), ou gravar em `pending/` e mover no `afterCommit`.
+- **Cap de performers por foto (§ 1.1).** `grantTo()` não limita com quantas
+  performers a mesma foto é compartilhada, e o agregado "você compartilhou sua
+  foto com N performers" não existe. É a única mitigação registrada do risco
+  central da feature: o rosto como chave de join entre perfis.
+- **Nenhum `audit_log` no fluxo.** Upload, grant, revoke e leitura pela performer
+  não deixam trilha. É a única que sobraria depois que os acessos são apagados no
+  TTL (§ 1.8). Quando entrar: id da foto/acesso e nada mais — sem caminho, sem
+  nome de arquivo, sem bytes.
+- **`composer audit` continua `|| true` no CI** (`.github/workflows/deploy.yml`).
+  Este é o PR que adiciona `intervention/image`, a primeira dependência que
+  parseia arquivo controlado pelo atacante; o § 1.4 recomendava promover o audit
+  a hard fail junto da feature.
+
+### Bloqueadores para o PR dos endpoints
+
+Sem rota nem controller no diff, segue **inteiramente por verificar**: Form
+Request com `max:5120` e o TTL restrito ao menu; `throttle` no upload; Policy;
+**rota nova nos gates `2fa` e `documents.accepted`, nas DUAS portas de auth**;
+`response()->json()` explícito para as `DomainException` (rota web não serializa
+sozinha); `Content-Type` do serving derivado de re-sniff no servidor +
+`Content-Disposition`; nenhuma URL adivinhável ou assinada de longa duração.

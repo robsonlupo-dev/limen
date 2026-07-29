@@ -6,11 +6,14 @@ use App\Models\AuditLog;
 use App\Models\DeletionLog;
 use App\Models\Follow;
 use App\Models\IdentityVerification;
+use App\Models\MemberPhoto;
 use App\Models\Payout;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\DeletionService;
 use App\Services\Kyc\KycDocumentStore;
+use App\Services\MemberPhotoService;
+use App\Services\MemberPhotoStore;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -52,6 +55,21 @@ function delPerformer(): User
     ]);
 
     return $user->fresh();
+}
+
+/** JPEG mínimo de verdade: o Store re-encoda, então fixture falsa não passa. */
+function delPhotoUpload(): UploadedFile
+{
+    $img = imagecreatetruecolor(40, 30);
+    ob_start();
+    imagejpeg($img, null, 90);
+    $bytes = ob_get_clean();
+    imagedestroy($img);
+
+    $path = tempnam(sys_get_temp_dir(), 'del_photo_');
+    file_put_contents($path, $bytes);
+
+    return new UploadedFile($path, 'foto.jpg', 'image/jpeg', null, true);
 }
 
 function delPayout(User $performer, string $status): Payout
@@ -257,6 +275,74 @@ it('destroys KYC rows and their encrypted files on disk', function () {
     Storage::disk('kyc')->assertMissing($selfie);
 
     expect(IdentityVerification::where('user_id', $performer->id)->count())->toBe(0);
+});
+
+it('destroys the ephemeral photos, their access rows and the bytes on disk', function () {
+    Storage::fake(MemberPhotoStore::DISK);
+
+    $member = delMember();
+    $profile = delPerformer()->performerProfile;
+
+    $photos = app(MemberPhotoService::class);
+
+    $photo = $photos->create($member, delPhotoUpload(), 168);
+    $photos->grantTo($member, $photo, $profile);
+
+    Storage::disk(MemberPhotoStore::DISK)->assertExists($photo->path_encrypted);
+
+    delService()->executeDeletion($member);
+
+    // O rosto é a PII mais crua depois do KYC, e o TTL não cobre o encerramento:
+    // sem esta varredura os bytes ficariam no disco por até 7 dias DEPOIS do
+    // Hard Delete, servíveis a quem já tinha o acesso concedido. A FK
+    // `cascadeOnDelete` não dispara — `anonymizeUser()` não apaga a linha do
+    // `users` (item 11 do CLAUDE.md).
+    Storage::disk(MemberPhotoStore::DISK)->assertMissing($photo->path_encrypted);
+
+    // Hard delete das linhas, não soft: a linha carrega `user_id`, tamanho e
+    // horário — "o membro X mandou N fotos, nestes horários".
+    expect(MemberPhoto::withTrashed()->where('user_id', $member->id)->count())->toBe(0)
+        ->and(DB::table('member_photo_access')->where('member_photo_id', $photo->id)->count())->toBe(0);
+});
+
+it('collects the bytes of a photo whose row the GC already soft-deleted', function () {
+    Storage::fake(MemberPhotoStore::DISK);
+
+    $member = delMember();
+    $photo = app(MemberPhotoService::class)->create($member, delPhotoUpload(), 24);
+
+    // Linha morta, arquivo de pé (uma falha anterior do GC). O encerramento é a
+    // última chance de recolher esses bytes: depois daqui não sobra linha para
+    // ninguém varrer, e o arquivo ficaria órfão no volume para sempre.
+    $photo->delete();
+
+    delService()->executeDeletion($member);
+
+    Storage::disk(MemberPhotoStore::DISK)->assertMissing($photo->path_encrypted);
+});
+
+it('drops the photo access rows pointing at the closing performer profile', function () {
+    Storage::fake(MemberPhotoStore::DISK);
+
+    $member = delMember();
+    $performer = delPerformer();
+
+    $photos = app(MemberPhotoService::class);
+    $photo = $photos->create($member, delPhotoUpload(), 168);
+    $photos->grantTo($member, $photo, $performer->performerProfile);
+
+    delService()->executeDeletion($performer);
+
+    // PII de terceiros — quais membros ainda ativos mostraram o rosto para ela —
+    // pendurada num perfil que deixou de existir. Análogo exato de
+    // purgeVisitsToOwnProfile().
+    expect(DB::table('member_photo_access')->where('member_photo_id', $photo->id)->count())->toBe(0);
+
+    // Mas a foto é de OUTRA pessoa: continua viva, com os bytes no disco, e
+    // segue o TTL normal. Encerrar a conta da performer não apaga o conteúdo do
+    // membro.
+    expect(MemberPhoto::find($photo->id))->not->toBeNull();
+    Storage::disk(MemberPhotoStore::DISK)->assertExists($photo->fresh()->path_encrypted);
 });
 
 it('drops follows and decrements the follower count that feeds the anonymity floor', function () {
