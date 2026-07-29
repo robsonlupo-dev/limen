@@ -101,14 +101,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
     <!--
-      Discreto de propósito: sem rótulo de texto, sem cor de alerta. Quem não
-      sabe o que é lê como um "fechar" qualquer. O aria-label existe porque
-      leitor de tela precisa de nome acessível — discrição é visual.
+      Teleport + z-[10001]: a saída rápida é a camada de topo do produto, e essa
+      é a razão de ser deste componente. Antes ele era z-50 dentro da div raiz do
+      AppLayout — que não cria stacking context, então qualquer overlay com
+      z-index maior o cobria E engolia o clique. Modal.vue (z-50, renderizado
+      depois no DOM) já fazia isso, e o tutorial de onboarding (z-[9000]) também.
+      No desktop restava o duplo-Escape; no touch não há Escape, então o membro
+      ficava sem saída na exata situação que o botão existe para resolver.
+
+      O Teleport tira o botão de dentro de qualquer stacking context que um layout
+      venha a criar (um `transform` num ancestral prenderia o z-index lá dentro,
+      por mais alto que fosse).
+
+      O número é 10001, e não 10000, para caber UM acima do teto que já existia no
+      projeto: IntroAnimation (10000) e AgeGateModal (9999) vivem no GuestLayout,
+      nesta ordem de propósito — a splash cobre o gate 18+ até terminar. Descer os
+      dois para abrir espaço em 10000 mexeria no gate de idade sem necessidade.
+      Invariante: NENHUM outro componente usa z-index >= 10001, e é PanicButtonLayerTest
+      que cobra isso. Overlay novo entra abaixo — não suba o overlay, porque do
+      outro lado do empate está a segurança física de quem usa o site.
     -->
+    <Teleport to="body">
     <button
         type="button"
         aria-label="Saída rápida"
-        class="fixed bottom-4 right-4 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-frame/50 bg-background/70 text-muted/60 backdrop-blur transition-colors hover:text-cream focus:outline-none focus-visible:ring-1 focus-visible:ring-gold/40"
+        class="fixed bottom-4 right-4 z-[10001] flex h-9 w-9 items-center justify-center rounded-full border border-frame/50 bg-background/70 text-muted/60 backdrop-blur transition-colors hover:text-cream focus:outline-none focus-visible:ring-1 focus-visible:ring-gold/40"
         @click="escape"
     >
         <svg
@@ -124,4 +141,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <path d="M6 6l12 12M18 6L6 18" />
         </svg>
     </button>
+    </Teleport>
 </template>
