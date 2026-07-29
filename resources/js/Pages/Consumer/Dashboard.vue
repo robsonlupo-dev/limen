@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
+import EphemeralPhotoPanel from '@/Components/EphemeralPhotoPanel.vue'
 
 const props = defineProps({
     balance: { type: Number, required: true },
@@ -11,6 +12,9 @@ const props = defineProps({
     interests: { type: Object, required: true },
     tips: { type: Array, required: true },
     tipsSummary: { type: Object, required: true },
+    photos: { type: Array, default: () => [] },
+    photoLimit: { type: Number, default: 5 },
+    photoTtlOptions: { type: Array, default: () => [] },
 })
 
 const hasLockedInterests = computed(() => props.interests.locked > 0)
@@ -189,6 +193,15 @@ const interestHeadline = computed(() => {
                     </table>
                 </div>
             </div>
+
+            <!-- Fotos efêmeras (Sprint 9B). O compartilhamento NÃO acontece
+                 aqui: ele vive no chat, porque só se compartilha com performer
+                 com quem já se conversa. -->
+            <EphemeralPhotoPanel
+                :photos="photos"
+                :limit="photoLimit"
+                :ttl-options="photoTtlOptions"
+            />
         </div>
     </AppLayout>
 </template>

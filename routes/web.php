@@ -16,6 +16,7 @@ use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
+use App\Http\Controllers\Web\Consumer\MemberPhotoController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileController;
 use App\Http\Controllers\Web\Consumer\ReportController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestCo
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
+use App\Http\Controllers\Web\Performer\ReceivedPhotoController;
 use App\Http\Controllers\Web\Performer\SentInterestsController;
 use App\Http\Controllers\Web\Performer\TwoFactorController;
 use App\Http\Controllers\Web\PublicCatalogController;
@@ -394,6 +396,17 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.interests.send-visitor')
             ->can('performer-active');
 
+        // Foto efêmera recebida de um membro (Sprint 9B). Dentro do grupo
+        // `documents.accepted`, que por sua vez está sob `auth`+`2fa`: a rota
+        // nasce nos dois gates, como manda o CLAUDE.md. `can('performer-active')`
+        // porque quem ainda está em KYC não conversa com membro nenhum e,
+        // portanto, não tem foto para receber.
+        Route::get('/performer/fotos-recebidas/{access}/imagem', [ReceivedPhotoController::class, 'image'])
+            ->middleware(['role:performer', 'throttle:60,1'])
+            ->whereNumber('access')
+            ->name('performer.photos.image')
+            ->can('performer-active');
+
         // Histórico dos envios desta performer (para quem, quem revelou, cota do dia).
         Route::get('/performer/interesses', [SentInterestsController::class, 'index'])
             ->middleware('throttle:60,1')
@@ -491,6 +504,35 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/assinar/cancelar', [SubscriptionController::class, 'cancel'])
             ->middleware('throttle:6,1')
             ->name('subscribe.cancel');
+
+        // Fotos efêmeras do membro (Sprint 9B). Dentro do grupo
+        // `role:consumer` + `member.verified` — e o grupo já está sob
+        // `auth`+`2fa` —, então a rota nova entra no gate pelas duas portas sem
+        // repetir middleware. Ver "Rota autenticada nova entra no gate" no
+        // CLAUDE.md.
+        //
+        // O upload leva o throttle de 10/min do § 1.6, o mesmo teto da gorjeta:
+        // é a rota cara (re-encode + cifra) e a única que grava em disco.
+        Route::post('/membro/fotos', [MemberPhotoController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('member.photos.store');
+
+        Route::post('/membro/fotos/{photo}/compartilhar', [MemberPhotoController::class, 'share'])
+            ->middleware('throttle:20,1')
+            ->whereNumber('photo')
+            ->name('member.photos.share');
+
+        Route::delete('/membro/fotos/{photo}', [MemberPhotoController::class, 'destroy'])
+            ->middleware('throttle:20,1')
+            ->whereNumber('photo')
+            ->name('member.photos.destroy');
+
+        // Serving ao próprio titular. Throttle mais folgado: é GET de imagem, e
+        // a tela pode carregar as 5 ativas de uma vez.
+        Route::get('/membro/fotos/{photo}/imagem', [MemberPhotoController::class, 'image'])
+            ->middleware('throttle:60,1')
+            ->whereNumber('photo')
+            ->name('member.photos.image');
 
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');

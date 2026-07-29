@@ -800,12 +800,11 @@ estado intermediário (linha ida, bytes de pé), que é o que a varredura recolh
   caminho). Enquanto a varredura não existir, a mitigação barata é o
   `deleteFiles()` conferir `exists()` depois do delete e adiar o `forceDelete()`
   da linha para a rodada seguinte — o `deletions:process` é diário e idempotente.
-- **`grantTo()` não exige relação entre o membro e a performer de destino** —
-  nem Interesse desbloqueado, nem janela de chat, nem perfil aprovado. Qualquer
-  membro pode empurrar o próprio rosto para qualquer `performer_profile_id` do
-  catálogo, sem passar pelo gate pago do Sprint 3/4. Não é regressão do código
-  atual (o endpoint ainda não existe), mas é **decisão de produto que precisa
-  estar tomada antes de o PR dos endpoints abrir essa porta**.
+- ~~**`grantTo()` não exige relação entre o membro e a performer de destino**~~ —
+  **RESOLVIDO em 29/07/2026**: o PO fechou a regra (chat ativo) e ela está em
+  `MemberPhotoService::shareWith()`. Ver a seção do gate mais abaixo.
+  `grantTo()` continua sem o gate de propósito — é o primitivo que `shareWith()`
+  usa depois de checar. Chamador novo entra por `shareWith()`.
 - **Cap de performers por foto (§ 1.1).** `grantTo()` não limita com quantas
   performers a mesma foto é compartilhada, e o agregado "você compartilhou sua
   foto com N performers" não existe. É a única mitigação registrada do risco
@@ -819,11 +818,57 @@ estado intermediário (linha ida, bytes de pé), que é o que a varredura recolh
   parseia arquivo controlado pelo atacante; o § 1.4 recomendava promover o audit
   a hard fail junto da feature.
 
-### Bloqueadores para o PR dos endpoints
+### Bloqueadores para o PR dos endpoints — FECHADOS (29/07/2026)
 
-Sem rota nem controller no diff, segue **inteiramente por verificar**: Form
-Request com `max:5120` e o TTL restrito ao menu; `throttle` no upload; Policy;
-**rota nova nos gates `2fa` e `documents.accepted`, nas DUAS portas de auth**;
-`response()->json()` explícito para as `DomainException` (rota web não serializa
-sozinha); `Content-Type` do serving derivado de re-sniff no servidor +
-`Content-Disposition`; nenhuma URL adivinhável ou assinada de longa duração.
+Entregues em `feat/sprint9b-photo-endpoints`, junto dos quatro endpoints e da UI:
+Form Request com `max:5120` e o TTL restrito ao menu; `throttle:10,1` no upload;
+rotas novas dentro dos grupos que já carregam `2fa` e `documents.accepted`;
+`response()->json()` explícito em toda resposta que o front consome;
+`Content-Type` do serving por re-sniff no servidor (`finfo` sobre os bytes
+decifrados, allowlist de `image/jpeg`), `Content-Disposition: inline` com nome
+GENÉRICO e `Cache-Control: no-store`; nenhuma URL assinada — a autorização é por
+sessão, a cada request.
+
+Três coisas que só apareceram ao escrever os endpoints, e que ficam registradas:
+
+1. **Validação em rota web não vira JSON.** `shouldRenderJsonWhen` só liga o
+   JSON em `api/*`, então uma `ValidationException` num endpoint web vira
+   redirect-com-erros-de-sessão mesmo com `Accept: application/json` — e o
+   `fetch` do front receberia HTML. Resolvido com o trait
+   `Web\Concerns\FailsValidationAsJson`, no formato que o Laravel usa em `api/*`.
+   **Vale para todo endpoint web novo que o JavaScript consumir.**
+2. **`SubstituteBindings` roda ANTES do middleware de rota.** Um teste de gate
+   com id inexistente recebe 404 do binding e passa sem nunca exercitar o gate.
+   Os testes de `role` e de `2fa` usam id existente de propósito.
+3. **O serving distingue 403 (acesso de outra performer) de 404 (vencido)**, a
+   pedido do PO. O custo registrado: 403 vs 404 diz que aquele id de acesso
+   existe. É informação fraca — não diz de quem para quem, e a mensagem segue
+   uniforme —, mas se incomodar, o conserto é 404 nos dois.
+
+### Gate de compartilhamento — RESOLVIDO (decisão do PO, 29/07/2026)
+
+O item aberto acima ("`grantTo()` não exige relação entre o membro e a performer
+de destino") está fechado: **o membro só compartilha com performer com quem tem
+chat ativo**, e o gate vive em `MemberPhotoService::shareWith()`.
+
+Uma consequência de implementação que a decisão não previa e que ficou decidida
+no código: **"chat ativo" pergunta ao `ChatAccessService` se o membro pode ENVIAR
+mensagem agora (`can_send`)**, em vez de consultar `chat_access` na mão. O
+assinante de Círculo tem chat livre e **não gera linha** naquela tabela — a
+leitura literal ("existe `ChatAccess` não expirada") recusaria justamente quem
+paga mais (coberto por teste, porque é a justificativa do desenho). Carência
+(`grace`) não passa: quem não pode nem responder não recebe rosto novo.
+
+O gate replica as **duas** portas de `ChatService::sendMessage()` — o
+`can_send` e o `conversation->status === 'active'` — e recusa também performer
+suspensa, pendente ou encerrada, sempre com a mesma resposta (`no_active_chat`),
+para não devolver ao membro o estado da conta dela.
+
+> **Follow-up: as duas portas são uma CÓPIA, e cópia diverge.** O certo é um
+> `canMemberSend(Conversation, User)` com uma dona só, na mesma disciplina de
+> `FollowerVisibilityService::applyFloorEligibility()`. Não foi feito porque
+> `sendMessage()` distingue as duas falhas em exceções diferentes
+> (`conversationArchived` vs `accessRequired`) e unificar mudaria a resposta do
+> chat. Enquanto não for unificado, **regra nova no envio de mensagem tem de ser
+> replicada em `MemberPhotoService::shareWith()`** — foi assim que o
+> `status === 'active'` passou batido na primeira versão.

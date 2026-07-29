@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ExpirySlot;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -99,6 +100,31 @@ class MemberPhoto extends Model
     public function accesses(): HasMany
     {
         return $this->hasMany(MemberPhotoAccess::class);
+    }
+
+    /**
+     * O que o TITULAR vê sobre a própria foto.
+     *
+     * Em faixa, e não em relógio, mesmo sendo a foto dele: o valor da faixa é o
+     * mesmo que a performer recebe, e manter as duas telas no mesmo vocabulário
+     * evita que alguém "melhore" a do membro para um countdown e depois reuse o
+     * componente do outro lado. O TTL escolhido ele já conhece — foi ele quem
+     * escolheu no envio.
+     *
+     * `shared_with` é o agregado que o § 1.1 pede: **"você compartilhou sua foto
+     * com N performers"**. Não previne nada — põe na frente de quem carrega o
+     * risco o número que ele não teria como estimar sozinho. Conta só acesso
+     * VIVO, pelo mesmo critério do serving.
+     *
+     * @return array{id:int,expires_slot:string,shared_with:int}
+     */
+    public function presentForMember(): array
+    {
+        return [
+            'id' => $this->id,
+            'expires_slot' => ExpirySlot::for($this->expires_at),
+            'shared_with' => $this->accesses()->where('expires_at', '>', now())->count(),
+        ];
     }
 
     /**

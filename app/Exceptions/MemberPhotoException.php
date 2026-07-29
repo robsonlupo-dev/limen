@@ -23,6 +23,8 @@ class MemberPhotoException extends DomainException
 
     public const FORBIDDEN = 'forbidden';
 
+    public const NO_ACTIVE_CHAT = 'no_active_chat';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -66,6 +68,22 @@ class MemberPhotoException extends DomainException
         return new self(
             self::FORBIDDEN,
             'Esta foto não está mais disponível.',
+        );
+    }
+
+    /**
+     * Compartilhamento sem chat ativo com aquela performer (decisão do PO).
+     *
+     * O rosto não é conteúdo de catálogo: só vai para quem o membro já escolheu
+     * conversar E está pagando a janela. Sem isso, a foto viraria uma superfície
+     * membro→performer que contorna o gate do Interesse Controlado, e um membro
+     * poderia empurrar o próprio rosto para qualquer perfil da plataforma.
+     */
+    public static function noActiveChat(): self
+    {
+        return new self(
+            self::NO_ACTIVE_CHAT,
+            'Você só pode compartilhar fotos com performers com quem tem um chat ativo.',
         );
     }
 

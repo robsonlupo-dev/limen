@@ -14,6 +14,7 @@ use App\Models\PerformerInterest;
 use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
+use App\Services\MemberPhotoService;
 use App\Services\TokenService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -36,6 +37,7 @@ class ChatController extends Controller
         private ChatService $chatService,
         private ChatAccessService $chatAccessService,
         private TokenService $tokenService,
+        private MemberPhotoService $memberPhotos,
     ) {}
 
     public function index(Request $request): Response
@@ -182,10 +184,15 @@ class ChatController extends Controller
                 'performer' => [
                     'stage_name' => $conversation->performerProfile->stage_name,
                     'slug' => $conversation->performerProfile->slug,
+                    // O id vai para o payload do compartilhamento. É o perfil
+                    // PÚBLICO da performer, não identidade de membro — nada a
+                    // ver com o FanAlias, que protege o outro lado.
+                    'profile_id' => $conversation->performer_profile_id,
                 ],
             ],
             'messages' => $messages,
             'access' => $state,
+            'photoSharing' => $this->photoSharingProps($request, $conversation, $state),
             'accessCost' => (int) config('chat.access_cost'),
             'balance' => $this->tokenService->balance($request->user()),
         ]);
@@ -283,6 +290,41 @@ class ChatController extends Controller
      * receipts desligados, e a UI não distingue as duas — se distinguisse, o
      * "desligado" viraria um aviso de que o membro é assinante Black.
      */
+    /**
+     * O que a tela do chat precisa para oferecer "Compartilhar foto".
+     *
+     * Só ao MEMBRO desta conversa: para a performer o bloco inteiro sai como
+     * `can_share: false` e lista vazia. Ela não precisa saber se ele tem fotos
+     * ativas — isso é estado do outro lado, e a tela dela nunca insinua.
+     *
+     * `can_share` repete o `can_send` porque é o MESMO gate que o Service aplica
+     * (ver MemberPhotoService::shareWith): a tela não pode oferecer o que o
+     * servidor vai recusar, e o servidor não pode confiar na tela. Quem decide
+     * continua sendo o Service — isto aqui é só o botão.
+     *
+     * A lista carrega o id e a FAIXA, nunca `expires_at`. Se um dia ela for
+     * reusada num componente compartilhado com a tela da performer, não há
+     * relógio no payload para vazar (§ 1.2).
+     *
+     * @param  array<string, mixed>  $state
+     * @return array{can_share:bool,photos:array<int, array<string, mixed>>}
+     */
+    private function photoSharingProps(Request $request, Conversation $conversation, array $state): array
+    {
+        $user = $request->user();
+
+        if ($user->id !== $conversation->member_id) {
+            return ['can_share' => false, 'photos' => []];
+        }
+
+        return [
+            'can_share' => (bool) $state['can_send'],
+            'photos' => $this->memberPhotos->activeFor($user)
+                ->map(fn ($photo) => $photo->presentForMember())
+                ->all(),
+        ];
+    }
+
     private function readReceiptVisible(Conversation $conversation, User $viewer): bool
     {
         $counterpartId = $viewer->id === $conversation->member_id

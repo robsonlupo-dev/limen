@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
 use App\Exceptions\MemberPhotoException;
+use App\Models\Conversation;
 use App\Models\MemberPhoto;
 use App\Models\MemberPhotoAccess;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +60,110 @@ class MemberPhotoService
     /** Teto do nome original guardado. Ver sanitizeFilename(). */
     private const FILENAME_MAX = 120;
 
-    public function __construct(private MemberPhotoStore $store) {}
+    public function __construct(
+        private MemberPhotoStore $store,
+        private ChatAccessService $chatAccess,
+    ) {}
+
+    /**
+     * As fotos vivas do membro, na ordem em que a tela dele as mostra.
+     *
+     * @return Collection<int, MemberPhoto>
+     */
+    public function activeFor(User $member)
+    {
+        return MemberPhoto::query()
+            ->activeForUser($member->id)
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    /**
+     * Compartilha a foto com uma performer — a porta que o endpoint chama.
+     *
+     * ── O gate de chat ativo é do PRODUTO, e mora aqui ──────────────────────
+     * Decisão do PO: o membro só compartilha com performer com quem tem chat
+     * ativo. Sem isso a foto seria uma superfície membro→performer paralela ao
+     * Interesse Controlado — qualquer membro empurraria o próprio rosto para
+     * qualquer perfil do catálogo, sem passar pelo gate pago do Sprint 3/4.
+     *
+     * ── "Chat ativo" é o mesmo critério do chat, não uma segunda definição ───
+     * As DUAS portas de `ChatService::sendMessage()` são replicadas aqui, e é
+     * por isso que são duas:
+     *
+     *  1. `conversation->status === 'active'`. Nada seta `archived` hoje (o
+     *     enum existe na migration, a transição não), mas o dia em que existir
+     *     — bloqueio pelo membro, Panic Button, ação de moderação — é
+     *     exatamente o dia em que o canal de mensagem fecha e o de ROSTO não
+     *     pode continuar aberto. Conversa é arquivada justamente no conflito.
+     *  2. `accessState()['can_send']`, e não uma consulta crua a `chat_access`:
+     *     assinante de Círculo tem chat livre e **não gera linha** naquela
+     *     tabela — a leitura literal recusaria justamente quem paga mais.
+     *     Carência (`grace`) NÃO passa: quem não pode nem responder não deve
+     *     receber rosto novo.
+     *
+     * > Ressalva: as duas portas são uma CÓPIA das de `sendMessage()`, e cópia
+     * > diverge. O certo é um `canMemberSend(Conversation, User)` com uma dona
+     * > só (mesma disciplina de `applyFloorEligibility()`); não foi feito aqui
+     * > porque `sendMessage()` distingue as duas falhas em exceções diferentes
+     * > e unificar mudaria a resposta do chat. Follow-up registrado.
+     *
+     * ── E a performer precisa estar de pé ───────────────────────────────────
+     * Perfil encerrado (soft delete) ou conta fora de `active` — suspensa,
+     * pendente, banida — não recebe rosto novo. Sem esta checagem o grant é
+     * criado, os bytes ficam, e o acesso passa a valer no instante em que a
+     * conta for reativada — inclusive uma conta suspensa POR MODERAÇÃO. O
+     * `can('performer-active')` da rota de leitura impede que ela veja hoje,
+     * mas não impede a linha de existir.
+     *
+     * A recusa é a MESMA (`no_active_chat`) em todos os casos, de propósito:
+     * distinguir "ela encerrou" de "ela está suspensa" de "seu chat venceu"
+     * devolveria ao membro o estado da conta dela.
+     *
+     * @throws MemberPhotoException não é o dono, foto morta, ou sem chat ativo
+     */
+    public function shareWith(User $owner, MemberPhoto $photo, PerformerProfile $profile): MemberPhotoAccess
+    {
+        $this->assertOwns($owner, $photo);
+
+        if (! $this->performerIsReachable($profile)) {
+            throw MemberPhotoException::noActiveChat();
+        }
+
+        $conversation = Conversation::query()
+            ->where('member_id', $owner->getKey())
+            ->where('performer_profile_id', $profile->getKey())
+            ->first();
+
+        if ($conversation === null || $conversation->status !== 'active') {
+            throw MemberPhotoException::noActiveChat();
+        }
+
+        if (! $this->chatAccess->accessState($conversation, $owner)['can_send']) {
+            throw MemberPhotoException::noActiveChat();
+        }
+
+        return $this->grantTo($owner, $photo, $profile);
+    }
+
+    /**
+     * A performer está de pé para receber?
+     *
+     * `withTrashed()` no usuário porque o encerramento de conta é soft-delete
+     * (item 11 do CLAUDE.md): sem isso a relação devolve `null` para a conta
+     * encerrada e o `?->status` cairia no mesmo `false` por acidente, não por
+     * decisão — e um dia alguém "consertaria" o null.
+     */
+    private function performerIsReachable(PerformerProfile $profile): bool
+    {
+        if ($profile->trashed()) {
+            return false;
+        }
+
+        $user = $profile->user()->withTrashed()->first();
+
+        return $user !== null && ! $user->trashed() && $user->status === 'active';
+    }
 
     /**
      * Recebe a foto do membro. Aplica o cap de ativas ANTES de existir linha.
@@ -94,6 +199,23 @@ class MemberPhotoService
     {
         if (! in_array($ttlHours, MemberPhoto::TTL_HOURS, true)) {
             throw MemberPhotoException::invalidTtl($ttlHours);
+        }
+
+        // Recusa BARATA antes do trabalho caro. Não substitui a checagem sob
+        // lock lá embaixo — aquela é a autorização, esta é só economia.
+        //
+        // Sem ela, o membro já no cap ainda paga o pipeline inteiro por upload
+        // recusado: decodificar no GD (o teto de 13 MP do config são ~55 MB de
+        // pico), redimensionar, re-encodar, cifrar e gravar ~9 MB, para a
+        // transação derrubar tudo em seguida. A 10 uploads/min do throttle isso
+        // é amplificação sustentada de CPU e IO que não deixa uma linha no
+        // banco — e o `memory_limit` real do php-fpm em produção ainda não foi
+        // verificado (pendência registrada em docs/SECURITY_ISSUES.md).
+        //
+        // A corrida entre este count e o de baixo é irrelevante: as duas
+        // respostas possíveis são "recusa agora" e "recusa 200ms depois".
+        if (MemberPhoto::query()->activeForUser($member->id)->count() >= MemberPhoto::ACTIVE_LIMIT) {
+            throw MemberPhotoException::activeLimitReached();
         }
 
         $path = $this->store->store($file, $member->id);

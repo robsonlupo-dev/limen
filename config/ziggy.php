@@ -70,6 +70,8 @@ return [
         'performer.profile.edit',
         'performer.profile.save',
         'performer.profile.photo',
+        // Leitura da foto efêmera recebida de um membro
+        'performer.photos.image',
 
         // 2FA TOTP da performer
         'performer.2fa.show',
@@ -99,6 +101,12 @@ return [
         'interests.index',
         'interests.unlock',
         'interests.opt-out',
+
+        // Fotos efêmeras do membro (envio, compartilhamento, revogação, leitura)
+        'member.photos.store',
+        'member.photos.share',
+        'member.photos.destroy',
+        'member.photos.image',
 
         // Consumer wallet
         'wallet.index',
