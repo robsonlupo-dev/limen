@@ -7,7 +7,8 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 27/07/2026 — fecho do Sprint 8 (`main`, tag `v1.0-sprint8`)
+> **Última atualização:** 29/07/2026 — fecho do **Sprint 9A** (`main`, `1a51d77`;
+> **sem tag** — ver §1)
 > **Método:** escrito a partir da **inspeção do código real** — `git log`,
 > `route:list`, `composer.json`, migrations, services, controllers, configs e a
 > suíte de testes rodada de ponta a ponta. Onde um doc antigo contradiz o código,
@@ -59,47 +60,52 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **912 testes verdes, 4817 asserts** | `php artisan test` (~245 s) |
-| Migrations | **66** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **134** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 99 | `grep` |
+| Suíte de testes | **1059 testes verdes, 5644 asserts** | `php artisan test` (~106 s) |
+| Migrations | **73** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **137** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 102 | `grep` |
 | Rotas HTTP em `routes/api.php` | 39 | `grep` |
-| Services | 22 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
-| Models | 28 | `ls app/Models/` |
-| Controllers Web | 40 | `find app/Http/Controllers/Web` |
+| Services | 23 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
+| Models | 30 | `ls app/Models/` |
+| Controllers Web | 41 | `find app/Http/Controllers/Web` |
 | Controllers API | 21 | `find app/Http/Controllers/Api` |
 | Middleware | 10 | `ls app/Http/Middleware/` |
 | Commands (agendáveis) | 9 | `ls app/Console/Commands/` |
-| Jobs | 2 | `ls app/Jobs/` |
+| Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
-| Configs | 24 | `ls config/` |
-| Tag Git | `v1.0-sprint8` (em `93b2878`, fecho do Sprint 8; restam `v1.0-sprint7` em `80ba300`, `v1.0-sprint6` em `5070638` e `archive/qa-pre-prod-operation`) | `git tag` |
+| Configs | 25 | `ls config/` |
+| Tag Git | **o Sprint 9A NÃO tem tag.** Existem `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`) e `archive/qa-pre-prod-operation` | `git tag` |
 
-**Branch atual:** `main` (em `93b2878`, com os PRs #83/#84/#85/#86/#87 do Sprint 8 mergeados). Os últimos commits fecham o Sprint 8.
+> **A quebra de padrão da tag é real, não esquecimento de registro.** Os Sprints
+> 6, 7 e 8 fecharam com tag; o 9A não tem. Quem for cortar release ou comparar
+> ranges usa `93b2878..1a51d77`, que é o intervalo exato do sprint. Criar
+> `v1.0-sprint9a` é decisão do PO — este doc só registra que hoje ela não existe.
+
+**Branch atual:** `main` (em `1a51d77`, com os PRs #88→#100 do Sprint 9A mergeados).
 Últimos commits relevantes (mais recente primeiro):
 
 ```
-93b2878 Merge pull request #87 from robsonlupo-dev/feat/sprint8-password-toggle
-6551d6e docs: decisões PO Sprint 9 — foto efêmera (backup, EXIF, cap 5 fotos)
-db8827a docs: decisão PO — Nível 3 Stories sem contador (fecha vazamento de tier)
-23fa409 docs: decisões PO Sprint 9 — contador em faixa único + v1 só imagem nos Stories
-99a936b docs: security review pré-implementação Sprint 9 — foto efêmera e stories
-b538f08 use design system tokens for password toggle colors
-9d18840 add password visibility toggle to Input component
-c5a6dfe docs: registra features Foto Efêmera de Membro e Stories da Performer no backlog Sprint 9
-c724ca0 docs: registra backlog Sprint 9 — UX e monetização baseado no Seeking case study
-630bbb3 Merge pull request #86 from robsonlupo-dev/feat/sprint8-edit-worlds
-a0964f6 feat: edição de worlds no profile-edit — checkboxes, category derivada server-side
-2fbc60a Merge pull request #85 from robsonlupo-dev/feat/sprint8-member-kyc
-b1b9849 feat: KYC Nível 2 para membros — pending_kyc, selfie via Didit, middleware member.verified
-cc2516a test: replace fragile substring asserts over slug/HMAC with real opacity checks
-8c6b4e8 test: replace fragile FanAlias '42' substring assert with real opacity checks
-f53eb6e Merge pull request #84 from robsonlupo-dev/feat/sprint8-fraud-blacklist
-e3b9211 feat: fraud blacklist — HMAC of CPF/document on ban, signal on re-registration
-18bbede Merge pull request #83 from robsonlupo-dev/feat/sprint8-banned-status
-3c04b7a feat: banned status — permanent account closure by moderation
-e70b8dc docs: registra B.10 — divergência category↔worlds em performers legado
-7109025 docs: handoff Sprint 7 — 859 testes, tag v1.0-sprint7
+1a51d77 Merge pull request #100 from robsonlupo-dev/fix/panic-button-z-index
+8039287 promote the panic button to a reserved top layer
+bb18fdd Merge pull request #99 from robsonlupo-dev/feat/sprint9-onboarding-tutorial
+2f7abf4 add first-run onboarding tutorial to the member catalogue
+55b8b96 Merge pull request #98 from robsonlupo-dev/feat/sprint9-welcome-email
+1fcd1fa add founder welcome email after KYC approval
+e184be0 Merge pull request #97 from robsonlupo-dev/feat/sprint9-hcaptcha
+f70d4f2 add hCaptcha to login and registration
+6321a3b Merge pull request #96 from robsonlupo-dev/feat/sprint9-geolocation
+c376b75 add opt-in location to the performer profile
+        Merge pull request #95 from robsonlupo-dev/feat/sprint9-interest-visitors
+        add controlled interest from the visitor panel
+        Merge pull request #94 from robsonlupo-dev/feat/sprint9-catalog-filters
+        Merge pull request #93 from robsonlupo-dev/fix/sprint9-chat-filter-faco
+1f536ee block the paid-encounter offer written in the first person
+        Merge pull request #92 from robsonlupo-dev/feat/sprint9-member-interests
+        Merge pull request #91 from robsonlupo-dev/feat/sprint9-performer-tags
+        Merge pull request #90 from robsonlupo-dev/feat/sprint9-verification-badges
+        Merge pull request #89 from robsonlupo-dev/feat/sprint9-bio-counter
+        Merge pull request #88 from robsonlupo-dev/feat/sprint9-online-indicator
+93b2878 Merge pull request #87 (fecho do Sprint 8, tag v1.0-sprint8)
 ```
 
 **O que o Sprint 6 entregou (todos confirmados no `git log`):**
@@ -217,6 +223,108 @@ maiúscula ou ponto que não ocorre em hex minúsculo — foram deixados como es
 > primeiro upload — e o Sprint 9 (foto efêmera + Stories) é exatamente o sprint
 > que abre essa superfície. Ler a pré-análise em `docs/SECURITY_ISSUES.md` antes
 > de escrever a primeira linha.
+
+---
+
+## Sprint 9A — O que foi entregue
+
+**Sem tag** (ver §1). Intervalo exato: `93b2878..1a51d77` — **13 PRs, #88 a #100**,
+todos pela Regra de Ouro do Git Flow (branch + PR para `main`). Suíte passou de
+912 → **1059 testes** verdes (5644 asserts).
+
+> **Por que "9A" e não "Sprint 9".** O backlog do Sprint 9 tinha duas metades: a
+> trilha de **UX e descoberta** (tags, filtros, badges, copy) e a trilha de
+> **conteúdo efêmero** (Foto Efêmera do Membro + Stories da Performer). Só a
+> primeira foi entregue. A segunda **não teve uma linha de código escrita** e
+> segue no backlog com os 🔴 abertos — inclusive o pipeline de moderação exigido
+> **antes** do primeiro upload. O rótulo "9A" existe para que ninguém leia
+> "Sprint 9 entregue" e conclua que a superfície de conteúdo foi aberta. **Ela
+> não foi.** A janela do §1 continua aberta.
+
+| Entrega | PR | Seção deste doc |
+|---|---|---|
+| **Restyle do indicador de online** — o item de backlog pedia "fazer aparecer no catálogo"; já aparecia. Virou troca de estilo, como a ressalva do Sprint 8 previa | #88 | §1 (ressalva original) |
+| **Contador de caracteres no bio** com copy de progresso por faixa | #89 | — |
+| **Badges de verificação** no card e no perfil público — booleanos, **nunca a data** (`email_verified_at` dataria o cadastro para visitante anônimo) | #90 | §8 |
+| **Tags da performer** (máx 8) + campos adicionais (`languages`, `drinks`, `smokes`, `height_cm`, `looking_for`) + **filtro de conteúdo aplicado a `bio` e `looking_for`** | #91 | §5, §17 |
+| **Interesses do membro** (`interests`) + `seeking` | #92 | §5 |
+| **Fix do filtro de chat: oferta em primeira pessoa** ("faço programa") passava | #93 | §17 |
+| **Filtros avançados do catálogo** com service unificado entre as duas portas | #94 | §25 |
+| **Interesse Controlado a partir do painel de visitantes** — segunda porta de envio, coluna `source`, cotas por origem | #95 | §14, §16 |
+| **Localização opt-in da performer** — só UF exibida, `city` interno, sem coordenadas, sem API do navegador | #96 | §5, LGPD abaixo |
+| **hCaptcha** no login e cadastro | #97 | R7 / Apêndice A |
+| **E-mail de boas-vindas do fundador** após aprovação de KYC | #98 | §8 |
+| **Tutorial de onboarding** (overlay de 4 slides, first-run no catálogo) | #99 | §15.1 |
+| **Fix de camada do PanicButton** (Teleport + `z-[10001]`) | #100 | §15.1 |
+
+**Migrations novas (7):** `create_performer_tag_table`,
+`add_additional_fields_to_performer_profiles`, `create_member_interest_table`,
+`add_seeking_to_users`, `add_source_to_performer_interests`,
+`add_location_to_performer_profiles`, `add_welcome_email_sent_at_to_users`.
+**Models novos (2):** `PerformerTag`, `MemberInterest`. **Service novo:**
+`HCaptchaVerifier`. **Config novo:** `config/hcaptcha.php`.
+
+### Decisões de produto tomadas no Sprint 9A
+
+- **R1 — re-encode sem EXIF** vira a regra geral de ingestão de imagem, não só da
+  foto efêmera. "Guardar o original" sai do escopo: o original É o arquivo com o
+  metadado que a decisão manda remover, e no caso da performer a coordenada
+  costuma ser a casa dela.
+- **R2 — resolvido, e resolvido pelos dois lados.** Só **estado** é público (27
+  UFs, grosso demais para localizar alguém); `city` é gravado e **nunca exposto**
+  — não sai em resource, prop ou API. **E a UF some quando `is_live` está ligado**
+  (`v-if="performer.state && !performer.is_live"` nas três superfícies), que era
+  exatamente o ponto do R2: presença ao vivo + localização é outra categoria de
+  risco. **Nada de coordenadas e nada de API de geolocalização do navegador** — os
+  campos são digitados pela performer.
+- **R3 — quem filtra e salva busca é o MEMBRO**, confirmado pelo PO. O texto de
+  origem dizia "performer pode salvar" e estava trocado.
+- **R8 — tabela de junção**, não `whereJsonContains`. `performer_tag` e
+  `member_interest` são tabelas próprias com índice; o full scan que o R8 previa
+  para ~12 facetas combináveis não chega a existir. **`worlds` (Sprint 7) segue
+  em json** e continua escapando por volume baixo — quando virar gargalo, o
+  caminho já está pavimentado.
+- **`ethnicity` permanece cortado** (decisão de 27/07/2026). Não voltou nem como
+  coluna nem como faceta.
+- **Interesse Expandido a visitantes** — a performer pode sinalizar para quem
+  aparece no painel de visitantes, não só para seguidor.
+
+### Detalhes que não se deduzem do diff
+
+**A segunda porta do Interesse não afrouxou o piso — ela consome as mesmas
+linhas.** `ProfileVisitService::resolveVisitorHandle()` resolve o handle contra
+exatamente as linhas que `panelFor()` renderiza. Os dois pisos, o k-anonimato por
+faixa e o corte de `$limit` escondem o alvo do envio do mesmo jeito que escondem
+a linha do painel — por construção, não por uma segunda checagem que poderia
+divergir. É o invariante do `CLAUDE.md` (a tela e o envio têm que concordar,
+senão o par 404/201 vira oráculo). Ghost Mode e Modo Discreto não precisam de
+guard aqui: eles nunca produziram linha em `profile_visits`.
+
+**A origem é ROTA, não campo do payload.** Rota e Form Request separados por
+porta, de propósito: um `source` no corpo deixaria o chamador pedir "visitor" e
+cair no predicado de seguidores. A coluna `source` em `performer_interests` existe
+para a **cota diária por origem** (5 seguidores + 3 visitantes), não para
+roteamento. O **cooldown continua comum às duas portas** — 30 dias por par
+(performer, membro) — senão bastava trocar de tela para dobrar os toques. E a
+origem **nunca chega ao membro**: a caixa mostra o mesmo sinal cego, ao mesmo
+custo de 15 tokens.
+
+**O filtro de conteúdo passou a valer em campo de perfil, não só em chat.** `bio`
+e `looking_for` são texto livre que a performer publica; sem o filtro, a oferta
+que o chat barra migrava para o perfil. É a mesma lista e o mesmo
+`ChatContentFilter` — não nasceu um segundo conjunto de regras para manter em
+sincronia.
+
+**O fix do #93 é de cobertura, não de categoria nova.** A lista pegava a oferta
+na segunda pessoa e escapava a primeira ("faço programa"). Continua valendo tudo
+do §17.3: encontro sem valor monetário passa, troca de contato passa, palavrão
+consentido passa.
+
+**O PanicButton virou camada reservada.** `Teleport to body` + `z-[10001]`, com
+`PanicButtonLayerTest` cobrando na fonte que nenhum outro `.vue` declare
+`z-index >= 10001`. O 10001 (e não 10000) evita mexer no `AgeGateModal` (9999) e
+na `IntroAnimation` (10000), que coexistem no `GuestLayout` nessa ordem de
+propósito. Ver §15.1.
 
 ---
 
@@ -365,7 +473,7 @@ reconstruir o que a tela esconde. Sempre consulte a fonte única.
 
 ## 5. Modelo de dados — migrations e models
 
-### 5.1 Models (27) e seus domínios
+### 5.1 Models (30) e seus domínios
 
 | Model | Domínio | Notas |
 |---|---|---|
@@ -393,8 +501,10 @@ reconstruir o que a tela esconde. Sempre consulte a fonte única.
 | `AuditLog` | trilha de auditoria | HMAC de rule/fingerprint, nunca corpo |
 | `WaitlistEntry` / `WaitlistReferral` / `WaitlistEmailLog` | waitlist | double opt-in, drip, Founding Members |
 | `PaymentEvent` | webhook Asaas | ver §7 |
+| `PerformerTag` | tags da performer (Sprint 9A) | **tabela de junção** com índice — decisão R8, não `whereJsonContains` |
+| `MemberInterest` | interesses do membro (Sprint 9A) | idem R8; mesmo conjunto de tags da performer |
 
-### 5.2 Migrations (62) — linha do tempo
+### 5.2 Migrations (73) — linha do tempo
 
 As três primeiras (`0001_01_01_*`) são o esqueleto do Laravel (users, cache,
 jobs). A partir de `2026_06_24` começa o Limen. Marcos:
@@ -421,6 +531,12 @@ jobs). A partir de `2026_06_24` começa o Limen. Marcos:
   `privacy_perk_columns` em users, `two_factor_columns` em users.
 - **Sprint 7 (jul):** `add_tier_to_performer_profiles`,
   `add_worlds_to_performer_profiles` (json, multi-mundos).
+- **Sprint 9A (jul):** `create_performer_tag_table`,
+  `add_additional_fields_to_performer_profiles` (`languages`, `drinks`, `smokes`,
+  `height_cm`, `looking_for`), `create_member_interest_table`,
+  `add_seeking_to_users`, `add_source_to_performer_interests` (cota por origem),
+  `add_location_to_performer_profiles` (`state` público / `city` interno),
+  `add_welcome_email_sent_at_to_users`.
 
 > **`stage_name` é unique** (`2026_07_15_000001`) — foi bug de branch parada que
 > regrediu isso antes; não remover o índice.
@@ -864,11 +980,30 @@ todas **fora do `$fillable`**, cast `boolean`: `ghost_mode`, `invisible_status`,
 | **Read Receipts** | controla confirmação de leitura no chat | **fail-closed** (`a7ff23e`): na dúvida, não vaza que leu. |
 | **Invisible status** | oculta status online | flag booleana |
 
-### 15.1 Panic Button (`0372e1e`, PR #71)
+### 15.1 Panic Button (`0372e1e`, PR #71; camada corrigida no PR #100)
 
 Botão de pânico que **desloga a sessão** e redireciona para uma URL neutra.
 `PANIC_REDIRECT_URL` no `.env` (default `https://www.google.com.br`). Objetivo:
 saída rápida da tela em situação de risco físico.
+
+**Camada reservada (Sprint 9A, PR #100).** Nasceu `z-50` dentro da div raiz do
+`AppLayout` — que **não cria stacking context** —, então qualquer overlay acima
+de 50 o cobria **e engolia o clique**. Dois já faziam isso: `Modal.vue` (`z-50`,
+mais tarde no DOM, então o empate ia para ele) e o overlay de onboarding do PR #99
+(`z-[9000]`). No desktop restava o duplo-Escape; **no touch não há Escape**, e a
+saída rápida ficava inalcançável exatamente na situação que ela existe para
+resolver.
+
+Hoje: `Teleport to body` + `z-[10001]`. O Teleport importa tanto quanto o número —
+um `transform` em qualquer ancestral futuro criaria stacking context e prenderia o
+botão lá dentro, por mais alto que fosse o z-index.
+
+> **Invariante: nenhum outro componente declara `z-index >= 10001`**, e
+> `tests/Feature/PanicButtonLayerTest.php` cobra isso lendo a fonte (o projeto não
+> tem Vitest/Jest). **Overlay novo entra ABAIXO — não suba o overlay.** O 10001, e
+> não 10000, é para não mexer no `AgeGateModal` (9999) e na `IntroAnimation`
+> (10000), que coexistem no `GuestLayout` nessa ordem de propósito (a splash cobre
+> o gate 18+ até terminar) e não têm inteiro livre entre elas.
 
 ### 15.2 Cobertura no Hard Delete
 
@@ -1158,7 +1293,7 @@ Sistema mínimo viável de denúncia (compliance legal).
 
 ### 25.1 Rotas
 
-125 rotas no total. `routes/web.php` (90 `Route::`), `routes/api.php` (39 HTTP),
+137 rotas no total. `routes/web.php` (102 `Route::`), `routes/api.php` (39 HTTP),
 `routes/channels.php` (broadcasting), `routes/console.php` (commands).
 
 > **⚠️ Ziggy allowlist — tela preta.** `config/ziggy.php` tem um `only`
@@ -1232,6 +1367,13 @@ CHAT_FILTER_ENABLED=true · CHAT_FILTER_AUDIT_DEDUP_MINUTES=10
 - [ ] **HSTS condicional ao ambiente** (P0 histórico: reset --hard restaura 1 ano
       + preload; tornar condicional no código).
 - [ ] **Subir o Reverb** (chat em tempo real hoje em driver `log`).
+- [ ] **hCaptcha na política de privacidade e no registro de subprocessadores**
+      (R7). O código subiu no Sprint 9A (PR #97); o registro legal **não**. É
+      subprocessador terceiro que enxerga o **IP de quem faz login/cadastro numa
+      plataforma adulta** — a mesma classe de dado que o resto do projeto trata
+      com cuidado. Bloqueia subir com a chave real em produção, não o
+      desenvolvimento. Enquanto `HCAPTCHA_ENABLED=false`, nenhuma requisição sai
+      para o hcaptcha.com e a exposição é zero.
 
 ### A.2 Sprint 8 — o que sobrou
 
@@ -1262,12 +1404,29 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 
 ### Sprint 9 — UX e Monetização (baseado em SEEKING_UX_CASE_STUDY.md)
 
-> **Backlog conferido no fecho do Sprint 8 — está completo, é o próximo sprint.**
-> Escopo, decisões de produto do PO (24/07/2026: contador em faixa único, v1 só
-> imagem nos Stories, Nível 3 sem contador, backup/EXIF/cap de 5 fotos) e a
-> pré-análise de segurança estão todos registrados. **Nada de código foi escrito
-> para o Sprint 9** — o que existe é decisão e análise. Não há item pendente de
-> documentação; o próximo passo é implementação, e ela começa pelos 🔴.
+> **⚠️ Atualizado no fecho do Sprint 9A (29/07/2026). O Sprint 9 foi entregue pela
+> METADE, e a metade que sobrou é a perigosa.**
+>
+> - ✅ **Trilha de UX e descoberta — ENTREGUE** (PRs #88–#100): tags, campos
+>   adicionais, interesses do membro, filtros do catálogo, badges, contador de
+>   bio, localização opt-in, hCaptcha, e-mail do fundador, tutorial de onboarding.
+>   Ver "Sprint 9A — O que foi entregue".
+> - 🔴 **Trilha de conteúdo efêmero — NÃO INICIADA.** Foto Efêmera do Membro e
+>   Stories da Performer (logo abaixo) **não têm uma linha de código**. As
+>   decisões do PO de 24/07/2026 (contador em faixa único, v1 só imagem, Nível 3
+>   sem contador, backup/EXIF/cap de 5 fotos) continuam sendo só decisão, e os
+>   **11 bloqueadores 🔴** da pré-análise seguem abertos — incluindo o pipeline de
+>   moderação exigido **antes** do primeiro upload.
+>
+> **Consequência para quem pega o próximo sprint:** a janela do §1 **continua
+> aberta**. Nada no Sprint 9A abriu superfície de publicação de conteúdo — o que
+> entrou foi perfil, filtro e onboarding. Começar a trilha de conteúdo pelos 🔴,
+> não pela feature.
+>
+> **Itens de alta prioridade do Sprint 9 que NÃO saíram:** a verificação de
+> documento como produto (R$9,90, badge "✓ ID Verificado") — que é a fonte de dado
+> do badge cujo slot o PR #90 reservou —, o carrossel de múltiplas fotos e os
+> itens de copy do checkout de KYC pago.
 
 **Alta prioridade:**
 - [ ] Verificação de documento como produto (RG/CNH via Didit) — R$9,90 taxa única
@@ -1341,13 +1500,24 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 
 ---
 
-### Sprint 9 — Sistema de Tags, Filtros e Descoberta
+### Sprint 9 — Sistema de Tags, Filtros e Descoberta ✅ ENTREGUE (Sprint 9A)
+
+> **Esta trilha inteira foi entregue nos PRs #88–#100.** O registro do que saiu
+> está em "Sprint 9A — O que foi entregue". A lista abaixo fica como **memória do
+> escopo e das decisões**, com os itens marcados `[x]` — não como trabalho
+> pendente. O que **continua aberto** do Sprint 9 é a outra trilha, de conteúdo
+> efêmero (Foto Efêmera + Stories), logo acima nesta mesma seção.
+>
+> **Uma correção de premissa vale registrar:** o escopo original dizia
+> `tags`/`interests` como `json[]`. **Não foi assim que saiu** — o R8 venceu e os
+> dois viraram **tabela de junção** (`performer_tag`, `member_interest`) com
+> índice. Onde o texto abaixo disser json, o código vence.
 
 **Contexto:** baseado em análise de 37 telas reais do Seeking.com (julho/2026).
 Objetivo: transformar o catálogo de grade de fotos em sistema de descoberta por
 afinidade.
 
-**Tags da performer** (campo `tags` json[] em `performer_profiles`, máx 8):
+**Tags da performer** (~~campo `tags` json[]~~ → **tabela `performer_tag`**, máx 8):
 
 - *Estilo de vida:* Viajante · Fitness · Gourmet · Praia · Arte · Música · Moda ·
   Yoga · Games · Aventura · Festa · Luxo
@@ -1356,13 +1526,15 @@ afinidade.
 - *O que oferece:* Conversa · Companhia · Conteúdo exclusivo · Live · Fantasia ·
   Roleplay · Dança · Striptease
 
-**Campos adicionais da performer** (nenhum existe hoje — todos são migration nova):
+**Campos adicionais da performer** — todos entregues no PR #91:
 
-- [ ] `languages` json[] — idiomas (Português/Inglês/Espanhol/Francês/Italiano/Alemão/Japonês)
-- [ ] `drinks` enum — Não bebe / Bebe socialmente / Bebe frequentemente
-- [ ] `smokes` enum — Não fuma / Fuma socialmente / Fuma
-- [ ] `height_cm` smallint nullable — altura em cm (slider 140–190)
-- [ ] `looking_for` text nullable — "O que estou procurando" (texto livre, exibido no perfil)
+- [x] `languages` — idiomas (Português/Inglês/Espanhol/Francês/Italiano/Alemão/Japonês)
+- [x] `drinks` enum — Não bebe / Bebe socialmente / Bebe frequentemente
+- [x] `smokes` enum — Não fuma / Fuma socialmente / Fuma
+- [x] `height_cm` smallint nullable — altura em cm (slider 140–190)
+- [x] `looking_for` text nullable — "O que estou procurando" (texto livre, exibido
+      no perfil). **Passa pelo filtro de conteúdo** junto com a `bio` — é texto
+      livre publicado, e sem isso a oferta que o chat barra migrava para o perfil.
 
 > **`ethnicity` foi cortado do escopo (decisão do PO, 27/07/2026)** — dado pessoal
 > sensível na LGPD (Art. 5º, II, "origem racial ou étnica"). Registrado aqui para
@@ -1370,27 +1542,53 @@ afinidade.
 > remoção deliberada. Se um dia for reproposto, entra pela porta do princípio 4
 > (tabela isolada, cifrada, consentimento específico) e não como coluna em claro
 > nem como faceta de filtro público.
+>
+> **`drinks` e `smokes` ficaram, e a distinção é deliberada — mas eles não são
+> neutros.** São **autodeclarados, opcionais e de preenchimento livre**: a
+> performer escolhe informar, pode deixar em branco e pode limpar depois. Não são
+> dado sensível do Art. 5º, II (não são origem racial/étnica, convicção religiosa,
+> opinião política, filiação sindical, saúde, vida sexual ou biometria) — por isso
+> seguem como coluna em claro e como faceta de filtro, o que `ethnicity` não
+> poderia. **A ressalva:** hábito de bebida e fumo faz fronteira com dado de saúde,
+> e um deles combinado com outras facetas estreita a pessoa. Duas consequências
+> práticas: (1) **manter opcional para sempre** — se algum dia virar obrigatório
+> no onboarding, deixa de ser autodeclaração e passa a ser coleta; (2) **não
+> reaproveitar para inferência** (score, ranking, segmentação de preço) sem passar
+> pelo PO — o consentimento aqui é para exibir no perfil e filtrar, nada além.
+> O mesmo vale para `height_cm`.
 
-**Campos do membro (consumer):**
+**Campos do membro (consumer)** — entregues no PR #92:
 
-- [ ] `interests` json[] — tags de interesse (mesmo conjunto das tags de performer)
-- [ ] `seeking` text nullable — "O que estou buscando" (texto livre)
+- [x] `interests` — tags de interesse (~~json[]~~ → **tabela `member_interest`**,
+      mesmo conjunto das tags de performer)
+- [x] `seeking` text nullable — "O que estou buscando" (texto livre)
 
-**Filtros do catálogo** (membro filtra performers):
+**Filtros do catálogo** (membro filtra performers) — entregues no PR #94, service
+unificado entre as duas portas (catálogo autenticado e público):
 
-- [ ] Verificação: Selfie verificada · ID verificado · Com fotos · **Online agora (já existe)**
-- [ ] Mundo: Mulheres / Homens / Trans / Casais (já existe)
-- [ ] Tier: Verificada / Select / Maison
-- [ ] Estilo de vida: qualquer tag do conjunto acima
-- [ ] O que oferece: qualquer tag do conjunto acima
-- [ ] Bebida: Não bebe / Bebe socialmente / Bebe frequentemente
-- [ ] Fumo: Não fuma / Fuma socialmente / Fuma
-- [ ] Idiomas: Português / Inglês / Espanhol / Francês / Italiano / Alemão / Japonês
-- [ ] Altura: slider 140cm → 190cm
-- [ ] Localização: cidade/estado
-- [ ] Busca por texto: busca em `stage_name` e `bio`
-- [ ] Salvar busca: filtros favoritos — **o texto de origem diz "performer pode
-      salvar"; é o MEMBRO quem filtra performers** (ver R3)
+- [x] Estilo de vida: qualquer tag do conjunto acima
+- [x] O que oferece: qualquer tag do conjunto acima
+- [x] Bebida: Não bebe / Bebe socialmente / Bebe frequentemente
+- [x] Fumo: Não fuma / Fuma socialmente / Fuma
+- [x] Idiomas: Português / Inglês / Espanhol / Francês / Italiano / Alemão / Japonês
+- [x] Altura: faixa `height_min`/`height_max` (140–190)
+- [x] Tier: Verificada / Select / Maison
+- [x] Busca por texto: `search`, em `stage_name` e `bio`
+- [x] **Localização: só ESTADO** — não cidade. `city` existe na tabela e **nunca
+      sai**; ver R2 abaixo e §5.
+- [x] Mundo e **Online agora**: já existiam antes do Sprint 9A.
+
+**Continuam ABERTOS desta lista** (não entregues no 9A):
+
+- [ ] **Verificação: "ID verificado"** — depende da verificação de documento como
+      produto (item de alta prioridade acima), que **não foi implementada**. O
+      badge tem o slot reservado no `VerificationBadges` (PR #90), sem a fonte de
+      dado por trás.
+- [ ] **Verificação: "Com fotos"** — não existe filtro nem coluna. Depende do
+      carrossel de múltiplas fotos, também não entregue.
+- [ ] **Salvar busca (filtros favoritos)** — nada implementado. **R3 fica
+      confirmado pelo PO: quem salva é o MEMBRO**, não a performer. Quando for
+      implementado, é preferência de membro, não do perfil da performer.
 
 **Cruzamento de afinidade (futuro Sprint 10):**
 Tags do membro (`interests`) cruzadas com tags da performer → score de afinidade.
@@ -1400,7 +1598,10 @@ exposição do membro à performer.**
 
 #### Outros itens do Sprint 9 identificados nas telas do Seeking
 
-**Indicador de online no card do catálogo — ⚠️ JÁ IMPLEMENTADO, é restyle:**
+**Indicador de online no card do catálogo — ✅ RESTYLE FEITO (PR #88).**
+A ressalva do Sprint 8 estava certa e o PR tratou como restyle, não como feature
+nova. Registro original preservado abaixo:
+
 O texto de origem diz "só falta aparecer no catálogo". **Aparece.** Os dois cards
 (`PerformerCard.vue` do catálogo autenticado e `PublicPerformerCard.vue` do
 público) já renderizam `<LiveBadge />` em `absolute top-2 left-2` sob
@@ -1418,33 +1619,46 @@ o Sprint 9 reimplementar o que já roda.
       original colide com a decisão de EXIF já travada pelo PO**
 - [ ] Contador de fotos no card ("📷 11" como no Seeking)
 
-**Badges de verificação visíveis no perfil:**
-- [ ] ✓ Selfie verificada (já existe via KYC — performer desde o Sprint 5, membro
-      desde o Nível 2 do Sprint 8)
-- [ ] ✓ ID verificado (Sprint 9 — KYC com documento)
-- [ ] ✓ Email verificado (já existe)
+**Badges de verificação visíveis no perfil — ✅ PARCIAL (PR #90):**
+- [x] ✓ Selfie verificada (já existia via KYC — performer desde o Sprint 5, membro
+      desde o Nível 2 do Sprint 8); agora exibida no card e no perfil
+- [ ] ✓ ID verificado — **slot reservado, sem fonte de dado.** Depende da
+      verificação de documento como produto, não implementada.
+- [x] ✓ Email verificado — **booleano, nunca a data.** `email_verified_at` no
+      resource dataria o cadastro da performer para qualquer visitante anônimo.
 - [ ] ✓ Instagram (OAuth Meta — Sprint 10; ver R5)
 
-**Contador de caracteres motivacional no bio:**
-- [ ] 0–49: "Conte mais sobre você..." · 50–149: "Bom começo! Continue..." ·
+**Contador de caracteres motivacional no bio — ✅ ENTREGUE (PR #89):**
+- [x] 0–49: "Conte mais sobre você..." · 50–149: "Bom começo! Continue..." ·
       150–299: "Você está indo bem! 🔥" · 300+: "Perfil completo atrai mais membros ✓"
 
-**Email de boas-vindas do fundador:**
-- [ ] Email pessoal de Robson + Bruno para cada novo membro/performer aprovado
-- [ ] Inspirado na carta do CEO Brandon Wade do Seeking
-- [ ] Conteúdo: história do Limen, o que esperar, próximos passos
-- [ ] Enviado via Resend após KYC aprovado — **ver R6 (assunto e remetente não
-      podem expor o destinatário na caixa de entrada)**
+**Email de boas-vindas do fundador — ✅ ENTREGUE (PR #98):**
+- [x] Email pessoal de Robson + Bruno, enviado via Resend após KYC aprovado
+      (`welcome_email_sent_at` em `users` guarda o envio — não reenvia)
+- [x] **R6 atendido:** envelope neutro. O que a caixa de entrada mostra não
+      denuncia cadastro em plataforma adulta; o corpo é que é pessoal.
 
-**hCaptcha no login e cadastro:**
-- [ ] Proteção anti-bot no formulário de login e cadastro (hCaptcha, não
-      reCAPTCHA — mesmo modelo do Seeking). Nada de captcha existe hoje. Ver R7.
+**hCaptcha no login e cadastro — ✅ ENTREGUE (PR #97):**
+- [x] `HCaptchaVerifier` + `config/hcaptcha.php`. Só a chave **pública** vai ao
+      front, e só quando ligado — desligado, o componente não monta e **nenhuma
+      requisição sai para o hcaptcha.com**.
+- [ ] **R7 continua ABERTO e não é dívida de código:** hCaptcha é
+      **subprocessador terceiro** que vê o IP de quem entra numa plataforma
+      adulta. Falta entrar na **política de privacidade** e no **registro de
+      subprocessadores** antes de subir com a chave real. Ver A.1.
 
-**Geolocalização no perfil:**
-- [ ] Pedir permissão de localização durante onboarding
-- [ ] Gravar cidade/estado (**não** coordenadas exatas — LGPD)
-- [ ] Exibir "Agora: São Paulo" no perfil da performer — **ver R2**
-- [ ] Opt-in — performer pode recusar
+**Geolocalização no perfil — ✅ ENTREGUE, com escopo reduzido de propósito (PR #96):**
+- [x] Opt-in — a performer pode não preencher e pode limpar depois. Ausente é o
+      padrão, não pendência a cobrar.
+- [x] `state` **público**; `city` gravado e **nunca exposto** (nenhum resource,
+      prop ou API).
+- [x] **Nada de coordenadas.** Não há `lat`/`lng`, e não deve haver.
+- [ ] ~~Pedir permissão de localização durante onboarding~~ **CORTADO.** A tela
+      **não usa a API de geolocalização do navegador** — os campos são digitados
+      pela performer. Pedir permissão traria coordenada exata para dentro do
+      produto justamente onde ele depende de a performer não ser localizável.
+- [x] ~~Exibir "Agora: São Paulo"~~ → **R2 resolvido:** exibe a UF, e **some
+      quando `is_live` está ligado**. Presença ao vivo + localização era o risco.
 
 #### Ressalvas registradas antes de implementar
 
@@ -1452,9 +1666,19 @@ Levantadas no fecho do Sprint 8, na conferência do texto contra o código. Não
 vetos — são pontos que colidem com decisão já travada ou com princípio do
 `CLAUDE.md`, e que ficam mais baratos de resolver agora do que depois da migration.
 
+> **Status no fecho do Sprint 9A:** **R2, R3 e R8 estão RESOLVIDOS** e viraram
+> código (detalhe em "Sprint 9A — O que foi entregue"). **R1 segue valendo** como
+> regra geral de ingestão de imagem — não foi exercitado porque nenhuma feature de
+> upload de foto entrou no 9A. **R4 e R5 seguem abertos** (são Sprint 10 e não
+> foram tocados). **R6 foi atendido** no e-mail do fundador. **R7 segue aberto e
+> não é código:** hCaptcha subiu, mas a entrada dele na política de privacidade e
+> no registro de subprocessadores não — ver A.1.
+
 > A ressalva sobre `ethnicity` saiu junto com o campo: o PO cortou o escopo em
 > 27/07/2026 e não há mais o que ressalvar. O registro da remoção está na lista de
-> campos acima.
+> campos acima. **`drinks`/`smokes` ganharam ressalva própria ali** (autodeclarado,
+> opcional, sem inferência) — não é a mesma classe de dado, mas também não é
+> neutro.
 
 - **R1 — "guardar original" contradiz a decisão de EXIF do PO (24/07/2026).** A
   decisão travada na Feature de foto efêmera é *re-encodar na ingestão, removendo
@@ -1504,6 +1728,50 @@ vetos — são pontos que colidem com decisão já travada ou com princípio do
   tabela de junção, ou aceitar e medir — mas decidir, não descobrir em produção.
 
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md · análise de 37 telas (julho/2026)
+
+---
+
+### Sprint 10 — Backlog
+
+Aberto no fecho do Sprint 9A. Além do que já estava marcado como Sprint 10 acima
+(cruzamento de afinidade / "Compatíveis com você" — ver **R4**; badge de Instagram
+via OAuth Meta — ver **R5**; vídeo nos Stories), entram os dois caminhos abaixo.
+
+> **Registrados por título, spec pendente.** O PO nomeou os dois no fecho do 9A;
+> o detalhe de escopo **não foi transferido para este doc** e não está em nenhum
+> commit, doc ou issue do repositório — procurei. O que segue é o nome, o vínculo
+> com o que já existe e as perguntas que precisam de resposta antes de virar
+> código. **Quem for implementar: peça a spec ao PO, não deduza daqui.**
+
+Contexto comum: os dois são **caminhos alternativos de aproximação**, ao lado do
+Interesse Controlado. O "Caminho 1" é o Interesse, que no Sprint 9A ganhou a
+segunda porta (seguidores + visitantes, PR #95).
+
+**Caminho 2 — Convite via Stories**
+- [ ] Spec pendente com o PO.
+- **Dependência dura:** Stories **não existe**. É a trilha de conteúdo efêmero do
+      Sprint 9 que continua aberta, com os 🔴 da pré-análise — inclusive o
+      pipeline de moderação exigido **antes** do primeiro upload. Este caminho
+      não pode ser implementado antes dela.
+- **Perguntas em aberto:** quem convida quem (performer→membro, como o Interesse,
+      ou membro→performer?); custa token?; o convite respeita o nível de
+      visibilidade do Story (público / assinantes / exclusivo)?; entra na mesma
+      cota e no mesmo cooldown de 30 dias do Interesse, ou tem os seus?
+
+**Caminho 3 — Badge "Disponível para conversa"**
+- [ ] Spec pendente com o PO.
+- **É sinal de presença**, e presença é a categoria de risco que o **R2** acabou
+      de tratar: a localização da performer some quando `is_live` está ligado,
+      justamente para não somar "onde" com "agora". Um badge de disponibilidade é
+      outro "agora" — decidir se ele coexiste com a UF ou se entra na mesma
+      exclusão.
+- **Perguntas em aberto:** quem liga o badge (performer manualmente, ou derivado
+      de atividade?); se derivado, é presença inferida e cai na mesma ressalva do
+      `is_invisible` (§12.4 / props do Inertia); vale para o membro também, ou só
+      para a performer?
+- **Se um dia valer para o MEMBRO, é superfície nova de exposição membro →
+      performer** e entra pela regra do `CLAUDE.md`: passa por `FanAlias`, nunca
+      pelo id, e entra na pré-análise de segurança antes de virar código.
 
 ### A.3 Higiene / dívida técnica
 
@@ -1619,7 +1887,7 @@ PerformerProfileService · PerformerCatalogService
 ChatService · ChatAccessService
 FollowerVisibilityService · DiscreteModeService · ProfileVisitService · PrivacyPerkService
 DocumentAcceptanceService · DeletionService · TwoFactorService
-GeoLocationService · SharedRegistrationIpService
+GeoLocationService · SharedRegistrationIpService · HCaptchaVerifier
 Asaas/ (AsaasHttpClient, FakeAsaasClient) · Kyc/ (DiditKycClient, KycHttpClient,
 FakeKycClient, KycDocumentStore) · Waitlist/ (FounderPresenter, …)
 ```
@@ -1650,8 +1918,8 @@ ReconcileWallets · SendWaitlistNurture · BackfillPerformerAvatars
 
 ```
 app · asaas · auth · broadcasting · cache · chat · chat_filters · cors · database
-documents · filesystems · geo · inertia · interest · kyc · logging · mail · queue
-reverb · sanctum · services · session · waitlist · ziggy
+documents · filesystems · geo · hcaptcha · inertia · interest · kyc · logging · mail
+queue · reverb · sanctum · services · session · waitlist · ziggy
 ```
 
 ### Docs relevantes (`docs/`)
@@ -1680,8 +1948,10 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 ## Checklist de continuidade para o próximo chat
 
 - [ ] Ler o `CLAUDE.md` inteiro (é o cérebro; este handoff é o mapa).
-- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **912 verdes** antes de
+- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **1059 verdes** antes de
       começar.
+- [ ] Overlay novo entra **abaixo de `z-index 10001`** — a camada é reservada ao
+      PanicButton e `PanicButtonLayerTest` cobra (§15.1).
 - [ ] Antes de tarefa sensível (cadastro, KYC, pagamento, payout, privacidade),
       rodar o **subagente de segurança** (`security-reviewer`).
 - [ ] Toda rota nova de frontend → `config/ziggy.php`.
@@ -1697,5 +1967,6 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
 real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
-(`main`, `93b2878`, tag `v1.0-sprint8`). Onde este doc e o código divergirem no
-futuro, o código vence — e a divergência deve ser registrada aqui ou no CLAUDE.md.*
+(`main`, `93b2878`, tag `v1.0-sprint8`) e em 29/07/2026 no fecho do **Sprint 9A**
+(`main`, `1a51d77`, sem tag). Onde este doc e o código divergirem no futuro, o
+código vence — e a divergência deve ser registrada aqui ou no CLAUDE.md.*
