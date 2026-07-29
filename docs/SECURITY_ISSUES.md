@@ -856,5 +856,19 @@ no código: **"chat ativo" pergunta ao `ChatAccessService` se o membro pode ENVI
 mensagem agora (`can_send`)**, em vez de consultar `chat_access` na mão. O
 assinante de Círculo tem chat livre e **não gera linha** naquela tabela — a
 leitura literal ("existe `ChatAccess` não expirada") recusaria justamente quem
-paga mais. Carência (`grace`) não passa: quem não pode nem responder não recebe
-rosto novo.
+paga mais (coberto por teste, porque é a justificativa do desenho). Carência
+(`grace`) não passa: quem não pode nem responder não recebe rosto novo.
+
+O gate replica as **duas** portas de `ChatService::sendMessage()` — o
+`can_send` e o `conversation->status === 'active'` — e recusa também performer
+suspensa, pendente ou encerrada, sempre com a mesma resposta (`no_active_chat`),
+para não devolver ao membro o estado da conta dela.
+
+> **Follow-up: as duas portas são uma CÓPIA, e cópia diverge.** O certo é um
+> `canMemberSend(Conversation, User)` com uma dona só, na mesma disciplina de
+> `FollowerVisibilityService::applyFloorEligibility()`. Não foi feito porque
+> `sendMessage()` distingue as duas falhas em exceções diferentes
+> (`conversationArchived` vs `accessRequired`) e unificar mudaria a resposta do
+> chat. Enquanto não for unificado, **regra nova no envio de mensagem tem de ser
+> replicada em `MemberPhotoService::shareWith()`** — foi assim que o
+> `status === 'active'` passou batido na primeira versão.

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Web;
 
 use App\Http\Requests\Web\Concerns\FailsValidationAsJson;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Compartilhamento de uma foto efêmera com UMA performer.
@@ -25,7 +26,15 @@ class ShareMemberPhotoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'performer_profile_id' => ['required', 'integer', 'exists:performer_profiles,id'],
+            'performer_profile_id' => [
+                'required',
+                'integer',
+                // `whereNull('deleted_at')` porque a regra `exists` consulta a
+                // TABELA e não o model: sem isso ela aceita perfil encerrado, e
+                // o corte acabaria dependendo por acidente do global scope de
+                // quem for buscar o perfil depois.
+                Rule::exists('performer_profiles', 'id')->whereNull('deleted_at'),
+            ],
         ];
     }
 }

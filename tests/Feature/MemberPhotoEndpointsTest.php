@@ -3,6 +3,7 @@
 use App\Models\ChatAccess;
 use App\Models\MemberPhoto;
 use App\Models\MemberPhotoAccess;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Services\MemberPhotoStore;
 use App\Support\FanAlias;
@@ -229,6 +230,115 @@ it('recusa o compartilhamento sem chat ativo com aquela performer', function () 
         ->assertJsonPath('reason', 'no_active_chat');
 
     expect(MemberPhotoAccess::count())->toBe(0);
+});
+
+it('deixa o assinante de Círculo compartilhar sem linha em chat_access', function () {
+    // Este teste é a JUSTIFICATIVA do desenho do gate, e por isso ele existe:
+    // assinante tem chat livre e nunca gera linha em `chat_access`. Um gate
+    // escrito como "existe ChatAccess não expirada" recusaria exatamente quem
+    // paga mais — e passaria despercebido, porque o caminho do não-assinante
+    // continuaria verde.
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer);
+
+    Subscription::factory()->circle('explorador')->create([
+        'user_id' => $member->id,
+        'status' => 'active',
+        'current_period_end' => now()->addMonth(),
+    ]);
+
+    expect(ChatAccess::where('member_id', $member->id)->count())->toBe(0);
+
+    $photo = epStorePhoto($member->fresh());
+
+    $this->actingAs($member->fresh())
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertOk()
+        ->assertJsonPath('photo.shared_with', 1);
+});
+
+it('recusa o compartilhamento quando a conversa não está ativa', function () {
+    [$member, $performer, $conversation] = epPairWithActiveChat();
+    $photo = epStorePhoto($member);
+
+    // A segunda porta do `sendMessage()`. Nada seta 'archived' hoje, mas o dia
+    // em que setar — bloqueio, Panic Button, moderação — é o dia em que o canal
+    // de mensagem fecha; o de ROSTO não pode continuar aberto.
+    $conversation->forceFill(['status' => 'archived'])->save();
+
+    $this->actingAs($member)
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'no_active_chat');
+
+    expect(MemberPhotoAccess::count())->toBe(0);
+});
+
+it('recusa o compartilhamento com performer suspensa ou encerrada', function () {
+    [$member, $performer] = epPairWithActiveChat();
+    $photo = epStorePhoto($member);
+
+    // Suspensa: o `can('performer-active')` da rota de leitura impede que ela
+    // VEJA hoje, mas não impede a linha de existir — e o acesso passaria a
+    // valer no instante da reativação, inclusive numa suspensão por moderação.
+    $performer->user->forceFill(['status' => 'suspended'])->save();
+
+    $this->actingAs($member)
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'no_active_chat');
+
+    // Encerrada (soft delete do usuário): mesma recusa, mesma mensagem —
+    // distinguir os casos devolveria ao membro o estado da conta dela.
+    $performer->user->forceFill(['status' => 'active'])->save();
+    $performer->user->delete();
+
+    $this->actingAs($member)
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'no_active_chat');
+
+    expect(MemberPhotoAccess::count())->toBe(0);
+});
+
+it('responde em JSON quando o perfil da performer foi encerrado', function () {
+    [$member, $performer] = epPairWithActiveChat();
+    $photo = epStorePhoto($member);
+
+    // Perfil soft-deletado. O `exists` do Form Request agora exclui os
+    // encerrados (`whereNull('deleted_at')`), então quem recusa é a validação —
+    // em 422 JSON, e não no 404 HTML que o `findOrFail` do controller devolvia
+    // a um `fetch`. O `find()` do controller ficou como segunda camada para o
+    // dia em que a regra de validação mudar.
+    $performer->delete();
+
+    $this->actingAs($member)
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('performer_profile_id');
+
+    expect(MemberPhotoAccess::count())->toBe(0);
+});
+
+it('recusa a foto acima do cap antes de gastar o processamento', function () {
+    $member = chatMember();
+
+    foreach (range(1, MemberPhoto::ACTIVE_LIMIT) as $i) {
+        epStorePhoto($member);
+    }
+
+    $before = count(Storage::disk(MemberPhotoStore::DISK)->allFiles());
+
+    $this->actingAs($member)
+        ->postJson(route('member.photos.store'), ['foto' => epUpload(), 'ttl_horas' => 24])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'active_limit_reached');
+
+    // A prova de que a recusa foi ANTES do pipeline: nenhum arquivo chegou a
+    // ser gravado e apagado em seguida pela compensação. Sem o fail-fast, o
+    // membro no cap ainda pagaria decode + re-encode + cifra + ~9 MB de IO a
+    // cada tentativa, 10x por minuto, sem deixar linha no banco.
+    expect(Storage::disk(MemberPhotoStore::DISK)->allFiles())->toHaveCount($before);
 });
 
 it('recusa o compartilhamento quando a janela do chat venceu', function () {
@@ -510,6 +620,39 @@ it('barra a performer nas rotas de membro e o membro na rota da performer', func
     $this->actingAs($member)
         ->get(route('performer.photos.image', $access->id))
         ->assertForbidden();
+});
+
+it('manda a performer sem aceite de documentos para a tela de aceite', function () {
+    [$member, $performer] = epPairWithActiveChat();
+    $photo = epStorePhoto($member);
+
+    $this->actingAs($member)
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertOk();
+
+    $access = MemberPhotoAccess::where('member_photo_id', $photo->id)->sole();
+
+    // A UserFactory aceita os documentos por padrão (o estado "em dia" é o
+    // default), então o teste tem de DESFAZER o aceite para exercitar o gate.
+    // Foi a lição do `documents.accepted`: gate que fecha uma porta só não é gate.
+    $performer->user->documentAcceptances()->delete();
+
+    $this->actingAs($performer->user->fresh())
+        ->get(route('performer.photos.image', $access->id))
+        ->assertRedirect(route('performer.documents'));
+});
+
+it('exige a verificação do membro nas rotas de foto', function () {
+    // `member.verified` cobre o grupo INTEIRO da área do membro. Quem está em
+    // `pending_kyc` não alcança nem o upload nem a leitura.
+    $member = User::factory()->create(['role' => 'consumer', 'status' => 'pending_kyc']);
+
+    // Só a rota SEM parâmetro: numa rota com binding o `SubstituteBindings` do
+    // grupo `web` roda antes do middleware e o 404 chegaria primeiro. O grupo é
+    // o mesmo para as quatro rotas, então provar numa prova em todas.
+    $this->actingAs($member)
+        ->post(route('member.photos.store'), ['ttl_horas' => 24])
+        ->assertRedirect(route('consumer.kyc.index'));
 });
 
 it('manda ao desafio de 2FA a performer que ainda não provou o fator', function () {

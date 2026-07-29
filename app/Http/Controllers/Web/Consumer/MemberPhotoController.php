@@ -58,7 +58,28 @@ class MemberPhotoController extends Controller
      */
     public function share(ShareMemberPhotoRequest $request, MemberPhoto $photo): JsonResponse
     {
-        $profile = PerformerProfile::findOrFail($request->integer('performer_profile_id'));
+        // `find()` e não `findOrFail()`: a exceção do segundo vira 404 **HTML**
+        // numa rota web (o `shouldRenderJsonWhen` só cobre `api/*`), e o
+        // `postJson` do front faz `response.json()` — o membro veria o erro
+        // genérico do catch. É o mesmo buraco que o FailsValidationAsJson fecha
+        // para validação, num caminho que não passa por validação.
+        //
+        // A resposta é a MESMA de "sem chat ativo", e isso não é preguiça: o
+        // `exists:` do Form Request já passou (ele consulta a tabela e não
+        // aplica o global scope de soft delete), então chegar aqui com `null`
+        // significa perfil ENCERRADO. Um erro próprio para esse caso diria ao
+        // membro que a conta dela foi encerrada — estado da conta dela, não
+        // dele. Quem decide o resto do estado da performer é o Service.
+        $profile = PerformerProfile::find($request->integer('performer_profile_id'));
+
+        if ($profile === null) {
+            $notReachable = MemberPhotoException::noActiveChat();
+
+            return response()->json([
+                'reason' => $notReachable->reason,
+                'message' => $notReachable->getMessage(),
+            ], 422);
+        }
 
         try {
             $this->photos->shareWith($request->user(), $photo, $profile);

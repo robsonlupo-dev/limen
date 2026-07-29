@@ -88,13 +88,37 @@ class MemberPhotoService
      * qualquer perfil do catálogo, sem passar pelo gate pago do Sprint 3/4.
      *
      * ── "Chat ativo" é o mesmo critério do chat, não uma segunda definição ───
-     * A checagem pergunta ao `ChatAccessService` se o membro **pode enviar
-     * mensagem agora** (`can_send`), em vez de consultar `chat_access` na mão.
-     * Duas razões, e a segunda é a que importa: (1) assinante de Círculo tem
-     * chat livre e **não gera linha** em `chat_access` — uma consulta crua à
-     * tabela recusaria justamente quem paga mais; (2) o dia em que a regra do
-     * chat mudar, ela muda num lugar só. Carência (`grace`) NÃO passa: quem não
-     * pode nem responder não deve receber rosto novo.
+     * As DUAS portas de `ChatService::sendMessage()` são replicadas aqui, e é
+     * por isso que são duas:
+     *
+     *  1. `conversation->status === 'active'`. Nada seta `archived` hoje (o
+     *     enum existe na migration, a transição não), mas o dia em que existir
+     *     — bloqueio pelo membro, Panic Button, ação de moderação — é
+     *     exatamente o dia em que o canal de mensagem fecha e o de ROSTO não
+     *     pode continuar aberto. Conversa é arquivada justamente no conflito.
+     *  2. `accessState()['can_send']`, e não uma consulta crua a `chat_access`:
+     *     assinante de Círculo tem chat livre e **não gera linha** naquela
+     *     tabela — a leitura literal recusaria justamente quem paga mais.
+     *     Carência (`grace`) NÃO passa: quem não pode nem responder não deve
+     *     receber rosto novo.
+     *
+     * > Ressalva: as duas portas são uma CÓPIA das de `sendMessage()`, e cópia
+     * > diverge. O certo é um `canMemberSend(Conversation, User)` com uma dona
+     * > só (mesma disciplina de `applyFloorEligibility()`); não foi feito aqui
+     * > porque `sendMessage()` distingue as duas falhas em exceções diferentes
+     * > e unificar mudaria a resposta do chat. Follow-up registrado.
+     *
+     * ── E a performer precisa estar de pé ───────────────────────────────────
+     * Perfil encerrado (soft delete) ou conta fora de `active` — suspensa,
+     * pendente, banida — não recebe rosto novo. Sem esta checagem o grant é
+     * criado, os bytes ficam, e o acesso passa a valer no instante em que a
+     * conta for reativada — inclusive uma conta suspensa POR MODERAÇÃO. O
+     * `can('performer-active')` da rota de leitura impede que ela veja hoje,
+     * mas não impede a linha de existir.
+     *
+     * A recusa é a MESMA (`no_active_chat`) em todos os casos, de propósito:
+     * distinguir "ela encerrou" de "ela está suspensa" de "seu chat venceu"
+     * devolveria ao membro o estado da conta dela.
      *
      * @throws MemberPhotoException não é o dono, foto morta, ou sem chat ativo
      */
@@ -102,12 +126,16 @@ class MemberPhotoService
     {
         $this->assertOwns($owner, $photo);
 
+        if (! $this->performerIsReachable($profile)) {
+            throw MemberPhotoException::noActiveChat();
+        }
+
         $conversation = Conversation::query()
             ->where('member_id', $owner->getKey())
             ->where('performer_profile_id', $profile->getKey())
             ->first();
 
-        if ($conversation === null) {
+        if ($conversation === null || $conversation->status !== 'active') {
             throw MemberPhotoException::noActiveChat();
         }
 
@@ -116,6 +144,25 @@ class MemberPhotoService
         }
 
         return $this->grantTo($owner, $photo, $profile);
+    }
+
+    /**
+     * A performer está de pé para receber?
+     *
+     * `withTrashed()` no usuário porque o encerramento de conta é soft-delete
+     * (item 11 do CLAUDE.md): sem isso a relação devolve `null` para a conta
+     * encerrada e o `?->status` cairia no mesmo `false` por acidente, não por
+     * decisão — e um dia alguém "consertaria" o null.
+     */
+    private function performerIsReachable(PerformerProfile $profile): bool
+    {
+        if ($profile->trashed()) {
+            return false;
+        }
+
+        $user = $profile->user()->withTrashed()->first();
+
+        return $user !== null && ! $user->trashed() && $user->status === 'active';
     }
 
     /**
@@ -152,6 +199,23 @@ class MemberPhotoService
     {
         if (! in_array($ttlHours, MemberPhoto::TTL_HOURS, true)) {
             throw MemberPhotoException::invalidTtl($ttlHours);
+        }
+
+        // Recusa BARATA antes do trabalho caro. Não substitui a checagem sob
+        // lock lá embaixo — aquela é a autorização, esta é só economia.
+        //
+        // Sem ela, o membro já no cap ainda paga o pipeline inteiro por upload
+        // recusado: decodificar no GD (o teto de 13 MP do config são ~55 MB de
+        // pico), redimensionar, re-encodar, cifrar e gravar ~9 MB, para a
+        // transação derrubar tudo em seguida. A 10 uploads/min do throttle isso
+        // é amplificação sustentada de CPU e IO que não deixa uma linha no
+        // banco — e o `memory_limit` real do php-fpm em produção ainda não foi
+        // verificado (pendência registrada em docs/SECURITY_ISSUES.md).
+        //
+        // A corrida entre este count e o de baixo é irrelevante: as duas
+        // respostas possíveis são "recusa agora" e "recusa 200ms depois".
+        if (MemberPhoto::query()->activeForUser($member->id)->count() >= MemberPhoto::ACTIVE_LIMIT) {
+            throw MemberPhotoException::activeLimitReached();
         }
 
         $path = $this->store->store($file, $member->id);

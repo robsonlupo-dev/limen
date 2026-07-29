@@ -301,9 +301,14 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     </button>
                 </div>
 
+                <!-- Sem citar o Contrato de Performance: o texto é placeholder
+                     (aguardando Opice Blum), e afirmar que um comportamento
+                     viola uma cláusula de um documento que ninguém pode ler é a
+                     mesma disciplina de linguagem do § 1.1 — não prometer o que
+                     não se entrega. Os Termos de Uso existem e valem. -->
                 <p v-if="receivedPhotos.length" class="text-xs text-muted">
                     As fotos somem do servidor quando o prazo acaba. Guardar, reproduzir ou
-                    repassar o conteúdo viola o Contrato de Performance.
+                    repassar o conteúdo é violação dos Termos de Uso.
                 </p>
             </div>
         </div>
