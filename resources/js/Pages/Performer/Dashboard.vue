@@ -301,14 +301,21 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     </button>
                 </div>
 
-                <!-- Sem citar o Contrato de Performance: o texto é placeholder
-                     (aguardando Opice Blum), e afirmar que um comportamento
-                     viola uma cláusula de um documento que ninguém pode ler é a
-                     mesma disciplina de linguagem do § 1.1 — não prometer o que
-                     não se entrega. Os Termos de Uso existem e valem. -->
+                <!-- Sem instrumento NOMEADO, e isso é decisão, não vagueza.
+                     O Contrato de Performance é placeholder (aguardando Opice
+                     Blum): afirmar que um comportamento viola cláusula de um
+                     texto que ninguém pode ler é a mesma falha de linguagem que
+                     o § 1.1 existe para evitar. E "Termos de Uso" seria pior —
+                     não há rota para eles neste app (o link do rodapé é `#`),
+                     então a atribuição seria a um documento que ela nunca
+                     aceitou e não consegue abrir.
+                     A regra da plataforma vale por si e é o que a performer de
+                     fato aceitou; quando o texto definitivo entrar, esta frase
+                     pode voltar a citá-lo pelo nome. -->
                 <p v-if="receivedPhotos.length" class="text-xs text-muted">
                     As fotos somem do servidor quando o prazo acaba. Guardar, reproduzir ou
-                    repassar o conteúdo é violação dos Termos de Uso.
+                    repassar o conteúdo é proibido pelas regras da plataforma e pode levar à
+                    suspensão da conta.
                 </p>
             </div>
         </div>

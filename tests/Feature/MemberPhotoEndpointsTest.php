@@ -1,10 +1,12 @@
 <?php
 
+use App\Exceptions\MemberPhotoException;
 use App\Models\ChatAccess;
 use App\Models\MemberPhoto;
 use App\Models\MemberPhotoAccess;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\MemberPhotoService;
 use App\Services\MemberPhotoStore;
 use App\Support\FanAlias;
 use Illuminate\Http\UploadedFile;
@@ -305,19 +307,48 @@ it('responde em JSON quando o perfil da performer foi encerrado', function () {
     [$member, $performer] = epPairWithActiveChat();
     $photo = epStorePhoto($member);
 
-    // Perfil soft-deletado. O `exists` do Form Request agora exclui os
-    // encerrados (`whereNull('deleted_at')`), então quem recusa é a validação —
-    // em 422 JSON, e não no 404 HTML que o `findOrFail` do controller devolvia
-    // a um `fetch`. O `find()` do controller ficou como segunda camada para o
-    // dia em que a regra de validação mudar.
+    // Perfil soft-deletado: recusa com o MESMO corpo de "sem chat ativo", e é
+    // esse o ponto do teste. O `exists` do Form Request não filtra encerrados
+    // de propósito — se filtrasse, o 422 de validação
+    // (`errors.performer_profile_id`) seria distinguível do 422 do Service
+    // (`reason`), e o membro, que tem o id da parceira nas props do Inertia,
+    // saberia por diferença de corpo que ela ENCERROU a conta: perfil só é
+    // soft-deletado pelo DeletionService.
     $performer->delete();
 
-    $this->actingAs($member)
+    $response = $this->actingAs($member)
         ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
         ->assertStatus(422)
-        ->assertJsonValidationErrors('performer_profile_id');
+        ->assertJsonPath('reason', 'no_active_chat');
+
+    // E o corpo não pode carregar a marca da validação, que é o que
+    // distinguiria os dois casos.
+    expect($response->json())->not->toHaveKey('errors');
 
     expect(MemberPhotoAccess::count())->toBe(0);
+});
+
+it('não distingue performer encerrada de performer suspensa na resposta', function () {
+    [$member, $performer] = epPairWithActiveChat();
+    $encerrada = epPairWithActiveChat();
+    $photo = epStorePhoto($member);
+
+    $performer->delete();
+    $encerrada[1]->user->forceFill(['status' => 'suspended'])->save();
+
+    $corpoEncerrada = $this->actingAs($member)
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->json();
+
+    $corpoSuspensa = $this->actingAs($encerrada[0])
+        ->postJson(route('member.photos.share', epStorePhoto($encerrada[0])->id), [
+            'performer_profile_id' => $encerrada[1]->id,
+        ])
+        ->json();
+
+    // Byte a byte: é a diferença entre os dois corpos que viraria oráculo de
+    // encerramento de conta — fato sensível sob LGPD, e estado da conta dela.
+    expect($corpoEncerrada)->toBe($corpoSuspensa);
 });
 
 it('recusa a foto acima do cap antes de gastar o processamento', function () {
@@ -327,18 +358,48 @@ it('recusa a foto acima do cap antes de gastar o processamento', function () {
         epStorePhoto($member);
     }
 
-    $before = count(Storage::disk(MemberPhotoStore::DISK)->allFiles());
+    // A asserção é sobre a CHAMADA, não sobre o saldo de disco. Medir "nenhum
+    // arquivo a mais no disco" passaria também no código sem fail-fast: lá o
+    // cap estourava dentro da transação, e a compensação do `catch` apagava o
+    // arquivo recém-gravado — saldo líquido zero, com o pipeline inteiro pago.
+    // O que se quer provar é que o pipeline NÃO RODA: decode no GD (~55 MB de
+    // pico no teto de 13 MP), redimensionamento, re-encode, cifra e ~9 MB de
+    // escrita, 10x por minuto, sem deixar uma linha no banco.
+    // Duas escolhas deste teste, e as duas foram medidas:
+    //
+    //  1. A asserção é sobre a CHAMADA ao Store, não sobre o saldo de arquivos
+    //     no disco. Medir o saldo passa também no código SEM fail-fast: lá o
+    //     cap estourava dentro da transação e a compensação do `catch` apagava
+    //     o arquivo recém-gravado — saldo líquido zero, com o pipeline inteiro
+    //     pago (decode no GD, ~55 MB de pico no teto de 13 MP, re-encode,
+    //     cifra, ~9 MB de escrita, 10x/min, sem deixar linha no banco).
+    //  2. A chamada é DIRETA ao service, não pelo endpoint: o mock do container
+    //     não alcança o que roda dentro do request HTTP (verificado — a flag
+    //     ficava falsa mesmo com o pipeline rodando, e o teste passaria sem
+    //     provar nada). O fail-fast é comportamento do service; é lá que ele se
+    //     prova. O endpoint já está coberto pelo teste do cap acima.
+    //
+    // `shouldNotReceive('store')` também não serve: a violação do `never()` só
+    // é apurada no `Mockery::close()` e não derruba o teste neste projeto.
+    $storeCalled = false;
 
-    $this->actingAs($member)
-        ->postJson(route('member.photos.store'), ['foto' => epUpload(), 'ttl_horas' => 24])
-        ->assertStatus(422)
-        ->assertJsonPath('reason', 'active_limit_reached');
+    $store = Mockery::mock(MemberPhotoStore::class)->shouldIgnoreMissing();
+    $store->shouldReceive('store')->andReturnUsing(function () use (&$storeCalled) {
+        $storeCalled = true;
 
-    // A prova de que a recusa foi ANTES do pipeline: nenhum arquivo chegou a
-    // ser gravado e apagado em seguida pela compensação. Sem o fail-fast, o
-    // membro no cap ainda pagaria decode + re-encode + cifra + ~9 MB de IO a
-    // cada tentativa, 10x por minuto, sem deixar linha no banco.
-    expect(Storage::disk(MemberPhotoStore::DISK)->allFiles())->toHaveCount($before);
+        return 'nunca/deveria/chegar.jpg.enc';
+    });
+
+    $this->instance(MemberPhotoStore::class, $store);
+
+    try {
+        app(MemberPhotoService::class)->create($member->fresh(), epUpload(), 24);
+        $this->fail('A foto acima do cap deveria ter sido recusada.');
+    } catch (MemberPhotoException $e) {
+        expect($e->reason)->toBe(MemberPhotoException::ACTIVE_LIMIT_REACHED);
+    }
+
+    expect($storeCalled)->toBeFalse();
 });
 
 it('recusa o compartilhamento quando a janela do chat venceu', function () {
