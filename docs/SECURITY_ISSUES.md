@@ -756,14 +756,56 @@ Policy — esses são o PR seguinte).
    derivado do clamp, e aceitá-lo por payload fura a regra "acesso não sobrevive
    ao conteúdo".
 
+### Segunda rodada de revisão (29/07/2026) — o que a verificação pegou
+
+A revisão do commit de correções confirmou 4 dos 6 itens sem ressalva e apontou
+três coisas, todas corrigidas em seguida:
+
+- **`destroy()` continuava sem ator** — é o quarto verbo da mesma classe e é o
+  que o endpoint de revoke vai chamar. Com route-model binding em
+  `DELETE /fotos/{photo}` e um controller que só delega, qualquer membro apagaria
+  a foto de outro. Agora existe `destroyForMember()`; `destroy()` segue como
+  primitivo de sistema (GC e `DeletionService`).
+- **Teto de 4 MP ficava ABAIXO da entrada primária do produto.** 4 MP são
+  2000x2000 e a foto de um iPhone (4032x3024 = 12,2 MP) seria recusada, sem o
+  membro ter como redimensionar. Subiu para 13 MP (~55 MB de pico no GD), com a
+  fórmula escrita no config. **Pendência: ninguém verificou o `memory_limit` real
+  do php-fpm em produção**, que é o número do qual essa conta depende.
+- **A troca do `updateOrCreate` por escrita explícita introduziu uma race.** O
+  `updateOrCreate` cai em `createOrFirst()`, que trata a violação do índice único
+  re-consultando; o select-then-insert cru devolvia 500 em duplo clique. Sair do
+  `updateOrCreate` foi necessário (com `expires_at` fora do `$fillable` ele
+  descartaria o prazo em silêncio), então ficou a escrita explícita com `catch`
+  da `UniqueConstraintViolationException`.
+
+Também nesta rodada: a linha da foto passou a sair em **hard delete**, e só
+depois de confirmar que os bytes saíram do disco. A linha morta guardava
+`user_id`, `size_bytes` e `created_at` indefinidamente — "o membro X mandou 43
+fotos, nestes horários" —, e a varredura `withTrashed()` do GC decifraria
+`path_encrypted` de todas elas a cada hora só para pular. `deleted_at` fica como
+estado intermediário (linha ida, bytes de pé), que é o que a varredura recolhe.
+
 ### Follow-ups aceitos pelo PO — NÃO corrigidos nesta branch
 
-- **Arquivo órfão no disco.** Os bytes são gravados fora da transação e a
-  compensação é só o `catch`: timeout, OOM ou SIGKILL entre a gravação e o commit
-  deixam arquivo cifrado SEM linha. Como todo o GC parte da tabela, esse arquivo
-  nunca é recolhido — retenção infinita, com o id do titular legível no nome do
-  diretório. Falta uma varredura do disco reconciliando com `member_photos`
-  (inclusive trashed), ou gravar em `pending/` e mover no `afterCommit`.
+- **Arquivo órfão no disco — repriorizar.** Os bytes são gravados fora da
+  transação e a compensação é só o `catch`: timeout, OOM ou SIGKILL entre a
+  gravação e o commit deixam arquivo cifrado SEM linha. Como todo o GC parte da
+  tabela, esse arquivo nunca é recolhido — retenção infinita, com o id do titular
+  legível no nome do diretório.
+  **O Hard Delete de conta agravou isto:** as linhas saem por `forceDelete()`
+  dentro da transação e os bytes depois, em best-effort. Se o disco recusar, o
+  encerramento termina com sucesso e o rosto fica no volume sem nenhuma linha em
+  lugar algum — antes, o GC ainda o pegaria em até 7 dias pelo TTL. Hoje o único
+  sinal é o `Log::warning` do `deleteFiles()` (com `deletion_log_id`, sem
+  caminho). Enquanto a varredura não existir, a mitigação barata é o
+  `deleteFiles()` conferir `exists()` depois do delete e adiar o `forceDelete()`
+  da linha para a rodada seguinte — o `deletions:process` é diário e idempotente.
+- **`grantTo()` não exige relação entre o membro e a performer de destino** —
+  nem Interesse desbloqueado, nem janela de chat, nem perfil aprovado. Qualquer
+  membro pode empurrar o próprio rosto para qualquer `performer_profile_id` do
+  catálogo, sem passar pelo gate pago do Sprint 3/4. Não é regressão do código
+  atual (o endpoint ainda não existe), mas é **decisão de produto que precisa
+  estar tomada antes de o PR dos endpoints abrir essa porta**.
 - **Cap de performers por foto (§ 1.1).** `grantTo()` não limita com quantas
   performers a mesma foto é compartilhada, e o agregado "você compartilhou sua
   foto com N performers" não existe. É a única mitigação registrada do risco

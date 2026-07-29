@@ -24,12 +24,21 @@ return new class extends Migration
      * disco — custaria privacidade. O comando `member-photos:purge` é garbage
      * collection, e o precedente é ChatAccess/PurgeExpiredChatAccess.
      *
-     * ── Soft delete, e por que ele obriga o GC a ser explícito ──────────────
-     * `deleted_at` marca a foto como ida; os BYTES saem do disco no mesmo passo
-     * (hard delete no storage). A consequência a não esquecer é a do item 11 do
-     * CLAUDE.md, verbatim: as FKs `cascadeOnDelete` de `member_photo_access`
-     * **nunca disparam**, porque a foto sai por soft delete. Quem apaga o acesso
-     * é código, sempre — ver a migration da tabela irmã.
+     * ── `deleted_at` é estado INTERMEDIÁRIO, não repouso ────────────────────
+     * A foto termina em HARD delete: `MemberPhotoService::destroy()` apaga os
+     * bytes, confirma que saíram e só então larga a linha, de vez. A linha morta
+     * não é neutra — guarda `user_id`, `size_bytes` e `created_at`, ou seja "o
+     * membro X mandou 43 fotos, nestes horários" —, e guardá-la reporia em
+     * metadado a retenção que a foto efêmera existe para não ter.
+     *
+     * `deleted_at` fica para o estado do MEIO: linha apagada com os bytes ainda
+     * no disco. É o que a varredura `withTrashed()` do GC recolhe — sem a
+     * coluna, esse arquivo sairia do alcance de qualquer rodada futura.
+     *
+     * A consequência a não esquecer é a do item 11 do CLAUDE.md, verbatim: as
+     * FKs `cascadeOnDelete` de `member_photo_access` **não podem ser o
+     * mecanismo** — no caminho do soft delete elas não disparam. Quem apaga o
+     * acesso é código, sempre, nos dois caminhos.
      *
      * ── Colunas cifradas ────────────────────────────────────────────────────
      * `path_encrypted` e `original_filename` saem cifradas pela APP_KEY (cast
