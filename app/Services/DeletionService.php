@@ -7,6 +7,7 @@ use App\Mail\AccountDeletionRequestedMail;
 use App\Models\DeletionLog;
 use App\Models\Follow;
 use App\Models\IdentityVerification;
+use App\Models\MemberPhoto;
 use App\Models\Message;
 use App\Models\Payment;
 use App\Models\Payout;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -34,7 +36,8 @@ use RuntimeException;
  *
  *  1. APAGA de verdade — dado que só diz respeito ao titular e não tem lastro
  *     legal: documentos de KYC (linhas + arquivos cifrados no disco), follows,
- *     tokens de sessão/API.
+ *     tokens de sessão/API, visitas de perfil e as fotos efêmeras (linhas,
+ *     acessos e bytes — ver purgeMemberPhotos()).
  *
  *  2. ANONIMIZA POR DESVÍNCULO — dado financeiro e de dupla titularidade:
  *     token_ledger, payments, tips, payouts, subscriptions, conversations,
@@ -298,6 +301,8 @@ class DeletionService
             $summary['member_interests'] = $this->purgeMemberInterests($user);
             $summary['profile_visits'] = $this->purgeProfileVisits($user);
             $summary['profile_visits_received'] = $this->purgeVisitsToOwnProfile($user);
+            $summary['member_photos'] = $this->purgeMemberPhotos($user);
+            $summary['member_photo_access_received'] = $this->purgePhotoAccessToOwnProfile($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
@@ -355,15 +360,26 @@ class DeletionService
     // ------------------------------------------------------------------
 
     /**
-     * Caminhos de arquivo a destruir: documentos de KYC (disco `kyc`, cifrados)
-     * e mídia do perfil (disco `local`). Coletado antes do commit, apagado
-     * depois — ver executeDeletion().
+     * Caminhos de arquivo a destruir: documentos de KYC (disco `kyc`, cifrados),
+     * mídia do perfil (disco `local`) e as fotos efêmeras do titular (disco
+     * `member_photos`, cifradas). Coletado antes do commit, apagado depois — ver
+     * executeDeletion().
      *
      * @return array<int, array{disk: string, path: string}>
      */
     private function collectFilePaths(User $user): array
     {
         $paths = [];
+
+        // `withTrashed()`: a foto sai por soft delete e o arquivo pode ter
+        // sobrevivido a uma falha do GC. Encerramento de conta é a última
+        // chance de recolher esses bytes — depois daqui não há linha para
+        // ninguém varrer.
+        foreach (MemberPhoto::withTrashed()->where('user_id', $user->id)->get() as $photo) {
+            if ($path = $photo->path_encrypted) {
+                $paths[] = ['disk' => MemberPhotoStore::DISK, 'path' => $path];
+            }
+        }
 
         foreach ($user->identityVerifications as $verification) {
             foreach (['document_front_path', 'document_back_path', 'selfie_path'] as $column) {
@@ -384,11 +400,24 @@ class DeletionService
         return $paths;
     }
 
-    /** @param array<int, array{disk: string, path: string}> $paths */
+    /**
+     * Destrói os bytes, DEPOIS do commit. Best-effort por natureza (o storage
+     * não faz rollback), mas nunca silencioso: os discos rodam com
+     * `throw => false`, então uma permissão errada devolveria `false` e o
+     * encerramento terminaria "com sucesso" deixando KYC ou o rosto do titular
+     * no volume. O log é o único sinal que sobra — sem o caminho, que carrega o
+     * id do titular (princípio 4).
+     *
+     * @param  array<int, array{disk: string, path: string}>  $paths
+     */
     private function deleteFiles(array $paths): void
     {
         foreach ($paths as $file) {
-            Storage::disk($file['disk'])->delete($file['path']);
+            if (! Storage::disk($file['disk'])->delete($file['path'])) {
+                Log::warning('deletion: arquivo do titular não pôde ser destruído', [
+                    'disk' => $file['disk'],
+                ]);
+            }
         }
     }
 
@@ -642,6 +671,66 @@ class DeletionService
         }
 
         return DB::table('profile_visits')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * As fotos efêmeras do titular: linhas E acessos, em DELETE de verdade.
+     *
+     * É a PII mais crua que a plataforma guarda depois do KYC — o rosto —, com
+     * um agravante que o KYC não tem: a foto já foi MOSTRADA a terceiros, e a
+     * tabela de acessos é o mapa de para quem. Nada disso tem contraparte
+     * financeira nem lastro legal, então é a categoria 1 do serviço (apaga de
+     * verdade), como `profile_visits` e os registros de KYC.
+     *
+     * `withTrashed()` e `forceDelete()` porque o soft delete aqui não basta: a
+     * linha carrega `user_id`, tamanho e horário do envio — "o membro X mandou
+     * 43 fotos, nestes horários" —, e o Hard Delete é justamente o pedido para
+     * que isso não exista mais. Os BYTES saem em deleteFiles(), depois do commit.
+     *
+     * Não sai pela FK: `cascadeOnDelete` nunca dispara, porque `anonymizeUser()`
+     * não apaga a linha do `users` (item 11 do CLAUDE.md, o mesmo motivo de
+     * purgeProfileVisits). Sem esta varredura, o rosto do titular continuaria no
+     * disco até o TTL — até 7 dias depois do encerramento — e servível a quem já
+     * tinha acesso concedido.
+     */
+    private function purgeMemberPhotos(User $user): int
+    {
+        $photoIds = MemberPhoto::withTrashed()
+            ->where('user_id', $user->id)
+            ->pluck('id');
+
+        if ($photoIds->isEmpty()) {
+            return 0;
+        }
+
+        DB::table('member_photo_access')->whereIn('member_photo_id', $photoIds)->delete();
+
+        return MemberPhoto::withTrashed()->whereIn('id', $photoIds)->forceDelete();
+    }
+
+    /**
+     * O outro lado: os acessos concedidos AO perfil da performer que encerra.
+     *
+     * PII de terceiros — quais membros ainda ativos mostraram o rosto para ela —
+     * pendurada num perfil que deixou de existir. Não sai por purgeMemberPhotos
+     * (aquele é por `user_id` do titular da foto) e não sai pela FK, pelo mesmo
+     * motivo de sempre: nem o usuário nem o perfil sofrem DELETE físico. É o
+     * análogo exato de purgeVisitsToOwnProfile().
+     *
+     * Só as LINHAS DE ACESSO: as fotos são de outra pessoa, continuam vivas para
+     * o dono e para as outras performers, e seus bytes seguem o TTL normal.
+     *
+     * Roda ANTES do anonymizePerformerProfile, enquanto a relação ainda resolve.
+     */
+    private function purgePhotoAccessToOwnProfile(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('member_photo_access')->where('performer_profile_id', $profileId)->delete();
     }
 
     private function ledgerEntryCount(User $user): int

@@ -63,6 +63,11 @@ return [
         //
         // `serve => false` como o `kyc`: os bytes só saem por MemberPhotoStore,
         // decifrados atrás de autorização — nunca por URL.
+        // `throw => false` como o resto dos discos — o `retrieve()` do Store
+        // depende de `get()` devolver null em vez de estourar. A contrapartida
+        // é que put/delete devolvem `false` em silêncio quando falham, e por
+        // isso o MemberPhotoStore CONFERE o retorno dos dois e lança ele mesmo.
+        // Não troque para `throw => true` sem revisar `MemberPhotoStore::retrieve()`.
         'member_photos' => [
             'driver' => 'local',
             'root' => storage_path('app/member-photos'),

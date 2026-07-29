@@ -65,7 +65,15 @@ class MemberPhotoStore
 
             $path = $userId.'/'.Str::random(40).'.jpg.enc';
 
-            Storage::disk(self::DISK)->put($path, Crypt::encryptString($bytes));
+            // O retorno é CONFERIDO. O disco roda com `throw => false`, então
+            // disco cheio ou permissão errada devolve `false` em silêncio — e
+            // sem esta checagem `store()` entregaria um caminho válido para uma
+            // gravação que não aconteceu. A linha seria criada, a tela do membro
+            // listaria "compartilhada" e o serving nunca abriria os bytes:
+            // exatamente o estado que a ordem bytes-primeiro existe para evitar.
+            if (! Storage::disk(self::DISK)->put($path, Crypt::encryptString($bytes))) {
+                throw new RuntimeException('Falha ao gravar a foto efêmera no disco.');
+            }
 
             return $path;
         } finally {
@@ -97,10 +105,28 @@ class MemberPhotoStore
         return Crypt::decryptString($payload);
     }
 
-    /** Hard delete. Não há soft delete de BYTES — é o produto inteiro. */
+    /**
+     * Hard delete. Não há soft delete de BYTES — é o produto inteiro.
+     *
+     * **Falha ao apagar LANÇA**, e isso é o que dá lastro à ordem bytes → banco
+     * do `MemberPhotoService::destroy()`. O disco roda com `throw => false`
+     * (o `retrieve()` depende do `get()` devolvendo null em vez de estourar),
+     * então quem não confere o retorno não fica sabendo: um `chown` errado num
+     * deploy faz `delete()` devolver `false`, o GC segue, soft-deleta a linha e
+     * o rosto do membro fica no disco — fora do alcance de qualquer rodada
+     * seguinte, porque a linha saiu do escopo padrão. Sem esta checagem, a
+     * efemeridade é cosmética justamente no cenário que o alarme `stale` existe
+     * para detectar.
+     *
+     * Apagar caminho inexistente é sucesso (Flysystem é idempotente aqui), então
+     * a re-tentativa do GC sobre uma foto cujos bytes já saíram não estoura.
+     */
     public function delete(string $path): void
     {
-        Storage::disk(self::DISK)->delete($path);
+        if (! Storage::disk(self::DISK)->delete($path)) {
+            // Sem o caminho na mensagem: ele carrega o id do titular (princípio 4).
+            throw new RuntimeException('Falha ao apagar a foto efêmera do disco.');
+        }
     }
 
     /**

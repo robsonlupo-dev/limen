@@ -52,10 +52,30 @@ class MemberPhoto extends Model
         'size_bytes',
     ];
 
-    /** Nem o caminho no disco nem o nome original saem em serialização. */
+    /**
+     * O que NUNCA sai em serialização — que é o caminho para as props do Inertia.
+     *
+     * Além do caminho no disco e do nome original (que costuma ser tão descritivo
+     * quanto a foto), os dois que a revisão de segurança apontou:
+     *
+     * - `user_id`: é o `member_id` cru. Qualquer tela que passasse o model da
+     *   foto à performer entregaria o id que o FanAlias existe para tirar de
+     *   circulação — e o alias é estável por par, então o vínculo iria junto
+     *   para gorjetas, seguidores e visitantes.
+     * - `expires_at`: é relógio. Com o TTL vindo de um menu de três opções, o
+     *   timestamp exato devolve `granted_at` ao minuto — o mesmo oráculo que o
+     *   `visited_at` do painel de visitantes já custou fechar (item 12 do
+     *   CLAUDE.md). O que pode ser exibido é a FAIXA de
+     *   MemberPhotoAccess::timeRemainingSlot().
+     *
+     * `isExpired()` e o escopo `activeForUser()` continuam funcionando: `$hidden`
+     * esconde da serialização, não do código.
+     */
     protected $hidden = [
         'path_encrypted',
         'original_filename',
+        'user_id',
+        'expires_at',
     ];
 
     protected function casts(): array

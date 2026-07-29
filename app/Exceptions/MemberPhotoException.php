@@ -21,6 +21,8 @@ class MemberPhotoException extends DomainException
 
     public const INVALID_TTL = 'invalid_ttl';
 
+    public const FORBIDDEN = 'forbidden';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -47,6 +49,22 @@ class MemberPhotoException extends DomainException
     {
         return new self(
             self::EXPIRED,
+            'Esta foto não está mais disponível.',
+        );
+    }
+
+    /**
+     * O ator não é dono da foto (ou não é a performer que recebeu o acesso).
+     *
+     * A MENSAGEM é deliberadamente idêntica à de expired(): quem tenta ler o
+     * acesso de outra pessoa não pode aprender, pela resposta, se aquele id
+     * existe e está vivo. O `reason` distingue os dois casos para o log e para
+     * o teste — a tela, não.
+     */
+    public static function forbidden(): self
+    {
+        return new self(
+            self::FORBIDDEN,
             'Esta foto não está mais disponível.',
         );
     }

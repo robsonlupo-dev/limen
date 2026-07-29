@@ -35,14 +35,22 @@ class MemberPhotoAccess extends Model
     private const SOME_DAYS_MAX = 3;
 
     /**
-     * `viewed_at` fica fora do fillable e é marcado por markViewed(): é a ação da
-     * performer, e nenhuma tela a escreve por payload.
+     * Quase tudo fica FORA do fillable, na mesma disciplina do `MemberPhoto`
+     * (que mantém dono e caminho fora) e de `discrete_mode`:
+     *
+     * - as duas FKs: quem escolhe a foto e a performer é o Service, a partir do
+     *   titular autenticado. Aceitas por payload, um `create($request->validated())`
+     *   deixaria o cliente conceder acesso sobre foto alheia;
+     * - `expires_at`: é DERIVADO — o menor entre o pedido e o prazo da foto
+     *   (MemberPhotoService::grantTo()). Vindo do request, o cliente furaria o
+     *   clamp e teria um acesso que sobrevive ao conteúdo, que é a regra § 1.8
+     *   inteira;
+     * - `viewed_at`: é a ação da performer, marcada por markViewed().
+     *
+     * Sobra `granted_at`, que é carimbo de relógio do servidor e não decide nada.
      */
     protected $fillable = [
-        'member_photo_id',
-        'performer_profile_id',
         'granted_at',
-        'expires_at',
     ];
 
     /**

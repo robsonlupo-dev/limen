@@ -25,6 +25,13 @@ use Throwable;
  * nasceria sem o cap ou sem a checagem de prazo. Os endpoints de upload/revoke/
  * serve (PR 3) só delegam.
  *
+ * Por isso os métodos que leem ou concedem recebem o ATOR e conferem o vínculo
+ * aqui — não é redundância com a Policy do controller, é a consequência de
+ * "os endpoints só delegam": um `readForPerformer($access)` que confiasse no
+ * chamador entregaria, com route-model binding e um id incrementado, a foto que
+ * o membro mandou para OUTRA performer, e ainda carimbaria `viewed_at` na conta
+ * errada. A Policy no controller é a segunda camada, não a primeira.
+ *
  * ── Modo Discreto e Ghost Mode NÃO bloqueiam (§ 1.11) ───────────────────────
  * E isto é regra escrita, não omissão. `ProfileVisitService::record()` barra o
  * membro discreto porque visita é LISTAGEM — a performer o veria sem que ele
@@ -117,7 +124,20 @@ class MemberPhotoService
                 return $photo;
             });
         } catch (Throwable $e) {
-            $this->store->delete($path);
+            // Compensação best-effort: se ela TAMBÉM falhar, o que sobe é a
+            // exceção original — trocar uma pela outra esconderia do chamador o
+            // motivo real (cap estourado, TTL inválido) e mostraria ao membro um
+            // erro de disco. O que fica no chão é um arquivo órfão sem linha,
+            // que é o follow-up 6 da revisão (varredura de órfãos).
+            try {
+                $this->store->delete($path);
+            } catch (Throwable $cleanupFailed) {
+                // Nem caminho nem titular: o log não é lugar de mapa de quem
+                // mandou foto (princípio 4). Só o motivo.
+                Log::warning('member-photos: bytes órfãos após falha no submit', [
+                    'exception' => $cleanupFailed->getMessage(),
+                ]);
+            }
 
             throw $e;
         }
@@ -134,9 +154,23 @@ class MemberPhotoService
      * Renova em vez de empilhar (índice único do par): o agregado que o membro
      * vê é "com quantas PERFORMERS você compartilhou" (§ 1.1), não quantos
      * grants ele emitiu.
+     *
+     * Quem concede é o TITULAR, e é conferido aqui: sem isso um `$photo` vindo
+     * de route-model binding deixaria qualquer membro autenticado compartilhar
+     * a foto de outro. Foto morta também não se concede — o grant carimbaria um
+     * acesso já vencido pelo clamp, e a tela da performer mostraria "Expirada"
+     * para algo que ela nunca poderia ter visto.
+     *
+     * @throws MemberPhotoException não é o dono, ou a foto já morreu
      */
-    public function grantTo(MemberPhoto $photo, PerformerProfile $profile, ?int $ttlHours = null): MemberPhotoAccess
+    public function grantTo(User $owner, MemberPhoto $photo, PerformerProfile $profile, ?int $ttlHours = null): MemberPhotoAccess
     {
+        $this->assertOwns($owner, $photo);
+
+        if ($photo->trashed() || $photo->isExpired()) {
+            throw MemberPhotoException::expired();
+        }
+
         $requested = $ttlHours === null
             ? $photo->expires_at
             : now()->addHours($ttlHours);
@@ -145,25 +179,32 @@ class MemberPhotoService
             ? $photo->expires_at
             : $requested;
 
-        return MemberPhotoAccess::updateOrCreate(
-            [
-                'member_photo_id' => $photo->id,
-                'performer_profile_id' => $profile->id,
-            ],
-            [
-                'granted_at' => now(),
-                'expires_at' => $expiresAt,
-            ],
-        );
+        // Escrita explícita, e não `updateOrCreate`: as duas FKs e o `expires_at`
+        // saíram do `$fillable` (o prazo é DERIVADO do clamp acima — aceitá-lo
+        // por payload devolveria ao cliente justamente o que o clamp tira).
+        $access = MemberPhotoAccess::query()
+            ->where('member_photo_id', $photo->id)
+            ->where('performer_profile_id', $profile->id)
+            ->first() ?? new MemberPhotoAccess;
+
+        $access->member_photo_id = $photo->id;
+        $access->performer_profile_id = $profile->id;
+        $access->granted_at = now();
+        $access->expires_at = $expiresAt;
+        $access->save();
+
+        return $access;
     }
 
     /**
-     * Bytes da foto para o TITULAR.
+     * Bytes da foto para o TITULAR — conferido que é ele mesmo.
      *
-     * @throws MemberPhotoException vencida ou já destruída
+     * @throws MemberPhotoException não é o dono, vencida ou já destruída
      */
-    public function readForMember(MemberPhoto $photo): string
+    public function readForMember(User $member, MemberPhoto $photo): string
     {
+        $this->assertOwns($member, $photo);
+
         if ($photo->trashed() || $photo->isExpired()) {
             throw MemberPhotoException::expired();
         }
@@ -182,10 +223,21 @@ class MemberPhotoService
      * `$access->photo` já vem sem as soft-deletadas (escopo global do
      * SoftDeletes), então foto destruída cai no mesmo `null` de foto inexistente.
      *
-     * @throws MemberPhotoException vencido de qualquer um dos dois lados
+     * O ator entra como `User` e o perfil é resolvido AQUI, nunca recebido: um
+     * parâmetro `PerformerProfile` deixaria o controller escolher contra quem
+     * comparar, que é o mesmo furo com um passo a mais.
+     *
+     * @throws MemberPhotoException acesso de outra performer, ou vencido de
+     *                              qualquer um dos dois lados
      */
-    public function readForPerformer(MemberPhotoAccess $access): string
+    public function readForPerformer(User $performer, MemberPhotoAccess $access): string
     {
+        $profileId = $performer->performerProfile?->getKey();
+
+        if ($profileId === null || $access->performer_profile_id !== $profileId) {
+            throw MemberPhotoException::forbidden();
+        }
+
         $photo = $access->photo;
 
         if ($photo === null || $photo->isExpired() || $access->isExpired()) {
@@ -213,6 +265,11 @@ class MemberPhotoService
      * do GC um arquivo que continua no disco, e o alarme de vencidas-e-presentes
      * nunca mais o veria.
      *
+     * Isso só é verdade porque `MemberPhotoStore::delete()` LANÇA quando o disco
+     * recusa — o disco roda com `throw => false` e, sem a checagem de retorno de
+     * lá, esta linha seguiria em frente com o arquivo intacto. As duas coisas
+     * são uma decisão só; não desfaça uma sem a outra.
+     *
      * O DELETE dos acessos é explícito porque o `cascadeOnDelete` da FK **não
      * dispara**: a foto sai por soft delete (item 11 do CLAUDE.md, verbatim).
      */
@@ -222,7 +279,13 @@ class MemberPhotoService
 
         DB::transaction(function () use ($photo) {
             $photo->accesses()->delete();
-            $photo->delete();
+
+            // Já soft-deletada (re-tentativa do GC sobre linha cujos bytes não
+            // saíram na rodada anterior): não reescreve `deleted_at`, que é o
+            // registro de QUANDO a foto morreu.
+            if (! $photo->trashed()) {
+                $photo->delete();
+            }
         });
     }
 
@@ -237,6 +300,19 @@ class MemberPhotoService
      * significa que o GC não está conseguindo apagar — e como a expiração vale
      * na leitura, isso é custo de disco, não de privacidade.
      *
+     * ── A varredura é `withTrashed()`, e isso não é detalhe ─────────────────
+     * A linha soft-deletada some do escopo padrão. Se a rodada anterior apagou a
+     * linha mas NÃO conseguiu apagar o arquivo, uma varredura sem `withTrashed`
+     * nunca mais olharia para aquele arquivo — o rosto do membro ficaria no
+     * disco indefinidamente e o alarme marcaria zero, que é o pior dos dois
+     * mundos. Hoje `destroy()` aborta antes de soft-deletar, então esse estado
+     * não deveria acontecer; a varredura ampla é a rede para quando acontecer
+     * por outro caminho (revoke manual, hard delete de conta, um bug novo).
+     *
+     * Linha já soft-deletada E sem arquivo é o trabalho concluído: sai da
+     * contagem e não é re-destruída, senão toda linha morta voltaria a ser
+     * processada de hora em hora, para sempre.
+     *
      * @return array{expired:int,deleted:int,stale:int,failed:int}
      */
     public function purgeExpired(): array
@@ -244,13 +320,19 @@ class MemberPhotoService
         $counts = ['expired' => 0, 'deleted' => 0, 'stale' => 0, 'failed' => 0];
         $staleBefore = now()->subHours(self::STALE_AFTER_HOURS);
 
-        MemberPhoto::query()
+        MemberPhoto::withTrashed()
             ->where('expires_at', '<=', now())
             ->chunkById(200, function ($photos) use (&$counts, $staleBefore) {
                 foreach ($photos as $photo) {
+                    $onDisk = $this->store->exists($photo->path_encrypted);
+
+                    if ($photo->trashed() && ! $onDisk) {
+                        continue;
+                    }
+
                     $counts['expired']++;
 
-                    if ($photo->expires_at->lessThan($staleBefore) && $this->store->exists($photo->path_encrypted)) {
+                    if ($photo->expires_at->lessThan($staleBefore) && $onDisk) {
                         $counts['stale']++;
                     }
 
@@ -271,6 +353,22 @@ class MemberPhotoService
             });
 
         return $counts;
+    }
+
+    /**
+     * O ator é o dono da foto?
+     *
+     * Uma dona só para o critério, pela mesma razão do `activeForUser()`: o
+     * upload, o grant, a leitura e o revoke precisam concordar sobre o que é
+     * "sua foto", e duas versões divergiriam no sentido permissivo.
+     *
+     * @throws MemberPhotoException
+     */
+    private function assertOwns(User $member, MemberPhoto $photo): void
+    {
+        if ($photo->user_id !== $member->getKey()) {
+            throw MemberPhotoException::forbidden();
+        }
     }
 
     /**

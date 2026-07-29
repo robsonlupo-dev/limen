@@ -254,7 +254,7 @@ it('não serve a foto vencida mesmo com o arquivo ainda no disco', function () {
     expect(photoStore()->exists($photo->path_encrypted))->toBeTrue();
 
     try {
-        photoService()->readForMember($photo);
+        photoService()->readForMember($member, $photo);
         $this->fail('Foto vencida não deveria ser servida.');
     } catch (MemberPhotoException $e) {
         expect($e->reason)->toBe(MemberPhotoException::EXPIRED);
@@ -266,12 +266,12 @@ it('não serve à performer quando a foto venceu', function () {
     $performer = chatPerformer();
 
     $photo = photoService()->create($member, ephemeralUpload(), 24);
-    $access = photoService()->grantTo($photo, $performer);
+    $access = photoService()->grantTo($member, $photo, $performer);
 
     expirePhoto($photo);
 
     try {
-        photoService()->readForPerformer($access->refresh());
+        photoService()->readForPerformer($performer->user, $access->refresh());
         $this->fail('Foto vencida não deveria ser servida à performer.');
     } catch (MemberPhotoException $e) {
         expect($e->reason)->toBe(MemberPhotoException::EXPIRED);
@@ -286,13 +286,13 @@ it('não serve quando o acesso venceu antes da foto', function () {
     $performer = chatPerformer();
 
     $photo = photoService()->create($member, ephemeralUpload(), 168);
-    $access = photoService()->grantTo($photo, $performer);
+    $access = photoService()->grantTo($member, $photo, $performer);
     $access->forceFill(['expires_at' => now()->subMinute()])->save();
 
     expect($photo->isExpired())->toBeFalse();
 
     try {
-        photoService()->readForPerformer($access);
+        photoService()->readForPerformer($performer->user, $access);
         $this->fail('Acesso vencido não deveria servir a foto.');
     } catch (MemberPhotoException $e) {
         expect($e->reason)->toBe(MemberPhotoException::EXPIRED);
@@ -304,9 +304,9 @@ it('entrega a foto viva à performer e marca a visualização uma vez', function
     $performer = chatPerformer();
 
     $photo = photoService()->create($member, ephemeralUpload(), 24);
-    $access = photoService()->grantTo($photo, $performer);
+    $access = photoService()->grantTo($member, $photo, $performer);
 
-    $bytes = photoService()->readForPerformer($access);
+    $bytes = photoService()->readForPerformer($performer->user, $access);
 
     expect(substr($bytes, 0, 2))->toBe("\xFF\xD8");
 
@@ -314,7 +314,7 @@ it('entrega a foto viva à performer e marca a visualização uma vez', function
     expect($firstView)->not->toBeNull();
 
     Carbon::setTestNow(now()->addHour());
-    photoService()->readForPerformer($access->refresh());
+    photoService()->readForPerformer($performer->user, $access->refresh());
 
     // Reabrir não reescreve: a coluna viraria um log de quando a performer volta
     // a olhar a foto — dado que nenhuma tela pode mostrar.
@@ -332,7 +332,7 @@ it('nunca deixa o acesso durar mais que a foto', function () {
     // Grant de 7 dias sobre foto de 24h: sem o clamp a linha ficaria "ativa"
     // apontando para bytes que o GC já levou, e a tela mostraria "Expira nesta
     // semana" para uma foto morta.
-    $access = photoService()->grantTo($photo, $performer, 168);
+    $access = photoService()->grantTo($member, $photo, $performer, 168);
 
     expect($access->expires_at->timestamp)->toBe($photo->expires_at->timestamp);
 });
@@ -343,12 +343,118 @@ it('renova o acesso do mesmo par em vez de empilhar linhas', function () {
 
     $photo = photoService()->create($member, ephemeralUpload(), 24);
 
-    photoService()->grantTo($photo, $performer);
-    photoService()->grantTo($photo, $performer);
+    photoService()->grantTo($member, $photo, $performer);
+    photoService()->grantTo($member, $photo, $performer);
 
     // O agregado que o membro vê é "com quantas PERFORMERS você compartilhou"
     // (§ 1.1), não quantos grants ele emitiu.
     expect(MemberPhotoAccess::where('member_photo_id', $photo->id)->count())->toBe(1);
+});
+
+// ─── Autorização: o guard vive no Service (item 9 do CLAUDE.md) ──────────────
+
+it('não serve ao membro a foto de outro membro', function () {
+    $owner = ephemeralMember();
+    $intruder = ephemeralMember();
+
+    $photo = photoService()->create($owner, ephemeralUpload(), 24);
+
+    try {
+        photoService()->readForMember($intruder, $photo);
+        $this->fail('Foto de outro membro não deveria ser servida.');
+    } catch (MemberPhotoException $e) {
+        expect($e->reason)->toBe(MemberPhotoException::FORBIDDEN);
+    }
+});
+
+it('não deixa um membro compartilhar a foto de outro', function () {
+    $owner = ephemeralMember();
+    $intruder = ephemeralMember();
+    $performer = chatPerformer();
+
+    $photo = photoService()->create($owner, ephemeralUpload(), 24);
+
+    try {
+        photoService()->grantTo($intruder, $photo, $performer);
+        $this->fail('Grant sobre foto alheia deveria ter sido recusado.');
+    } catch (MemberPhotoException $e) {
+        expect($e->reason)->toBe(MemberPhotoException::FORBIDDEN);
+    }
+
+    expect(MemberPhotoAccess::where('member_photo_id', $photo->id)->exists())->toBeFalse();
+});
+
+it('não serve à performer o acesso que foi concedido a outra', function () {
+    $member = ephemeralMember();
+    $performer = chatPerformer();
+    $outra = chatPerformer();
+
+    $photo = photoService()->create($member, ephemeralUpload(), 24);
+    $access = photoService()->grantTo($member, $photo, $performer);
+
+    // O IDOR concreto: com route-model binding em `/fotos/{access}`, basta
+    // incrementar o id. Sem o guard, a outra performer recebe os bytes E o
+    // `viewed_at` é carimbado na conta errada.
+    try {
+        photoService()->readForPerformer($outra->user, $access);
+        $this->fail('Acesso de outra performer não deveria ser servido.');
+    } catch (MemberPhotoException $e) {
+        expect($e->reason)->toBe(MemberPhotoException::FORBIDDEN);
+    }
+
+    expect($access->refresh()->viewed_at)->toBeNull();
+});
+
+it('não serve a quem não tem perfil de performer', function () {
+    $member = ephemeralMember();
+    $performer = chatPerformer();
+
+    $photo = photoService()->create($member, ephemeralUpload(), 24);
+    $access = photoService()->grantTo($member, $photo, $performer);
+
+    // Sem perfil não há com o que comparar, e "sem com o que comparar" tem de
+    // ser NÃO — o contrário aceitaria qualquer conta sem perfil.
+    try {
+        photoService()->readForPerformer(ephemeralMember(), $access);
+        $this->fail('Conta sem perfil de performer não deveria ler o acesso.');
+    } catch (MemberPhotoException $e) {
+        expect($e->reason)->toBe(MemberPhotoException::FORBIDDEN);
+    }
+});
+
+it('recusa o grant sobre foto já vencida', function () {
+    $member = ephemeralMember();
+    $performer = chatPerformer();
+
+    $photo = expirePhoto(photoService()->create($member, ephemeralUpload(), 24));
+
+    try {
+        photoService()->grantTo($member, $photo, $performer);
+        $this->fail('Grant sobre foto morta deveria ter sido recusado.');
+    } catch (MemberPhotoException $e) {
+        expect($e->reason)->toBe(MemberPhotoException::EXPIRED);
+    }
+});
+
+it('não aceita as FKs nem o prazo do acesso por mass assignment', function () {
+    $member = ephemeralMember();
+    $performer = chatPerformer();
+
+    $photo = photoService()->create($member, ephemeralUpload(), 24);
+
+    $access = new MemberPhotoAccess([
+        'member_photo_id' => $photo->id,
+        'performer_profile_id' => $performer->id,
+        'expires_at' => now()->addYear(),
+    ]);
+
+    // `expires_at` é DERIVADO do clamp (o menor entre o pedido e o prazo da
+    // foto). Aceito por payload, o cliente teria um acesso que sobrevive ao
+    // conteúdo — que é a regra § 1.8 inteira. As FKs, pelo mesmo raciocínio do
+    // `user_id` da foto: quem escolhe é o Service, a partir do autenticado.
+    expect($access->member_photo_id)->toBeNull()
+        ->and($access->performer_profile_id)->toBeNull()
+        ->and($access->expires_at)->toBeNull();
 });
 
 // ─── Faixa de tempo, nunca relógio (§ 1.2) ───────────────────────────────────
@@ -362,7 +468,7 @@ it('devolve o tempo restante em faixa', function () {
     Carbon::setTestNow(Carbon::parse('2026-07-29 15:00:00', 'America/Sao_Paulo'));
 
     $photo = photoService()->create($member, ephemeralUpload(), 24);
-    $access = photoService()->grantTo($photo, $performer);
+    $access = photoService()->grantTo($member, $photo, $performer);
 
     $slotFor = function (string $expiresAt) use ($access) {
         $access->forceFill(['expires_at' => Carbon::parse($expiresAt, 'America/Sao_Paulo')])->save();
@@ -383,7 +489,7 @@ it('não expõe relógio, TTL nem viewed_at para a performer', function () {
     $performer = chatPerformer();
 
     $photo = photoService()->create($member, ephemeralUpload(), 168);
-    $access = photoService()->grantTo($photo, $performer);
+    $access = photoService()->grantTo($member, $photo, $performer);
     $access->markViewed();
 
     $payload = $access->refresh()->presentForPerformer();
@@ -411,7 +517,18 @@ it('não expõe o caminho no disco nem o nome original em serialização', funct
 
     expect($photo->toArray())
         ->not->toHaveKey('path_encrypted')
-        ->not->toHaveKey('original_filename');
+        ->not->toHaveKey('original_filename')
+        // `user_id` é o `member_id` cru — o id que o FanAlias existe para tirar
+        // de circulação, e a serialização é o caminho para as props do Inertia.
+        ->not->toHaveKey('user_id')
+        // `expires_at` é relógio: com o TTL vindo de um menu de três opções, o
+        // timestamp devolve `granted_at` ao minuto (§ 1.2). O que a tela mostra
+        // é a faixa de timeRemainingSlot().
+        ->not->toHaveKey('expires_at');
+
+    // E esconder da serialização não pode ter quebrado o código que decide:
+    expect($photo->isExpired())->toBeFalse()
+        ->and(MemberPhoto::activeForUser($member->id)->count())->toBe(1);
 
     // E as colunas estão cifradas em repouso: um dump do banco não entrega nem
     // o caminho (que carrega o id do titular) nem o nome (que costuma ser tão
@@ -430,11 +547,11 @@ it('apaga do disco as fotos vencidas e os acessos delas', function () {
     $performer = chatPerformer();
 
     $expired = photoService()->create($member, ephemeralUpload(), 24);
-    photoService()->grantTo($expired, $performer);
+    photoService()->grantTo($member, $expired, $performer);
     expirePhoto($expired);
 
     $alive = photoService()->create($member, ephemeralUpload(), 24);
-    $aliveAccess = photoService()->grantTo($alive, $performer);
+    $aliveAccess = photoService()->grantTo($member, $alive, $performer);
 
     $this->artisan('member-photos:purge')
         ->expectsOutputToContain('expired=1 deleted=1')
@@ -482,13 +599,72 @@ it('destrói bytes, acessos e linha num passo só', function () {
     $performer = chatPerformer();
 
     $photo = photoService()->create($member, ephemeralUpload(), 24);
-    $access = photoService()->grantTo($photo, $performer);
+    $access = photoService()->grantTo($member, $photo, $performer);
 
     photoService()->destroy($photo);
 
     expect(photoStore()->exists($photo->path_encrypted))->toBeFalse()
         ->and(MemberPhotoAccess::whereKey($access->id)->exists())->toBeFalse()
         ->and(MemberPhoto::withTrashed()->find($photo->id)->trashed())->toBeTrue();
+});
+
+it('mantém a linha de pé quando o disco recusa apagar os bytes', function () {
+    $member = ephemeralMember();
+    $photo = expirePhoto(photoService()->create($member, ephemeralUpload(), 24));
+
+    // Reproduz a falha real: permissão errada no diretório depois de um deploy.
+    // O disco roda com `throw => false`, então sem a checagem de retorno no
+    // Store o `delete()` devolveria `false` em silêncio, `destroy()` seguiria em
+    // frente e a linha soft-deletada esconderia do GC um arquivo que continua
+    // no disco — o rosto do membro ficaria lá com o alarme marcando zero.
+    $dir = dirname(Storage::disk(MemberPhotoStore::DISK)->path($photo->path_encrypted));
+    chmod($dir, 0o500);
+
+    try {
+        expect(fn () => photoService()->destroy($photo))->toThrow(RuntimeException::class);
+
+        // A linha NÃO foi soft-deletada: é o que deixa a rodada seguinte tentar
+        // de novo, e é o que faz o alarme `stale` continuar enxergando a foto.
+        expect(MemberPhoto::find($photo->id))->not->toBeNull()
+            ->and(photoStore()->exists($photo->path_encrypted))->toBeTrue();
+    } finally {
+        chmod($dir, 0o700);
+    }
+});
+
+it('reexamina a foto cuja linha morreu com o arquivo ainda no disco', function () {
+    $member = ephemeralMember();
+    $photo = expirePhoto(photoService()->create($member, ephemeralUpload(), 24), '-3 hours');
+
+    // O estado que a varredura sem `withTrashed()` perdia para sempre: linha
+    // soft-deletada, bytes de pé. Hoje `destroy()` aborta antes de chegar aqui,
+    // mas o estado ainda é alcançável por outro caminho (revoke, um bug novo) —
+    // e sem a rede o arquivo ficaria no volume indefinidamente, invisível a
+    // qualquer rodada futura, porque a linha saiu do escopo padrão.
+    $photo->delete();
+
+    expect(MemberPhoto::find($photo->id))->toBeNull()
+        ->and(photoStore()->exists($photo->path_encrypted))->toBeTrue();
+
+    $this->artisan('member-photos:purge')
+        ->expectsOutputToContain('expired=1 deleted=1 stale=1 failed=0')
+        ->assertSuccessful();
+
+    expect(photoStore()->exists($photo->path_encrypted))->toBeFalse();
+});
+
+it('não reprocessa para sempre a foto já recolhida', function () {
+    $member = ephemeralMember();
+    $photo = expirePhoto(photoService()->create($member, ephemeralUpload(), 24));
+
+    $this->artisan('member-photos:purge')->assertSuccessful();
+
+    // Linha morta E sem arquivo é trabalho concluído: sai da contagem. Sem este
+    // corte, toda linha soft-deletada voltaria a ser destruída de hora em hora,
+    // para sempre, e `expired` cresceria sem parar.
+    $this->artisan('member-photos:purge')
+        ->expectsOutputToContain('expired=0 deleted=0 stale=0 failed=0')
+        ->assertSuccessful();
 });
 
 // ─── Modo Discreto (§ 1.11) ──────────────────────────────────────────────────
