@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Performer;
 
 use App\Http\Controllers\Controller;
 use App\Models\IdentityVerification;
+use App\Models\MemberPhotoAccess;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\Tip;
@@ -69,7 +70,53 @@ class DashboardController extends Controller
             // quem enforça é o InterestService, dentro da transação travada.
             'visitorInterestRemaining' => $this->visitorInterestRemaining($profile),
             'anonymityFloor' => app(FollowerVisibilityService::class)->floor(),
+            // Fotos efêmeras que membros compartilharam com ela (Sprint 9B).
+            'receivedPhotos' => $this->receivedPhotos($profile),
         ]);
+    }
+
+    /**
+     * Fotos vivas compartilhadas com esta performer.
+     *
+     * ── O que sai, e o que NÃO sai ──────────────────────────────────────────
+     * Sai: o `FanAlias` do membro, a FAIXA de tempo restante e o id do ACESSO
+     * (que é a chave do endpoint de leitura). Não sai, e nenhum destes é
+     * esquecimento:
+     *  - `member_id`: é a regra do FanAlias — o rosto já quebra o isolamento
+     *    cross-perfil (§ 1.1), e não há razão para somar o id cru a isso;
+     *  - `expires_at` e o TTL escolhido: § 1.2, o relógio devolve `granted_at`
+     *    ao minuto e o TTL é postura do membro;
+     *  - `viewed_at`: § 1.8, é a ação dela e não volta em hipótese alguma.
+     *
+     * O par (alias, faixa) vem do apresentador do model, não montado aqui: a
+     * segunda tela que montasse o payload à mão nasceria carregando o id cru.
+     *
+     * Ordena por `granted_at` desc — a ordem de chegada é informação legítima
+     * dela, ao contrário do painel de visitantes, onde a POSIÇÃO dentro da faixa
+     * entregava o que o relógio entregava (item 13 do CLAUDE.md). Aqui não há
+     * pseudônimo a proteger da própria conversa: o membro escolheu se mostrar.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function receivedPhotos(PerformerProfile $profile): array
+    {
+        return MemberPhotoAccess::query()
+            ->with('photo')
+            ->where('performer_profile_id', $profile->id)
+            ->where('expires_at', '>', now())
+            ->orderByDesc('granted_at')
+            ->get()
+            // A foto pode ter sido revogada pelo membro sem que o acesso tenha
+            // saído junto (revoke fora do GC): sem linha de foto não há o que
+            // servir, e o card levaria a um 404.
+            ->filter(fn (MemberPhotoAccess $access) => $access->photo !== null)
+            ->map(fn (MemberPhotoAccess $access) => [
+                'access_id' => $access->id,
+                'fan' => FanAlias::label($profile->id, $access->photo->user_id),
+                ...$access->presentForPerformer(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

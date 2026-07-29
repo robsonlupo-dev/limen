@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
 use App\Exceptions\MemberPhotoException;
+use App\Models\Conversation;
 use App\Models\MemberPhoto;
 use App\Models\MemberPhotoAccess;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +60,63 @@ class MemberPhotoService
     /** Teto do nome original guardado. Ver sanitizeFilename(). */
     private const FILENAME_MAX = 120;
 
-    public function __construct(private MemberPhotoStore $store) {}
+    public function __construct(
+        private MemberPhotoStore $store,
+        private ChatAccessService $chatAccess,
+    ) {}
+
+    /**
+     * As fotos vivas do membro, na ordem em que a tela dele as mostra.
+     *
+     * @return Collection<int, MemberPhoto>
+     */
+    public function activeFor(User $member)
+    {
+        return MemberPhoto::query()
+            ->activeForUser($member->id)
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    /**
+     * Compartilha a foto com uma performer — a porta que o endpoint chama.
+     *
+     * ── O gate de chat ativo é do PRODUTO, e mora aqui ──────────────────────
+     * Decisão do PO: o membro só compartilha com performer com quem tem chat
+     * ativo. Sem isso a foto seria uma superfície membro→performer paralela ao
+     * Interesse Controlado — qualquer membro empurraria o próprio rosto para
+     * qualquer perfil do catálogo, sem passar pelo gate pago do Sprint 3/4.
+     *
+     * ── "Chat ativo" é o mesmo critério do chat, não uma segunda definição ───
+     * A checagem pergunta ao `ChatAccessService` se o membro **pode enviar
+     * mensagem agora** (`can_send`), em vez de consultar `chat_access` na mão.
+     * Duas razões, e a segunda é a que importa: (1) assinante de Círculo tem
+     * chat livre e **não gera linha** em `chat_access` — uma consulta crua à
+     * tabela recusaria justamente quem paga mais; (2) o dia em que a regra do
+     * chat mudar, ela muda num lugar só. Carência (`grace`) NÃO passa: quem não
+     * pode nem responder não deve receber rosto novo.
+     *
+     * @throws MemberPhotoException não é o dono, foto morta, ou sem chat ativo
+     */
+    public function shareWith(User $owner, MemberPhoto $photo, PerformerProfile $profile): MemberPhotoAccess
+    {
+        $this->assertOwns($owner, $photo);
+
+        $conversation = Conversation::query()
+            ->where('member_id', $owner->getKey())
+            ->where('performer_profile_id', $profile->getKey())
+            ->first();
+
+        if ($conversation === null) {
+            throw MemberPhotoException::noActiveChat();
+        }
+
+        if (! $this->chatAccess->accessState($conversation, $owner)['can_send']) {
+            throw MemberPhotoException::noActiveChat();
+        }
+
+        return $this->grantTo($owner, $photo, $profile);
+    }
 
     /**
      * Recebe a foto do membro. Aplica o cap de ativas ANTES de existir linha.

@@ -27,7 +27,15 @@ const props = defineProps({
     // esconde o botão; quem recusa de fato é o Form Request.
     canSendVisitorInterest: { type: Boolean, default: false },
     visitorInterestRemaining: { type: Number, default: 0 },
+    // Fotos que membros compartilharam com ela. Já chegam pseudonimizadas
+    // (FanAlias) e com a faixa de tempo — nunca o id do membro nem relógio.
+    receivedPhotos: { type: Array, default: () => [] },
 })
+
+// A foto abre em overlay, servida inline pelo endpoint. Não há botão de baixar:
+// o download não é impedível (nenhum cabeçalho impede), mas a tela não o
+// oferece — e a copy não promete o que o TTL não entrega.
+const openPhoto = ref(null)
 
 // Interesse a partir do painel de visitantes. Mesmo fluxo do botão da tela de
 // Seguidores: manda o member_handle (16 hex do FanAlias), nunca um id.
@@ -266,6 +274,55 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     Membros com Ghost Mode navegam sem registrar visita — esta lista é parcial por
                     definição.
                 </p>
+            </div>
+
+            <!-- Fotos recebidas (Sprint 9B) -->
+            <div class="space-y-4">
+                <div class="flex items-baseline justify-between">
+                    <h2 class="font-serif text-2xl text-cream">Fotos recebidas</h2>
+                    <span class="text-xs text-muted">{{ receivedPhotos.length }} ativa(s)</span>
+                </div>
+
+                <p v-if="!receivedPhotos.length" class="text-sm text-muted">
+                    Nenhuma foto compartilhada com você no momento.
+                </p>
+
+                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <button
+                        v-for="photo in receivedPhotos"
+                        :key="photo.access_id"
+                        type="button"
+                        class="rounded-xl border border-frame bg-surface p-4 text-left hover:border-gold/40 transition-colors"
+                        @click="openPhoto = photo"
+                    >
+                        <p class="text-sm text-cream">{{ photo.fan }}</p>
+                        <p class="text-xs text-muted">{{ photo.expires_slot }}</p>
+                        <p class="pt-2 text-xs text-gold/70">Ver foto</p>
+                    </button>
+                </div>
+
+                <p v-if="receivedPhotos.length" class="text-xs text-muted">
+                    As fotos somem do servidor quando o prazo acaba. Guardar, reproduzir ou
+                    repassar o conteúdo viola o Contrato de Performance.
+                </p>
+            </div>
+        </div>
+
+        <!-- Visualização inline. Sem botão de download e sem link direto: o
+             endpoint responde com Content-Disposition: inline e no-store. -->
+        <div
+            v-if="openPhoto"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-6"
+            @click="openPhoto = null"
+        >
+            <div class="max-w-lg space-y-3 text-center" @click.stop>
+                <img
+                    :src="route('performer.photos.image', openPhoto.access_id)"
+                    alt="Foto recebida"
+                    class="max-h-[70vh] w-auto rounded-xl border border-frame"
+                />
+                <p class="text-sm text-cream">{{ openPhoto.fan }} · {{ openPhoto.expires_slot }}</p>
+                <button class="text-xs text-muted hover:text-cream" @click="openPhoto = null">Fechar</button>
             </div>
         </div>
     </AppLayout>

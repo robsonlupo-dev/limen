@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Web\Consumer;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Follow;
+use App\Models\MemberPhoto;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\Tip;
 use App\Models\User;
+use App\Services\MemberPhotoService;
 use App\Services\TokenService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -25,7 +27,10 @@ class DashboardController extends Controller
 
     private const TIPS_PREVIEW = 5;
 
-    public function __construct(private TokenService $tokenService) {}
+    public function __construct(
+        private TokenService $tokenService,
+        private MemberPhotoService $photos,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -38,7 +43,34 @@ class DashboardController extends Controller
             'interests' => $this->interestSummary($user),
             'tips' => $this->recentTips($user),
             'tipsSummary' => $this->tipsSummary($user),
+            // Fotos efêmeras ativas (Sprint 9B). Cada uma sai pelo apresentador
+            // do model: id, faixa de tempo e o agregado "compartilhada com N
+            // performers" do § 1.1. Nunca `expires_at`, nunca o TTL escolhido.
+            'photos' => $this->photos->activeFor($user)
+                ->map(fn (MemberPhoto $photo) => $photo->presentForMember())
+                ->all(),
+            'photoLimit' => MemberPhoto::ACTIVE_LIMIT,
+            'photoTtlOptions' => $this->ttlOptions(),
         ]);
+    }
+
+    /**
+     * O menu de TTL do § 1.2, montado no servidor.
+     *
+     * Vem daqui e não de uma lista escrita no Vue para que exista uma fonte só:
+     * a constante do model é o que o `MemberPhotoService` valida, e um menu
+     * divergente ofereceria ao membro um prazo que o servidor recusa.
+     *
+     * @return array<int, array{hours:int,label:string}>
+     */
+    private function ttlOptions(): array
+    {
+        $labels = [24 => '24 horas', 72 => '72 horas', 168 => '7 dias'];
+
+        return array_map(
+            fn (int $hours) => ['hours' => $hours, 'label' => $labels[$hours] ?? $hours.'h'],
+            MemberPhoto::TTL_HOURS,
+        );
     }
 
     /**

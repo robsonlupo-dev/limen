@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
+import SharePhotoModal from '@/Components/SharePhotoModal.vue'
 import { postJson } from '@/lib/http'
 
 const props = defineProps({
@@ -11,6 +12,10 @@ const props = defineProps({
     access: { type: Object, required: true }, // { state, can_send, can_read, locked, days_remaining, expires_at }
     accessCost: { type: Number, required: true },
     balance: { type: Number, required: true },
+    // { can_share, photos: [{ id, expires_slot, shared_with }] }. Para a
+    // performer vem sempre vazio — a tela dela não insinua nada sobre as fotos
+    // do outro lado.
+    photoSharing: { type: Object, default: () => ({ can_share: false, photos: [] }) },
 })
 
 const page = usePage()
@@ -46,6 +51,24 @@ const renewLabel = computed(() =>
         ? `Desbloquear acesso — ${props.accessCost} tokens`
         : `Renovar acesso — ${props.accessCost} tokens`,
 )
+
+// O botão só aparece quando os DOIS lados são verdade: janela de chat vigente
+// e pelo menos uma foto ativa. Oferecer com uma das duas faltando levaria a um
+// modal que só sabe dizer não — e o servidor recusaria de qualquer forma
+// (MemberPhotoService::shareWith), porque a tela nunca é o guard.
+const sharingOpen = ref(false)
+const canOfferShare = computed(
+    () => props.photoSharing.can_share && props.photoSharing.photos.length > 0,
+)
+const shareFeedback = ref('')
+
+function onShared() {
+    shareFeedback.value = 'Foto compartilhada.'
+    // Recarrega o bloco para o contador "compartilhada com N performers" e a
+    // lista refletirem o envio.
+    router.reload({ only: ['photoSharing'] })
+    setTimeout(() => (shareFeedback.value = ''), 4000)
+}
 
 function scrollToBottom() {
     nextTick(() => {
@@ -235,6 +258,16 @@ watch(() => props.messages.data.length, scrollToBottom)
 
             <!-- Compositor -->
             <div class="pt-3 border-t border-frame/60">
+                <div v-if="canOfferShare" class="flex items-center justify-between pb-2">
+                    <button
+                        class="text-xs text-gold/80 hover:text-gold transition-colors"
+                        @click="sharingOpen = true"
+                    >
+                        📷 Compartilhar foto
+                    </button>
+                    <span v-if="shareFeedback" class="text-xs text-muted">{{ shareFeedback }}</span>
+                </div>
+
                 <form v-if="access.can_send" class="flex items-end gap-2" @submit.prevent="send">
                     <textarea
                         v-model="draft"
@@ -255,6 +288,15 @@ watch(() => props.messages.data.length, scrollToBottom)
                 </p>
                 <p v-if="sendError" class="text-xs text-danger text-center mt-1">{{ sendError }}</p>
             </div>
+
+            <SharePhotoModal
+                :show="sharingOpen"
+                :photos="photoSharing.photos"
+                :performer-name="conversation.performer.stage_name"
+                :performer-profile-id="conversation.performer.profile_id"
+                @close="sharingOpen = false"
+                @shared="onShared"
+            />
         </div>
     </AppLayout>
 </template>

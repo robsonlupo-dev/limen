@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Services\ProfileVisitService;
+use App\Support\ExpirySlot;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -18,21 +18,19 @@ class MemberPhotoAccess extends Model
 {
     protected $table = 'member_photo_access';
 
-    /** Faixas de tempo restante. Ver timeRemainingSlot(). */
-    public const SLOT_EXPIRED = 'Expirada';
-
-    public const SLOT_TODAY = 'Expira hoje';
-
-    public const SLOT_SOME_DAYS = 'Expira em alguns dias';
-
-    public const SLOT_THIS_WEEK = 'Expira nesta semana';
-
     /**
-     * Até quantos dias de calendário ainda contam como "alguns dias". Acima
-     * disso a faixa é a mais grossa que existe — o TTL máximo são 7 dias, então
-     * não há faixa depois desta.
+     * Faixas de tempo restante. Os valores vivem em `App\Support\ExpirySlot` —
+     * a lista de fotos do próprio membro exibe a MESMA faixa, e duas cópias
+     * divergiriam. Estes apelidos ficam porque são o vocabulário pelo qual as
+     * telas e os testes já se referem à faixa.
      */
-    private const SOME_DAYS_MAX = 3;
+    public const SLOT_EXPIRED = ExpirySlot::EXPIRED;
+
+    public const SLOT_TODAY = ExpirySlot::TODAY;
+
+    public const SLOT_SOME_DAYS = ExpirySlot::SOME_DAYS;
+
+    public const SLOT_THIS_WEEK = ExpirySlot::THIS_WEEK;
 
     /**
      * Quase tudo fica FORA do fillable, na mesma disciplina do `MemberPhoto`
@@ -122,25 +120,7 @@ class MemberPhotoAccess extends Model
      */
     public function timeRemainingSlot(): string
     {
-        if ($this->isExpired()) {
-            return self::SLOT_EXPIRED;
-        }
-
-        $timezone = ProfileVisitService::DISPLAY_TIMEZONE;
-
-        // Comparação por DIA de calendário, não por horas restantes: "hoje" é
-        // uma afirmação sobre a data, e arredondar horas ("faltam 20h → hoje")
-        // devolveria resolução que a faixa existe para tirar.
-        $today = now()->setTimezone($timezone)->startOfDay();
-        $expiresOn = $this->expires_at->copy()->setTimezone($timezone)->startOfDay();
-
-        $days = (int) $today->diffInDays($expiresOn);
-
-        return match (true) {
-            $days <= 0 => self::SLOT_TODAY,
-            $days <= self::SOME_DAYS_MAX => self::SLOT_SOME_DAYS,
-            default => self::SLOT_THIS_WEEK,
-        };
+        return ExpirySlot::for($this->expires_at);
     }
 
     /**
