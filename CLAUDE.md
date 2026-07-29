@@ -31,6 +31,15 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
   frontend Vue fala com as rotas **web** (sessão + CSRF). Consequência prática:
   fora de `api/*` uma exceção não vira JSON automaticamente — erro que o front
   precisa consumir exige `response()->json()` explícito.
+  **Isso vale para VALIDAÇÃO também:** `shouldRenderJsonWhen` só liga o JSON em
+  `api/*`, então uma `ValidationException` numa rota web vira
+  redirect-com-erros-de-sessão **mesmo com `Accept: application/json`** — e o
+  `fetch` do front recebe HTML. Endpoint web novo que o JavaScript consumir usa o
+  trait `App\Http\Controllers\Web\Concerns\FailsValidationAsJson` (achado do
+  Sprint 9B).
+- **`SubstituteBindings` roda ANTES do middleware de rota.** Teste de gate com id
+  inexistente leva 404 do binding e **passa sem exercitar o gate** — use id
+  existente ao testar `role`, `2fa` ou `documents.accepted`.
 - Dinheiro/tokens como inteiros (centavos / tokens), nunca float.
 - Commits pequenos, em inglês, no imperativo ("add token ledger migration").
 - 1 PR por entrega. Testes verdes antes de marcar como pronto.
@@ -75,14 +84,26 @@ um erro na main derruba o site em produção.
 
 ## Estado atual
 
-> **Estado atual** (branch `feat/sprint6-final`, pós Sprint 6): **819 testes verdes**, 4291 asserts.
-> **Base original** (PR #69, `229d852`): 556 testes verdes, 2614 asserts.
-> O detalhe completo do que foi entregue vive em `docs/MASTER_HANDOFF_SPRINT6.md` —
-> esse é o doc a ler antes de pegar tarefa. Este resumo só situa.
+> **Estado atual** (`main`, `b620e9e`, Sprint 9B em andamento): **1141 testes
+> verdes**, 5956 asserts. **Base original** (PR #69, `229d852`): 556 testes, 2614.
+> O detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a
+> ler antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é histórico). Este
+> resumo só situa.
 
-**Sprint 5 fechado.** Próximo é o Sprint 6 (Panic Button, Ghost Mode, Read
-Receipts, Photo Blur, 2FA de performers, Hard Delete LGPD, fix da correlação
-`Membro #` ↔ `Fã #`).
+**Sprints 6, 7, 8 e 9A fechados** (tags `v1.0-sprint6` a `v1.0-sprint9a`).
+**O Sprint 9B está EM ANDAMENTO e não tem tag.**
+
+> **A Foto Efêmera do Membro está implementada e NÃO liberada.** Existe ponta a
+> ponta (PRs #101–#104) com a suíte verde, e **não pode ser ligada para usuário
+> real**: 4 bloqueadores 🔴 abertos — foto não é denunciável, o GC não tem
+> quarentena, o fluxo não deixa audit log, e o gate de chat é cópia da regra do
+> chat. Lista em `MASTER_HANDOFF_FINAL.md`, seção "Sprint 9B — Em andamento".
+> Terminar a feature não é escrever mais tela; é fechar aquela lista.
+
+**Próximo é o Sprint 9C — Stories da Performer**, e ele começa pelos 🔴, não pela
+feature: **nenhuma linha escrita**, 7 bloqueadores abertos (`SECURITY_ISSUES.md`,
+§ 2.1–2.7), e duas dependências duras — **pipeline de moderação antes do primeiro
+upload** e o **refactor de `role`** (que destrava junto o Curador das FC Sessions).
 
 > **Numeração — só existe UMA: Sprint.** O trabalho fundacional era numerado por
 > "Fase", e as duas sequências colidiam (a antiga Fase 3 e o Sprint 3 são coisas
@@ -108,6 +129,11 @@ Receipts, Photo Blur, 2FA de performers, Hard Delete LGPD, fix da correlação
 - **Sprint 3** — **Interesse Controlado**: performer sinaliza, membro paga 15 tokens (100% plataforma) para desbloquear. Opt-out mascarado. Ver `docs/INTEREST_SYSTEM_SPEC.md`.
 - **Sprint 4** — **Chat** interest-gated em tempo real (Reverb): janela de acesso paga, soft-delete LGPD.
 - **Sprint 5** — KYC Didit real (`x-api-key`, webhook v3 `X-Signature-V2`), PCI SAQ-D (`docs/PCI_SAQ_D.md`), payout com porta de saída `needs_review` (alerta + requeue), trial de 7 dias dos Founding Members, `ExpireSubscriptions` por `next_due_date`, **Piso de Anonimato + Modo Discreto + mitigação de sybil** (§ abaixo).
+- **Sprint 6** — Age Verification (CPF+DOB), **FanAlias**, aceite de documentos, Panic Button, shared-IP flag, Report, Hard Delete LGPD, Ghost Mode / Read Receipts / painel de visitantes (k=3), **2FA TOTP**, geobloqueio, filtro de chat (§§ abaixo).
+- **Sprint 7** — tier da performer + grant admin, KYC no onboarding web, painel admin de KYC, múltiplos mundos (`worlds`), **Git Flow obrigatório**.
+- **Sprint 8** — status `banned` + sessão viva, lista negra antifraude (hash), **KYC Nível 2 do membro**, edição de `worlds`, revisão de segurança pré-Sprint 9.
+- **Sprint 9A** — UX e descoberta: tags e campos da performer, interesses do membro, filtros do catálogo, badges, localização opt-in (só UF, e some com `is_live`), hCaptcha, e-mail do fundador, onboarding, camada reservada do PanicButton.
+- **Sprint 9B** (EM ANDAMENTO) — **Foto Efêmera do Membro** (§ abaixo): `ImageProcessingService`, storage cifrado, expiração, endpoints e UI de chat, GC. **Implementada, não liberada.**
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -232,6 +258,74 @@ Duas saídas, e a distinção importa:
 Nova superfície que mostre membro à performer usa `FanAlias`, não o id.
 O id segue sendo a chave interna (ledger, audit log) — isto é apresentação.
 Registro completo em `docs/SECURITY_ISSUES.md`.
+
+## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
+
+Foto privada que o membro manda para a performer no chat: cifrada em disco
+privado, TTL de 24h/72h/7d escolhido por ele, revogável. Services:
+`MemberPhotoService` (regra), `MemberPhotoStore` (bytes), `ImageProcessingService`
+(ingestão, compartilhado com Stories no futuro).
+
+**Não é feature de privacidade — é des-anonimização consentida.** O `FanAlias`
+deriva o pseudônimo por PAR para que nada correlacione entre perfis, e **o rosto é
+uma chave de join global**: duas performers que receberam foto do mesmo membro
+comparam as imagens fora da plataforma e desfazem exatamente esse isolamento. O
+TTL protege o arquivo, **não a memória nem o print**. A UI diz isso no momento do
+envio, não nos Termos. **Nunca descreva como "a performer não guarda sua foto"** —
+mesma disciplina do painel de visitantes e do geobloqueio.
+
+- **A expiração vale na LEITURA; o command é só GC.** Se o único mecanismo que
+  corta o acesso fosse o job apagando o arquivo, job parado não custaria disco —
+  custaria privacidade. `readForPerformer()` confere os dois prazos a cada
+  request. É o precedente do `ChatAccess`.
+- **Tempo restante só em FAIXA** (`app/Support/ExpirySlot.php`), nunca em relógio,
+  e **o TTL escolhido não é exibido**. Um countdown "expira em 71h48" com TTL de
+  72h devolve o `granted_at` ao minuto — é o oráculo do `visited_at` (item 12)
+  voltando por uma barra de progresso, e pior, porque a performer conhece a base
+  da subtração. `ExpirySlot` tem dois consumidores e **uma dona só**.
+- **O gate de compartilhar é chat ativo**, e vive em
+  `MemberPhotoService::shareWith()`. `grantTo()` segue sem ele de propósito — é o
+  primitivo. **Chamador novo entra por `shareWith()`.**
+- **"Chat ativo" pergunta ao `ChatAccessService` se o membro pode ENVIAR agora**
+  (`can_send`), nunca "existe linha em `chat_access`": assinante de Círculo tem
+  chat livre e **não gera linha** — a leitura literal recusaria quem paga mais.
+  Carência não passa. A recusa é sempre `no_active_chat`, para não devolver ao
+  membro o estado da conta dela.
+- **A linha morre em HARD delete**, e só depois de confirmar que os bytes saíram
+  do disco. Linha soft-deletada guardaria "o membro X mandou 43 fotos, nestes
+  horários" e faria o GC decifrar `path_encrypted` de todas a cada hora só para
+  pular. `deleted_at` é estado intermediário (linha ida, bytes de pé).
+- **Ingestão re-encoda para matar EXIF/GPS** e, no mesmo passo, polyglot — o
+  arquivo servido deixa de ser o arquivo enviado. `Content-Type` sai de re-sniff
+  no **servidor**, nunca do que o upload declarou. **Nada de URL assinada:** a
+  autorização é por sessão, a cada request.
+- **Teto de imagem-bomba lido do HEADER, antes de qualquer decodificação**
+  (`config/image.php`). 13 MP não é número de gosto: estourar `memory_limit` é
+  **fatal error, não `Throwable`** — não cai no catch, o worker morre e o
+  temporário EM CLARO fica órfão em `/tmp`. E não pode ser menor: 4 MP recusariam
+  a foto de iPhone (12,2 MP), que é a entrada primária do produto. A conta está no
+  config. **Não suba o número sem refazê-la contra o `memory_limit` real.**
+- **`user_id` e `expires_at` são `$hidden`; FKs e `expires_at` do acesso ficam
+  fora do `$fillable`** — mesma regra de `discrete_mode` e do 2FA.
+- **O disco `member_photos` fica FORA do backup** — foto efêmera não pode
+  sobreviver ao TTL dentro de um tarball. Hoje isso vale porque `docs/backup.sh`
+  é **allowlist** (só `storage/app/private` e `storage/app/kyc`), não porque haja
+  exclusão escrita: **quem converter aquele script para denylist reintroduz o
+  problema em silêncio.**
+
+> **Os 4 🔴 que bloqueiam o go-live da feature:** (1) foto não é denunciável —
+> `Report::REPORTABLE_TYPES` só conhece `performer` e `message`; (2) o GC não põe
+> foto denunciada em quarentena, então a denúncia chega para arquivo que já não
+> existe; (3) nenhum `audit_log` no fluxo — e é a única trilha que sobra depois
+> que os acessos somem no TTL (quando entrar: **id e nada mais**, sem caminho,
+> sem nome, sem bytes); (4) `canMemberSend` não é fonte única.
+
+> **Enquanto `canMemberSend` não for extraído: regra nova no envio de mensagem do
+> chat TEM de ser replicada em `MemberPhotoService::shareWith()`.** As duas portas
+> (`can_send` + `conversation->status === 'active'`) são hoje uma **cópia** de
+> `ChatService::sendMessage()`, e foi assim que o `status === 'active'` passou
+> batido na primeira versão. Não foi unificado porque `sendMessage()` distingue as
+> falhas em exceções diferentes e unificar mudaria a resposta do chat.
 
 ## 2FA da performer — TOTP (Sprint 6)
 A conta da performer guarda o KYC (documento + selfie) e é a identidade
