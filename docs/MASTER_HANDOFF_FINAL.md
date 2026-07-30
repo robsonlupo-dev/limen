@@ -539,6 +539,14 @@ usuário real é decisão do PO, e tudo o que esta seção diz sobre a natureza 
   quem autoriza é `MemberPhotoService::performerCanView()`, que delega ao mesmo
   `denialForPerformer()` do serving (denúncia e leitura não podem divergir, senão
   o POST vira oráculo de existência varrendo handles).
+  **O handle é amarrado ao denunciante DENTRO do resolver**, e não só no
+  `visibleTo()`: sem isso, a performer B — que também recebeu a foto P — mandaria
+  o `access_id` de A e levaria 200, porque o `visibleTo()` procura o acesso DELA
+  à mesma foto e o encontra. O 200 num id que não é dela provaria que aquele mesmo
+  rosto foi mostrado a mais alguém, e os ids são sequenciais, então a posição
+  ainda daria a ordem aproximada dos envios — a correlação entre perfis que o
+  `FanAlias` existe para impedir. **Achado da revisão de segurança de 30/07**,
+  fechado com teste de regressão.
   **Gate:** a rota é compartilhada com o membro, então ela **não** pode receber
   `role:performer` — três dos quatro tipos são denunciados pelo membro. O que
   entrou foi `documents.accepted` (o middleware ignora quem não é performer), e a
@@ -552,14 +560,22 @@ usuário real é decisão do PO, e tudo o que esta seção diz sobre a natureza 
   ninguém, nem pela performer que denunciou, senão denunciar viraria a forma de
   esticar o próprio acesso. Coberto por teste.
 - ✅ **Audit no fluxo:** `member_photo.shared`, `.viewed` e `.revoked`, com **id e
-  nada mais**. Sem caminho, sem nome de arquivo e **sem `performer_profile_id`** —
-  esse último faria do `audit_logs` uma cópia permanente do mapa "quem mostrou o
-  rosto para quem", que é o dado que morre com a foto (§ 1.8). O `.viewed` é
-  gravado só na PRIMEIRA abertura (`markViewed()` passou a devolver `bool`): a
-  tela é uma `<img>`, e sem a dedup recarregar a página enterraria a trilha —
-  mesma disciplina do filtro de chat e do `access.geo_blocked`.
+  nada mais**. Sem caminho, sem nome de arquivo, sem `performer_profile_id`. O
+  `.viewed` é gravado só na PRIMEIRA abertura (`markViewed()` passou a devolver
+  `bool`): a tela é uma `<img>`, e sem a dedup recarregar a página enterraria a
+  trilha — mesma disciplina do filtro de chat e do `access.geo_blocked`.
   **O upload não é auditado**, e é decisão: sozinho ele não expõe ninguém, e a
   linha existiria para toda foto que o membro nunca compartilhou.
+  **O sujeito do `.viewed` é o ACESSO, não a foto**, e essa escolha é o controle
+  inteiro: `Audit::log()` grava o ATOR em `user_id` e o alvo em `subject_id`, o
+  ator do `.shared` é o membro e o do `.viewed` é a performer — apontar os dois
+  para a mesma foto entregaria o par por `JOIN ... ON subject_id`, numa tabela
+  que o `DeletionService` preserva intacta e que sobrevive ao TTL, ao GC, ao
+  revoke e ao encerramento da conta. Apontando para o acesso, a ligação morre com
+  a linha de `member_photo_access` (hard delete junto com a foto). **Achado da
+  revisão de segurança de 30/07** — a primeira versão omitia o
+  `performer_profile_id` do metadata e achava que bastava; não bastava, e o teste
+  que "provava" isso só olhava o metadata. Hoje há teste do JOIN.
 - ✅ **`ChatAccessService::canMemberSendTo(User, PerformerProfile): bool` é fonte
   única.** Chat e foto leem a mesma função; regra nova entra lá e fecha as duas
   portas. A exceção específica do chat (`conversationArchived` vs
@@ -577,6 +593,40 @@ usuário real é decisão do PO, e tudo o que esta seção diz sobre a natureza 
   `ChatService` com o service real dentro e o teste "passa" com a regra desligada.
 
 ### 🟡 Achados NOVOS desta rodada — não bloqueiam, mas estão em dívida
+
+> Os três primeiros vieram da **revisão de segurança de 30/07** (subagente
+> `security-reviewer`, rodado sobre a branch antes do merge). Outros dois achados
+> da mesma revisão eram defeitos reais e **foram corrigidos na branch** — o
+> handle não amarrado ao denunciante e o JOIN do audit; estão descritos acima.
+
+- 🟡 **A recusa do revoke entrega a denunciante ao denunciado — decisão do PO
+  pendente.** `MemberPhotoException::underReview()` diz "esta foto está em
+  análise", e o painel do membro mostra a mensagem crua. Com a foto compartilhada
+  com **uma** performer, o titular sabe em segundos quem denunciou — e o chat com
+  ela **continua aberto** (nada seta `archived` hoje). É vetor de retaliação
+  contra quem denuncia, exatamente o inverso do que o canal existe para proteger.
+  **Alternativa recomendada pela revisão, não implementada porque muda
+  comportamento que o PO especificou:** o revoke responde 200 **sempre** e, sob
+  quarentena, expira todos os `MemberPhotoAccess` da foto (a performer perde o
+  acesso na hora, que é o que o titular pediu) retendo apenas bytes e linha para a
+  revisão — com a copy de retenção **uniforme em todo revoke**, verdadeira para
+  todos e sem distinguir quem foi denunciado. Hoje o sinal existe porque a
+  mensagem é *condicional* à denúncia. Se o comportamento atual for mantido de
+  propósito, a retenção precisa ser divulgada na tela de ENVIO, junto do aviso de
+  des-anonimização — não só no código.
+- 🟡 **`member_photo.shared` é o único dos três eventos sem dedup.**
+  `writeAccess()` RENOVA o acesso do par existente, então re-compartilhar com a
+  mesma performer é fluxo legítimo e repetível a 20/min (throttle da rota) — cada
+  clique grava uma linha. É a mesma condição que motivou a dedup do filtro de chat
+  e do `access.geo_blocked`. Conserto barato: chave de janela no **cache** (não no
+  log, para não reintroduzir o `performer_profile_id` no `audit_logs`).
+- 🟡 **A quarentena é mais cara de destravar do que parecia, e retém mais.** Dois
+  efeitos que a revisão apontou: (1) o dedup de denúncia é por (denunciante, alvo,
+  **motivo**) e há 6 motivos válidos, então a mesma performer pode manter **6
+  denúncias abertas** sobre a mesma foto — o admin precisa concluir as seis para o
+  GC voltar a agir; (2) o congelamento retém as linhas de `member_photo_access`
+  junto com os bytes, ou seja **o mapa do § 1.8 daquele par também fica retido por
+  tempo indeterminado**, não só o arquivo. Reforça o item do prazo máximo abaixo.
 
 - 🟡 **O Hard Delete de conta ainda apaga foto denunciada.**
   `DeletionService::purgeMemberPhotos()` faz `forceDelete()` direto, sem passar

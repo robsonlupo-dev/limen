@@ -22,7 +22,16 @@ class ReportController extends Controller
         // Um `find()` cru ali acharia a foto de OUTRO membro cujo id coincidisse
         // com o do acesso — e a checagem de visibilidade logo abaixo a recusaria
         // com a resposta uniforme, então o bug seria invisível e permanente.
-        $reportable = Report::resolveFromHandle($data['reportable_type'], (int) $data['reportable_id']);
+        //
+        // O denunciante vai junto porque o handle é do PAR: sem ele, uma
+        // performer usaria o `access_id` de outra sobre a MESMA foto e o
+        // `visibleTo()` abaixo diria sim (ela tem o acesso dela àquela foto).
+        // Ver o docblock de resolveFromHandle().
+        $reportable = Report::resolveFromHandle(
+            $data['reportable_type'],
+            (int) $data['reportable_id'],
+            $request->user(),
+        );
 
         // Inexistente e invisível respondem IGUAL de propósito: separar os dois
         // devolveria o oráculo de enumeração que Report::visibleTo() fecha.

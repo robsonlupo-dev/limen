@@ -332,11 +332,19 @@ mesma disciplina do painel de visitantes e do geobloqueio.
   por ninguém — nem pela performer que denunciou —, senão denunciar viraria a
   forma de esticar o próprio acesso.
 - **Audit no fluxo: `member_photo.shared`, `.viewed`, `.revoked` — id e nada
-  mais.** Sem caminho, sem nome de arquivo e **sem `performer_profile_id`**: esse
-  último faria do `audit_logs` uma cópia permanente do mapa "quem mostrou o rosto
-  para quem", que é justamente o dado que morre com a foto. O `.viewed` é gravado
-  só na PRIMEIRA abertura (a tela é uma `<img>`; sem a dedup, recarregar a página
-  enterra a trilha — mesma disciplina do filtro de chat).
+  mais.** Sem caminho, sem nome de arquivo e sem `performer_profile_id`. O
+  `.viewed` é gravado só na PRIMEIRA abertura (a tela é uma `<img>`; sem a dedup,
+  recarregar a página enterra a trilha — mesma disciplina do filtro de chat).
+- **O SUJEITO do `.viewed` é o ACESSO, não a foto — e isso é o controle, não um
+  detalhe.** `Audit::log()` grava o ATOR em `user_id` e o alvo em `subject_id`.
+  Como o ator do `.shared` é o MEMBRO e o do `.viewed` é a PERFORMER, apontar os
+  dois para a mesma foto deixaria o par (membro, performer) a um
+  `JOIN ... ON subject_id` de distância — **cópia permanente do mapa que morre
+  com a foto**, na única tabela que o `DeletionService` preserva intacta.
+  Apontando para o acesso, a ligação depende da linha de `member_photo_access`,
+  que morre em hard delete junto com a foto. **Omitir o id da performer do
+  metadata não fecha isso sozinho** (foi o achado da revisão de 30/07): evento
+  novo neste fluxo escolhe o sujeito pelo LADO de quem age.
 - **A linha morre em HARD delete**, e só depois de confirmar que os bytes saíram
   do disco. Linha soft-deletada guardaria "o membro X mandou 43 fotos, nestes
   horários" e faria o GC decifrar `path_encrypted` de todas a cada hora só para
@@ -368,10 +376,11 @@ mesma disciplina do painel de visitantes e do geobloqueio.
 > real é do PO, e continua valendo tudo o que esta seção diz sobre a natureza da
 > feature (des-anonimização consentida, o rosto como chave de join global).
 > **Segue em aberto**, agora como 🟡 e não como bloqueador: o cap de performers
-> por foto (§ 1.1), a varredura de órfãos no disco (§ 1.5), e três achados novos
-> registrados em `MASTER_HANDOFF_FINAL.md` — o Hard Delete de conta ainda apaga
-> foto denunciada, a fila do admin não tem visualizador para a prova, e foto
-> congelada fica no disco indefinidamente se a denúncia nunca for concluída.
+> por foto (§ 1.1), a varredura de órfãos no disco (§ 1.5), e os achados da
+> revisão de segurança de 30/07 registrados em `MASTER_HANDOFF_FINAL.md` — com
+> destaque para **a recusa do revoke, que entrega a denunciante ao denunciado**
+> (decisão de produto pendente), o Hard Delete de conta que ainda apaga foto
+> denunciada, e a ausência de prazo máximo de quarentena.
 
 ## Stories da Performer — Sprint 9C (entregue, tag `v1.0-sprint9`)
 

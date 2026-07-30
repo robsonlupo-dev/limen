@@ -2,6 +2,7 @@
 
 use App\Models\AuditLog;
 use App\Models\Conversation;
+use App\Models\Follow;
 use App\Models\MemberPhoto;
 use App\Models\MemberPhotoAccess;
 use App\Models\PerformerProfile;
@@ -9,8 +10,10 @@ use App\Models\Report;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\ChatAccessService;
+use App\Services\InterestService;
 use App\Services\MemberPhotoService;
 use App\Services\MemberPhotoStore;
+use App\Services\TokenService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -94,6 +97,30 @@ function mpqSharedPhoto(): array
     return [$member, $performer, $photo->fresh(), $access];
 }
 
+/**
+ * Abre chat ativo entre um membro JÁ existente e outra performer.
+ *
+ * `chatUnlockedPair()` cria um membro novo; aqui o membro é o mesmo de
+ * propósito — é o cenário em que a MESMA foto vai para duas performers, que é
+ * onde mora o risco de correlação entre perfis.
+ */
+function mpqOpenChat(User $member, PerformerProfile $performer): Conversation
+{
+    app(TokenService::class)->credit($member, 100, 'purchase');
+    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $performer->id]);
+
+    $interest = app(InterestService::class)->send($performer, $member);
+    app(InterestService::class)->unlock($member->fresh(), $interest);
+
+    $conversation = Conversation::where('member_id', $member->id)
+        ->where('performer_profile_id', $performer->id)
+        ->sole();
+
+    grantChatAccess($member->fresh(), $conversation);
+
+    return $conversation;
+}
+
 /** A denúncia como a performer a envia: handle = access_id. */
 function mpqReport(User $performer, int $accessId, string $reason = 'non_consensual')
 {
@@ -137,13 +164,13 @@ it('resolve o handle no espaço de ACESSOS, nunca no de fotos', function () {
     } while (MemberPhotoAccess::whereKey($unshared->id)->exists());
 
     // O handle É o acesso: resolve para a foto por trás dele.
-    expect(Report::resolveFromHandle('member_photo', $access->id)?->id)->toBe($photo->id);
+    expect(Report::resolveFromHandle('member_photo', $access->id, $performer->user)?->id)->toBe($photo->id);
 
     // E o id de FOTO não é handle de nada. Se alguém trocar o resolver por um
     // `MemberPhoto::find($handle)` cru, esta linha devolve a foto do outro
     // membro — e a denúncia passaria a cair sobre quem não tem nada a ver com
     // ela, com a recusa por visibilidade escondendo o bug para sempre.
-    expect(Report::resolveFromHandle('member_photo', $unshared->id))->toBeNull();
+    expect(Report::resolveFromHandle('member_photo', $unshared->id, $performer->user))->toBeNull();
 
     // Pela ponta: o endpoint não alcança foto nenhuma por id de foto.
     mpqReport($performer->user, $unshared->id)
@@ -167,6 +194,38 @@ it('não deixa outra performer denunciar a foto que não recebeu', function () {
         ->assertJsonPath('reason', 'target_not_found');
 
     expect(Report::count())->toBe(0);
+});
+
+it('não deixa uma performer denunciar pelo handle de acesso de OUTRA', function () {
+    // As duas receberam a MESMA foto. É o caso que o `visibleTo()` sozinho não
+    // fecha: ele procuraria o acesso de B àquela foto, encontraria, e diria sim
+    // para um handle que é de A. O 200 provaria a B que aquele mesmo rosto foi
+    // mostrado a mais alguém — a correlação entre perfis que o FanAlias existe
+    // para impedir. Achado da revisão de segurança de 30/07.
+    [$member, $performerA, $photo, $accessA] = mpqSharedPhoto();
+
+    $performerB = chatPerformer();
+
+    // B precisa de chat ativo com o MESMO membro para receber a mesma foto.
+    mpqOpenChat($member, $performerB);
+
+    $this->actingAs($member->fresh())
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performerB->id])
+        ->assertOk();
+
+    $accessB = MemberPhotoAccess::where('member_photo_id', $photo->id)
+        ->where('performer_profile_id', $performerB->id)
+        ->sole();
+
+    // B com o handle DELA: passa.
+    mpqReport($performerB->user, $accessB->id, 'spam')->assertOk();
+
+    // B com o handle de A: mesma resposta de "não existe".
+    mpqReport($performerB->user, $accessA->id, 'coercion')
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'target_not_found');
+
+    expect(Report::count())->toBe(1);
 });
 
 it('não deixa um membro denunciar foto pelo handle de acesso', function () {
@@ -303,7 +362,10 @@ it('registra share, view e revoke no audit — só com o id', function () {
 
     $viewed = AuditLog::where('action', 'member_photo.viewed')->sole();
     expect($viewed->user_id)->toBe($performer->user->id)
-        ->and($viewed->metadata)->toBe(['member_photo_id' => $photo->id]);
+        // O sujeito é o ACESSO, não a foto — ver o teste do JOIN abaixo.
+        ->and($viewed->subject_type)->toBe(MemberPhotoAccess::class)
+        ->and($viewed->subject_id)->toBe($access->id)
+        ->and($viewed->metadata)->toBe(['member_photo_access_id' => $access->id]);
 
     $this->actingAs($member)
         ->deleteJson(route('member.photos.destroy', $photo->id))
@@ -314,27 +376,61 @@ it('registra share, view e revoke no audit — só com o id', function () {
         ->and($revoked->metadata)->toBe(['member_photo_id' => $photo->id]);
 });
 
-it('não guarda no audit o caminho, o nome, nem para QUEM a foto foi', function () {
+it('não guarda no audit o caminho nem o nome do arquivo', function () {
     [, $performer, , $access] = mpqSharedPhoto();
 
     $this->actingAs($performer->user)
         ->get(route('performer.photos.image', $access->id))
         ->assertOk();
 
-    // O `performer_profile_id` é o ponto mais fácil de errar: gravá-lo faria do
-    // audit_logs uma cópia PERMANENTE do mapa "quem mostrou o rosto para quem",
-    // que é o dado que o § 1.8 mantém curto e que morre junto com a foto.
     $rows = AuditLog::where('action', 'like', 'member_photo.%')->get();
 
     expect($rows)->not->toBeEmpty();
 
     foreach ($rows as $row) {
-        expect(array_keys($row->metadata))->toBe(['member_photo_id'])
+        expect(array_keys($row->metadata))->toHaveCount(1)
             ->and(json_encode($row->metadata))
             ->not->toContain('.enc')
             ->not->toContain('performer_profile_id')
             ->not->toContain('foto.jpg');
     }
+});
+
+it('não deixa o audit reconstruir o par membro↔performer por JOIN', function () {
+    // ── O achado da revisão de segurança de 30/07, virado teste ─────────────
+    // `Audit::log()` grava o ATOR em `user_id` e o alvo em `subject_id`. O ator
+    // do `.shared` é o MEMBRO e o do `.viewed` é a PERFORMER — então bastava os
+    // dois apontarem para a mesma foto para o par sair de um
+    // `JOIN ... ON subject_id`. E `audit_logs` é a tabela que o DeletionService
+    // preserva INTACTA: seria uma cópia permanente do mapa do § 1.8,
+    // sobrevivendo ao TTL, ao GC, ao revoke e ao encerramento da conta.
+    //
+    // Omitir o `performer_profile_id` do metadata não fecha isso — as colunas do
+    // próprio audit_logs já entregavam. A versão anterior deste teste olhava só
+    // o metadata e por isso passava com o furo aberto.
+    [$member, $performer, , $access] = mpqSharedPhoto();
+
+    $this->actingAs($performer->user)
+        ->get(route('performer.photos.image', $access->id))
+        ->assertOk();
+
+    $subjectsOf = fn (string $action) => AuditLog::where('action', $action)
+        ->get()
+        ->map(fn (AuditLog $row) => $row->subject_type.'#'.$row->subject_id)
+        ->all();
+
+    $memberSide = $subjectsOf('member_photo.shared');
+    $performerSide = $subjectsOf('member_photo.viewed');
+
+    expect($memberSide)->not->toBeEmpty()
+        ->and($performerSide)->not->toBeEmpty()
+        // Nenhum sujeito em comum: o lado do membro aponta para a FOTO, o da
+        // performer para o ACESSO — que morre em hard delete junto com ela.
+        ->and(array_intersect($memberSide, $performerSide))->toBeEmpty();
+
+    // E os atores são mesmo lados opostos, senão o teste acima não prova nada.
+    expect(AuditLog::where('action', 'member_photo.shared')->value('user_id'))->toBe($member->id)
+        ->and(AuditLog::where('action', 'member_photo.viewed')->value('user_id'))->toBe($performer->user->id);
 });
 
 it('audita a primeira abertura e não cada recarga da imagem', function () {

@@ -132,6 +132,14 @@ class MemberPhotoService
         // exatamente o dado que o § 1.8 mantém curto e que morre com a foto. O
         // ator (o membro) já vai na coluna `user_id` por ser quem faz o request.
         //
+        // **Omitir o id da performer do metadata não basta**, e a revisão de
+        // segurança pegou isso: o `member_photo.viewed` tem a PERFORMER como
+        // ator, então se os dois eventos apontassem para a mesma foto o par sairia
+        // por `JOIN ... ON subject_id`. Por isso o `.viewed` aponta para o ACESSO
+        // e este aqui para a FOTO — ver o comentário longo em `readForPerformer()`.
+        // Os dois eventos do lado do membro (`.shared` e `.revoked`) podem
+        // compartilhar o sujeito à vontade: têm o mesmo ator.
+        //
         // É a única trilha que sobra depois que a foto e os acessos somem no
         // TTL: sem ela, uma denúncia de conteúdo ilegal chega a um banco onde
         // não há registro de que aquele envio existiu.
@@ -388,8 +396,25 @@ class MemberPhotoService
         // de chat (por usuário+regra) e do `access.geo_blocked` (por IP/hora) —
         // "enumerar enterra a trilha", e a trilha aqui é a única prova que
         // sobrevive ao TTL.
+        //
+        // ── O SUJEITO é o ACESSO, e não a foto. Isto é o ponto inteiro ──────
+        // `Audit::log()` grava o ATOR em `user_id` e o alvo em `subject_id`.
+        // Como o ator aqui é a PERFORMER e o ator do `member_photo.shared` é o
+        // MEMBRO, apontar os dois eventos para a mesma foto deixaria o par
+        // (membro, performer) a um `JOIN ... ON subject_id` de distância — uma
+        // cópia PERMANENTE do mapa do § 1.8, na única tabela que o
+        // `DeletionService` preserva intacta, sobrevivendo ao TTL, ao GC, ao
+        // revoke e ao encerramento da conta do titular. Omitir o
+        // `performer_profile_id` do metadata não fecharia nada: as colunas do
+        // próprio `audit_logs` já entregavam.
+        //
+        // Apontando para o acesso, a ligação passa a depender da linha de
+        // `member_photo_access` — que morre em HARD delete junto com a foto.
+        // Enquanto a foto vive, o par é legível ali (é o dado que a feature
+        // precisa ter); depois do TTL, o id não resolve para nada e as duas
+        // linhas de audit deixam de ser reconectáveis. Coberto por teste.
         if ($access->markViewed()) {
-            Audit::log('member_photo.viewed', $photo, ['member_photo_id' => $photo->id]);
+            Audit::log('member_photo.viewed', $access, ['member_photo_access_id' => $access->id]);
         }
 
         return $bytes;

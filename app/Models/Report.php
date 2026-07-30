@@ -108,17 +108,32 @@ class Report extends Model
     }
 
     /**
-     * Handle público → modelo alvo. É a tradução que o controller usa no lugar de
-     * um `$class::find($id)` cru.
+     * Handle público → modelo alvo, **na visão daquele denunciante**. É a
+     * tradução que o controller usa no lugar de um `$class::find($id)` cru.
      *
      * Para quase todo tipo o handle É a chave, e o método não faz nada de
      * especial. A exceção é `member_photo`, e é por causa dela que este método
-     * existe em vez de o controller chamar `find()`: o handle ali é o
-     * `MemberPhotoAccess` (o par foto↔performer), e um `MemberPhoto::find($id)`
-     * sobre aquele número acharia **outra foto** — a de id igual ao do acesso.
-     * Não seria erro visível: devolveria uma foto de verdade, de outro membro,
-     * e a checagem de visibilidade abaixo a recusaria com a resposta uniforme de
-     * "não encontrado". Ou seja, falharia silenciosamente e para sempre.
+     * existe: o handle ali é o `MemberPhotoAccess` (o par foto↔performer), e um
+     * `MemberPhoto::find($id)` sobre aquele número acharia **outra foto** — a de
+     * id igual ao do acesso. Não seria erro visível: devolveria uma foto de
+     * verdade, de outro membro, e a checagem de visibilidade a recusaria com a
+     * resposta uniforme de "não encontrado". Falharia em silêncio e para sempre.
+     *
+     * ── Por que o denunciante entra aqui, e não só no `visibleTo()` ─────────
+     * O handle é do PAR, então resolvê-lo sem olhar de quem ele é abre um furo
+     * que o `visibleTo()` não fecha: a performer B, que também recebeu a foto P,
+     * mandaria o `access_id` de A (outra performer que recebeu P) e levaria 200,
+     * porque `visibleTo()` procura o acesso DELA à mesma foto e o encontra. O
+     * 200 num id que não é dela prova que **aquele mesmo rosto foi mostrado a
+     * mais alguém** — e os ids são sequenciais, então a posição ainda dá a ordem
+     * aproximada dos envios. É exatamente a correlação entre perfis que o
+     * `FanAlias` existe para impedir, e o custo por sonda é baixo demais para
+     * confiar no throttle. Achado da revisão de segurança de 30/07.
+     *
+     * Amarrando o handle ao perfil do denunciante, "não é seu acesso" e "não
+     * existe" viram a mesma coisa antes de qualquer outra checagem. O
+     * `visibleTo()` continua conferindo os PRAZOS — as duas perguntas são
+     * complementares, não redundantes.
      *
      * Sem `withTrashed` em lugar nenhum, e não por esquecimento: a foto sai em
      * HARD delete e o acesso morre junto (a tabela não tem soft delete). Handle
@@ -126,10 +141,20 @@ class Report extends Model
      * encontrado" — a mesma resposta de "não pode ver", que é o que fecha o
      * oráculo de enumeração.
      */
-    public static function resolveFromHandle(string $alias, int $handle): ?Model
+    public static function resolveFromHandle(string $alias, int $handle, ?User $reporter = null): ?Model
     {
         if ($alias === 'member_photo') {
-            return MemberPhotoAccess::query()->whereKey($handle)->first()?->photo;
+            $profileId = $reporter?->performerProfile?->getKey();
+
+            if ($profileId === null) {
+                return null;
+            }
+
+            return MemberPhotoAccess::query()
+                ->whereKey($handle)
+                ->where('performer_profile_id', $profileId)
+                ->first()
+                ?->photo;
         }
 
         $class = self::classForAlias($alias);
