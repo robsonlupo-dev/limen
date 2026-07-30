@@ -75,13 +75,19 @@ class ChatService
 
         $senderIsPerformer = $sender->id === $conversation->performerProfile->user_id;
 
-        // A performer sempre pode enviar (grátis). O membro depende do acesso.
-        if (! $senderIsPerformer) {
-            $state = $this->chatAccessService->accessState($conversation, $sender);
-
-            if (! $state['can_send']) {
-                throw ChatException::accessRequired();
-            }
+        // A performer sempre pode enviar (grátis). O membro depende do acesso, e
+        // quem decide isso é `canMemberSendTo()` — a mesma função que autoriza o
+        // compartilhamento de foto efêmera. Era código duplicado entre as duas
+        // portas (4º bloqueador do Sprint 9B); regra nova entra lá, não aqui.
+        //
+        // O guard de conversa arquivada continua ACIMA, fora deste if, porque lá
+        // ele vale para os dois lados: a performer também não escreve em conversa
+        // arquivada, e `canMemberSendTo` é sobre o membro. A checagem de status
+        // aparece nos dois lugares de propósito — aqui como regra da conversa,
+        // lá como uma das duas portas do membro —, e é por isso que a exceção
+        // específica (`conversationArchived`) não se perde na unificação.
+        if (! $senderIsPerformer && ! $this->chatAccessService->canMemberSendTo($sender, $conversation->performerProfile)) {
+            throw ChatException::accessRequired();
         }
 
         $message = Message::forceCreate([

@@ -4,11 +4,13 @@ namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
 use App\Exceptions\MemberPhotoException;
-use App\Models\Conversation;
 use App\Models\MemberPhoto;
 use App\Models\MemberPhotoAccess;
 use App\Models\PerformerProfile;
+use App\Models\Report;
 use App\Models\User;
+use App\Support\Audit;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
@@ -87,26 +89,13 @@ class MemberPhotoService
      * Interesse Controlado — qualquer membro empurraria o próprio rosto para
      * qualquer perfil do catálogo, sem passar pelo gate pago do Sprint 3/4.
      *
-     * ── "Chat ativo" é o mesmo critério do chat, não uma segunda definição ───
-     * As DUAS portas de `ChatService::sendMessage()` são replicadas aqui, e é
-     * por isso que são duas:
-     *
-     *  1. `conversation->status === 'active'`. Nada seta `archived` hoje (o
-     *     enum existe na migration, a transição não), mas o dia em que existir
-     *     — bloqueio pelo membro, Panic Button, ação de moderação — é
-     *     exatamente o dia em que o canal de mensagem fecha e o de ROSTO não
-     *     pode continuar aberto. Conversa é arquivada justamente no conflito.
-     *  2. `accessState()['can_send']`, e não uma consulta crua a `chat_access`:
-     *     assinante de Círculo tem chat livre e **não gera linha** naquela
-     *     tabela — a leitura literal recusaria justamente quem paga mais.
-     *     Carência (`grace`) NÃO passa: quem não pode nem responder não deve
-     *     receber rosto novo.
-     *
-     * > Ressalva: as duas portas são uma CÓPIA das de `sendMessage()`, e cópia
-     * > diverge. O certo é um `canMemberSend(Conversation, User)` com uma dona
-     * > só (mesma disciplina de `applyFloorEligibility()`); não foi feito aqui
-     * > porque `sendMessage()` distingue as duas falhas em exceções diferentes
-     * > e unificar mudaria a resposta do chat. Follow-up registrado.
+     * ── "Chat ativo" é o mesmo critério do chat, e agora é a MESMA função ────
+     * `ChatAccessService::canMemberSendTo()` é a dona única da pergunta "este
+     * membro pode falar com esta performer agora" — as duas portas (conversa
+     * ativa + `can_send`) vivem lá, e o chat pergunta à mesma função. Antes eram
+     * uma cópia declarada das de `sendMessage()`, e foi assim que o
+     * `status === 'active'` passou batido na primeira versão desta feature: a
+     * cópia nasceu com uma porta a menos. Regra nova entra LÁ, e fecha as duas.
      *
      * ── E a performer precisa estar de pé ───────────────────────────────────
      * Perfil encerrado (soft delete) ou conta fora de `active` — suspensa,
@@ -130,20 +119,25 @@ class MemberPhotoService
             throw MemberPhotoException::noActiveChat();
         }
 
-        $conversation = Conversation::query()
-            ->where('member_id', $owner->getKey())
-            ->where('performer_profile_id', $profile->getKey())
-            ->first();
-
-        if ($conversation === null || $conversation->status !== 'active') {
+        if (! $this->chatAccess->canMemberSendTo($owner, $profile)) {
             throw MemberPhotoException::noActiveChat();
         }
 
-        if (! $this->chatAccess->accessState($conversation, $owner)['can_send']) {
-            throw MemberPhotoException::noActiveChat();
-        }
+        $access = $this->grantTo($owner, $photo, $profile);
 
-        return $this->grantTo($owner, $photo, $profile);
+        // Trilha do 3º bloqueador de go-live: id e NADA MAIS. Sem caminho, sem
+        // bytes, sem nome de arquivo — e sem o `performer_profile_id`, que é o
+        // ponto mais fácil de errar aqui: gravá-lo faria do `audit_logs` uma
+        // cópia permanente do mapa "quem mostrou o rosto para quem", que é
+        // exatamente o dado que o § 1.8 mantém curto e que morre com a foto. O
+        // ator (o membro) já vai na coluna `user_id` por ser quem faz o request.
+        //
+        // É a única trilha que sobra depois que a foto e os acessos somem no
+        // TTL: sem ela, uma denúncia de conteúdo ilegal chega a um banco onde
+        // não há registro de que aquele envio existiu.
+        Audit::log('member_photo.shared', $photo, ['member_photo_id' => $photo->id]);
+
+        return $access;
     }
 
     /**
@@ -374,25 +368,88 @@ class MemberPhotoService
      */
     public function readForPerformer(User $performer, MemberPhotoAccess $access): string
     {
-        $profileId = $performer->performerProfile?->getKey();
-
-        if ($profileId === null || $access->performer_profile_id !== $profileId) {
-            throw MemberPhotoException::forbidden();
+        if ($denial = $this->denialForPerformer($performer, $access)) {
+            throw $denial === MemberPhotoException::FORBIDDEN
+                ? MemberPhotoException::forbidden()
+                : MemberPhotoException::expired();
         }
 
         $photo = $access->photo;
-
-        if ($photo === null || $photo->isExpired() || $access->isExpired()) {
-            throw MemberPhotoException::expired();
-        }
 
         $bytes = $this->store->retrieve($photo->path_encrypted);
 
         // Depois de entregar: marcar antes e falhar na leitura registraria uma
         // visualização que não aconteceu.
-        $access->markViewed();
+        //
+        // O audit sai junto e SÓ na primeira abertura, que é o que `markViewed()`
+        // devolve. Logar toda requisição encheria a trilha com o mesmo fato: a
+        // tela é uma `<img>`, então recarregar a página, voltar para ela ou
+        // simplesmente não ter cache repetiria o GET. É a mesma dedup do filtro
+        // de chat (por usuário+regra) e do `access.geo_blocked` (por IP/hora) —
+        // "enumerar enterra a trilha", e a trilha aqui é a única prova que
+        // sobrevive ao TTL.
+        if ($access->markViewed()) {
+            Audit::log('member_photo.viewed', $photo, ['member_photo_id' => $photo->id]);
+        }
 
         return $bytes;
+    }
+
+    /**
+     * Esta performer alcança esta FOTO agora? (pergunta por foto, não por acesso)
+     *
+     * É o que a denúncia consulta (`Report::visibleTo`). Não reimplementa nada:
+     * procura o acesso do perfil dela e delega ao mesmo `denialForPerformer()`
+     * que o serving usa, para que "pode denunciar" e "pode ver" não possam
+     * divergir. Se divergissem no sentido permissivo, o POST de denúncia viraria
+     * oráculo de existência varrendo handles; no sentido restritivo, a performer
+     * veria conteúdo ilegal sem ter como reportá-lo.
+     */
+    public function performerCanView(User $performer, MemberPhoto $photo): bool
+    {
+        $profileId = $performer->performerProfile?->getKey();
+
+        if ($profileId === null) {
+            return false;
+        }
+
+        $access = MemberPhotoAccess::query()
+            ->where('member_photo_id', $photo->getKey())
+            ->where('performer_profile_id', $profileId)
+            ->first();
+
+        return $access !== null && $this->denialForPerformer($performer, $access) === null;
+    }
+
+    /**
+     * Por que esta performer NÃO pode ler este acesso — ou null se pode.
+     *
+     * Uma dona só para a regra, com os dois motivos separados porque o produto
+     * responde diferente a cada um (403 para acesso de outra performer, 404 para
+     * vencido) e essa distinção é decisão registrada do PO. O que NÃO pode
+     * divergir é a regra em si, e por isso o serving e a denúncia leem daqui.
+     *
+     * A foto soft-deletada cai no mesmo `null` de inexistente (escopo global do
+     * SoftDeletes na relação), e o prazo é conferido dos DOIS lados: a foto pode
+     * morrer antes do acesso, e o acesso antes da foto.
+     *
+     * @return string|null MemberPhotoException::FORBIDDEN, ::EXPIRED, ou null
+     */
+    private function denialForPerformer(User $performer, MemberPhotoAccess $access): ?string
+    {
+        $profileId = $performer->performerProfile?->getKey();
+
+        if ($profileId === null || $access->performer_profile_id !== $profileId) {
+            return MemberPhotoException::FORBIDDEN;
+        }
+
+        $photo = $access->photo;
+
+        if ($photo === null || $photo->isExpired() || $access->isExpired()) {
+            return MemberPhotoException::EXPIRED;
+        }
+
+        return null;
     }
 
     /**
@@ -404,13 +461,69 @@ class MemberPhotoService
      * delega, um `destroy($photo)` exposto deixaria qualquer membro autenticado
      * apagar a foto de outro — bytes, acessos e linha.
      *
-     * @throws MemberPhotoException não é o dono
+     * ── Denúncia em aberto CONGELA o revoke (2º bloqueador) ─────────────────
+     * Sem isso, a denúncia da performer chegaria à revisão apontando para uma
+     * foto que já não existe: o TTL mínimo é de 24h e o botão "Revogar" está a
+     * um clique — quem envia conteúdo ilegal e é denunciado tem, hoje, o botão
+     * de destruir a prova contra si. É a mesma razão pela qual o
+     * `DeletionService` preserva `reports` intactos e pela qual o story
+     * denunciado congela (§ 2.4).
+     *
+     * O congelamento vale para a LINHA e os BYTES, **não para a visibilidade**:
+     * `denialForPerformer()` continua negando por prazo, então uma foto
+     * congelada e vencida não é legível por ninguém no produto — nem pela
+     * performer que a denunciou. Isso importa porque a alternativa transformaria
+     * a denúncia numa forma de estender o próprio acesso.
+     *
+     * @throws MemberPhotoException não é o dono, ou está em análise
      */
     public function destroyForMember(User $member, MemberPhoto $photo): void
     {
         $this->assertOwns($member, $photo);
 
+        if ($this->hasOpenReport($photo)) {
+            throw MemberPhotoException::underReview();
+        }
+
         $this->destroy($photo);
+
+        // Só o id (3º bloqueador). O revoke é a ação que apaga os bytes, então
+        // esta linha é literalmente a última prova de que a foto existiu.
+        Audit::log('member_photo.revoked', $photo, ['member_photo_id' => $photo->id]);
+    }
+
+    /**
+     * Esta foto tem denúncia em aberto?
+     *
+     * Uma dona só para a pergunta, ao lado de `openReportTargets()`: o GC e o
+     * revoke do titular precisam concordar sobre o que está congelado, senão a
+     * porta que discordar é a que destrói a prova. Os dois leem
+     * `Report::OPEN_STATUSES` — a mesma constante que o story usa. Aqui a
+     * pergunta é por UMA foto (o revoke); lá é a subconsulta da varredura.
+     */
+    private function hasOpenReport(MemberPhoto $photo): bool
+    {
+        return Report::query()
+            ->where('reportable_type', $photo->getMorphClass())
+            ->where('reportable_id', $photo->getKey())
+            ->whereIn('status', Report::OPEN_STATUSES)
+            ->exists();
+    }
+
+    /**
+     * Subconsulta das fotos com denúncia em aberto.
+     *
+     * `getMorphClass()` e não a string literal: não há morph map no projeto hoje
+     * (o `reportable_type` guarda o FQCN), e escrever a classe à mão aqui seria a
+     * cópia que deixa de casar no dia em que um morph map entrar — e deixaria de
+     * casar em silêncio, liberando o GC sobre a evidência.
+     */
+    private function openReportTargets(): Builder
+    {
+        return Report::query()
+            ->select('reportable_id')
+            ->where('reportable_type', (new MemberPhoto)->getMorphClass())
+            ->whereIn('status', Report::OPEN_STATUSES);
     }
 
     /**
@@ -490,15 +603,34 @@ class MemberPhotoService
      * com o histórico, senão cada rodada horária decifraria `path_encrypted` de
      * toda foto que já existiu só para pular.
      *
-     * @return array{expired:int,deleted:int,stale:int,failed:int}
+     * ── Foto denunciada NÃO é recolhida (2º bloqueador) ─────────────────────
+     * O GC é o outro lado do congelamento do revoke: adiantasse ele, a denúncia
+     * feita na hora 23 seria revisada contra um arquivo que o tick seguinte já
+     * levou. Um GC educado ao lado de um botão de apagar aberto não protege
+     * nada — as duas portas fecham juntas ou não fecham.
+     *
+     * `quarantined` é contador de observabilidade, não de erro: fotos vencidas
+     * que continuam no disco POR DECISÃO. Sem ele, o mesmo arquivo apareceria
+     * como `stale` a cada rodada e o alarme do § 1.3 — que existe para detectar
+     * GC quebrado — passaria a disparar por funcionamento correto. Por isso a
+     * quarentena é subtraída da varredura ANTES da conta de `stale`.
+     *
+     * @return array{expired:int,deleted:int,quarantined:int,stale:int,failed:int}
      */
     public function purgeExpired(): array
     {
-        $counts = ['expired' => 0, 'deleted' => 0, 'stale' => 0, 'failed' => 0];
+        $counts = [
+            'expired' => 0,
+            'deleted' => 0,
+            'quarantined' => $this->quarantinedCount(),
+            'stale' => 0,
+            'failed' => 0,
+        ];
         $staleBefore = now()->subHours(self::STALE_AFTER_HOURS);
 
         MemberPhoto::withTrashed()
             ->where('expires_at', '<=', now())
+            ->whereNotIn('id', $this->openReportTargets())
             ->chunkById(200, function ($photos) use (&$counts, $staleBefore) {
                 foreach ($photos as $photo) {
                     $onDisk = $this->store->exists($photo->path_encrypted);
@@ -530,6 +662,15 @@ class MemberPhotoService
             });
 
         return $counts;
+    }
+
+    /** Quantas vencidas estão congeladas por denúncia — ver `purgeExpired()`. */
+    private function quarantinedCount(): int
+    {
+        return MemberPhoto::withTrashed()
+            ->where('expires_at', '<=', now())
+            ->whereIn('id', $this->openReportTargets())
+            ->count();
     }
 
     /**

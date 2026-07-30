@@ -25,6 +25,8 @@ class MemberPhotoException extends DomainException
 
     public const NO_ACTIVE_CHAT = 'no_active_chat';
 
+    public const UNDER_REVIEW = 'under_review';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -84,6 +86,32 @@ class MemberPhotoException extends DomainException
         return new self(
             self::NO_ACTIVE_CHAT,
             'Você só pode compartilhar fotos com performers com quem tem um chat ativo.',
+        );
+    }
+
+    /**
+     * Foto com denúncia em aberto: o titular não pode removê-la enquanto a
+     * revisão não concluir.
+     *
+     * ── Sobre a mensagem ────────────────────────────────────────────────────
+     * Ela diz "em análise" e **não** diz quem denunciou, quando, nem por quê. Ao
+     * mesmo tempo, é honesta sobre o estado — dizer "não foi possível remover"
+     * genérico faria o titular tentar de novo para sempre e leria como bug.
+     *
+     * O que ela inevitavelmente entrega: que ALGUÉM com acesso à foto denunciou.
+     * Com a foto compartilhada com uma performer só, isso identifica a
+     * denunciante. Não há como fechar esse canal e ainda avisar o titular de que
+     * a foto dele está retida — é a mesma tensão do story, e aqui é mais aguda
+     * porque a audiência é menor. **Decisão registrada para o PO**: a alternativa
+     * é recusar em silêncio (a foto "some" da tela mas continua no disco), que
+     * mente para o titular sobre o próprio dado. Preferiu-se dizer a verdade.
+     */
+    public static function underReview(): self
+    {
+        return new self(
+            self::UNDER_REVIEW,
+            'Esta foto está em análise e não pode ser removida agora. '
+            .'Ela deixa de ficar visível normalmente, no prazo que você escolheu.',
         );
     }
 

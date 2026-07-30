@@ -591,7 +591,7 @@ it('reporta como alarme as fotos vencidas há mais de um ciclo e ainda no disco'
     expirePhoto(photoService()->create($member, ephemeralUpload(), 24), '-3 hours');
 
     $this->artisan('member-photos:purge')
-        ->expectsOutputToContain('expired=1 deleted=1 stale=1 failed=0')
+        ->expectsOutputToContain('expired=1 deleted=1 quarantined=0 stale=1 failed=0')
         ->assertSuccessful();
 });
 
@@ -674,7 +674,7 @@ it('reexamina a foto cuja linha morreu com o arquivo ainda no disco', function (
         ->and(photoStore()->exists($photo->path_encrypted))->toBeTrue();
 
     $this->artisan('member-photos:purge')
-        ->expectsOutputToContain('expired=1 deleted=1 stale=1 failed=0')
+        ->expectsOutputToContain('expired=1 deleted=1 quarantined=0 stale=1 failed=0')
         ->assertSuccessful();
 
     expect(photoStore()->exists($photo->path_encrypted))->toBeFalse();
@@ -691,7 +691,7 @@ it('não reprocessa para sempre a foto já recolhida', function () {
     // sem arquivo sai da contagem: sem esse corte, cada rodada horária
     // decifraria `path_encrypted` de toda foto que já existiu só para pular.
     $this->artisan('member-photos:purge')
-        ->expectsOutputToContain('expired=0 deleted=0 stale=0 failed=0')
+        ->expectsOutputToContain('expired=0 deleted=0 quarantined=0 stale=0 failed=0')
         ->assertSuccessful();
 
     expect(MemberPhoto::withTrashed()->count())->toBe(0);

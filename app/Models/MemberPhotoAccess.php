@@ -85,14 +85,23 @@ class MemberPhotoAccess extends Model
         return now()->greaterThanOrEqualTo($this->expires_at);
     }
 
-    public function markViewed(): void
+    /**
+     * Carimba a primeira abertura. Devolve `true` só quando ELA acabou de
+     * acontecer — é o que faz o audit `member_photo.viewed` ser gravado uma vez
+     * por acesso, e não a cada `<img>` que o navegador rebusca.
+     */
+    public function markViewed(): bool
     {
         // Só a PRIMEIRA visualização. Reescrever a cada abertura transformaria a
         // coluna num log de quando a performer volta a olhar a foto — dado que
         // ninguém consome e que nenhuma tela pode mostrar.
-        if ($this->viewed_at === null) {
-            $this->forceFill(['viewed_at' => now()])->save();
+        if ($this->viewed_at !== null) {
+            return false;
         }
+
+        $this->forceFill(['viewed_at' => now()])->save();
+
+        return true;
     }
 
     /**

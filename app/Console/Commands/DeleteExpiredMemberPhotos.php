@@ -31,9 +31,10 @@ class DeleteExpiredMemberPhotos extends Command
         $counts = $photos->purgeExpired();
 
         $this->info(sprintf(
-            'expired=%d deleted=%d stale=%d failed=%d',
+            'expired=%d deleted=%d quarantined=%d stale=%d failed=%d',
             $counts['expired'],
             $counts['deleted'],
+            $counts['quarantined'],
             $counts['stale'],
             $counts['failed'],
         ));

@@ -94,13 +94,21 @@ class MemberPhotoController extends Controller
         return response()->json(['photo' => $photo->fresh()->presentForMember()]);
     }
 
-    /** Revoga: bytes do disco, acessos do banco, linha de vez. */
+    /**
+     * Revoga: bytes do disco, acessos do banco, linha de vez.
+     *
+     * 403 para "não é sua foto" e 422 para "está em análise" — a segunda é
+     * recusa de ESTADO, não de autorização, e a tela precisa distinguir para
+     * explicar. É o mesmo par de status que `share()` já usa.
+     */
     public function destroy(Request $request, MemberPhoto $photo): JsonResponse
     {
         try {
             $this->photos->destroyForMember($request->user(), $photo);
         } catch (MemberPhotoException $e) {
-            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 403);
+            $status = $e->reason === MemberPhotoException::FORBIDDEN ? 403 : 422;
+
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], $status);
         }
 
         return response()->json(['status' => 'revoked']);

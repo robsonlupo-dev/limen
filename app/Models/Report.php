@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\MemberPhotoService;
 use App\Services\StoryVisibilityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -38,7 +39,31 @@ class Report extends Model
         // segunda rota nasceria sem alguma delas. Denunciar um story É o gatilho
         // que congela o GC e a deleção manual daquele story.
         'performer_story' => PerformerStory::class,
+        // Foto efêmera do membro (Sprint 9B — o 1º dos 4 bloqueadores de go-live
+        // da feature, ver MASTER_HANDOFF_FINAL, seção "Sprint 9B").
+        // Aqui quem denuncia é a PERFORMER que recebeu, e o denunciado é o
+        // membro que enviou: é a única direção do produto em que o conteúdo
+        // chega sem ter sido pedido. Mesma porta, pelas mesmas razões do story.
+        //
+        // ⚠️ O HANDLE DESTE TIPO NÃO É A CHAVE. O payload traz o `access_id`
+        // (MemberPhotoAccess), não o id da foto — a performer nunca vê o id da
+        // foto, e não deveria: ele é comum às várias performers com quem o mesmo
+        // membro compartilhou, então aceitá-lo entregaria um identificador
+        // correlacionável entre perfis, que é exatamente o que o FanAlias existe
+        // para impedir. Quem traduz handle → alvo é resolveFromHandle().
+        'member_photo' => MemberPhoto::class,
     ];
+
+    /**
+     * Denúncias que ainda não foram concluídas pelo admin — as que CONGELAM a
+     * destruição do alvo (story e foto efêmera).
+     *
+     * Vive aqui e não em cada service porque a pergunta "isto está em análise?"
+     * já tem dois donos diferentes (`PerformerStoryService`, `MemberPhotoService`)
+     * e ganharia um terceiro na próxima superfície. Duas cópias divergiriam, e a
+     * que divergisse no sentido permissivo é a que destrói a prova.
+     */
+    public const OPEN_STATUSES = ['pending', 'reviewed'];
 
     /** Janela em que um mesmo denunciante não repete o mesmo par alvo+motivo. */
     public const DEDUP_WINDOW_HOURS = 24;
@@ -82,6 +107,36 @@ class Report extends Model
         return self::REPORTABLE_TYPES[$alias] ?? null;
     }
 
+    /**
+     * Handle público → modelo alvo. É a tradução que o controller usa no lugar de
+     * um `$class::find($id)` cru.
+     *
+     * Para quase todo tipo o handle É a chave, e o método não faz nada de
+     * especial. A exceção é `member_photo`, e é por causa dela que este método
+     * existe em vez de o controller chamar `find()`: o handle ali é o
+     * `MemberPhotoAccess` (o par foto↔performer), e um `MemberPhoto::find($id)`
+     * sobre aquele número acharia **outra foto** — a de id igual ao do acesso.
+     * Não seria erro visível: devolveria uma foto de verdade, de outro membro,
+     * e a checagem de visibilidade abaixo a recusaria com a resposta uniforme de
+     * "não encontrado". Ou seja, falharia silenciosamente e para sempre.
+     *
+     * Sem `withTrashed` em lugar nenhum, e não por esquecimento: a foto sai em
+     * HARD delete e o acesso morre junto (a tabela não tem soft delete). Handle
+     * de foto já destruída devolve null, que o controller trata como "não
+     * encontrado" — a mesma resposta de "não pode ver", que é o que fecha o
+     * oráculo de enumeração.
+     */
+    public static function resolveFromHandle(string $alias, int $handle): ?Model
+    {
+        if ($alias === 'member_photo') {
+            return MemberPhotoAccess::query()->whereKey($handle)->first()?->photo;
+        }
+
+        $class = self::classForAlias($alias);
+
+        return $class ? $class::find($handle) : null;
+    }
+
     /** Classe → apelido público (para exibir sem revelar o namespace). */
     public static function aliasForClass(string $class): ?string
     {
@@ -105,6 +160,10 @@ class Report extends Model
             $reportable instanceof PerformerStory => (int) PerformerProfile::withTrashed()
                 ->whereKey($reportable->performer_profile_id)
                 ->value('user_id'),
+            // A foto é do MEMBRO que a enviou — é ele quem está sendo denunciado.
+            // `user_id` é `$hidden` (não sai em serialização), mas continua
+            // legível aqui: $hidden esconde do JSON, não do código.
+            $reportable instanceof MemberPhoto => (int) $reportable->user_id,
             // Fail-closed: devolver null aqui faria a comparação com o reporter
             // dar false e DESLIGARIA silenciosamente a checagem de autodenúncia
             // no dia em que alguém adicionar um tipo em REPORTABLE_TYPES e
@@ -150,6 +209,24 @@ class Report extends Model
             // é a janela em que o membro de fato viu o conteúdo.
             $reportable instanceof PerformerStory => app(StoryVisibilityService::class)
                 ->canView($reportable, $user),
+            // Foto efêmera: "viu" é a mesma pergunta do serving da performer, e a
+            // resposta vem de quem já a responde (`readForPerformer`). Vale aqui
+            // tudo o que vale para o story — reimplementar criaria a segunda dona,
+            // e um `true` largo demais deixaria o POST virar oráculo: varrendo
+            // handles de acesso, "recebida" vs "não encontrado" diria quantas
+            // fotos existem e quais estão vivas.
+            //
+            // É também o que substitui um `role:performer` na rota: quem não tem
+            // perfil de performer não tem acesso vivo a foto nenhuma, então não
+            // passa por aqui. A rota é compartilhada com o membro (que denuncia
+            // perfil, mensagem e story) e não pode carregar aquele middleware.
+            //
+            // Consequência assumida, idêntica à do story: foto VENCIDA não é mais
+            // denunciável. A janela de denúncia é a de exibição — que aqui é mais
+            // curta (o TTL mínimo é 24h) e fica registrada como limitação, não
+            // como descuido.
+            $reportable instanceof MemberPhoto => app(MemberPhotoService::class)
+                ->performerCanView($user, $reportable),
             default => false,
         };
     }

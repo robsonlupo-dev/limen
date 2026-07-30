@@ -117,9 +117,11 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
    Hoje **moderador = admin, e admin vê tudo**; a fila é `/admin/reports` sob
    `role:admin`. Agora há conteúdo publicado esperando revisão, não só backlog.
    Destrava junto o **Curador das FC Sessions** — duas features, um pré-requisito.
-2. **Os 4 🔴 da Foto Efêmera** (abaixo). O 9C **não tocou em nenhum**: ele tornou
-   denunciável o *story*, não a *foto*. Fechar o primeiro deles ficou barato — o
-   PR #108 já fez o caminho inteiro para story, é adaptar, não desenhar.
+2. ~~**Os 4 🔴 da Foto Efêmera**~~ — **fechados** na branch
+   `fix/sprint9b-photo-moderation` (denúncia, quarentena, audit e a extração de
+   `canMemberSendTo`), reusando o caminho que o PR #108 abriu para o story. A
+   feature deixou de ter bloqueador; **ligar para usuário real continua sendo
+   decisão do PO**, e os 🟡 residuais estão na seção da Foto Efêmera.
 
 > **Numeração — só existe UMA: Sprint.** O trabalho fundacional era numerado por
 > "Fase", e as duas sequências colidiam (a antiga Fase 3 e o Sprint 3 são coisas
@@ -304,11 +306,37 @@ mesma disciplina do painel de visitantes e do geobloqueio.
 - **O gate de compartilhar é chat ativo**, e vive em
   `MemberPhotoService::shareWith()`. `grantTo()` segue sem ele de propósito — é o
   primitivo. **Chamador novo entra por `shareWith()`.**
-- **"Chat ativo" pergunta ao `ChatAccessService` se o membro pode ENVIAR agora**
+- **"Chat ativo" é `ChatAccessService::canMemberSendTo()` — fonte única, lida
+  pelo chat E pela foto.** Ela pergunta se o membro pode ENVIAR agora
   (`can_send`), nunca "existe linha em `chat_access`": assinante de Círculo tem
   chat livre e **não gera linha** — a leitura literal recusaria quem paga mais.
   Carência não passa. A recusa é sempre `no_active_chat`, para não devolver ao
   membro o estado da conta dela.
+  **Regra nova sobre "o membro pode falar com esta performer" entra LÁ** e fecha
+  as duas portas de uma vez. O que NÃO está lá, de propósito: a performer estar
+  de pé (perfil encerrado / conta suspensa) é gate exclusivo da foto e continua
+  em `shareWith()` — trazê-lo para a fonte única passaria a impedir o membro de
+  responder no chat de uma performer suspensa, que é mudar o chat, não unificar.
+- **Foto recebida é denunciável pela performer** (`Report::REPORTABLE_TYPES`
+  conhece `member_photo`), pela porta `/reportar` que já existe. **O handle é o
+  `access_id`, nunca o id da foto** — este é comum a todas as performers com quem
+  o mesmo membro compartilhou, e exibi-lo daria um identificador correlacionável
+  entre perfis, que é o que o `FanAlias` existe para impedir. Quem traduz é
+  `Report::resolveFromHandle()`; quem autoriza é `MemberPhotoService::performerCanView()`,
+  a mesma regra do serving. **Foto vencida não é mais denunciável** — a janela de
+  denúncia é a de exibição, igual ao story.
+- **Denúncia em aberto CONGELA o revoke do titular e o GC** (`Report::OPEN_STATUSES`,
+  a mesma constante do story). Sem isso, quem envia conteúdo ilegal tem o botão
+  de destruir a prova contra si a um clique. O congelamento vale para a LINHA e
+  os BYTES, **não para a visibilidade**: foto congelada e vencida não é legível
+  por ninguém — nem pela performer que denunciou —, senão denunciar viraria a
+  forma de esticar o próprio acesso.
+- **Audit no fluxo: `member_photo.shared`, `.viewed`, `.revoked` — id e nada
+  mais.** Sem caminho, sem nome de arquivo e **sem `performer_profile_id`**: esse
+  último faria do `audit_logs` uma cópia permanente do mapa "quem mostrou o rosto
+  para quem", que é justamente o dado que morre com a foto. O `.viewed` é gravado
+  só na PRIMEIRA abertura (a tela é uma `<img>`; sem a dedup, recarregar a página
+  enterra a trilha — mesma disciplina do filtro de chat).
 - **A linha morre em HARD delete**, e só depois de confirmar que os bytes saíram
   do disco. Linha soft-deletada guardaria "o membro X mandou 43 fotos, nestes
   horários" e faria o GC decifrar `path_encrypted` de todas a cada hora só para
@@ -331,20 +359,19 @@ mesma disciplina do painel de visitantes e do geobloqueio.
   exclusão escrita: **quem converter aquele script para denylist reintroduz o
   problema em silêncio.**
 
-> **Os 4 🔴 que bloqueiam o go-live da feature:** (1) foto não é denunciável —
-> `Report::REPORTABLE_TYPES` conhece `performer`, `message` e `performer_story`
-> (Sprint 9C), mas **não `member_photo`**; (2) o GC não põe
-> foto denunciada em quarentena, então a denúncia chega para arquivo que já não
-> existe; (3) nenhum `audit_log` no fluxo — e é a única trilha que sobra depois
-> que os acessos somem no TTL (quando entrar: **id e nada mais**, sem caminho,
-> sem nome, sem bytes); (4) `canMemberSend` não é fonte única.
-
-> **Enquanto `canMemberSend` não for extraído: regra nova no envio de mensagem do
-> chat TEM de ser replicada em `MemberPhotoService::shareWith()`.** As duas portas
-> (`can_send` + `conversation->status === 'active'`) são hoje uma **cópia** de
-> `ChatService::sendMessage()`, e foi assim que o `status === 'active'` passou
-> batido na primeira versão. Não foi unificado porque `sendMessage()` distingue as
-> falhas em exceções diferentes e unificar mudaria a resposta do chat.
+> **Os 4 🔴 que bloqueavam o go-live foram FECHADOS** (branch
+> `fix/sprint9b-photo-moderation`): (1) foto denunciável pela performer via
+> `member_photo`; (2) denúncia congela GC e revoke; (3) audit em share/view/revoke;
+> (4) `canMemberSendTo` como fonte única. Detalhe nos itens acima.
+>
+> **Fechar os 🔴 não é o mesmo que liberar** — a decisão de ligar para usuário
+> real é do PO, e continua valendo tudo o que esta seção diz sobre a natureza da
+> feature (des-anonimização consentida, o rosto como chave de join global).
+> **Segue em aberto**, agora como 🟡 e não como bloqueador: o cap de performers
+> por foto (§ 1.1), a varredura de órfãos no disco (§ 1.5), e três achados novos
+> registrados em `MASTER_HANDOFF_FINAL.md` — o Hard Delete de conta ainda apaga
+> foto denunciada, a fila do admin não tem visualizador para a prova, e foto
+> congelada fica no disco indefinidamente se a denúncia nunca for concluída.
 
 ## Stories da Performer — Sprint 9C (entregue, tag `v1.0-sprint9`)
 

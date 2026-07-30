@@ -68,13 +68,18 @@ class PerformerStoryService
      * `pending` e `reviewed` são os estados EM ABERTO: o admin ainda não concluiu.
      * `resolved` e `dismissed` são conclusão, e aí o GC volta a agir.
      *
+     * A lista vive em `Report::OPEN_STATUSES` desde que a foto efêmera passou a
+     * congelar pela mesma regra: eram duas superfícies lendo a mesma coisa, e a
+     * segunda cópia divergiria justamente no sentido que destrói a prova. Esta
+     * constante fica como o nome pelo qual o story se refere a ela.
+     *
      * O gatilho do outro lado é `Report::REPORTABLE_TYPES`, que conhece
      * `performer_story` — story é denunciável pela mesma porta `/reportar` dos
      * outros alvos. A quarentena foi escrita ANTES do gatilho de propósito: a
      * ordem inversa (denúncia primeiro, quarentena depois) é exatamente a janela
      * em que a evidência some.
      */
-    public const OPEN_REPORT_STATUSES = ['pending', 'reviewed'];
+    public const OPEN_REPORT_STATUSES = Report::OPEN_STATUSES;
 
     public function __construct(
         private PerformerStoryStore $store,

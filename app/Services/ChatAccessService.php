@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -220,6 +221,58 @@ class ChatAccessService
             'days_remaining' => 0,
             'expires_at' => null,
         ];
+    }
+
+    /**
+     * O membro pode ENVIAR para esta performer agora? Fonte única.
+     *
+     * ── Por que existe ──────────────────────────────────────────────────────
+     * A pergunta tinha duas implementações: `ChatService::sendMessage()` e
+     * `MemberPhotoService::shareWith()`, esta última uma CÓPIA declarada da
+     * primeira. Foi assim que o `status === 'active'` passou batido na primeira
+     * versão da foto efêmera — a cópia nasceu com uma porta a menos. Era o 4º
+     * bloqueador de go-live da foto.
+     *
+     * ── As duas portas, e por que são duas ──────────────────────────────────
+     *  1. `conversation->status === 'active'`. Nada seta `archived` hoje (o enum
+     *     existe na migration, a transição não), mas o dia em que existir —
+     *     bloqueio pelo membro, Panic Button, ação de moderação — é exatamente o
+     *     dia em que o canal de mensagem fecha e o de ROSTO não pode continuar
+     *     aberto. Conversa é arquivada justamente no conflito.
+     *  2. `accessState()['can_send']`, e não uma consulta crua a `chat_access`:
+     *     assinante de Círculo tem chat livre e **não gera linha** naquela
+     *     tabela — a leitura literal recusaria justamente quem paga mais.
+     *     Carência (`grace`) NÃO passa: quem não pode nem responder não deve
+     *     receber rosto novo.
+     *
+     * Conversa inexistente é `false`, e não uma exceção: para a foto isso é o
+     * caso comum (membro que nunca conversou com aquela performer), e para o
+     * chat é inalcançável (quem chega em `sendMessage` já tem a conversa).
+     *
+     * ── O que este método deliberadamente NÃO decide ────────────────────────
+     * - **Se a performer está de pé** (perfil encerrado, conta suspensa/banida).
+     *   Isso é gate exclusivo da FOTO e continua em `MemberPhotoService`: trazê-lo
+     *   para cá passaria a impedir o membro de responder no chat de uma performer
+     *   suspensa, que é mudança de comportamento do chat, não unificação.
+     * - **Quem é participante da conversa** e **se quem envia é a performer** —
+     *   `sendMessage` resolve os dois antes de chegar aqui, e a performer nunca
+     *   passa por este método (ela envia de graça).
+     *
+     * **Regra nova sobre "o membro pode falar com esta performer" entra AQUI** —
+     * e fecha as duas portas de uma vez. É o que o teste de fonte única cobra.
+     */
+    public function canMemberSendTo(User $member, PerformerProfile $performer): bool
+    {
+        $conversation = Conversation::query()
+            ->where('member_id', $member->getKey())
+            ->where('performer_profile_id', $performer->getKey())
+            ->first();
+
+        if ($conversation === null || $conversation->status !== 'active') {
+            return false;
+        }
+
+        return $this->accessState($conversation, $member)['can_send'];
     }
 
     /**

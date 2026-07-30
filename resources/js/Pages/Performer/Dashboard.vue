@@ -4,6 +4,7 @@ import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
+import ReportModal from '@/Components/ReportModal.vue'
 import StoryPanel from '@/Components/StoryPanel.vue'
 import { postJson } from '@/lib/http'
 
@@ -42,6 +43,9 @@ const props = defineProps({
 // o download não é impedível (nenhum cabeçalho impede), mas a tela não o
 // oferece — e a copy não promete o que o TTL não entrega.
 const openPhoto = ref(null)
+
+// A foto que está sendo denunciada (o modal lê o access_id dela).
+const reporting = ref(null)
 
 // Interesse a partir do painel de visitantes. Mesmo fluxo do botão da tela de
 // Seguidores: manda o member_handle (16 hex do FanAlias), nunca um id.
@@ -350,8 +354,29 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     class="max-h-[70vh] w-auto rounded-xl border border-frame"
                 />
                 <p class="text-sm text-cream">{{ openPhoto.fan }} · {{ openPhoto.expires_slot }}</p>
-                <button class="text-xs text-muted hover:text-cream" @click="openPhoto = null">Fechar</button>
+                <div class="flex items-center justify-center gap-4">
+                    <button class="text-xs text-muted hover:text-cream" @click="openPhoto = null">Fechar</button>
+                    <!-- O handle é o access_id, NUNCA o id da foto: aquele é comum
+                         às performers com quem o mesmo membro compartilhou, e
+                         trafegá-lo aqui daria um identificador correlacionável
+                         entre perfis — o que o FanAlias existe para impedir. -->
+                    <button class="text-xs text-danger hover:underline" @click="reporting = openPhoto">
+                        Denunciar foto
+                    </button>
+                </div>
             </div>
         </div>
+
+        <!-- Denúncia da foto recebida. Mesma porta (/reportar) e mesmo modal dos
+             outros alvos: o dedup por janela, o lock anti-duplo-submit e a
+             resposta uniforme já vivem lá. Denunciar CONGELA o GC e o revoke
+             daquela foto — sem isso a denúncia chegaria para um arquivo que o
+             titular já apagou. -->
+        <ReportModal
+            :show="reporting !== null"
+            reportable-type="member_photo"
+            :reportable-id="reporting?.access_id ?? 0"
+            @close="reporting = null"
+        />
     </AppLayout>
 </template>
