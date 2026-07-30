@@ -116,7 +116,13 @@ async function sendInterest(follower) {
                     </div>
 
                     <div class="flex-1 min-w-0 space-y-0.5">
-                        <p class="text-cream">{{ follower.label }}</p>
+                        <!-- Estilo de Vida ao lado do apelido, quando o membro
+                             declarou. `v-if` e não fallback: sem faixa não sai
+                             nada — um "não informou" diria que ele viu o
+                             formulário e recusou, que é informação sobre ele. -->
+                        <p class="text-cream">
+                            {{ follower.label }}<span v-if="follower.lifestyle" class="text-muted"> · {{ follower.lifestyle }}</span>
+                        </p>
                         <p class="text-xs text-muted">Segue desde {{ follower.following_since }}</p>
                         <p v-if="errorFor[follower.member_handle]" class="text-xs text-danger pt-1">
                             {{ errorFor[follower.member_handle] }}

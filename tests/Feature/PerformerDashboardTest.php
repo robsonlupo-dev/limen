@@ -181,7 +181,10 @@ it('nome email e user_id real nao aparecem na resposta das gorjetas', function (
         ->get('/performer/dashboard')
         ->assertInertia(fn (Assert $page) => $page
             ->has('tips.0', fn (Assert $tip) => $tip
-                ->hasAll(['fan', 'amount', 'created_at'])
+                // `lifestyle` entrou no Sprint 10: é o RÓTULO da faixa de
+                // estilo de vida (ou null), nunca o slug e nunca o id. A
+                // garantia continua sendo a forma — nenhuma chave além destas.
+                ->hasAll(['fan', 'lifestyle', 'amount', 'created_at'])
                 ->missing('consumer_id')
                 ->missing('email')
                 ->missing('name')

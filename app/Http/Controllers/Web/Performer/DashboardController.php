@@ -17,6 +17,7 @@ use App\Services\InterestService;
 use App\Services\PerformerStoryService;
 use App\Services\ProfileVisitService;
 use App\Support\FanAlias;
+use App\Support\LifestyleTier;
 use App\Support\StoryPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -173,15 +174,22 @@ class DashboardController extends Controller
 
     private function recentTips(PerformerProfile $profile): array
     {
-        return Tip::where('performer_profile_id', $profile->id)
+        $tips = Tip::where('performer_profile_id', $profile->id)
             ->orderByDesc('created_at')
             ->limit(10)
-            ->get(['consumer_id', 'performer_amount', 'created_at'])
+            ->get(['consumer_id', 'performer_amount', 'created_at']);
+
+        // Estilo de Vida (Sprint 10), em lote e como rótulo. Quem não declarou
+        // vem `null` e a tela não desenha nada — ver LifestyleTier::labelFor().
+        $lifestyleLabels = LifestyleTier::labelsFor($tips->pluck('consumer_id')->all());
+
+        return $tips
             // Pseudônimo por par (perfil, membro): `consumer_id % 10000` entregava
             // quatro dígitos do id real, e o mesmo espaço de ids fazia "Fã #2345"
             // casar com "Membro #12345" da lista de seguidores. Ver FanAlias.
             ->map(fn (Tip $tip) => [
                 'fan' => FanAlias::label($profile->id, $tip->consumer_id),
+                'lifestyle' => $lifestyleLabels[$tip->consumer_id] ?? null,
                 'amount' => $tip->performer_amount,
                 'created_at' => $tip->created_at->format('d/m/Y H:i'),
             ])

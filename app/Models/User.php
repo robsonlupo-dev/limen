@@ -59,6 +59,14 @@ class User extends Authenticatable implements MustVerifyEmail
         // dizer "esta conta veio do mesmo IP que aquela". Uma linha fecha a
         // classe inteira de regressão.
         'registration_ip_hash',
+        // Estilo de Vida (Sprint 10). É o único auto-declarado do membro que
+        // VOLTA para a performer, e por isso ele sai por UM caminho só: o
+        // rótulo montado por LifestyleTier::labelsFor() nas três telas dela.
+        // Escondê-lo da serialização é o que impede o slug cru de pegar carona
+        // num prop de Inertia genérico — e o prop perigoso é o do CATÁLOGO,
+        // superfície pública onde não há nem o piso de anonimato para segurar a
+        // correlação entre perfis. Mesma razão do registration_ip_hash acima.
+        'lifestyle_tier',
     ];
 
     protected function casts(): array

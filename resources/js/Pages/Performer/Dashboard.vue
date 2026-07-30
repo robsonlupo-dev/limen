@@ -190,7 +190,13 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                                 :key="i"
                                 class="border-b border-frame/50 last:border-b-0"
                             >
-                                <td class="px-5 py-3 text-cream">{{ tip.fan }}</td>
+                                <!-- Estilo de Vida do membro, se ele declarou.
+                                     Sem faixa não sai nada: um "não informou"
+                                     entregaria que ele viu o formulário e
+                                     recusou. Ver App\Support\LifestyleTier. -->
+                                <td class="px-5 py-3 text-cream">
+                                    {{ tip.fan }}<span v-if="tip.lifestyle" class="text-muted"> · {{ tip.lifestyle }}</span>
+                                </td>
                                 <td class="px-5 py-3 text-gold">{{ tip.amount }}</td>
                                 <td class="px-5 py-3 text-muted">{{ tip.created_at }}</td>
                             </tr>
@@ -241,7 +247,9 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                                 :key="i"
                                 class="border-b border-frame/50 last:border-b-0"
                             >
-                                <td class="px-5 py-3 text-cream">{{ visit.fan }}</td>
+                                <td class="px-5 py-3 text-cream">
+                                    {{ visit.fan }}<span v-if="visit.lifestyle" class="text-muted"> · {{ visit.lifestyle }}</span>
+                                </td>
                                 <!-- Faixa do dia, nunca relógio: horário exato deixava
                                      a performer casar um envio de link com o alias que
                                      aparece logo depois. Ver ProfileVisitService::slot(). -->

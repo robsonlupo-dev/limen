@@ -99,6 +99,7 @@ return [
         // Perfil do membro (interesses + "o que estou buscando")
         'consumer.profile.edit',
         'consumer.profile.update',
+        'consumer.profile.lifestyle-tier',
 
         // Consumer tips
         'tips.send',
