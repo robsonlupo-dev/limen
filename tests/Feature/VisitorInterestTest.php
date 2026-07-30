@@ -410,11 +410,9 @@ it('entrega o handle do visitante no painel, e nunca o id', function () {
     $response = $this->actingAs($profile->user)->get(route('performer.dashboard'));
     $panel = $response->viewData('page')['props']['visitors'];
 
-    // A garantia é a FORMA: nenhuma chave além destas. O `fan` de 4 dígitos
+    // A garantia é a FORMA: nenhuma chave além destas três. O `fan` de 4 dígitos
     // é exibição e colide de propósito; quem identifica é o `member_handle`.
-    // `lifestyle` (Sprint 10) é o rótulo da faixa declarada pelo membro, ou
-    // null — não identifica e não é derivável de volta ao id.
-    expect(array_keys($panel[0]))->toBe(['fan', 'member_handle', 'lifestyle', 'visited_slot'])
+    expect(array_keys($panel[0]))->toBe(['fan', 'member_handle', 'visited_slot'])
         ->and(collect($panel)->pluck('member_handle'))
         ->toContain(FanAlias::handle($profile->id, $visitors[0]->id));
 });

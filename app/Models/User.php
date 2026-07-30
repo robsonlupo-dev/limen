@@ -61,7 +61,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'registration_ip_hash',
         // Estilo de Vida (Sprint 10). É o único auto-declarado do membro que
         // VOLTA para a performer, e por isso ele sai por UM caminho só: o
-        // rótulo montado por LifestyleTier::labelsFor() nas três telas dela.
+        // rótulo montado por LifestyleTier::labelsFor() nas telas dela.
         // Escondê-lo da serialização é o que impede o slug cru de pegar carona
         // num prop de Inertia genérico — e o prop perigoso é o do CATÁLOGO,
         // superfície pública onde não há nem o piso de anonimato para segurar a

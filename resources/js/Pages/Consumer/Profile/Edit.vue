@@ -189,8 +189,9 @@ function saveLifestyle() {
                         <h2 class="text-sm font-medium text-cream">Estilo de Vida</h2>
                         <p class="text-muted text-sm">
                             Opcional. Se você escolher uma faixa, ela aparece para as performers
-                            ao lado do seu apelido — nas listas de seguidores, gorjetas e
-                            visitantes. Não aparece no catálogo público e não é usada como filtro.
+                            que você segue ou para quem você envia gorjeta, ao lado do seu
+                            apelido. Não aparece no catálogo público, não é usada como filtro, e
+                            some enquanto o Modo Discreto estiver ligado.
                         </p>
                     </div>
                 </div>

@@ -24,7 +24,7 @@ uses(RefreshDatabase::class);
  * daquela tela (`interests`, `seeking`) nunca sai do servidor. Por isso o que
  * estes testes travam não é o CRUD: é a fronteira.
  *
- *  - onde a faixa APARECE: as três telas da performer, ao lado do FanAlias;
+ *  - onde a faixa APARECE: seguidores e gorjetas, ao lado do FanAlias;
  *  - onde ela NÃO aparece, e nunca pode passar a aparecer: o catálogo (público
  *    e autenticado), qualquer serialização genérica do User, e filtro nenhum;
  *  - o que "não declarou" produz: ausência, nunca placeholder — "não informou"
@@ -330,7 +330,7 @@ it('shows the tier in the tips panel', function () {
         );
 });
 
-it('shows the tier in the visitors panel', function () {
+it('never shows the tier in the visitors panel', function () {
     // O painel exige os DOIS pisos (seguidores e visitantes distintos
     // elegíveis), então são 5 seguidores E 5 visitantes.
     [$profile, $followers] = ltPerformerWithFollowers();
@@ -343,11 +343,52 @@ it('shows the tier in the visitors panel', function () {
     }
 
     $panel = app(ProfileVisitService::class)->panelFor($profile);
-    $rows = collect($panel['visitors'])->keyBy('fan');
 
+    // Decidido pelo PO depois da revisão de segurança de 30/07. O SLOT_MIN_K
+    // deste painel dá k-anonimato de PERTENCIMENTO, não l-diversidade de
+    // atributo: como o padrão do campo é não declarar, os aliases que a
+    // performer planta (ataque A2) ficam sem faixa a custo zero, e aí toda
+    // linha ROTULADA é por construção um visitante real — o conjunto de
+    // anonimato dentro da faixa cai de 3 para 1. É também a tela com o vínculo
+    // mais fraco: o membro só ABRIU um perfil.
     expect($panel['visible'])->toBeTrue()
-        ->and($rows[FanAlias::label($profile->id, $followers[0]->id)]['lifestyle'])->toBe('Elite')
-        ->and($rows[FanAlias::label($profile->id, $followers[1]->id)]['lifestyle'])->toBeNull();
+        ->and($panel['visitors'])->not->toBeEmpty();
+
+    foreach ($panel['visitors'] as $row) {
+        expect($row)->not->toHaveKey('lifestyle');
+    }
+
+    // E nem pela tela: a prop do Inertia é montada pelo mesmo service.
+    $props = $this->actingAs($profile->user)
+        ->get(route('performer.dashboard'))->viewData('page')['props'];
+
+    expect(json_encode($props['visitors']))->not->toContain('Elite');
+});
+
+it('suppresses the tier for a member in Modo Discreto', function () {
+    $profile = ltPerformer();
+    $member = ltMember('patrono');
+
+    // Modo Discreto tira o membro da lista de SEGUIDORES, mas a de gorjetas não
+    // passa por piso nenhum — então ele reaparece ali. Sem esta supressão,
+    // reapareceria carregando o atributo GLOBAL que correlaciona entre perfis,
+    // que é exatamente o que o perk existe para negar. A regra vive na dona
+    // única (LifestyleTier::labelsFor), não nos controllers: são duas telas
+    // hoje, e a terceira nasceria vazando.
+    $member->forceFill(['discrete_mode' => true])->save();
+
+    app(TokenService::class)->credit($member, 200, 'purchase');
+    app(TipService::class)->send($member, $profile, 100, (string) Str::uuid());
+
+    $this->actingAs($profile->user)
+        ->get(route('performer.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            // O apelido continua — a gorjeta é ação deliberada dele e essa
+            // decisão é antiga. O que sai é só a faixa.
+            ->where('tips.0.fan', FanAlias::label($profile->id, $member->id))
+            ->where('tips.0.lifestyle', null)
+        );
 });
 
 // ─── Onde a faixa NUNCA aparece ─────────────────────────────────────────────

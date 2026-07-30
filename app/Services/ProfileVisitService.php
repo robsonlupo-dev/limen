@@ -6,7 +6,6 @@ use App\Models\PerformerProfile;
 use App\Models\ProfileVisit;
 use App\Models\User;
 use App\Support\FanAlias;
-use App\Support\LifestyleTier;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -163,7 +162,7 @@ class ProfileVisitService
      * FanAlias), e usá-lo como chave mandaria o interesse para a pessoa errada.
      * O `visitor_id` continua sem sair daqui.
      *
-     * @return array{visible:bool,visitors:array<int,array{fan:string,member_handle:string,lifestyle:?string,visited_slot:string}>}
+     * @return array{visible:bool,visitors:array<int,array{fan:string,member_handle:string,visited_slot:string}>}
      */
     public function panelFor(PerformerProfile $profile, int $limit = 10): array
     {
@@ -180,7 +179,6 @@ class ProfileVisitService
             'visitors' => array_map(fn (array $row) => [
                 'fan' => $row['fan'],
                 'member_handle' => $row['member_handle'],
-                'lifestyle' => $row['lifestyle'],
                 'visited_slot' => $row['visited_slot'],
             ], $rows),
         ];
@@ -234,7 +232,7 @@ class ProfileVisitService
      * k aliases". Os dois casos escondem tudo; a distinção existe porque
      * `visible` é decidido só pelos pisos (ver panelFor).
      *
-     * @return array<int,array{visitor_id:int,fan:string,member_handle:string,lifestyle:?string,visited_slot:string}>|null
+     * @return array<int,array{visitor_id:int,fan:string,member_handle:string,visited_slot:string}>|null
      */
     private function revealableVisitorRows(PerformerProfile $profile, int $limit): ?array
     {
@@ -275,28 +273,28 @@ class ProfileVisitService
 
         $rows = $this->distinctVisitors($profile, $limit);
 
-        // Estilo de Vida (Sprint 10). Resolvido em LOTE, aqui e não na linha:
-        // uma chamada por visitante seria N+1 num painel que já paga duas
-        // contagens de piso.
+        // ── Por que o "Estilo de Vida" NÃO sai aqui ─────────────────────────
         //
-        // A faixa é atributo do MEMBRO, não da visita: ela é a mesma para toda
-        // performer, enquanto o `fan` ao lado muda de perfil para perfil. É uma
-        // chave de join fraca entre listas de performers diferentes — a
-        // ressalva está escrita em App\Support\LifestyleTier, e é por ela que o
-        // campo é opcional e nunca vira filtro. Aqui o efeito é menor do que
-        // parece: o k-anonimato por faixa já exige SLOT_MIN_K aliases para a
-        // faixa horária aparecer, e a faixa de estilo de vida não muda quem
-        // entra na lista — só o que se lê ao lado de quem já está nela.
-        $lifestyleLabels = LifestyleTier::labelsFor(
-            array_map(fn (object $row) => (int) $row->visitor_id, $rows)
-        );
-
+        // A faixa (Sprint 10, App\Support\LifestyleTier) é exibida à performer
+        // na lista de seguidores e no painel de gorjetas, e foi deliberadamente
+        // deixada FORA deste painel. Duas razões, e nenhuma é excesso de zelo:
+        //
+        //  - **O k protege pertencimento, não atributo.** SLOT_MIN_K garante que
+        //    quem chegou na faixa horária é "um entre 3"; não garante que os 3
+        //    sejam indistinguíveis entre si. Como o padrão do campo é NÃO
+        //    declarar, a performer que planta contas envelhecidas (o ataque A2,
+        //    já registrado no CLAUDE.md) as deixa sem faixa a custo zero — e aí
+        //    qualquer linha ROTULADA é, por construção, um visitante real. O
+        //    conjunto de anonimato dentro da faixa cai de 3 para o número de
+        //    rotulados, frequentemente 1. É l-diversidade, que o k não dá.
+        //  - **É a tela com o vínculo mais fraco.** Seguidores e gorjetas
+        //    pressupõem ação deliberada do membro em direção àquela performer.
+        //    Aqui ele apenas ABRIU um perfil.
+        //
+        // Achado da revisão de segurança de 30/07, decidido pelo PO. Não
+        // acrescente o rótulo a esta lista sem resolver a l-diversidade antes.
         return $this->revealableSlots(array_map(fn (object $row) => [
             'visitor_id' => (int) $row->visitor_id,
-            // `null` quando o membro não declarou — a tela não desenha nada, e
-            // não há placeholder: "não informou" diria à performer que aquele
-            // visitante viu o formulário e recusou (item 14, mesma lógica).
-            'lifestyle' => $lifestyleLabels[(int) $row->visitor_id] ?? null,
             // Mesmo pseudônimo por par (perfil, membro) das gorjetas e da
             // lista de seguidores: a performer reconhece "o Fã #0042 de
             // sempre" entre as telas, sem que o id cru saia daqui.

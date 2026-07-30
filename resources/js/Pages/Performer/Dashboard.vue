@@ -247,9 +247,13 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                                 :key="i"
                                 class="border-b border-frame/50 last:border-b-0"
                             >
-                                <td class="px-5 py-3 text-cream">
-                                    {{ visit.fan }}<span v-if="visit.lifestyle" class="text-muted"> · {{ visit.lifestyle }}</span>
-                                </td>
+                                <!-- Sem "Estilo de Vida" aqui, ao contrário das
+                                     gorjetas acima e da lista de seguidores: o
+                                     k deste painel protege pertencimento, não
+                                     atributo, e a faixa selecionaria os
+                                     visitantes reais entre os aliases plantados.
+                                     Ver ProfileVisitService. -->
+                                <td class="px-5 py-3 text-cream">{{ visit.fan }}</td>
                                 <!-- Faixa do dia, nunca relógio: horário exato deixava
                                      a performer casar um envio de link com o alias que
                                      aparece logo depois. Ver ProfileVisitService::slot(). -->

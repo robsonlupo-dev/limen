@@ -33,7 +33,9 @@ use Inertia\Response;
  *    para o porquê inteiro, e MemberInterestsTest para o teste que trava isso.
  *
  *  - `lifestyle_tier` (Sprint 10) VOLTA, por decisão do PO: sai ao lado do
- *    FanAlias nas três telas da performer (seguidores, gorjetas, visitantes).
+ *    FanAlias em duas telas da performer: seguidores e gorjetas. NÃO no
+ *    painel de visitantes — a l-diversidade que o k daquele painel não dá
+ *    (revisão de 30/07); ver ProfileVisitService::revealableVisitorRows().
  *    Por isso ele entra por endpoint PRÓPRIO (update() não o toca), fica fora
  *    do `$fillable`, e a tela avisa quem vê ANTES do preenchimento — não nos
  *    Termos. A ressalva de correlação cross-perfil está em

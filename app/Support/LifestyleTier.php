@@ -169,11 +169,26 @@ final class LifestyleTier
     /**
      * Rótulos de vários membros de uma vez: [user_id => label|null].
      *
-     * Existe para as três superfícies da performer (seguidores, gorjetas,
-     * visitantes) não fazerem N+1 nem, pior, cada uma resolver o rótulo do seu
-     * jeito. Só os ids pedidos saem daqui; a chave continua sendo interna à
-     * chamada — quem monta a linha da tela é o chamador, e é ele que troca o id
-     * pelo FanAlias.
+     * Existe para as superfícies da performer (seguidores e gorjetas) não
+     * fazerem N+1 nem, pior, cada uma resolver o rótulo do seu jeito. Só os ids
+     * pedidos saem daqui; a chave continua sendo interna à chamada — quem monta
+     * a linha da tela é o chamador, e é ele que troca o id pelo FanAlias.
+     *
+     * ── Modo Discreto suprime a faixa, e a regra vive AQUI ──────────────────
+     * Não nos controllers, pelo mesmo motivo do item 9 do CLAUDE.md: são duas
+     * telas hoje e a terceira que aparecesse nasceria vazando. Uma checagem
+     * duplicada divergiria, e divergiria no sentido permissivo.
+     *
+     * O caso concreto: o Modo Discreto tira o membro da lista de SEGUIDORES,
+     * mas a lista de GORJETAS não passa por piso nenhum (CLAUDE.md, § FanAlias)
+     * — então o discreto que manda uma gorjeta reaparece ali. Com a faixa junto,
+     * ele reaparecia carregando o atributo GLOBAL que correlaciona entre
+     * perfis, que é exatamente o que o perk existe para negar. As duas escolhas
+     * são consentidas em separado; a interseção delas não foi consentida por
+     * ninguém, e na dúvida o perk vence — errar escondendo é o erro barato.
+     *
+     * Ghost Mode não precisa de linha aqui: quem o tem não gera visita, e o
+     * painel de visitantes não exibe faixa nenhuma (ver ProfileVisitService).
      *
      * @param  array<int, int>  $userIds
      * @return array<int, string|null>
@@ -192,8 +207,10 @@ final class LifestyleTier
         // que segue para a tela.
         return User::query()
             ->whereIn('id', $userIds)
-            ->pluck('lifestyle_tier', 'id')
-            ->map(fn (?string $tier) => self::labelFor($tier))
+            ->get(['id', 'lifestyle_tier', 'discrete_mode'])
+            ->mapWithKeys(fn (User $user) => [
+                $user->id => $user->discrete_mode ? null : self::labelFor($user->lifestyle_tier),
+            ])
             ->all();
     }
 

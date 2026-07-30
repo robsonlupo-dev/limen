@@ -253,20 +253,21 @@ it('nunca entrega o id do membro na lista de visitantes', function () {
 
     $response = $this->actingAs($performer->user)->get(route('performer.dashboard'));
 
-    // Só o pseudônimo, o handle e as faixas saem daqui — o `visitor_id` não sai
+    // Só o pseudônimo, o handle e a faixa saem daqui — o `visitor_id` não sai
     // do service. Checar o id por substring seria frágil (a data carrega
-    // dígitos), então a garantia é a forma: nenhuma chave além destas, e nem o
-    // alias nem o handle são deriváveis de volta ao id.
+    // dígitos), então a garantia é a forma: nenhuma chave além destas três, e
+    // nem o alias nem o handle são deriváveis de volta ao id.
     //
     // `member_handle` entrou no Sprint 9: é o que o Interesse a partir do painel
     // manda de volta no POST. O `fan` de 4 dígitos não serviria — ele colide de
     // propósito, e usá-lo como chave mandaria o interesse para a pessoa errada.
     //
-    // `lifestyle` entrou no Sprint 10: RÓTULO da faixa declarada pelo membro
-    // (ou null se ele não declarou). É atributo dele, não da visita, e não
-    // carrega id nem horário.
+    // O "Estilo de Vida" do Sprint 10 NÃO entra aqui, de propósito: o k deste
+    // painel protege pertencimento, não atributo, e a faixa selecionaria os
+    // visitantes reais entre os aliases plantados. Ver o comentário em
+    // ProfileVisitService::revealableVisitorRows().
     $visitors = $response->viewData('page')['props']['visitors'];
-    expect(array_keys($visitors[0]))->toBe(['fan', 'member_handle', 'lifestyle', 'visited_slot'])
+    expect(array_keys($visitors[0]))->toBe(['fan', 'member_handle', 'visited_slot'])
         ->and(collect($visitors)->pluck('fan'))->toContain(FanAlias::label($performer->id, $member->id))
         ->and(collect($visitors)->pluck('fan'))->not->toContain('Fã #'.$member->id);
 });
@@ -362,11 +363,10 @@ it('o painel nao devolve visited_at em lugar nenhum', function () {
 
     foreach ($visitors as $visitor) {
         // `member_handle` entrou no Sprint 9 (alvo do Interesse a partir do
-        // painel) e `lifestyle` no Sprint 10 (faixa declarada pelo membro).
-        // Nenhum dos dois carrega horário — o que esta lista de chaves trava
-        // continua sendo o mesmo: nada além destas sai daqui, e em particular
-        // nenhum relógio.
-        expect(array_keys($visitor))->toBe(['fan', 'member_handle', 'lifestyle', 'visited_slot'])
+        // painel). É HMAC do par, não carrega horário — o que esta lista de
+        // chaves trava continua sendo o mesmo: nada além destas três sai daqui,
+        // e em particular nenhum relógio.
+        expect(array_keys($visitor))->toBe(['fan', 'member_handle', 'visited_slot'])
             ->and($visitor)->not->toHaveKey('visited_at');
     }
 
