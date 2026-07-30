@@ -7,17 +7,19 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 30/07/2026 — **Sprint 9C FECHADO** (`main`, `57aab21`,
-> PRs #105–#108, tag **`v1.0-sprint9`**). Stories da Performer entregue com os 7
-> 🔴 da pré-análise endereçados. Suíte: **1245 testes verdes, 6359 asserts**.
+> **Última atualização:** 30/07/2026 — **`main` em `49ef728`**, depois do
+> **PR #110**, que fechou os 4 bloqueadores de go-live da Foto Efêmera do
+> Sprint 9B. Suíte: **1268 testes verdes, 6520 asserts**.
+> Antes dele, no mesmo dia: **Sprint 9C FECHADO** (`57aab21`, PRs #105–#108, tag
+> **`v1.0-sprint9`**), Stories da Performer com os 7 🔴 da pré-análise
+> endereçados.
 >
-> **A tag `v1.0-sprint9` fecha o SPRINT, não libera a Foto Efêmera.** Ela cobre
-> as três trilhas do Sprint 9 (9A entregue, 9B implementado, 9C entregue), e o
-> código do 9B viaja dentro dela. **Os 4 🔴 da Foto Efêmera foram fechados DEPOIS
-> da tag**, em 30/07/2026 (branch `fix/sprint9b-photo-moderation`) — então a tag
-> aponta para um estado em que eles ainda estavam abertos. Fechar os
-> bloqueadores **não é liberar**: ligar a feature para usuário real é decisão do
-> PO. Ver "Sprint 9B — Em andamento".
+> **A tag `v1.0-sprint9` fecha o SPRINT, e é ANTERIOR ao PR #110.** Ela cobre as
+> três trilhas do Sprint 9 (9A entregue, 9B implementado, 9C entregue), e aponta
+> para um estado em que os 4 🔴 da Foto Efêmera ainda estavam abertos — eles
+> foram fechados depois, fora da tag. E fechar bloqueador **não é liberar**:
+> **a Foto Efêmera continua desligada**, e ligá-la para usuário real é decisão do
+> PO. Ver "Sprint 9B — Sem bloqueador, não liberado".
 > **Método:** escrito a partir da **inspeção do código real** — `git log`,
 > `route:list`, `composer.json`, migrations, services, controllers, configs e a
 > suíte de testes rodada de ponta a ponta. Onde um doc antigo contradiz o código,
@@ -69,7 +71,7 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1245 testes verdes, 6359 asserts** | `php artisan test` (~165 s) |
+| Suíte de testes | **1268 testes verdes, 6520 asserts** | `php artisan test` (~165 s) |
 | Migrations | **79** | `ls database/migrations/*.php \| wc -l` |
 | Rotas registradas | **148** | `php artisan route:list` (rodapé *Showing*) |
 | `Route::` em `routes/web.php` | 114 | `grep` |
@@ -97,11 +99,18 @@
 > `v1.0-sprint9a` **e** `v1.0-sprint9`, e a segunda **não** é "a versão sem sufixo
 > da primeira" — é o fecho do arco. Não existe `v1.0-sprint9b` nem `v1.0-sprint9c`.
 
-**Branch atual:** `main` (em `57aab21`, com os PRs #105→#108 do **Sprint 9C**
-mergeados por cima dos #101→#104 do 9B e dos #88→#100 do 9A). Últimos commits
-relevantes (mais recente primeiro):
+**Branch atual:** `main` (em `49ef728`, com o PR #110 — fecho dos bloqueadores do
+9B — por cima dos #105→#108 do **Sprint 9C**, dos #101→#104 do 9B e dos #88→#100
+do 9A). Últimos commits relevantes (mais recente primeiro):
 
 ```
+49ef728 Merge pull request #110 from robsonlupo-dev/fix/sprint9b-photo-moderation
+24a0213 keep the row of a reported photo when the account closes
+a9a86fe answer the revoke with success even under an open report
+4111bd5 close the two defects the security review found
+70b2b75 close the four go-live blockers of the ephemeral member photo
+885cb4e Merge pull request #109 from robsonlupo-dev/fix/sprint9c-stale-comment
+26dc213 docs: registra o fecho do Sprint 9C e a tag v1.0-sprint9
 57aab21 Merge pull request #108 from robsonlupo-dev/feat/sprint9c-stories-moderation (tag v1.0-sprint9)
 82968b4 close the story moderation and retention gaps
 239cbe9 Merge pull request #107 from robsonlupo-dev/feat/sprint9c-stories-catalog
@@ -294,12 +303,16 @@ todos pela Regra de Ouro do Git Flow (branch + PR para `main`). Suíte passou de
 
 > **Por que "9A" e não "Sprint 9".** O backlog do Sprint 9 tinha duas metades: a
 > trilha de **UX e descoberta** (tags, filtros, badges, copy) e a trilha de
-> **conteúdo efêmero** (Foto Efêmera do Membro + Stories da Performer). Só a
-> primeira foi entregue. A segunda **não teve uma linha de código escrita** e
-> segue no backlog com os 🔴 abertos — inclusive o pipeline de moderação exigido
-> **antes** do primeiro upload. O rótulo "9A" existe para que ninguém leia
-> "Sprint 9 entregue" e conclua que a superfície de conteúdo foi aberta. **Ela
-> não foi.** A janela do §1 continua aberta.
+> **conteúdo efêmero** (Foto Efêmera do Membro + Stories da Performer). No fecho
+> do 9A só a primeira tinha sido entregue; a segunda não tinha uma linha de código
+> escrita, e o rótulo "9A" existe para que ninguém lesse "Sprint 9 entregue" e
+> concluísse que a superfície de conteúdo estava aberta.
+>
+> **Estado de hoje (30/07), para quem ler esta seção fora de ordem:** a Foto
+> Efêmera saiu no 9B (implementada, sem bloqueador, **não liberada**) e os
+> Stories saíram no 9C (entregues). A janela do §1 **não** está mais aberta como
+> estava aqui — o que sobra dela está registrado no §1 e nas seções dos dois
+> sprints. Este parágrafo é o retrato do dia 29/07 e fica como tal.
 
 | Entrega | PR | Seção deste doc |
 |---|---|---|
@@ -388,22 +401,22 @@ propósito. Ver §15.1.
 
 ---
 
-## Sprint 9B — Em andamento
+## Sprint 9B — Sem bloqueador, não liberado
 
 > **NÃO FECHADO — e a tag `v1.0-sprint9` não muda isso.** Range: `1a51d77..b620e9e`
 > — **4 PRs, #101 a #104**, todos pela Regra de Ouro do Git Flow. Suíte no fecho
 > do 9B: 912 (fecho do Sprint 8) → **1141 testes verdes** (5956 asserts), somando
-> o 9A e o 9B. Hoje a suíte está em 1245/6359 com o 9C por cima.
+> o 9A e o 9B. Hoje a suíte está em 1268/6520, com o 9C e o PR #110 por cima.
 >
 > **Sem tag própria: o 9B nunca teve `v1.0-sprint9b`.** O que existe é a
 > `v1.0-sprint9` do fecho do 9C (30/07/2026), e o código desta seção viaja dentro
 > dela por ser ancestral — **não** porque a feature tenha sido liberada.
 >
-> **Os 4 🔴 foram FECHADOS em 30/07/2026**, depois do 9C, na branch
-> `fix/sprint9b-photo-moderation` (denúncia, quarentena, audit e a extração de
-> `canMemberSendTo`) — ver a seção de bloqueadores abaixo, que registra como cada
-> um foi fechado. O 9C **não** os tocou: ele tornou denunciável o *story*, e foi
-> o caminho dele que esta branch adaptou para a *foto*.
+> **Os 4 🔴 foram FECHADOS em 30/07/2026**, depois do 9C, no **PR #110**
+> (denúncia, retenção da prova, audit e a extração de `canMemberSendTo`) — ver a
+> seção de bloqueadores abaixo, que registra como cada um foi fechado. O 9C
+> **não** os tocou: ele tornou denunciável o *story*, e foi o caminho dele que o
+> #110 adaptou para a *foto*.
 >
 > **O que "em andamento" quer dizer agora:** a Foto Efêmera está completa ponta a
 > ponta — processamento, storage cifrado, expiração, endpoints, UI de chat, GC,
@@ -524,7 +537,7 @@ problema em silêncio.
 
 ### ✅ BLOQUEADORES DE GO-LIVE — FECHADOS (30/07/2026)
 
-Fechados na branch `fix/sprint9b-photo-moderation`, reusando o caminho que o
+Fechados no **PR #110** (`49ef728`), reusando o caminho que o
 PR #108 abriu para o story. **Fechar os 🔴 não libera a feature**: ligar para
 usuário real é decisão do PO, e tudo o que esta seção diz sobre a natureza dela
 (des-anonimização consentida, o rosto como chave de join global) continua valendo.
@@ -895,7 +908,7 @@ php artisan test
 > Pest re-roda `migrate:fresh` a cada teste e o processo *parece travar*. Para
 > ver a exceção real, rode `php artisan migrate:fresh` sozinho.
 
-> A suíte tem **1245 testes** e leva **~3min**. Em foreground isso estoura o
+> A suíte tem **1268 testes** e leva **~3min**. Em foreground isso estoura o
 > timeout de 120s de uma chamada de shell; rode em background e aguarde a
 > notificação de conclusão.
 
@@ -1986,11 +1999,11 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 >   bio, localização opt-in, hCaptcha, e-mail do fundador, tutorial de onboarding.
 >   Ver "Sprint 9A — O que foi entregue".
 > - 🟡 **Foto Efêmera do Membro — IMPLEMENTADA, SEM BLOQUEADOR, NÃO LIBERADA**
->   (PRs #101–#104, mais a branch `fix/sprint9b-photo-moderation` de 30/07). Os
+>   (PRs #101–#104, mais o **PR #110** de 30/07). Os
 >   **4 bloqueadores 🔴 foram fechados** (denúncia de foto, quarentena, audit log,
 >   `canMemberSendTo` como fonte única); **ligar para usuário real segue sendo
 >   decisão do PO.** Os itens `[x]` logo abaixo são o registro do escopo
->   entregue. Ver "Sprint 9B — Em andamento".
+>   entregue. Ver "Sprint 9B — Sem bloqueador, não liberado".
 > - ✅ **Stories da Performer — ENTREGUE** (PRs #105–#108, tag `v1.0-sprint9`).
 >   Os **7 🔴** da pré-análise (§ 2.1–2.7) foram endereçados e o sprint começou
 >   por eles, como o backlog exigia. Ver "Sprint 9C — O que foi entregue".
@@ -2030,8 +2043,8 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
       (elimina chargeback na origem — também é bloqueador de go-live, confirmar com Asaas)
 
 **Feature: Controle de Visibilidade de Foto do Membro — ✅ IMPLEMENTADA no Sprint
-9B (PRs #101–#104), 🔴 NÃO LIBERADA.** Lista mantida como memória do escopo; o
-que falta para ligar está em "Sprint 9B — Em andamento", não aqui.
+9B (PRs #101–#104), 🟡 SEM BLOQUEADOR e NÃO LIBERADA.** Lista mantida como memória do escopo; o
+que falta para ligar está em "Sprint 9B — Sem bloqueador, não liberado", não aqui.
 
 - [x] Envio de fotos privadas efêmeras para performers específicas no chat —
       **com gate: só performer com chat ativo** (decisão do PO de 29/07/2026, que
@@ -2395,10 +2408,12 @@ entram os caminhos abaixo.
 >    revisão. Destrava junto o Curador das FC Sessions. **Subiu de prioridade
 >    outra vez em 30/07:** com a foto efêmera também denunciável, são duas filas
 >    de evidência sensível (rosto de membro e story) atrás do mesmo `role:admin`.
-> 2. ~~Fechar os 4 🔴 da Foto Efêmera~~ — **feito em 30/07** na branch
->    `fix/sprint9b-photo-moderation`. O que sobrou dela são 🟡, na seção do 9B:
->    o Hard Delete de conta ainda apaga foto denunciada, a fila do admin não tem
->    visualizador da prova, e não há prazo máximo de quarentena.
+> 2. ~~Fechar os 4 🔴 da Foto Efêmera~~ — **feito em 30/07**, no **PR #110**, que
+>    fechou também os achados da revisão de segurança. O que sobrou são 🟡, na
+>    seção do 9B: a fila do admin não tem visualizador da prova retida, e não há
+>    prazo máximo de retenção. **Os dois valem igualmente para o story** — reter
+>    evidência que ninguém consegue olhar pelo produto, sem prazo, é o mesmo
+>    problema nas duas superfícies, e agora são duas.
 >
 > **Vídeo nos Stories continua esbarrando no bloqueio das FC Sessions** (§ 2.5):
 > `Crypt` não serve para vídeo, e ainda não há decisão de storage para mídia
@@ -2703,7 +2718,7 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 ## Checklist de continuidade para o próximo chat
 
 - [ ] Ler o `CLAUDE.md` inteiro (é o cérebro; este handoff é o mapa).
-- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **1245 verdes** (6359
+- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **1268 verdes** (6520
       asserts, ~165 s) antes de começar.
 - [ ] **A Foto Efêmera está implementada, sem bloqueador, e NÃO liberada.** Os 4 🔴
       foram fechados em 30/07; **ligar para usuário real é decisão do PO**, e os 🟡
@@ -2746,7 +2761,9 @@ real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint
 (`main`, `1a51d77`, tag `v1.0-sprint9a`), em 29/07/2026 com o **Sprint 9B PARCIAL**
 (`main`, `b620e9e`, PRs #101–#104, sem tag — implementado e NÃO liberado) e em
 30/07/2026 no fecho do **Sprint 9C** (`main`, `57aab21`, PRs #105–#108, tag
-`v1.0-sprint9`). Números do snapshot e do 9C conferidos contra `git log`,
-`route:list`, o filesystem e a suíte rodada de ponta a ponta (**1245 verdes, 6359
-asserts**, ~165 s). Onde este doc e o código divergirem no futuro, o código vence
-— e a divergência deve ser registrada aqui ou no CLAUDE.md.*
+`v1.0-sprint9`) e, no mesmo dia, com o **PR #110** (`main`, `49ef728`), que fechou
+os 4 bloqueadores de go-live da Foto Efêmera e os achados da revisão de segurança
+rodada sobre ele. Números do snapshot conferidos contra `git log`, `route:list`,
+o filesystem e a suíte rodada de ponta a ponta (**1268 verdes, 6520 asserts**,
+~165 s). Onde este doc e o código divergirem no futuro, o código vence — e a
+divergência deve ser registrada aqui ou no CLAUDE.md.*

@@ -84,8 +84,8 @@ um erro na main derruba o site em produção.
 
 ## Estado atual
 
-> **Estado atual** (`main`, `57aab21`, Sprint 9C fechado): **1245 testes verdes**,
-> 6359 asserts. **Base original** (PR #69, `229d852`): 556 testes, 2614.
+> **Estado atual** (`main`, `49ef728`, depois do PR #110): **1268 testes verdes**,
+> 6520 asserts. **Base original** (PR #69, `229d852`): 556 testes, 2614.
 > O detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a
 > ler antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é histórico). Este
 > resumo só situa.
@@ -94,18 +94,19 @@ um erro na main derruba o site em produção.
 **`v1.0-sprint9`** no fecho do 9C). **O Sprint 9B não tem tag própria** e não está
 fechado.
 
-> **`v1.0-sprint9` é marco de SPRINT, não carimbo de go-live.** Ela fecha o arco
-> Sprint 9 inteiro (9A + 9B + 9C) e o código do 9B viaja dentro dela — mas a Foto
-> Efêmera **continua desligada**, com os 4 🔴 abaixo abertos. Também não é "a
-> versão sem sufixo" da `v1.0-sprint9a`: as duas coexistem, e não existem
-> `v1.0-sprint9b` nem `v1.0-sprint9c`.
+> **`v1.0-sprint9` é marco de SPRINT, não carimbo de go-live, e é ANTERIOR ao
+> PR #110.** Ela fecha o arco Sprint 9 inteiro (9A + 9B + 9C) e o código do 9B
+> viaja dentro dela — mas aponta para um estado em que os 4 🔴 da Foto Efêmera
+> ainda estavam abertos. Também não é "a versão sem sufixo" da `v1.0-sprint9a`:
+> as duas coexistem, e não existem `v1.0-sprint9b` nem `v1.0-sprint9c`.
 
-> **A Foto Efêmera do Membro está implementada e NÃO liberada.** Existe ponta a
-> ponta (PRs #101–#104) com a suíte verde, e **não pode ser ligada para usuário
-> real**: 4 bloqueadores 🔴 abertos — foto não é denunciável, o GC não tem
-> quarentena, o fluxo não deixa audit log, e o gate de chat é cópia da regra do
-> chat. Lista em `MASTER_HANDOFF_FINAL.md`, seção "Sprint 9B — Em andamento".
-> Terminar a feature não é escrever mais tela; é fechar aquela lista.
+> **A Foto Efêmera do Membro está implementada, SEM BLOQUEADOR, e NÃO liberada.**
+> Existe ponta a ponta (PRs #101–#104) e os **4 bloqueadores 🔴 foram fechados no
+> PR #110** — denúncia, retenção da prova, audit log e `canMemberSendTo` como
+> fonte única, mais os achados da revisão de segurança rodada sobre ele.
+> **Ligar para usuário real é decisão do PO**, e continua valendo tudo o que a
+> § da feature diz sobre a natureza dela: é des-anonimização consentida, e o
+> rosto é uma chave de join global que o TTL não protege.
 
 **O Sprint 9C entregou Stories da Performer** (PRs #105–#108, § abaixo) e começou
 pelos 🔴, como mandava a regra: os **7 bloqueadores** da pré-análise
@@ -117,8 +118,8 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
    Hoje **moderador = admin, e admin vê tudo**; a fila é `/admin/reports` sob
    `role:admin`. Agora há conteúdo publicado esperando revisão, não só backlog.
    Destrava junto o **Curador das FC Sessions** — duas features, um pré-requisito.
-2. ~~**Os 4 🔴 da Foto Efêmera**~~ — **fechados** na branch
-   `fix/sprint9b-photo-moderation` (denúncia, quarentena, audit e a extração de
+2. ~~**Os 4 🔴 da Foto Efêmera**~~ — **fechados** no
+   **PR #110** (denúncia, quarentena, audit e a extração de
    `canMemberSendTo`), reusando o caminho que o PR #108 abriu para o story. A
    feature deixou de ter bloqueador; **ligar para usuário real continua sendo
    decisão do PO**, e os 🟡 residuais estão na seção da Foto Efêmera.
@@ -387,10 +388,10 @@ mesma disciplina do painel de visitantes e do geobloqueio.
   exclusão escrita: **quem converter aquele script para denylist reintroduz o
   problema em silêncio.**
 
-> **Os 4 🔴 que bloqueavam o go-live foram FECHADOS** (branch
-> `fix/sprint9b-photo-moderation`): (1) foto denunciável pela performer via
-> `member_photo`; (2) denúncia congela GC e revoke; (3) audit em share/view/revoke;
-> (4) `canMemberSendTo` como fonte única. Detalhe nos itens acima.
+> **Os 4 🔴 que bloqueavam o go-live foram FECHADOS** (**PR #110**): (1) foto
+> denunciável pela performer via `member_photo`; (2) denúncia retém os bytes —
+> contra o GC, contra o revoke e contra o encerramento de conta; (3) audit em
+> share/view/revoke; (4) `canMemberSendTo` como fonte única. Detalhe acima.
 >
 > **Fechar os 🔴 não é o mesmo que liberar** — a decisão de ligar para usuário
 > real é do PO, e continua valendo tudo o que esta seção diz sobre a natureza da
