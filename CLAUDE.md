@@ -91,14 +91,19 @@ um erro na main derruba o site em produção.
 > resumo só situa.
 
 **Sprints 6, 7, 8, 9A e 9C fechados** (tags `v1.0-sprint6` a `v1.0-sprint9a`, mais
-**`v1.0-sprint9`** no fecho do 9C). **O Sprint 9B não tem tag própria** e não está
-fechado.
+**`v1.0-sprint9`** no fecho do 9C e **`v1.0-sprint9.1`** no fecho dos bloqueadores
+da Foto Efêmera). **O Sprint 9B não tem tag própria** e não está fechado.
 
-> **`v1.0-sprint9` é marco de SPRINT, não carimbo de go-live, e é ANTERIOR ao
-> PR #110.** Ela fecha o arco Sprint 9 inteiro (9A + 9B + 9C) e o código do 9B
-> viaja dentro dela — mas aponta para um estado em que os 4 🔴 da Foto Efêmera
-> ainda estavam abertos. Também não é "a versão sem sufixo" da `v1.0-sprint9a`:
-> as duas coexistem, e não existem `v1.0-sprint9b` nem `v1.0-sprint9c`.
+> **Tag é marco, nunca carimbo de go-live.** `v1.0-sprint9` (`57aab21`) fecha o
+> arco Sprint 9 inteiro (9A + 9B + 9C) e é **anterior** ao PR #110 — aponta para
+> um estado em que os 4 🔴 da Foto Efêmera ainda estavam abertos.
+> `v1.0-sprint9.1` (`49ef728`) é o mesmo arco com eles fechados. **Nenhuma das
+> duas libera nada.**
+>
+> Sobre os nomes: `v1.0-sprint9` **não** é "a versão sem sufixo" da
+> `v1.0-sprint9a` — é o fecho do arco, e a ordem real é 9a → 9 → 9.1.
+> **Não existem `v1.0-sprint9b` nem `v1.0-sprint9c`, e não é para criar:** o 9B
+> não fechou como sprint, e por isso o sufixo do fix é `.1` e não `b`.
 
 > **A Foto Efêmera do Membro está implementada, SEM BLOQUEADOR, e NÃO liberada.**
 > Existe ponta a ponta (PRs #101–#104) e os **4 bloqueadores 🔴 foram fechados no

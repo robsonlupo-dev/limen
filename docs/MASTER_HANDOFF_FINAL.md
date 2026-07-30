@@ -7,19 +7,19 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 30/07/2026 — **`main` em `49ef728`**, depois do
-> **PR #110**, que fechou os 4 bloqueadores de go-live da Foto Efêmera do
-> Sprint 9B. Suíte: **1268 testes verdes, 6520 asserts**.
-> Antes dele, no mesmo dia: **Sprint 9C FECHADO** (`57aab21`, PRs #105–#108, tag
-> **`v1.0-sprint9`**), Stories da Performer com os 7 🔴 da pré-análise
-> endereçados.
+> **Última atualização:** 30/07/2026 — **`main` em `49ef728`**, tag
+> **`v1.0-sprint9.1`**, depois do **PR #110**, que fechou os 4 bloqueadores de
+> go-live da Foto Efêmera do Sprint 9B. Suíte: **1268 testes verdes, 6520
+> asserts**. Antes dele, no mesmo dia: **Sprint 9C FECHADO** (`57aab21`,
+> PRs #105–#108, tag **`v1.0-sprint9`**), Stories da Performer com os 7 🔴 da
+> pré-análise endereçados.
 >
-> **A tag `v1.0-sprint9` fecha o SPRINT, e é ANTERIOR ao PR #110.** Ela cobre as
-> três trilhas do Sprint 9 (9A entregue, 9B implementado, 9C entregue), e aponta
-> para um estado em que os 4 🔴 da Foto Efêmera ainda estavam abertos — eles
-> foram fechados depois, fora da tag. E fechar bloqueador **não é liberar**:
-> **a Foto Efêmera continua desligada**, e ligá-la para usuário real é decisão do
-> PO. Ver "Sprint 9B — Sem bloqueador, não liberado".
+> **Duas tags no mesmo arco, e a diferença importa.** `v1.0-sprint9` (`57aab21`)
+> fecha o Sprint 9 e é **anterior** ao PR #110 — aponta para um estado em que os
+> 4 🔴 da Foto Efêmera ainda estavam abertos. `v1.0-sprint9.1` (`49ef728`) é o
+> mesmo arco com eles fechados. **Nenhuma das duas libera coisa alguma:** a Foto
+> Efêmera continua desligada, agora por decisão de produto e não por bloqueador,
+> e ligá-la é decisão do PO. Ver "Sprint 9B — Sem bloqueador, não liberado".
 > **Método:** escrito a partir da **inspeção do código real** — `git log`,
 > `route:list`, `composer.json`, migrations, services, controllers, configs e a
 > suíte de testes rodada de ponta a ponta. Onde um doc antigo contradiz o código,
@@ -85,7 +85,7 @@
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 26 | `ls config/` |
-| Tag Git | **`v1.0-sprint9` (`57aab21`, fecho do 9C)**, `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Tag Git | **`v1.0-sprint9.1` (`49ef728`, bloqueadores da Foto Efêmera fechados)**, `v1.0-sprint9` (`57aab21`, fecho do 9C), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -93,11 +93,18 @@
 > `b620e9e..57aab21`.
 >
 > **Ela não libera nada.** O código da Foto Efêmera do 9B está dentro da tag, e
-> na data da tag a feature ainda tinha os 4 🔴 abertos (fechados no dia seguinte,
-> fora da tag) — a tag é marco de sprint, não carimbo de go-live. O padrão de
-> nomes fica com uma irregularidade herdada: existe
-> `v1.0-sprint9a` **e** `v1.0-sprint9`, e a segunda **não** é "a versão sem sufixo
-> da primeira" — é o fecho do arco. Não existe `v1.0-sprint9b` nem `v1.0-sprint9c`.
+> na data da tag a feature ainda tinha os 4 🔴 abertos — a tag é marco de sprint,
+> não carimbo de go-live. O padrão de nomes fica com uma irregularidade herdada:
+> existe `v1.0-sprint9a` **e** `v1.0-sprint9`, e a segunda **não** é "a versão sem
+> sufixo da primeira" — é o fecho do arco. Não existe `v1.0-sprint9b` nem
+> `v1.0-sprint9c`, e **não é para criar**: o 9B não foi fechado como sprint.
+>
+> **`v1.0-sprint9.1` (`49ef728`) é o mesmo arco, depois do PR #110** — os 4 🔴 da
+> Foto Efêmera fechados, mais os achados da revisão de segurança. O sufixo `.1` e
+> não `b` é deliberado: `b` diria "o Sprint 9B fechou", que não é o caso, e ainda
+> ordenaria depois de `v1.0-sprint9a` sugerindo uma cronologia que não existe (a
+> ordem real é 9a → 9 → 9.1). **Ela também não libera nada** — a Foto Efêmera
+> segue desligada, por decisão de produto e não por bloqueador.
 
 **Branch atual:** `main` (em `49ef728`, com o PR #110 — fecho dos bloqueadores do
 9B — por cima dos #105→#108 do **Sprint 9C**, dos #101→#104 do 9B e dos #88→#100
@@ -403,14 +410,16 @@ propósito. Ver §15.1.
 
 ## Sprint 9B — Sem bloqueador, não liberado
 
-> **NÃO FECHADO — e a tag `v1.0-sprint9` não muda isso.** Range: `1a51d77..b620e9e`
+> **NÃO FECHADO COMO SPRINT — e tag nenhuma muda isso.** Range: `1a51d77..b620e9e`
 > — **4 PRs, #101 a #104**, todos pela Regra de Ouro do Git Flow. Suíte no fecho
 > do 9B: 912 (fecho do Sprint 8) → **1141 testes verdes** (5956 asserts), somando
 > o 9A e o 9B. Hoje a suíte está em 1268/6520, com o 9C e o PR #110 por cima.
 >
-> **Sem tag própria: o 9B nunca teve `v1.0-sprint9b`.** O que existe é a
-> `v1.0-sprint9` do fecho do 9C (30/07/2026), e o código desta seção viaja dentro
-> dela por ser ancestral — **não** porque a feature tenha sido liberada.
+> **Sem tag própria: `v1.0-sprint9b` não existe, e não é para criar.** O código
+> desta seção viaja dentro da `v1.0-sprint9` (fecho do 9C) e da `v1.0-sprint9.1`
+> (fecho dos bloqueadores) por ser ancestral das duas — **não** porque a feature
+> tenha sido liberada. A `.1` marca o estado em que os 🔴 desta seção deixaram de
+> existir; o sufixo é `.1` e não `b` justamente para não afirmar que o 9B fechou.
 >
 > **Os 4 🔴 foram FECHADOS em 30/07/2026**, depois do 9C, no **PR #110**
 > (denúncia, retenção da prova, audit e a extração de `canMemberSendTo`) — ver a
@@ -2761,7 +2770,8 @@ real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint
 (`main`, `1a51d77`, tag `v1.0-sprint9a`), em 29/07/2026 com o **Sprint 9B PARCIAL**
 (`main`, `b620e9e`, PRs #101–#104, sem tag — implementado e NÃO liberado) e em
 30/07/2026 no fecho do **Sprint 9C** (`main`, `57aab21`, PRs #105–#108, tag
-`v1.0-sprint9`) e, no mesmo dia, com o **PR #110** (`main`, `49ef728`), que fechou
+`v1.0-sprint9`) e, no mesmo dia, com o **PR #110** (`main`, `49ef728`, tag
+`v1.0-sprint9.1`), que fechou
 os 4 bloqueadores de go-live da Foto Efêmera e os achados da revisão de segurança
 rodada sobre ele. Números do snapshot conferidos contra `git log`, `route:list`,
 o filesystem e a suíte rodada de ponta a ponta (**1268 verdes, 6520 asserts**,
