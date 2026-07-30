@@ -95,20 +95,24 @@ class MemberPhotoController extends Controller
     }
 
     /**
-     * Revoga: bytes do disco, acessos do banco, linha de vez.
+     * Revoga: a foto sai do ar, os acessos morrem e ela some da lista.
      *
-     * 403 para "não é sua foto" e 422 para "está em análise" — a segunda é
-     * recusa de ESTADO, não de autorização, e a tela precisa distinguir para
-     * explicar. É o mesmo par de status que `share()` já usa.
+     * **Sempre 200 quando é a foto do titular**, inclusive sob denúncia — e o
+     * corpo da resposta é idêntico nos dois casos, de propósito. Um status ou
+     * uma mensagem diferentes para a foto denunciada diriam ao titular que
+     * alguém com acesso a ela denunciou; com a foto compartilhada com UMA
+     * performer, isso identifica a denunciante, e o chat entre os dois continua
+     * aberto. O que muda por baixo (bytes retidos para a revisão) está em
+     * `MemberPhotoService::destroyForMember()`.
+     *
+     * Sobra um único modo de falha: não é sua foto → 403.
      */
     public function destroy(Request $request, MemberPhoto $photo): JsonResponse
     {
         try {
             $this->photos->destroyForMember($request->user(), $photo);
         } catch (MemberPhotoException $e) {
-            $status = $e->reason === MemberPhotoException::FORBIDDEN ? 403 : 422;
-
-            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], $status);
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 403);
         }
 
         return response()->json(['status' => 'revoked']);

@@ -553,12 +553,27 @@ usuário real é decisão do PO, e tudo o que esta seção diz sobre a natureza 
   restrição de papel vem de `visibleTo()` exigir um acesso VIVO àquela foto, que
   é condição estritamente mais forte.
 - ✅ **Quarentena nas DUAS portas.** Denúncia em aberto (`Report::OPEN_STATUSES`)
-  congela o GC **e** o revoke do titular. Só o GC não bastaria: o botão "Revogar"
-  está a um clique e o TTL mínimo é 24h, então quem envia conteúdo ilegal teria o
-  botão de destruir a prova contra si. O congelamento vale para a LINHA e os
-  BYTES, **não para a visibilidade** — foto congelada e vencida não é legível por
-  ninguém, nem pela performer que denunciou, senão denunciar viraria a forma de
-  esticar o próprio acesso. Coberto por teste.
+  congela o GC **e** a destruição pelo revoke. Só o GC não bastaria: o botão
+  "Revogar" está a um clique e o TTL mínimo é 24h, então quem envia conteúdo
+  ilegal teria o botão de destruir a prova contra si. A retenção **não** dá
+  visibilidade — foto retida e vencida não é legível por ninguém, nem pela
+  performer que denunciou, senão denunciar viraria a forma de esticar o próprio
+  acesso. Coberto por teste.
+  **O revoke, porém, SEMPRE responde sucesso** — e o corpo da resposta é idêntico
+  com e sem denúncia, cobrado por um teste que compara as duas. É a divergência
+  deliberada em relação ao story, que recusa: story é 1:N e "alguém entre os
+  seguidores denunciou" não identifica ninguém; a foto costuma ter **uma**
+  destinatária, então a recusa entregaria a denunciante ao denunciado, com o chat
+  entre os dois ainda aberto. Sob denúncia o revoke faz o que o titular pediu
+  (some da lista, acessos vencem na hora, ninguém mais lê) e retém apenas bytes e
+  linha; `expires_at` da foto também vai para agora, para o GC recolhê-la assim
+  que a revisão fechar em vez de esperar o TTL original. A copy de retenção na
+  tela do membro é **uniforme para toda foto revogada** — condicional seria o
+  mesmo oráculo com outra roupa.
+  Custo assumido e registrado: a linha soft-deletada retém `user_id`,
+  `size_bytes` e `created_at` enquanto a denúncia estiver aberta, que é a
+  retenção que a feature normalmente recusa. Sem a linha não há ponteiro para os
+  bytes (todo o GC parte da tabela), e **não há prazo máximo** — ver os 🟡.
 - ✅ **Audit no fluxo:** `member_photo.shared`, `.viewed` e `.revoked`, com **id e
   nada mais**. Sem caminho, sem nome de arquivo, sem `performer_profile_id`. O
   `.viewed` é gravado só na PRIMEIRA abertura (`markViewed()` passou a devolver
@@ -594,54 +609,43 @@ usuário real é decisão do PO, e tudo o que esta seção diz sobre a natureza 
 
 ### 🟡 Achados NOVOS desta rodada — não bloqueiam, mas estão em dívida
 
-> Os três primeiros vieram da **revisão de segurança de 30/07** (subagente
-> `security-reviewer`, rodado sobre a branch antes do merge). Outros dois achados
-> da mesma revisão eram defeitos reais e **foram corrigidos na branch** — o
-> handle não amarrado ao denunciante e o JOIN do audit; estão descritos acima.
+> Vieram da **revisão de segurança de 30/07** (subagente `security-reviewer`,
+> rodado sobre a branch antes do merge). Outros **três** achados da mesma revisão
+> eram defeitos reais e **foram corrigidos na branch**: o handle não amarrado ao
+> denunciante, o JOIN do audit e a recusa do revoke — todos descritos acima.
 
-- 🟡 **A recusa do revoke entrega a denunciante ao denunciado — decisão do PO
-  pendente.** `MemberPhotoException::underReview()` diz "esta foto está em
-  análise", e o painel do membro mostra a mensagem crua. Com a foto compartilhada
-  com **uma** performer, o titular sabe em segundos quem denunciou — e o chat com
-  ela **continua aberto** (nada seta `archived` hoje). É vetor de retaliação
-  contra quem denuncia, exatamente o inverso do que o canal existe para proteger.
-  **Alternativa recomendada pela revisão, não implementada porque muda
-  comportamento que o PO especificou:** o revoke responde 200 **sempre** e, sob
-  quarentena, expira todos os `MemberPhotoAccess` da foto (a performer perde o
-  acesso na hora, que é o que o titular pediu) retendo apenas bytes e linha para a
-  revisão — com a copy de retenção **uniforme em todo revoke**, verdadeira para
-  todos e sem distinguir quem foi denunciado. Hoje o sinal existe porque a
-  mensagem é *condicional* à denúncia. Se o comportamento atual for mantido de
-  propósito, a retenção precisa ser divulgada na tela de ENVIO, junto do aviso de
-  des-anonimização — não só no código.
 - 🟡 **`member_photo.shared` é o único dos três eventos sem dedup.**
   `writeAccess()` RENOVA o acesso do par existente, então re-compartilhar com a
   mesma performer é fluxo legítimo e repetível a 20/min (throttle da rota) — cada
   clique grava uma linha. É a mesma condição que motivou a dedup do filtro de chat
   e do `access.geo_blocked`. Conserto barato: chave de janela no **cache** (não no
   log, para não reintroduzir o `performer_profile_id` no `audit_logs`).
-- 🟡 **A quarentena é mais cara de destravar do que parecia, e retém mais.** Dois
+- 🟡 **A retenção é mais cara de destravar do que parecia, e retém mais.** Dois
   efeitos que a revisão apontou: (1) o dedup de denúncia é por (denunciante, alvo,
   **motivo**) e há 6 motivos válidos, então a mesma performer pode manter **6
   denúncias abertas** sobre a mesma foto — o admin precisa concluir as seis para o
-  GC voltar a agir; (2) o congelamento retém as linhas de `member_photo_access`
-  junto com os bytes, ou seja **o mapa do § 1.8 daquele par também fica retido por
-  tempo indeterminado**, não só o arquivo. Reforça o item do prazo máximo abaixo.
+  GC voltar a agir; (2) a retenção guarda as linhas de `member_photo_access` e a
+  linha da foto junto com os bytes, ou seja **o mapa do § 1.8 daquele par e o
+  "quando o membro mandou" também ficam retidos por tempo indeterminado**, não só
+  o arquivo. Reforça o item do prazo máximo abaixo.
 
 - 🟡 **O Hard Delete de conta ainda apaga foto denunciada.**
-  `DeletionService::purgeMemberPhotos()` faz `forceDelete()` direto, sem passar
-  pelo congelamento — então encerrar a conta continua sendo o botão de destruir a
-  prova, só que mais caro. O story resolveu o equivalente preservando a LINHA da
+  `DeletionService::purgeMemberPhotos()` faz `forceDelete()` direto, sem consultar
+  denúncia aberta — então encerrar a conta continua sendo o botão de destruir a
+  prova, só que mais caro. **Ficou mais visível depois da troca do revoke:** o
+  caminho barato foi fechado, este não. O story resolveu o equivalente preservando a LINHA da
   denunciada e levando só os bytes; para a foto isso é decisão de LGPD (o titular
   é o denunciado, e a linha guarda `user_id`), e por isso **não foi feito aqui
   sem o PO**. É o furo mais relevante que sobra na quarentena.
 - 🟡 **A fila do admin não tem visualizador da prova.** `/admin/reports` mostra
   `member_photo #id` como texto; não há rota para o admin abrir os bytes
-  congelados. Hoje a evidência só é alcançável no disco, por quem tem acesso ao
+  retidos. Hoje a evidência só é alcançável no disco, por quem tem acesso ao
   servidor. Construir essa tela é uma superfície nova (admin vendo o rosto de um
   membro) e passa por decisão de produto, não por follow-up técnico.
-- 🟡 **Foto congelada fica no disco indefinidamente** se a denúncia nunca for
-  concluída. Não há prazo máximo de quarentena nem alarme para denúncia parada, e
+  **É o par que falta da troca do revoke:** reter prova que ninguém consegue
+  olhar pelo produto é custo sem contrapartida.
+- 🟡 **Foto retida fica no disco indefinidamente** se a denúncia nunca for
+  concluída. Não há prazo máximo de retenção nem alarme para denúncia parada, e
   o contador `quarantined` do `member-photos:purge` é o único sinal — ninguém o
   consome. Vale igual para o story.
 
@@ -1809,6 +1813,11 @@ Sistema mínimo viável de denúncia (compliance legal).
   Vale para story e para foto efêmera, com a mesma constante.
   **Congelar não estende visibilidade:** alvo vencido continua ilegível, senão
   denunciar viraria a forma de esticar o próprio acesso.
+  **O que o dono VÊ ao tentar apagar difere entre os dois, de propósito:** o
+  story recusa (`StoryException::underReview`) porque é 1:N e a recusa não
+  identifica quem denunciou; a foto responde **sucesso** e retém só os bytes,
+  porque é 1:1 e recusar entregaria a denunciante ao denunciado. A regra é a
+  audiência do conteúdo, não o tipo — quem adicionar um alvo novo decide por ela.
 - **Denúncia não é auditada, de propósito:** poria o IP do denunciante em claro ao
   lado da acusação, num log que muito mais gente lê — e quem denuncia coerção é
   exatamente quem não pode pagar isso. A linha em `reports` é o registro.

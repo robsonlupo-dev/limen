@@ -264,19 +264,87 @@ it('deixa de ser denunciável quando o prazo vence', function () {
 
 // ─── 2. Quarentena ───────────────────────────────────────────────────────────
 
-it('impede o titular de revogar foto com denúncia em aberto', function () {
+it('deixa o titular revogar foto denunciada, retendo só os bytes', function () {
     [$member, $performer, $photo, $access] = mpqSharedPhoto();
 
     mpqReport($performer->user, $access->id)->assertOk();
 
     $this->actingAs($member)
         ->deleteJson(route('member.photos.destroy', $photo->id))
-        ->assertStatus(422)
-        ->assertJsonPath('reason', 'under_review');
+        ->assertOk()
+        ->assertExactJson(['status' => 'revoked']);
 
-    // O que importa não é o status: é que os bytes continuam lá para a revisão.
-    expect(MemberPhoto::whereKey($photo->id)->exists())->toBeTrue()
+    // O que o titular pediu aconteceu: some da lista dele, o acesso morre na
+    // hora, e nem ele nem a performer voltam a ver.
+    expect(MemberPhoto::whereKey($photo->id)->exists())->toBeFalse()
+        ->and($access->fresh()->isExpired())->toBeTrue();
+
+    $this->actingAs($member)
+        ->get(route('member.photos.image', $photo->id))
+        ->assertNotFound();
+
+    $this->actingAs($performer->user)
+        ->get(route('performer.photos.image', $access->id))
+        ->assertNotFound();
+
+    // E o que a revisão precisa continua de pé: bytes no disco e a linha como
+    // ponteiro para eles (todo o GC parte da tabela).
+    expect(Storage::disk(MemberPhotoStore::DISK)->exists($photo->path_encrypted))->toBeTrue()
+        ->and(MemberPhoto::withTrashed()->whereKey($photo->id)->exists())->toBeTrue();
+});
+
+it('responde ao revoke de forma indistinguível, com e sem denúncia', function () {
+    // ── O achado da revisão de 30/07, virado teste ──────────────────────────
+    // A primeira versão recusava o revoke da foto denunciada com 422
+    // `under_review`. Com a foto compartilhada com UMA performer, aquela recusa
+    // dizia ao titular quem denunciou — e o chat entre os dois continua aberto
+    // (nada seta `archived` hoje). Era retaliação a um clique de distância.
+    //
+    // O teste compara as DUAS respostas byte a byte: qualquer diferença
+    // (status, corpo, chave nova) volta a ser o oráculo.
+    [$memberA, $performerA, $reported, $accessA] = mpqSharedPhoto();
+    [$memberB, , $ordinary] = mpqSharedPhoto();
+
+    mpqReport($performerA->user, $accessA->id)->assertOk();
+
+    $reportedResponse = $this->actingAs($memberA)
+        ->deleteJson(route('member.photos.destroy', $reported->id));
+
+    $ordinaryResponse = $this->actingAs($memberB)
+        ->deleteJson(route('member.photos.destroy', $ordinary->id));
+
+    expect($reportedResponse->status())->toBe($ordinaryResponse->status())
+        ->and($reportedResponse->json())->toBe($ordinaryResponse->json());
+
+    // A diferença existe, e é só onde o titular não alcança: os bytes.
+    expect(Storage::disk(MemberPhotoStore::DISK)->exists($reported->path_encrypted))->toBeTrue()
+        ->and(Storage::disk(MemberPhotoStore::DISK)->exists($ordinary->path_encrypted))->toBeFalse();
+});
+
+it('devolve ao GC a foto revogada assim que a denúncia é concluída', function () {
+    [$member, $performer, $photo, $access] = mpqSharedPhoto();
+
+    mpqReport($performer->user, $access->id)->assertOk();
+
+    $this->actingAs($member)
+        ->deleteJson(route('member.photos.destroy', $photo->id))
+        ->assertOk();
+
+    // Enquanto a denúncia está aberta, o GC não toca — mesmo com a foto já
+    // vencida pelo revoke.
+    expect(app(MemberPhotoService::class)->purgeExpired()['quarantined'])->toBe(1)
         ->and(Storage::disk(MemberPhotoStore::DISK)->exists($photo->path_encrypted))->toBeTrue();
+
+    Report::sole()->forceFill(['status' => 'resolved'])->save();
+
+    // Concluída, os bytes vão embora na rodada seguinte — sem esperar o TTL
+    // original, porque o revoke também venceu a foto.
+    $counts = app(MemberPhotoService::class)->purgeExpired();
+
+    expect($counts['quarantined'])->toBe(0)
+        ->and($counts['deleted'])->toBe(1)
+        ->and(Storage::disk(MemberPhotoStore::DISK)->exists($photo->path_encrypted))->toBeFalse()
+        ->and(MemberPhoto::withTrashed()->whereKey($photo->id)->exists())->toBeFalse();
 });
 
 it('deixa o GC pular a foto denunciada e recolher as outras', function () {

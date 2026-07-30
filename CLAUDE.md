@@ -325,12 +325,21 @@ mesma disciplina do painel de visitantes e do geobloqueio.
   `Report::resolveFromHandle()`; quem autoriza é `MemberPhotoService::performerCanView()`,
   a mesma regra do serving. **Foto vencida não é mais denunciável** — a janela de
   denúncia é a de exibição, igual ao story.
-- **Denúncia em aberto CONGELA o revoke do titular e o GC** (`Report::OPEN_STATUSES`,
+- **Denúncia em aberto retém os BYTES e congela o GC** (`Report::OPEN_STATUSES`,
   a mesma constante do story). Sem isso, quem envia conteúdo ilegal tem o botão
-  de destruir a prova contra si a um clique. O congelamento vale para a LINHA e
-  os BYTES, **não para a visibilidade**: foto congelada e vencida não é legível
-  por ninguém — nem pela performer que denunciou —, senão denunciar viraria a
-  forma de esticar o próprio acesso.
+  de destruir a prova contra si a um clique. A retenção **não** dá visibilidade:
+  foto retida e vencida não é legível por ninguém — nem pela performer que
+  denunciou —, senão denunciar viraria a forma de esticar o próprio acesso.
+- **O revoke SEMPRE responde sucesso, e o corpo é idêntico com e sem denúncia.**
+  Diferente do story, que RECUSA a deleção da denunciada: story é 1:N, e a
+  performer saber que "alguém entre os seguidores denunciou" não identifica
+  ninguém; a foto costuma ter **uma** destinatária, então recusar entregaria a
+  denunciante ao denunciado — com o chat entre os dois ainda aberto. Sob
+  denúncia o revoke faz o que o titular pediu (some da lista, acessos vencem na
+  hora, ninguém mais lê) e retém apenas bytes e linha para a revisão.
+  **A copy de retenção na tela é UNIFORME**, para toda foto revogada: uma frase
+  condicional seria o mesmo oráculo com outra roupa. Achado da revisão de
+  segurança de 30/07 — **não reintroduza a recusa** sem resolver aquele canal.
 - **Audit no fluxo: `member_photo.shared`, `.viewed`, `.revoked` — id e nada
   mais.** Sem caminho, sem nome de arquivo e sem `performer_profile_id`. O
   `.viewed` é gravado só na PRIMEIRA abertura (a tela é uma `<img>`; sem a dedup,
@@ -377,10 +386,9 @@ mesma disciplina do painel de visitantes e do geobloqueio.
 > feature (des-anonimização consentida, o rosto como chave de join global).
 > **Segue em aberto**, agora como 🟡 e não como bloqueador: o cap de performers
 > por foto (§ 1.1), a varredura de órfãos no disco (§ 1.5), e os achados da
-> revisão de segurança de 30/07 registrados em `MASTER_HANDOFF_FINAL.md` — com
-> destaque para **a recusa do revoke, que entrega a denunciante ao denunciado**
-> (decisão de produto pendente), o Hard Delete de conta que ainda apaga foto
-> denunciada, e a ausência de prazo máximo de quarentena.
+> revisão de segurança de 30/07 registrados em `MASTER_HANDOFF_FINAL.md` — o
+> Hard Delete de conta ainda apaga foto denunciada, a fila do admin não tem
+> visualizador da prova retida, e não há prazo máximo de retenção.
 
 ## Stories da Performer — Sprint 9C (entregue, tag `v1.0-sprint9`)
 

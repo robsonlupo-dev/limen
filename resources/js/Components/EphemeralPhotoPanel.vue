@@ -81,6 +81,17 @@ async function revoke(photo) {
             nosso servidor quando o prazo acaba — mas quem já viu, viu.
         </p>
 
+        <!-- Copy de retenção UNIFORME: aparece para toda foto, sempre, e não só
+             quando há denúncia. É o que permite ao revoke responder igual nos
+             dois casos — uma frase condicional ("esta foto está em análise")
+             identificaria a denunciante para o denunciado, e a foto costuma ter
+             uma destinatária só. Ver MemberPhotoService::destroyForMember(). -->
+        <p class="mt-2 text-xs text-muted">
+            Ao revogar, a foto sai do ar na hora para quem recebeu. Por exigência de
+            moderação, a cópia técnica pode ficar retida por um período antes do descarte
+            definitivo.
+        </p>
+
         <!-- Lista -->
         <ul v-if="photos.length" class="mt-5 space-y-3">
             <li

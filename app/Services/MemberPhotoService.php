@@ -486,35 +486,84 @@ class MemberPhotoService
      * delega, um `destroy($photo)` exposto deixaria qualquer membro autenticado
      * apagar a foto de outro — bytes, acessos e linha.
      *
-     * ── Denúncia em aberto CONGELA o revoke (2º bloqueador) ─────────────────
-     * Sem isso, a denúncia da performer chegaria à revisão apontando para uma
-     * foto que já não existe: o TTL mínimo é de 24h e o botão "Revogar" está a
-     * um clique — quem envia conteúdo ilegal e é denunciado tem, hoje, o botão
-     * de destruir a prova contra si. É a mesma razão pela qual o
-     * `DeletionService` preserva `reports` intactos e pela qual o story
-     * denunciado congela (§ 2.4).
+     * ── Denúncia em aberto retém os BYTES, e nada mais (2º bloqueador) ──────
+     * Sem retenção, a denúncia da performer chegaria à revisão apontando para
+     * uma foto que já não existe: o TTL mínimo é de 24h e o botão "Revogar" está
+     * a um clique — quem envia conteúdo ilegal e é denunciado teria o botão de
+     * destruir a prova contra si. É a mesma razão pela qual o `DeletionService`
+     * preserva `reports` intactos e pela qual o story denunciado congela (§ 2.4).
      *
-     * O congelamento vale para a LINHA e os BYTES, **não para a visibilidade**:
-     * `denialForPerformer()` continua negando por prazo, então uma foto
-     * congelada e vencida não é legível por ninguém no produto — nem pela
-     * performer que a denunciou. Isso importa porque a alternativa transformaria
-     * a denúncia numa forma de estender o próprio acesso.
+     * ── Mas o revoke SEMPRE responde sucesso, e isso é o controle ───────────
+     * A primeira versão RECUSAVA o revoke com "esta foto está em análise". A
+     * revisão de segurança de 30/07 mostrou o preço: com a foto compartilhada
+     * com UMA performer, a recusa identifica a denunciante para o denunciado em
+     * segundos — e o chat entre os dois continua aberto (nada seta `archived`
+     * hoje). Era vetor de retaliação contra exatamente quem o canal de denúncia
+     * existe para proteger.
      *
-     * @throws MemberPhotoException não é o dono, ou está em análise
+     * Aqui os dois caminhos devolvem a MESMA resposta e produzem o mesmo efeito
+     * observável: a foto sai da lista do titular, os acessos morrem na hora e
+     * ninguém mais a lê. O que muda, invisível para os dois lados, é que os
+     * bytes e a linha ficam de pé para a revisão em vez de irem embora. Não é
+     * mentir para o titular: o que ele pediu — "que ninguém veja mais isso" —
+     * aconteceu, e a retenção técnica é dita na tela de forma UNIFORME, para
+     * toda foto revogada, e não só para a denunciada. Copy condicional seria o
+     * mesmo oráculo com outra roupa.
+     *
+     * @throws MemberPhotoException não é o dono
      */
     public function destroyForMember(User $member, MemberPhoto $photo): void
     {
         $this->assertOwns($member, $photo);
 
         if ($this->hasOpenReport($photo)) {
-            throw MemberPhotoException::underReview();
+            $this->retireUnderReview($photo);
+        } else {
+            $this->destroy($photo);
         }
 
-        $this->destroy($photo);
-
-        // Só o id (3º bloqueador). O revoke é a ação que apaga os bytes, então
-        // esta linha é literalmente a última prova de que a foto existiu.
+        // Só o id (3º bloqueador), e o MESMO evento nos dois caminhos: o que o
+        // titular fez foi o mesmo, e o destino dos bytes já está registrado na
+        // linha de `reports`. Um evento distinto para o caso retido não vazaria
+        // para o membro (o audit é do admin), mas dobraria o vocabulário sem
+        // responder nada que a denúncia já não responda.
         Audit::log('member_photo.revoked', $photo, ['member_photo_id' => $photo->id]);
+    }
+
+    /**
+     * Revoke de foto sob denúncia: tira do ar sem destruir a prova.
+     *
+     * Faz o que o titular pediu na parte que é dele — a foto some da lista, os
+     * acessos vencem AGORA, e nem ele nem a performer voltam a lê-la, porque
+     * `denialForPerformer()`/`readForMember()` conferem prazo e `trashed()`.
+     * O que fica é o par (bytes no disco, linha soft-deletada), que é
+     * literalmente o "estado intermediário" que o `deleted_at` desta tabela já
+     * existia para representar.
+     *
+     * `expires_at` da FOTO também vai para agora, e não é cosmético: é o que faz
+     * o GC recolhê-la assim que a denúncia for concluída. Sem isso, uma foto
+     * revogada na primeira hora de um TTL de 7 dias ficaria no disco até o fim
+     * do TTL mesmo depois de a revisão fechar.
+     *
+     * ── O custo, dito em voz alta ───────────────────────────────────────────
+     * A linha soft-deletada guarda `user_id`, `size_bytes` e `created_at` — o
+     * "membro X mandou N fotos, nestes horários" que a feature normalmente
+     * recusa a reter. Aqui isso é deliberado e é o ponto: sem a linha não há
+     * ponteiro para os bytes, e todo o GC parte da tabela. A retenção é limitada
+     * pela conclusão da denúncia — e **não há prazo máximo hoje**, que é o 🟡
+     * registrado no MASTER_HANDOFF_FINAL.
+     */
+    private function retireUnderReview(MemberPhoto $photo): void
+    {
+        DB::transaction(function () use ($photo) {
+            // Query builder, não `fill()`: `expires_at` está fora do `$fillable`
+            // do acesso de propósito (o prazo é derivado do clamp), e um update
+            // em massa não passa por mass assignment.
+            $photo->accesses()->update(['expires_at' => now()]);
+
+            $photo->forceFill(['expires_at' => now()])->save();
+            $photo->delete();
+        });
     }
 
     /**
