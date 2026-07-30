@@ -17,11 +17,24 @@ const MAX_INTERESTS = MAX_TAGS
 
 const props = defineProps({
     profile: { type: Object, required: true },
+    // Rótulos e descrições vêm do servidor (App\Support\LifestyleTier), nunca
+    // de uma tabela local: o mesmo vocabulário é lido pelo painel da performer,
+    // e uma cópia aqui divergiria justo no lado que o membro não vê.
+    lifestyleOptions: { type: Array, default: () => [] },
 })
 
 const form = useForm({
     interests: [...(props.profile.interests ?? [])],
     seeking: props.profile.seeking ?? '',
+})
+
+// Formulário SEPARADO, e não mais um campo no de cima. Os dois têm destinos
+// opostos — interesses/seeking nunca saem do servidor, a faixa é exibida à
+// performer — e um único botão "Salvar" cobrindo os dois faria o membro
+// publicar a faixa no gesto em que ajusta um chip. A rota também é própria:
+// `lifestyle_tier` está fora do $fillable do User.
+const lifestyleForm = useForm({
+    lifestyle_tier: props.profile.lifestyle_tier ?? 'prefer_not_to_say',
 })
 
 // Teto de MAX_INTERESTS. Desmarcar sempre funciona; marcar só até o teto —
@@ -46,6 +59,10 @@ function toggleInterest(value) {
 function save() {
     form.put(route('consumer.profile.update'), { preserveScroll: true })
 }
+
+function saveLifestyle() {
+    lifestyleForm.patch(route('consumer.profile.lifestyle-tier'), { preserveScroll: true })
+}
 </script>
 
 <template>
@@ -64,13 +81,19 @@ function save() {
             <!-- A copy de privacidade fica ANTES do formulário, não num rodapé:
                  o membro precisa saber quem vê o dado antes de escrever, não
                  depois de salvar. É a mesma disciplina da tela de edição da
-                 performer, invertida — lá a copy avisa que o campo é público. -->
+                 performer, invertida — lá a copy avisa que o campo é público.
+
+                 ATENÇÃO ao alcance desta caixa: ela vale para os campos do
+                 formulário LOGO ABAIXO, e não para a tela inteira. A seção
+                 Estilo de Vida, mais adiante, é exibida à performer e traz o
+                 próprio aviso. Uma promessa genérica de "nada aqui é visto"
+                 cobrindo os dois seria falsa sobre o único campo que ela lê. -->
             <div class="rounded-xl border border-gold/30 bg-gold/5 p-5 space-y-1">
                 <p class="text-cream font-medium text-sm">Isto é só seu</p>
                 <p class="text-muted text-sm">
-                    Nenhuma performer vê seus interesses nem o que você escreve aqui. Usamos
-                    esses dados para te mostrar perfis mais próximos do que você procura — e
-                    para nada além disso.
+                    Nenhuma performer vê seus interesses nem o que você escreve no formulário
+                    abaixo. Usamos esses dados para te mostrar perfis mais próximos do que você
+                    procura — e para nada além disso.
                 </p>
             </div>
 
@@ -134,6 +157,83 @@ function save() {
                     {{ form.processing ? 'Salvando...' : 'Salvar' }}
                 </Button>
             </form>
+
+            <!-- ── Estilo de Vida ────────────────────────────────────────────
+                 Formulário PRÓPRIO, com botão próprio e rota própria. Não é
+                 organização visual: este é o único campo da tela que aparece
+                 para a performer, e juntá-lo ao formulário de cima faria o
+                 membro publicá-lo no gesto em que ajusta um interesse.
+
+                 O aviso de quem vê fica NO MOMENTO da escolha, não nos Termos —
+                 mesma disciplina da Foto Efêmera. E é afirmativo ("a performer
+                 vê"), nunca uma tranquilização: o campo é opcional justamente
+                 porque a resposta certa depende de quanto o membro quer expor. -->
+            <section class="rounded-xl border border-frame bg-surface p-6 space-y-6">
+                <div class="flex items-start gap-3">
+                    <!-- Ícone discreto: diamante de contorno, sem preenchimento.
+                         Nada de cifrão ou pilha de moedas — o campo é sobre
+                         estilo de vida declarado, e um ícone de dinheiro mudaria
+                         a pergunta que o membro acha que está respondendo. -->
+                    <svg
+                        class="h-5 w-5 text-gold/70 shrink-0 mt-0.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M12 3 21 12l-9 9-9-9 9-9Z" />
+                    </svg>
+                    <div class="space-y-1">
+                        <h2 class="text-sm font-medium text-cream">Estilo de Vida</h2>
+                        <p class="text-muted text-sm">
+                            Opcional. Se você escolher uma faixa, ela aparece para as performers
+                            ao lado do seu apelido — nas listas de seguidores, gorjetas e
+                            visitantes. Não aparece no catálogo público e não é usada como filtro.
+                        </p>
+                    </div>
+                </div>
+
+                <form class="space-y-4" @submit.prevent="saveLifestyle">
+                    <fieldset class="space-y-2">
+                        <legend class="sr-only">Faixa de estilo de vida</legend>
+
+                        <!-- Radio, não chips: é escala ordenada e exclusiva, não
+                             conjunto combinável. O <label> envolve a linha
+                             inteira para a área de clique cobrir a descrição —
+                             que é o texto que de fato distingue as faixas. -->
+                        <label
+                            v-for="option in lifestyleOptions"
+                            :key="option.value"
+                            class="flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors"
+                            :class="lifestyleForm.lifestyle_tier === option.value
+                                ? 'border-gold bg-gold/5'
+                                : 'border-frame bg-surface-2 hover:border-gold/50'"
+                        >
+                            <input
+                                v-model="lifestyleForm.lifestyle_tier"
+                                type="radio"
+                                name="lifestyle_tier"
+                                :value="option.value"
+                                class="mt-1 accent-gold shrink-0"
+                            >
+                            <span class="min-w-0">
+                                <span class="block text-sm text-cream">{{ option.label }}</span>
+                                <span class="block text-xs text-muted">{{ option.description }}</span>
+                            </span>
+                        </label>
+                    </fieldset>
+
+                    <p v-if="lifestyleForm.errors.lifestyle_tier" class="text-xs text-danger">
+                        {{ lifestyleForm.errors.lifestyle_tier }}
+                    </p>
+
+                    <Button type="submit" :disabled="lifestyleForm.processing">
+                        {{ lifestyleForm.processing ? 'Salvando...' : 'Salvar estilo de vida' }}
+                    </Button>
+                </form>
+            </section>
         </div>
     </AppLayout>
 </template>

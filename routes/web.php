@@ -530,6 +530,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:20,1')
             ->name('consumer.profile.update');
 
+        // Estilo de Vida (Sprint 10). Rota PRÓPRIA, e não mais um campo no PUT
+        // acima: `lifestyle_tier` está fora do $fillable (mesma disciplina do
+        // Modo Discreto) e é o único campo desta tela que a performer vê. As
+        // duas coisas pedem uma porta que se leia sozinha em code review.
+        Route::patch('/meu-perfil/estilo-de-vida', [ConsumerProfileController::class, 'updateLifestyleTier'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.profile.lifestyle-tier');
+
         // Configurações do membro (hoje: Modo Discreto).
         Route::get('/configuracoes', [ConsumerPreferencesController::class, 'index'])
             ->middleware('throttle:60,1')

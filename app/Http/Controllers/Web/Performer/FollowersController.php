@@ -8,6 +8,7 @@ use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Services\FollowerVisibilityService;
 use App\Support\FanAlias;
+use App\Support\LifestyleTier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -77,6 +78,17 @@ class FollowersController extends Controller
 
         $dailyLimit = (int) config('interest.daily_limit');
 
+        // Estilo de Vida (Sprint 10): auto-declaração OPCIONAL do membro que ele
+        // sabe que a performer vê (ver App\Support\LifestyleTier). Resolvido em
+        // lote para a página, e como RÓTULO — o slug não sai do servidor, e o
+        // `lifestyle_tier` é $hidden no User justamente para que ele não pegue
+        // carona em prop nenhum. Quem não declarou vem `null`, e a tela não
+        // desenha nada: um "não informou" ao lado do apelido diria à performer
+        // que aquele membro viu o formulário e recusou.
+        $lifestyleLabels = LifestyleTier::labelsFor(
+            collect($follows->items())->pluck('user_id')->all()
+        );
+
         return Inertia::render('Performer/Followers', [
             'followers' => $follows->through(fn (Follow $follow) => [
                 // Handle opaco, não o id: é ele que volta no POST do Interesse.
@@ -84,6 +96,7 @@ class FollowersController extends Controller
                 // legível nas props do Inertia, que é de onde a performer leria.
                 'member_handle' => FanAlias::handle($profile->id, $follow->user_id),
                 'label' => FanAlias::label($profile->id, $follow->user_id, 'Membro #'),
+                'lifestyle' => $lifestyleLabels[$follow->user_id] ?? null,
                 'following_since' => $follow->created_at->format('d/m/Y'),
                 'interest_sent' => in_array($follow->user_id, $inCooldown, true),
             ]),

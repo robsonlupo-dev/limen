@@ -1026,6 +1026,14 @@ class DeletionService
             // acima, e sem lastro fiscal nem legal. A outra metade do mesmo
             // formulário (os interesses) sai em purgeMemberInterests().
             'seeking' => null,
+            // Estilo de Vida (Sprint 10). Auto-declaração patrimonial do
+            // titular, da mesma família do `seeking` logo acima — e com um
+            // agravante que o `seeking` não tem: esta é a única daquela tela que
+            // TERCEIRO já viu. Mantê-la deixaria na linha encerrada um retrato
+            // ("era Patrono") sem lastro fiscal nem legal, e ainda alcançável
+            // por quem cruzasse listas antigas de performers. Sai junto, pelo
+            // mesmo motivo dos perks de privacidade logo abaixo.
+            'lifestyle_tier' => null,
             // Digest do IP de cadastro: é o que permite dizer "esta conta veio
             // do mesmo IP que aquela". Serve à detecção de sybil enquanto a
             // conta existe; depois do encerramento é só um identificador de
