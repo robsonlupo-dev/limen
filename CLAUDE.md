@@ -84,8 +84,8 @@ um erro na main derruba o site em produção.
 
 ## Estado atual
 
-> **Estado atual** (`main`, `49ef728`, depois do PR #110): **1268 testes verdes**,
-> 6520 asserts. **Base original** (PR #69, `229d852`): 556 testes, 2614.
+> **Estado atual** (`main`, depois do Estilo de Vida do Sprint 10): **1288 testes
+> verdes**, 6630 asserts. **Base original** (PR #69, `229d852`): 556 testes, 2614.
 > O detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a
 > ler antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é histórico). Este
 > resumo só situa.
@@ -159,6 +159,7 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 9A** — UX e descoberta: tags e campos da performer, interesses do membro, filtros do catálogo, badges, localização opt-in (só UF, e some com `is_live`), hCaptcha, e-mail do fundador, onboarding, camada reservada do PanicButton.
 - **Sprint 9B** (SEM TAG, não fechado) — **Foto Efêmera do Membro** (§ abaixo): `ImageProcessingService`, storage cifrado, expiração, endpoints e UI de chat, GC. **Implementada, não liberada.**
 - **Sprint 9C** — **Stories da Performer** (§ abaixo), tag `v1.0-sprint9`: publicação com TTL fixo de 24h e 3 níveis de visibilidade, feed e serving autenticados, ponto dourado no catálogo, e a moderação junto (denúncia, quarentena, `content_hash`, `DeletionService` nos dois sentidos).
+- **Sprint 10** (EM CURSO, sem tag) — **Estilo de Vida do Membro** (§ abaixo): escala ordenada e opcional que o membro auto-declara e que a performer vê ao lado do `FanAlias`. **O refactor de `role` continua sendo o topo do sprint e não foi feito.**
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -265,6 +266,19 @@ limita quem aparece nela. Por isso o painel tem **dois** cortes — `canRevealLi
 >
 > Consequência prática: **não descreva este painel como anônimo** em copy de
 > produto, política de privacidade ou auditoria. Ele reduz correlação passiva.
+
+15. **Nenhum ATRIBUTO global do membro entra nesta lista** — e o caso concreto é
+    o "Estilo de Vida" do Sprint 10, que aparece em seguidores e gorjetas e
+    **não** aqui. O `SLOT_MIN_K` dá k-anonimato de PERTENCIMENTO, não
+    l-diversidade de ATRIBUTO: como o padrão daquele campo é não declarar, os
+    aliases que a performer planta (A2, logo acima) ficam sem faixa a custo
+    zero, e toda linha ROTULADA passa a ser, por construção, um visitante real —
+    o conjunto de anonimato dentro da faixa cai de 3 para 1, e a correlação que
+    a faixa de 6h e o embaralhamento encarecem passa a ser lida direto da tela.
+    Some-se que esta é a superfície com o vínculo MAIS FRACO das três: aqui o
+    membro só abriu um perfil, não seguiu nem mandou gorjeta.
+    Atributo novo que se pense em exibir aqui responde a mesma pergunta antes:
+    *ele é por par, como o `FanAlias`, ou é global?* Se for global, não entra.
 
 ## Pseudônimo do membro — `FanAlias` (fechado no Sprint 6)
 Toda exposição de membro à performer passa por `app/Support/FanAlias.php`:
@@ -401,6 +415,14 @@ mesma disciplina do painel de visitantes e do geobloqueio.
 > **Fechar os 🔴 não é o mesmo que liberar** — a decisão de ligar para usuário
 > real é do PO, e continua valendo tudo o que esta seção diz sobre a natureza da
 > feature (des-anonimização consentida, o rosto como chave de join global).
+>
+> **Entrou na conta desde o Sprint 10:** nada impede que a performer leia o
+> "Estilo de Vida" do membro na lista de seguidores e receba a foto dele no
+> chat — ou seja, **rosto com etiqueta patrimonial**. Duas chaves de join
+> globais na mesma pessoa, uma forte (o rosto) e uma fraca mas ESTÁVEL (a
+> faixa). Não é defeito de nenhuma das duas features isoladamente, e por isso
+> não é bloqueador de nenhuma; é a combinação que pesa, e ela pesa na decisão
+> de ligar ESTA aqui.
 > **Segue em aberto**, agora como 🟡 e não como bloqueador: o cap de performers
 > por foto (§ 1.1), a varredura de órfãos no disco (§ 1.5), e os achados da
 > revisão de segurança de 30/07 registrados em `MASTER_HANDOFF_FINAL.md` — **a
@@ -473,6 +495,83 @@ Imagem só (v1), TTL **fixo** de 24h, três níveis (`public` / `subscribers` /
 > **Ainda travado:** a fila humana é `/admin/reports` sob `role:admin` — o
 > **refactor de `role` não aconteceu**, moderador segue sendo admin, e admin vê
 > tudo. Vídeo é Sprint 10 e esbarra no bloqueio das FC Sessions.
+
+## Estilo de Vida do Membro — Sprint 10 (entregue, sprint NÃO fechado)
+
+Escala **ordenada** e **opcional** que o membro auto-declara em `/meu-perfil` e
+que a performer vê como RÓTULO ao lado do `FanAlias`. Faixas: `essencial`,
+`confortavel`, `premium`, `luxo`, `elite`, `patrono` — mais `prefer_not_to_say`,
+que é o padrão. Dona única: `app/Support/LifestyleTier.php`.
+
+**É a PRIMEIRA auto-declaração do membro que VOLTA para a performer.** O resto
+da mesma tela (`interests`, `seeking`) nunca sai do servidor — o cabeçalho do
+`Consumer\ProfileController` diz isso em voz alta. A faixa quebra a regra por
+decisão do PO, então a tela tem **duas metades com destinos opostos** e a copy
+foi dividida na mesma linha: a caixa "Isto é só seu" cobre o formulário de cima,
+e a seção nova avisa **no momento da escolha** que a performer vê. **Nunca
+descreva a faixa como anônima** — mesma disciplina do painel de visitantes, do
+geobloqueio e da Foto Efêmera.
+
+- **A faixa é GLOBAL; o `FanAlias` é POR PAR — e isto é o ponto.** O pseudônimo
+  é derivado por par para que duas performers não casem suas listas; o mesmo
+  membro é "Premium" para todas elas. É a primeira dimensão ESTÁVEL de join
+  entre perfis: ela **cria** o eixo, não soma a um existente (todo o resto
+  naquelas telas é por par ou por evento).
+  **A média engana:** ~1,3–1,8 bits e o join é inútil — mas `elite` e `patrono`
+  são raros **por construção da copy**, então numa base de centenas a interseção
+  de duas listas é quase única. Quem declara alto é quem tem mais a perder.
+  **Não há k-anonimato sobre o atributo** (follow-up do PO). Atributo novo ao
+  lado do alias faz a mesma pergunta antes: *isto é por par ou é global?*
+- **Fora do `$fillable`, dentro do `$hidden`, endpoint dedicado**
+  (`PATCH /meu-perfil/estilo-de-vida`) — mesma disciplina do `discrete_mode` e do
+  2FA, e os três andam juntos: fora do `$fillable` sozinho viraria um `forceFill`
+  no meio de um update genérico, que é mass assignment com outro nome. O
+  `$hidden` fecha a regressão em que o slug pega carona num prop de Inertia, e o
+  **prop perigoso é o do catálogo**, superfície pública sem piso de anonimato.
+- **Uma representação só para "não declarou".** `prefer_not_to_say` é o valor do
+  RADIO; a coluna guarda `null`. Precedente do `seeking`: duas representações
+  fazem todo consumidor tratar as duas, e a esquecida vazaria "Prefiro não dizer"
+  como se fosse faixa.
+- **Não declarou → AUSÊNCIA, nunca placeholder.** "Não informou" ao lado do
+  apelido diria à performer que aquele membro VIU o formulário e recusou. A
+  ausência cobre "nunca abriu a tela" e "abriu e não quis dizer" com a mesma
+  cara — item 14 do Piso de visitantes, mesma lógica.
+- **O audit grava `disclosed: true|false`, NUNCA o slug.** `audit_logs` é a
+  única tabela que o `DeletionService` preserva intacta, com o IP em claro ao
+  lado: gravar `"patrono"` ali faria o scrub de `lifestyle_tier` no Hard Delete
+  ser **cosmético**, e uma linha por alteração É a trajetória declarada do
+  membro. Mesmo corte do filtro de chat (categoria + `rule_hash`, nunca o corpo).
+- **Sai em DUAS telas: seguidores e gorjetas. NÃO no painel de visitantes.**
+  O `SLOT_MIN_K` daquele painel dá k-anonimato de PERTENCIMENTO, não
+  l-diversidade de ATRIBUTO — como o padrão é não declarar, os aliases plantados
+  (ataque A2) ficam sem faixa a custo zero, e toda linha ROTULADA passa a ser,
+  por construção, um visitante real: o conjunto de anonimato cai de 3 para 1. E é
+  a tela com o vínculo mais fraco — ali o membro só ABRIU um perfil. **Não
+  acrescente o rótulo àquela lista sem resolver a l-diversidade antes.**
+- **Modo Discreto SUPRIME a faixa, e a regra vive na dona única**
+  (`LifestyleTier::labelsFor`), não nos controllers — item 9, são duas telas hoje
+  e a terceira nasceria vazando. O caso concreto é a lista de gorjetas, que não
+  passa por piso nenhum: o discreto sumia dos seguidores e reaparecia ali
+  carregando o atributo global. As duas escolhas são consentidas em separado; a
+  interseção delas não foi consentida por ninguém.
+- **Nunca no catálogo e nunca como FILTRO.** Filtrar viraria consulta ("me mostre
+  os Patronos"), e consulta de conjunto pequeno identifica muito mais do que um
+  rótulo ao lado de um apelido. Ressalva honesta: as duas telas onde ela aparece
+  têm botão de ação ao lado, então a performer filtra visualmente — **a lista É o
+  conjunto**. Não é defeito; é o efeito real da feature.
+- **A migration guarda a lista LITERAL**, não `LifestyleTier::storableValues()`:
+  migration é snapshot, não referência viva. Lendo a constante, um slug novo faria
+  `migrate:fresh` (o que a suíte roda) criar a coluna já correta, os testes
+  ficariam verdes e o INSERT quebraria **só em produção**. Teste compara o enum
+  do schema com a escala.
+
+> **Revisão de segurança rodada sobre a branch: sem 🔴.** Os 4 🟡 foram fechados
+> (audit sem valor, faixa fora do painel de visitantes, migration literal,
+> ressalva de correlação reescrita). **Segue aberto como 🟡:** o k-anonimato
+> sobre o próprio atributo (o caso "Patrono único") e o cruzamento com a Foto
+> Efêmera — a performer lê a faixa na lista de seguidores e recebe o rosto no
+> chat, ou seja, rosto com etiqueta patrimonial. Não é defeito desta entrega,
+> mas entra na conta antes de qualquer liberação da Foto Efêmera.
 
 ## 2FA da performer — TOTP (Sprint 6)
 A conta da performer guarda o KYC (documento + selfie) e é a identidade

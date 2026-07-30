@@ -71,10 +71,10 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1268 testes verdes, 6520 asserts** | `php artisan test` (~165 s) |
-| Migrations | **79** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **148** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 114 | `grep` |
+| Suíte de testes | **1288 testes verdes, 6630 asserts** | `php artisan test` (~190 s) |
+| Migrations | **80** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **149** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 115 | `grep` |
 | Rotas HTTP em `routes/api.php` | 39 (**nenhuma de foto nem de story** — as duas superfícies de mídia de usuário são só web) | `grep` |
 | Services | 29 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
 | Models | 34 | `ls app/Models/` |
@@ -857,6 +857,180 @@ lá seguem marcados 🔴 porque descrevem o risco original. **O status vive aqui
 nesta seção — mesma convenção adotada no 9B. As mensagens de commit dos 4 PRs
 carregam o racional item a item.
 
+## Sprint 10 — Estilo de Vida do Membro (entregue, sprint NÃO fechado)
+
+> **SEM TAG, e não é para criar uma.** O Sprint 10 tem outras entregas pela
+> frente — o refactor de `role` continua sendo o topo dele — e uma tag aqui
+> diria que o sprint fechou. Range: `49ef728..` (branch
+> `feat/sprint10-lifestyle-tiers`, PRs #111→#113). Suíte: 1268 → **1288 testes
+> verdes** (6520 → 6630 asserts).
+>
+> **É a PRIMEIRA auto-declaração do membro que VOLTA para a performer.** Tudo o
+> que o membro escrevia até aqui em `/meu-perfil` (`interests`, `seeking`) nunca
+> saía do servidor, e o cabeçalho do `Consumer\ProfileController` dizia isso em
+> voz alta. A faixa quebra a regra por decisão explícita do PO — então a tela
+> passou a ter **duas metades com destinos opostos**, e a copy foi dividida na
+> mesma linha.
+
+### O QUE É
+
+Escala **ordenada** (não tag combinável), **opcional**, com 6 faixas mais o
+opt-out. O membro escolhe em `/meu-perfil`; a performer vê o RÓTULO ao lado do
+`FanAlias` na lista de seguidores e no painel de gorjetas.
+
+| Slug | Rótulo | Descrição (exibida no formulário) |
+|---|---|---|
+| `prefer_not_to_say` | Prefiro não dizer | *(padrão — a coluna guarda `null`)* |
+| `essencial` | Essencial | Estou começando, valorizo conexão |
+| `confortavel` | Confortável | Vida estável, sem ostentação |
+| `premium` | Premium | Viajo, janto bem, invisto em experiências |
+| `luxo` | Luxo | Dinheiro não é limitação |
+| `elite` | Elite | Jato, iate, suíte presidencial |
+| `patrono` | Patrono | Mecenas — invisto em pessoas e projetos |
+
+**Migration nova (1):** `add_lifestyle_tier_to_users` (79 → **80**).
+**Support novo:** `App\Support\LifestyleTier` — dona única das faixas, dos
+rótulos, da normalização e da regra de exibição.
+**Request novo:** `UpdateLifestyleTierRequest`. **Rota nova (1):**
+`consumer.profile.lifestyle-tier` (`PATCH /meu-perfil/estilo-de-vida`,
+`throttle:20,1`), 148 → **149**. **Model novo: nenhum. Service novo: nenhum.
+Dependência nova: nenhuma.**
+
+### AS DECISÕES, E POR QUÊ
+
+**1. `LifestyleTier` é a dona única — rótulo, nunca slug, sai para a tela.**
+O formulário do membro e o painel da performer leem a MESMA tabela. Uma cópia
+dos rótulos no Vue divergiria no primeiro texto novo, e divergiria justo no lado
+que o membro não vê. `labelsFor()` resolve em lote (sem N+1) e é onde toda regra
+de exibição mora.
+
+**2. Fora do `$fillable`, dentro do `$hidden`, endpoint dedicado.**
+Mesma disciplina do `discrete_mode` e do 2FA. Os dois andam juntos: fora do
+`$fillable` sozinho viraria um `forceFill` no meio de um update genérico, que é
+mass assignment com outro nome. O `$hidden` fecha a classe de regressão em que o
+slug pega carona num prop de Inertia — e **o prop perigoso é o do catálogo**,
+superfície pública onde não há nem piso de anonimato para segurar a correlação.
+A escrita é um `forceFill` num chamador só, com valor já validado por allowlist.
+
+**3. Uma representação só para "não declarou".**
+`prefer_not_to_say` é o valor que o RADIO manda (o formulário precisa de algo
+marcável por padrão); a coluna guarda `null`. Precedente do `seeking`: duas
+representações do mesmo estado fazem todo consumidor futuro tratar as duas, e a
+esquecida vazaria "Prefiro não dizer" para a performer como se fosse faixa.
+
+**4. Não declarou → AUSÊNCIA, nunca placeholder.**
+Nada de "não informou" ao lado do apelido. Isso diria à performer que aquele
+membro VIU o formulário e recusou, que é informação sobre a pessoa. A ausência
+cobre "nunca abriu a tela" e "abriu e não quis dizer" com a mesma cara — mesma
+lógica da copy ambígua do painel de visitantes (item 14 do CLAUDE.md).
+
+**5. Nunca no catálogo, e nunca como filtro.**
+Filtrar por faixa transformaria o campo em CONSULTA ("me mostre os Patronos"), e
+consulta que devolve conjunto pequeno identifica muito mais do que um rótulo ao
+lado de um apelido. Há teste cobrando que o parâmetro é inerte e que nem o slug
+nem o rótulo aparecem nas props do catálogo público e do autenticado.
+
+**6. O audit grava `disclosed: true|false` — NUNCA o slug.**
+Achado da revisão de segurança sobre a própria branch, e o mais importante dela.
+`audit_logs` é a única tabela que o `DeletionService` **preserva intacta** (§ 3
+do cabeçalho dele), com o IP em claro ao lado. Gravar `"patrono"` ali fazia o
+scrub de `lifestyle_tier` no Hard Delete ser **cosmético** — a linha encerrada
+seguiria carregando o retrato patrimonial que o scrub existe para tirar. E uma
+linha por alteração, em ordem, **é** a trajetória declarada do membro. O booleano
+responde o que o audit precisa responder ("desde quando havia faixa exibida, e
+por decisão de quem") sem guardar QUAL. Mesmo corte do filtro de chat, que grava
+categoria e `rule_hash` e nunca o corpo. **Dois testes travam isso**, um deles
+sobre a trilha acumulada.
+
+**7. A faixa NÃO sai no painel de visitantes.** Ver a seção 14 e o comentário em
+`ProfileVisitService::revealableVisitorRows()`.
+
+**8. Modo Discreto suprime a faixa**, e a regra vive na dona única
+(`LifestyleTier::labelsFor`), não nos controllers — item 9 do CLAUDE.md: são
+duas telas hoje e a terceira nasceria vazando. O caso concreto é a lista de
+gorjetas, que **não passa por piso nenhum**: o discreto sumia dos seguidores mas
+reaparecia ali, e reaparecia carregando o atributo GLOBAL que correlaciona entre
+perfis — exatamente o que o perk existe para negar. As duas escolhas são
+consentidas em separado; a interseção delas não foi consentida por ninguém, e
+na dúvida o perk vence (errar escondendo é o erro barato).
+
+**9. A migration guarda a lista LITERAL**, não `LifestyleTier::storableValues()`.
+Migration é snapshot, não referência viva: lendo a constante, um slug novo faria
+`migrate:fresh` (que é o que a suíte roda) criar a coluna já com o vocabulário
+novo, os testes ficariam verdes e o INSERT quebraria **só em produção**. Um slug
+REMOVIDO é pior — banco recriado passaria a recusar valores que existem lá. A
+divergência é travada por teste que compara o enum do schema com a escala.
+
+**10. A copy "Isto é só seu" foi DELIMITADA.**
+Ela dizia *"Nenhuma performer vê seus interesses nem o que você escreve aqui"* —
+com a faixa na mesma tela isso viraria promessa falsa. Hoje ela cobre "o
+formulário abaixo", e a seção nova avisa, **no momento da escolha e não nos
+Termos**, que a performer vê e que o Modo Discreto suprime. Mesma disciplina da
+Foto Efêmera.
+
+### A RESSALVA DE CORRELAÇÃO — leia antes de ampliar a exibição
+
+**A faixa é GLOBAL; o `FanAlias` é POR PAR.** O pseudônimo é derivado por
+(perfil, membro) exatamente para que duas performers não consigam casar suas
+listas. A faixa não: o mesmo membro sai "Premium" para todas elas. Duas
+consequências que a média esconde, as duas apontadas na revisão de 30/07:
+
+- **Ela CRIA o eixo de join, não soma a um existente.** Tudo o mais nessas telas
+  é por par (`FanAlias`) ou por evento (`following_since`, `created_at` da
+  gorjeta). Esta é a primeira dimensão ESTÁVEL de correlação entre listas de
+  performers diferentes. "Chave fraca" descreve a entropia, não a novidade.
+- **O risco é INVERSAMENTE proporcional à entropia da faixa.** Na média são
+  ~1,3–1,8 bits e o join é inútil. Mas `elite` e `patrono` são raros **por
+  construção da própria copy**: numa base de centenas, "Patrono" são poucas
+  pessoas na plataforma inteira, e duas performers que acham um em ambas as
+  listas têm interseção quase única. Quem declara alto é quem tem mais a perder,
+  e o incentivo do produto empurra nessa direção.
+
+O que existe hoje contra isso é a adesão ser opcional e o padrão não declarar.
+**Não é k-anonimato sobre o atributo** — ver "O que ficou de fora".
+
+**Não descreva a faixa como anônima** em copy de produto, política de privacidade
+ou auditoria. Mesma disciplina de linguagem do painel de visitantes, do
+geobloqueio e da Foto Efêmera.
+
+### REVISÃO DE SEGURANÇA — rodada sobre a branch, **sem 🔴**
+
+Verificado e correto: nenhuma superfície esquecida (`UserResource`,
+`FollowResource`, controllers de admin, chat, stories, fotos efêmeras e o
+`HandleInertiaRequests` montam array explícito e não tocam o campo); mass
+assignment fechado (nenhuma factory, seeder, command ou `Model::unguarded`
+escreve a coluna); **sem oráculo** entre "nunca declarou" e "declarou e voltou"
+(a chave `lifestyle` está sempre presente com valor `null`, `forForm()` devolve
+o mesmo para os dois, e o PATCH responde idêntico); `labelsFor()` respeita o
+soft delete, então conta encerrada não devolve rótulo.
+
+Os 4 🟡 foram endereçados: audit sem o valor (§ 6), faixa fora do painel de
+visitantes (§ 7), migration literal (§ 9) e a ressalva de correlação reescrita.
+
+### O QUE FICOU DE FORA
+
+- 🟡 **k-anonimato sobre o próprio ATRIBUTO.** O caso "Patrono único" segue de
+  pé em seguidores e gorjetas. A mitigação seria suprimir o rótulo enquanto
+  menos de K membros ativos sustentarem aquela faixa (colapsando para nada,
+  nunca para placeholder), ou cortar a escala no topo. **Decisão do PO, não
+  implementada.**
+- 🟡 **Cruzamento com a Foto Efêmera.** Nada impede que a performer leia a faixa
+  do membro na lista de seguidores e receba a foto dele no chat — recebe o rosto
+  com etiqueta patrimonial. É combinação de features, não defeito desta entrega,
+  mas entra na conta antes de qualquer liberação da Foto Efêmera para usuário
+  real.
+- 🟢 **A lista É o conjunto.** "Sem filtro" vale para o catálogo, e o teste cobra
+  isso. Mas as duas telas onde a faixa aparece têm botão de ação ao lado (o
+  Interesse Controlado, na lista de seguidores, paginada em 20): a performer
+  filtra visualmente e dispara por faixa. Não é defeito — é o efeito real da
+  feature, registrado para não ser descoberto como surpresa.
+- 🟢 **Backup.** `users.lifestyle_tier` entra no `mysqldump` de `docs/backup.sh`
+  e sobrevive à janela de retenção, como o `seeking`. Nada novo, mas soma-se à
+  resposta a um pedido de eliminação.
+- **Cruzamento de afinidade do Sprint 10** (o que consome `interests`/`seeking`)
+  continua não implementado. A faixa **não** entra nele: ordem de catálogo
+  derivada de patrimônio declarado é outra decisão, e ninguém a tomou.
+
 ---
 
 ## 2. Stack e versões
@@ -1463,6 +1637,30 @@ mandar uma gorjeta para correlacionar.
 
 Registro completo: `docs/SECURITY_ISSUES.md`.
 
+### 13.4 Estilo de Vida — o atributo que o FanAlias NÃO isola (Sprint 10)
+
+Detalhe completo na seção "Sprint 10", acima. O que precisa estar registrado
+**aqui**, junto do FanAlias, é o limite:
+
+> **O `FanAlias` isola o IDENTIFICADOR, não os ATRIBUTOS que viajam ao lado
+> dele.** O pseudônimo é derivado por par exatamente para que duas performers
+> não casem suas listas. `lifestyle_tier` é o primeiro atributo GLOBAL a sair
+> nessas telas: o mesmo membro é "Premium" para todas elas, então ele é uma
+> dimensão de join que o pseudônimo por par não cobre.
+
+Baixa entropia na média (~1,3–1,8 bits, e o valor mais comum é "não declarou"),
+**mas não na cauda**: `elite` e `patrono` são raros por construção da copy, e
+duas performers que acham um em ambas as listas têm interseção quase única.
+
+Consequências que valem para QUALQUER atributo novo que se pense em exibir ao
+lado do alias — e a pergunta a fazer antes é sempre "isto é por par ou é global?":
+
+- **Sai em duas telas só** (seguidores, gorjetas), não no painel de visitantes —
+  ver 14.4.
+- **Modo Discreto suprime**, na dona única (`LifestyleTier::labelsFor`).
+- **Opcional, padrão não declara, nunca vira filtro**, nunca sai no catálogo.
+- **Não há k-anonimato sobre o atributo** — follow-up do PO, não implementado.
+
 ---
 
 ## 14. Painel de visitantes — profile_visits
@@ -1519,6 +1717,29 @@ O painel **não é anônimo contra adversário ativo**: polling numa faixa já v
 entrega o novo por diferença entre refreshes; eliminação com contas envelhecidas
 é custo de setup único. **Não descreva este painel como anônimo** em copy,
 política ou auditoria.
+
+### 14.4 O que este painel NÃO exibe, e por quê (Sprint 10)
+
+**A faixa de "Estilo de Vida" fica FORA deste painel**, apesar de aparecer nas
+outras duas telas que mostram membro à performer (seguidores e gorjetas).
+Decisão do PO em cima da revisão de segurança de 30/07. Duas razões:
+
+1. **`SLOT_MIN_K` dá k-anonimato de PERTENCIMENTO, não l-diversidade de
+   ATRIBUTO.** O k garante que quem chegou na faixa horária é "um entre 3"; não
+   garante que os 3 sejam indistinguíveis entre si. Como o padrão do campo é
+   **não declarar**, os aliases que a performer planta (o ataque A2 da 14.2)
+   ficam sem faixa **a custo zero** — e aí toda linha ROTULADA é, por construção,
+   um visitante real. O conjunto de anonimato dentro da faixa cai de 3 para o
+   número de rotulados, frequentemente 1. O trabalho de correlação que a faixa
+   de 6h e o embaralhamento encarecem passaria a ser **lido direto da tela**.
+2. **É a tela com o vínculo mais fraco das três.** Seguidores e gorjetas
+   pressupõem ação deliberada do membro em direção àquela performer. Aqui ele
+   apenas **abriu um perfil**.
+
+A regra está no comentário de `ProfileVisitService::revealableVisitorRows()`, e
+há teste cobrando a ausência **no service e na prop do Inertia**. **Não
+acrescente o rótulo a esta lista sem resolver a l-diversidade antes** — e a
+mesma pergunta vale para qualquer atributo global futuro (ver 13.4).
 
 ---
 
