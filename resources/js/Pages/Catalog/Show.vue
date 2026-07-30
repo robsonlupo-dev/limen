@@ -135,6 +135,7 @@ function onTipSent(data) {
                     :performer-name="performer.stage_name"
                     :locked-href="route('subscribe.index')"
                     locked-label="Assine para ver"
+                    :can-report="report !== null"
                 />
 
                 <!-- Bio -->

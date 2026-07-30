@@ -63,9 +63,19 @@ class PerformerStoryStore
      * asserção, não suposição: o ImageProcessingService SEMPRE devolve JPEG,
      * porque o arquivo é gerado a partir do bitmap.
      *
+     * ── Devolve caminho E hash, e o hash é calculado AQUI ───────────────────
+     * Sobre os bytes que a plataforma acabou de gravar, depois do re-encode
+     * (§ 2.4, parte 1). Este é o único ponto do fluxo que tem os bytes finais em
+     * memória: calcular fora obrigaria a reler o arquivo do disco, e calcular
+     * ANTES do re-encode produziria o hash de um arquivo que nunca existiu do
+     * nosso lado. É a prova que sobrevive à destruição do conteúdo — ver a
+     * migration `add_content_hash_to_performer_stories`.
+     *
+     * @return array{path: string, hash: string}
+     *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      */
-    public function store(UploadedFile $file, int $performerProfileId): string
+    public function store(UploadedFile $file, int $performerProfileId): array
     {
         $processed = $this->images->process($file);
 
@@ -93,7 +103,14 @@ class PerformerStoryStore
                 throw new RuntimeException('Falha ao gravar o story no disco.');
             }
 
-            return $path;
+            return [
+                'path' => $path,
+                // Sobre os MESMOS bytes que foram para o disco. `hash()` e não
+                // `Hash::` (que é bcrypt, com salt): aqui o valor precisa ser
+                // determinístico, senão não casa nada — não é senha, é impressão
+                // digital de arquivo.
+                'hash' => hash('sha256', $bytes),
+            ];
         } finally {
             // O temporário do service é responsabilidade do chamador. O SO limpa
             // o tmp, mas não na hora.

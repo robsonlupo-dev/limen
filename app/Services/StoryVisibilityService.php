@@ -358,6 +358,17 @@ class StoryVisibilityService
         return PerformerStory::query()
             ->active()
             ->whereIn('performer_profile_id', $profileIds)
+            // Performer de pé, e a checagem é DAQUI, não do chamador (§ 2.3).
+            // Os dois call sites de hoje resolvem os perfis pelo escopo
+            // `publicCatalog()`, que é mais estrito que isto — mas a garantia
+            // passava a depender de disciplina de chamador, e o terceiro que
+            // aparecesse (um trilho de "quem você segue", um bloco de recentes)
+            // nasceria anunciando story de performer suspensa por moderação,
+            // justamente nas 24h em que ela precisa parar. É a mesma condição do
+            // `performerIsReachable()`, escrita em SQL para caber na query única.
+            ->whereHas('performerProfile', fn ($q) => $q
+                ->whereHas('user', fn ($u) => $u->where('status', 'active'))
+            )
             ->where(function ($query) use ($withoutFollow, $followOnly, $member) {
                 if ($withoutFollow !== []) {
                     $query->orWhereIn('visibility_level', $withoutFollow);
@@ -417,6 +428,15 @@ class StoryVisibilityService
      */
     public function profileStripFor(PerformerProfile $profile, ?User $member): array
     {
+        // Mesma razão do guard em `profileIdsWithUnseenStories()`: a garantia não
+        // pode depender de o chamador ter resolvido o perfil pelo escopo
+        // `publicCatalog()`. Performer fora do ar não tem faixa — e o serving
+        // (`denialFor()`) já responde 404 para os bytes dela, então sem isto a
+        // tela anunciaria o que a rota nega.
+        if (! $this->performerIsReachable($profile)) {
+            return [];
+        }
+
         $stories = PerformerStory::query()
             ->active()
             ->where('performer_profile_id', $profile->getKey())

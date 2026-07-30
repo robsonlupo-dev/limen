@@ -229,6 +229,7 @@ const lockedTiles = 6
                     :performer-name="performer.stage_name"
                     :locked-href="canTip ? route('subscribe.index') : route('entrada')"
                     :locked-label="canTip ? 'Assine para ver' : 'Crie sua conta'"
+                    :can-report="report !== null"
                 />
 
                 <!-- Locked gallery -->
