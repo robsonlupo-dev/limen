@@ -28,6 +28,9 @@ class StoryException extends DomainException
 
     public const FORBIDDEN = 'forbidden';
 
+    /** Congelado por denúncia em aberto (§ 2.4). Só a deleção manual bate aqui. */
+    public const UNDER_REVIEW = 'under_review';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -57,6 +60,23 @@ class StoryException extends DomainException
         return new self(
             self::FORBIDDEN,
             'Este story é exclusivo para outro nível de acesso.',
+        );
+    }
+
+    /**
+     * Deleção manual recusada porque há denúncia em aberto (§ 2.4, parte 2).
+     *
+     * A mensagem DIZ o motivo, e é decisão: aqui não há oráculo a proteger — a
+     * performer é a dona do story e já sabe que ele existe. O que ela ganha em
+     * saber é a chance de responder à moderação em vez de tentar de novo; o que
+     * a plataforma ganha é não parecer bug. Distinguir isto de "não é seu" é
+     * seguro pelo mesmo motivo: quem chega aqui já provou a propriedade.
+     */
+    public static function underReview(): self
+    {
+        return new self(
+            self::UNDER_REVIEW,
+            'Este story está sob análise e não pode ser apagado até a revisão terminar.',
         );
     }
 

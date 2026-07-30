@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\StoryVisibilityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -30,6 +31,13 @@ class Report extends Model
     public const REPORTABLE_TYPES = [
         'performer' => PerformerProfile::class,
         'message' => Message::class,
+        // Story da performer (Sprint 9C, § 2.4 parte 2). Entra pela MESMA porta
+        // dos outros dois em vez de ganhar rota própria: o dedup por janela, o
+        // lock anti-duplo-submit, a recusa de autodenúncia e a resposta uniforme
+        // para "não existe"/"não pode ver" já vivem no ReportController, e uma
+        // segunda rota nasceria sem alguma delas. Denunciar um story É o gatilho
+        // que congela o GC e a deleção manual daquele story.
+        'performer_story' => PerformerStory::class,
     ];
 
     /** Janela em que um mesmo denunciante não repete o mesmo par alvo+motivo. */
@@ -90,6 +98,13 @@ class Report extends Model
         return match (true) {
             $reportable instanceof PerformerProfile => (int) $reportable->user_id,
             $reportable instanceof Message => (int) $reportable->sender_id,
+            // O dono do story é a PERFORMER, pelo perfil. `withTrashed()` porque
+            // o perfil pode ter sido encerrado entre a publicação e a denúncia, e
+            // devolver 0 aqui desligaria a checagem de autodenúncia em silêncio —
+            // exatamente o que o `default` abaixo existe para impedir.
+            $reportable instanceof PerformerStory => (int) PerformerProfile::withTrashed()
+                ->whereKey($reportable->performer_profile_id)
+                ->value('user_id'),
             // Fail-closed: devolver null aqui faria a comparação com o reporter
             // dar false e DESLIGARIA silenciosamente a checagem de autodenúncia
             // no dia em que alguém adicionar um tipo em REPORTABLE_TYPES e
@@ -122,6 +137,19 @@ class Report extends Model
                 ->with('performerProfile')
                 ->first()
                 ?->hasParticipant($user),
+            // Story: "viu" é literalmente a mesma pergunta do serving, então a
+            // resposta vem de quem já a responde (§ 2.3). Reimplementá-la aqui
+            // criaria a segunda dona que o StoryVisibilityService recusa — e a
+            // divergência apareceria no pior sentido: um `true` largo demais
+            // deixaria o POST de denúncia virar oráculo de EXISTÊNCIA para
+            // stories que o membro não alcança (varrendo ids, "recebida" vs
+            // "não encontrado" reconstrói o que a performer publicou e quando).
+            //
+            // Consequência assumida: story VENCIDO não é mais denunciável, porque
+            // `canView()` já o nega. A janela real de denúncia é a de exibição, e
+            // é a janela em que o membro de fato viu o conteúdo.
+            $reportable instanceof PerformerStory => app(StoryVisibilityService::class)
+                ->canView($reportable, $user),
             default => false,
         };
     }

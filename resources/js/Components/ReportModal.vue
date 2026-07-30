@@ -6,8 +6,8 @@ import { postJson } from '@/lib/http'
 
 const props = defineProps({
     show: { type: Boolean, default: false },
-    // Apelido do alvo — 'performer' | 'message'. Espelha Report::REPORTABLE_TYPES;
-    // o servidor rejeita qualquer outro valor.
+    // Apelido do alvo — 'performer' | 'message' | 'performer_story'. Espelha
+    // Report::REPORTABLE_TYPES; o servidor rejeita qualquer outro valor.
     reportableType: { type: String, required: true },
     reportableId: { type: [Number, String], required: true },
 })

@@ -11,6 +11,7 @@ use App\Models\MemberPhoto;
 use App\Models\Message;
 use App\Models\Payment;
 use App\Models\Payout;
+use App\Models\PerformerStory;
 use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Database\Eloquent\Collection;
@@ -303,6 +304,10 @@ class DeletionService
             $summary['profile_visits_received'] = $this->purgeVisitsToOwnProfile($user);
             $summary['member_photos'] = $this->purgeMemberPhotos($user);
             $summary['member_photo_access_received'] = $this->purgePhotoAccessToOwnProfile($user);
+            $summary['story_views'] = $this->purgeStoryViews($user);
+            $summary['story_views_received'] = $this->purgeStoryViewsToOwnProfile($user);
+            $summary['performer_stories'] = $this->purgePerformerStories($user);
+            $summary['performer_stories_preserved'] = $this->preservedStoryCount($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
@@ -378,6 +383,20 @@ class DeletionService
         foreach (MemberPhoto::withTrashed()->where('user_id', $user->id)->get() as $photo) {
             if ($path = $photo->path_encrypted) {
                 $paths[] = ['disk' => MemberPhotoStore::DISK, 'path' => $path];
+            }
+        }
+
+        // Stories publicados pelo titular (§ 2.6). `withTrashed()` pela mesma
+        // razão das fotos: o GC soft-deleta a linha depois de confirmar que os
+        // bytes saíram, mas uma rodada que falhou no meio deixa o arquivo de pé —
+        // e este é o último varredor que ainda enxerga o caminho.
+        //
+        // Os bytes saem de TODO story, inclusive dos que terão a linha preservada
+        // por denúncia: o que a evidência precisa é o hash, não o arquivo (§ 2.4,
+        // parte 1) — "preserva evidência SEM preservar conteúdo".
+        foreach ($this->performerStoriesOf($user) as $story) {
+            if ($path = $story->media_path) {
+                $paths[] = ['disk' => PerformerStoryStore::DISK, 'path' => $path];
             }
         }
 
@@ -736,6 +755,153 @@ class DeletionService
         }
 
         return DB::table('member_photo_access')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * As views que o TITULAR gerou: quais stories ele abriu (§ 2.6).
+     *
+     * Estruturalmente idêntica a `profile_visits` — mapa de interesses
+     * membro→performer — e tratada igual: hard delete, sem nada a preservar. Não
+     * sai pela FK: `anonymizeUser()` não apaga a linha do `users`, então o
+     * `cascadeOnDelete` de `story_views` NUNCA dispara (item 11 do CLAUDE.md).
+     * Sem esta varredura, o dado só sumiria quando o story vencesse.
+     */
+    private function purgeStoryViews(User $user): int
+    {
+        return DB::table('story_views')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro lado: as views RECEBIDAS pelos stories da performer que encerra.
+     *
+     * PII de terceiros — quais membros ainda ativos assistiram ao conteúdo dela —
+     * pendurada num perfil que deixou de existir. Não sai por `purgeStoryViews()`
+     * (aquele é por `user_id` do espectador) nem pela FK, pelo motivo de sempre:
+     * nem o usuário nem o perfil sofrem DELETE físico. É o análogo exato de
+     * `purgeVisitsToOwnProfile()`.
+     *
+     * Apaga as views inclusive dos stories que serão PRESERVADOS por denúncia
+     * (ver `purgePerformerStories()`): a evidência que a moderação precisa é o
+     * conteúdo publicado e o hash dele, nunca quem o assistiu. Guardar a
+     * audiência junto seria preservar PII de terceiros a pretexto da prova.
+     *
+     * Roda ANTES do anonymizePerformerProfile, enquanto a relação ainda resolve.
+     */
+    private function purgeStoryViewsToOwnProfile(User $user): int
+    {
+        $storyIds = $this->storyIdsOf($user);
+
+        if ($storyIds === []) {
+            return 0;
+        }
+
+        return DB::table('story_views')->whereIn('performer_story_id', $storyIds)->delete();
+    }
+
+    /**
+     * Os stories da performer que encerra: linhas e — em `deleteFiles()`, depois
+     * do commit — os bytes.
+     *
+     * ── O que é apagado, e o que NÃO é ──────────────────────────────────────
+     * Os BYTES saem sempre, de todo story: é conteúdo do titular num disco
+     * nosso, e o encerramento é o pedido para que não exista mais. A LINHA sai
+     * junto, EXCETO quando aquele story tem denúncia — e essa exceção é a mesma
+     * regra que este serviço já aplica a `reports`, pela mesma frase: *"apagá-la
+     * porque o denunciado pediu exclusão daria ao infrator um botão para destruir
+     * a prova contra si"*. Encerrar a conta é a versão mais poderosa desse botão.
+     *
+     * O que sobrevive na linha preservada é o `content_hash` (§ 2.4, parte 1) e o
+     * carimbo de quando foi publicado — **prova sem conteúdo**, que é exatamente
+     * a resposta que a decisão dá para a pergunta original. Sem isso, a denúncia
+     * preservada apontaria para um id que já não existe em lugar nenhum, e o
+     * matching contra hash conhecido (o que de fato bloqueia o re-upload) morreria
+     * com a conta do infrator.
+     *
+     * A linha preservada não é PII de terceiros: carrega o id do perfil — que o
+     * `anonymizePerformerProfile()` esvazia logo em seguida —, o nível, os
+     * carimbos e o hash. A audiência dela sai junto, em
+     * `purgeStoryViewsToOwnProfile()`.
+     *
+     * `withTrashed()` porque o soft delete do GC não basta: a linha e o arquivo
+     * podem ter sobrevivido a uma falha de rodada, e este é o último varredor.
+     */
+    private function purgePerformerStories(User $user): int
+    {
+        $storyIds = $this->storyIdsOf($user);
+
+        if ($storyIds === []) {
+            return 0;
+        }
+
+        $reportedIds = DB::table('reports')
+            ->where('reportable_type', (new PerformerStory)->getMorphClass())
+            ->whereIn('reportable_id', $storyIds)
+            ->pluck('reportable_id')
+            ->all();
+
+        $deletableIds = array_values(array_diff($storyIds, $reportedIds));
+
+        if ($deletableIds === []) {
+            return 0;
+        }
+
+        return PerformerStory::withTrashed()->whereIn('id', $deletableIds)->forceDelete();
+    }
+
+    /**
+     * Os stories do titular como MODELS — o que `collectFilePaths()` precisa para
+     * ler `media_path`. Separado de `storyIdsOf()` porque aquele roda dentro da
+     * transação e só precisa dos ids.
+     *
+     * @return Collection<int, PerformerStory>
+     */
+    private function performerStoriesOf(User $user)
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return PerformerStory::withTrashed()->whereRaw('1 = 0')->get();
+        }
+
+        return PerformerStory::withTrashed()
+            ->where('performer_profile_id', $profileId)
+            ->get();
+    }
+
+    /** Quantas linhas de story ficaram de pé como evidência. Ver acima. */
+    private function preservedStoryCount(User $user): int
+    {
+        $storyIds = $this->storyIdsOf($user);
+
+        if ($storyIds === []) {
+            return 0;
+        }
+
+        return PerformerStory::withTrashed()->whereIn('id', $storyIds)->count();
+    }
+
+    /**
+     * Ids de todo story publicado por este usuário, vivos ou soft-deletados.
+     *
+     * Consulta pela COLUNA e não pela relação, para não depender do cache de
+     * relações numa re-execução do job — mesma disciplina de
+     * `purgeVisitsToOwnProfile()`.
+     *
+     * @return array<int, int>
+     */
+    private function storyIdsOf(User $user): array
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return [];
+        }
+
+        return PerformerStory::withTrashed()
+            ->where('performer_profile_id', $profileId)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     private function ledgerEntryCount(User $user): int

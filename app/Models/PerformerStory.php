@@ -52,10 +52,12 @@ class PerformerStory extends Model
      * Só o nível vem de formulário.
      *
      * `performer_profile_id` (a dona vem sempre do request autenticado),
-     * `media_path` (vem sempre do Store) e `expires_at` (é DERIVADO de
-     * TTL_HOURS — aceitá-lo por payload deixaria o cliente escolher o prazo que
-     * o produto fixou) ficam fora, na mesma regra de `discrete_mode`, do segredo
-     * de 2FA e do `user_id` de `member_photos`.
+     * `media_path` e `content_hash` (vêm sempre do Store, calculados sobre os
+     * bytes que ele gravou) e `expires_at` (é DERIVADO de TTL_HOURS — aceitá-lo
+     * por payload deixaria o cliente escolher o prazo que o produto fixou) ficam
+     * fora, na mesma regra de `discrete_mode`, do segredo de 2FA e do `user_id`
+     * de `member_photos`. Um `content_hash` vindo de payload seria evidência
+     * escolhida pelo denunciado.
      */
     protected $fillable = [
         'visibility_level',
@@ -76,6 +78,12 @@ class PerformerStory extends Model
      */
     protected $hidden = [
         'media_path',
+        // O hash é PROVA, não conteúdo de tela (§ 2.4, parte 1). Fora da
+        // serialização por duas razões independentes: ninguém do lado do cliente
+        // tem uso para ele, e publicá-lo daria a quem já tem o arquivo uma forma
+        // barata de CONFIRMAR que é exatamente aquele — inclusive para checar se
+        // um re-upload evasivo mudou o suficiente para escapar do matching.
+        'content_hash',
     ];
 
     protected function casts(): array

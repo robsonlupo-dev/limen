@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import ReportModal from '@/Components/ReportModal.vue'
 
 /**
  * Faixa de Stories no perfil da performer — compartilhada pelas DUAS telas de
@@ -27,9 +28,14 @@ const props = defineProps({
     // Rota do CTA de bloqueado: assinar (membro logado) ou cadastro (visitante).
     lockedHref: { type: String, required: true },
     lockedLabel: { type: String, default: 'Assine para ver' },
+    // Denunciar exige conta (POST /reportar é autenticado) e exige ter VISTO o
+    // story — o servidor recusa o que o espectador não alcança
+    // (`Report::visibleTo`), então o botão só aparece no story aberto.
+    canReport: { type: Boolean, default: false },
 })
 
 const open = ref(null)
+const reporting = ref(null)
 
 const hasStories = computed(() => props.stories.length > 0)
 
@@ -112,8 +118,31 @@ function lockFor(level) {
                     :alt="`Story de ${performerName}`"
                     class="max-h-[70vh] w-auto rounded-xl border border-frame"
                 />
-                <button class="text-xs text-muted hover:text-cream" @click="open = null">Fechar</button>
+                <div class="flex items-center justify-center gap-4">
+                    <button class="text-xs text-muted hover:text-cream" @click="open = null">Fechar</button>
+                    <!-- Canal de compliance (§ 2.4): sem ele o story é
+                         "denunciável" só no papel — nenhum membro alcançaria o
+                         endpoint. Discreto de propósito, como no perfil: precisa
+                         existir e ser achável, não competir com o conteúdo.
+                         Denunciar CONGELA o GC e a deleção manual daquele story. -->
+                    <button
+                        v-if="canReport"
+                        type="button"
+                        class="text-xs text-muted hover:text-danger"
+                        @click="reporting = open"
+                    >
+                        Denunciar
+                    </button>
+                </div>
             </div>
         </div>
+
+        <ReportModal
+            v-if="reporting"
+            :show="reporting !== null"
+            reportable-type="performer_story"
+            :reportable-id="reporting.id"
+            @close="reporting = null"
+        />
     </div>
 </template>

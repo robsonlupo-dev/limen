@@ -9,6 +9,7 @@ use App\Models\PerformerStory;
 use App\Models\Report;
 use App\Models\StoryView;
 use App\Models\User;
+use App\Support\Audit;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -177,7 +178,23 @@ class PerformerStoryService
      * que só delega, o primitivo exposto deixaria qualquer performer autenticada
      * apagar o story de outra — bytes, views e linha.
      *
-     * @throws StoryException não é dela
+     * ── Denúncia em aberto CONGELA a deleção manual (§ 2.4, parte 2) ────────
+     * E é o ponto inteiro da seção: o `DeletionService` preserva `reports`
+     * porque *"apagá-la porque o denunciado pediu exclusão daria ao infrator um
+     * botão para destruir a prova contra si"*. O GC já respeita isso desde o
+     * PR 1 (`collectable()` exclui os denunciados) — mas um GC educado com uma
+     * porta manual aberta ao lado não protege nada: bastaria a performer clicar
+     * em "apagar" ao ver a denúncia chegar.
+     *
+     * A recusa é do STORY, não da conta: ela continua publicando, e o story
+     * congelado sai sozinho quando a moderação concluir (`resolved`/`dismissed`
+     * devolvem o story ao GC, que o recolhe na rodada seguinte). O que ela não
+     * pode é escolher o instante em que a evidência some.
+     *
+     * O hash sobrevive de todo modo (§ 2.4, parte 1), mas hash sem arquivo prova
+     * que ALGO foi publicado, não O QUE — e é o "o quê" que a revisão precisa.
+     *
+     * @throws StoryException não é dela, ou está sob revisão
      */
     public function destroyForOwner(PerformerProfile $profile, PerformerStory $story): void
     {
@@ -185,7 +202,36 @@ class PerformerStoryService
             throw StoryException::notOwner();
         }
 
+        if ($this->hasOpenReport($story)) {
+            throw StoryException::underReview();
+        }
+
         $this->destroy($story);
+
+        // Só o id, e é deliberado: é a mesma disciplina do filtro de chat
+        // (`audit_logs` nunca leva o corpo). Caminho no disco e hash ficam de
+        // fora — o caminho é o layout do volume e o hash é a evidência, que já
+        // tem lugar próprio na linha preservada. O que esta trilha responde é
+        // "quem apagou o quê, e quando", que é o que sobra depois que os bytes
+        // vão embora.
+        Audit::log('story.deleted', $story, ['performer_story_id' => $story->id]);
+    }
+
+    /**
+     * Este story tem denúncia em aberto?
+     *
+     * Uma dona só para a pergunta: o GC (`collectable()`/`quarantinedCount()`) e
+     * a deleção manual precisam concordar sobre o que está congelado, senão a
+     * porta que discordar é a que destrói a prova. As duas leem
+     * `OPEN_REPORT_STATUSES`.
+     */
+    private function hasOpenReport(PerformerStory $story): bool
+    {
+        return Report::query()
+            ->where('reportable_type', $story->getMorphClass())
+            ->where('reportable_id', $story->getKey())
+            ->whereIn('status', self::OPEN_REPORT_STATUSES)
+            ->exists();
     }
 
     /**
@@ -218,7 +264,7 @@ class PerformerStoryService
             throw new InvalidArgumentException("Nível de visibilidade desconhecido: {$visibility}");
         }
 
-        $path = $this->store->store($file, $profile->getKey());
+        ['path' => $path, 'hash' => $hash] = $this->store->store($file, $profile->getKey());
 
         try {
             $story = new PerformerStory(['visibility_level' => $visibility]);
@@ -227,8 +273,21 @@ class PerformerStoryService
             // do Store e o prazo é fixo do produto. Nenhum dos três aceita payload.
             $story->performer_profile_id = $profile->getKey();
             $story->media_path = $path;
+            // A prova que sobrevive ao arquivo (§ 2.4, parte 1). Calculado sobre
+            // os bytes JÁ processados — ver PerformerStoryStore::store().
+            $story->content_hash = $hash;
             $story->expires_at = now()->addHours(PerformerStory::TTL_HOURS);
             $story->save();
+
+            // Trilha de publicação: id e nível, nada mais. Sem caminho, sem hash,
+            // sem bytes — mesma regra que o § 2.4 fixa para a foto efêmera ("id e
+            // nada mais"). O NÍVEL entra porque é o que distingue "publicou algo"
+            // de "publicou algo atrás do paywall", e é dado da performer sobre a
+            // própria publicação: nada aqui é de membro.
+            Audit::log('story.published', $story, [
+                'performer_story_id' => $story->id,
+                'visibility_level' => $story->visibility_level,
+            ]);
 
             return $story;
         } catch (Throwable $e) {
