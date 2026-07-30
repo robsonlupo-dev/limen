@@ -25,6 +25,14 @@ class MemberPhotoException extends DomainException
 
     public const NO_ACTIVE_CHAT = 'no_active_chat';
 
+    // Não existe `under_review` aqui, ao contrário do `StoryException`, e a
+    // diferença é deliberada: o revoke de foto sob denúncia RESPONDE SUCESSO
+    // (ver MemberPhotoService::destroyForMember). Story é 1:N — a performer
+    // saber que "alguém entre os seguidores denunciou" não identifica ninguém;
+    // a foto é 1:1, e recusar identificaria a denunciante para o denunciado com
+    // o chat entre os dois ainda aberto. Não reintroduza esta recusa aqui sem
+    // resolver aquele canal.
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);

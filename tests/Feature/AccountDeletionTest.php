@@ -9,6 +9,7 @@ use App\Models\IdentityVerification;
 use App\Models\MemberPhoto;
 use App\Models\Payout;
 use App\Models\PerformerProfile;
+use App\Models\Report;
 use App\Models\User;
 use App\Services\DeletionService;
 use App\Services\Kyc\KycDocumentStore;
@@ -303,6 +304,75 @@ it('destroys the ephemeral photos, their access rows and the bytes on disk', fun
     // horário — "o membro X mandou N fotos, nestes horários".
     expect(MemberPhoto::withTrashed()->where('user_id', $member->id)->count())->toBe(0)
         ->and(DB::table('member_photo_access')->where('member_photo_id', $photo->id)->count())->toBe(0);
+});
+
+it('preserves the row of a reported photo but destroys its bytes and access', function () {
+    Storage::fake(MemberPhotoStore::DISK);
+
+    $member = delMember();
+    $profile = delPerformer()->performerProfile;
+
+    $photos = app(MemberPhotoService::class);
+    $photo = $photos->create($member, delPhotoUpload(), 168);
+    $photos->grantTo($member, $photo, $profile);
+
+    Report::open($profile->user, $photo, 'underage_content');
+
+    delService()->executeDeletion($member);
+
+    // ── Encerrar a conta era o último botão de destruir a prova ─────────────
+    // O revoke e o GC já recusavam; este caminho não, e era o mais poderoso dos
+    // três. A linha fica, pela MESMA frase que o serviço aplica a `reports`.
+    $preserved = MemberPhoto::withTrashed()->find($photo->id);
+
+    expect($preserved)->not->toBeNull()
+        // Sai soft-deletada e vencida: as duas juntas fazem o GC ignorá-la para
+        // sempre pelo ramo que ele já tem (trashed + sem bytes = concluído).
+        // Sem isso, a primeira rodada depois de a denúncia fechar tentaria
+        // apagar bytes inexistentes e a foto entraria em `failed` a cada hora.
+        ->and($preserved->trashed())->toBeTrue()
+        ->and($preserved->isExpired())->toBeTrue()
+        // O que sobrevive é PROVA SEM CONTEÚDO: o hash e os carimbos.
+        ->and($preserved->content_hash)->toHaveLength(64);
+
+    // Os BYTES saem mesmo assim — quem exerceu o direito de exclusão não tem o
+    // rosto retido. É a diferença para a retenção do revoke, onde o titular
+    // ainda existe e a revisão pode precisar olhar.
+    Storage::disk(MemberPhotoStore::DISK)->assertMissing($photo->path_encrypted);
+
+    // E o acesso sai: é PII de terceiros (o mapa de para quem o rosto foi
+    // mostrado), e não é prova de nada — a denúncia guarda quem denunciou.
+    expect(DB::table('member_photo_access')->where('member_photo_id', $photo->id)->count())->toBe(0)
+        ->and(Report::where('reportable_id', $photo->id)->count())->toBe(1);
+});
+
+it('still hard-deletes the photos of a closing account that were never reported', function () {
+    Storage::fake(MemberPhotoStore::DISK);
+
+    $member = delMember();
+    $profile = delPerformer()->performerProfile;
+
+    $photos = app(MemberPhotoService::class);
+
+    $reported = $photos->create($member, delPhotoUpload(), 168);
+    $ordinary = $photos->create($member, delPhotoUpload(), 168);
+    $photos->grantTo($member, $reported, $profile);
+
+    Report::open($profile->user, $reported, 'coercion');
+
+    $summary = delService()->executeDeletion($member)->data_summary;
+
+    // A preservação é EXCEÇÃO, não o caminho: a foto sem denúncia continua
+    // saindo em hard delete, com linha e bytes.
+    expect(MemberPhoto::withTrashed()->find($ordinary->id))->toBeNull()
+        ->and(MemberPhoto::withTrashed()->find($reported->id))->not->toBeNull();
+
+    Storage::disk(MemberPhotoStore::DISK)->assertMissing($ordinary->path_encrypted);
+
+    // O resumo precisa dizer o que NÃO foi apagado, senão "member_photos: 1"
+    // lê-se como "apagou tudo".
+    expect($summary['member_photos'])->toBe(1)
+        ->and($summary['member_photos_preserved'])->toBe(1);
 });
 
 it('collects the bytes of a photo whose row the GC already soft-deleted', function () {

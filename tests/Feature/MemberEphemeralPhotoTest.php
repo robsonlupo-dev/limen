@@ -109,7 +109,7 @@ function expirePhoto(MemberPhoto $photo, string $ago = '-1 hour'): MemberPhoto
 it('grava a foto cifrada no disco e a devolve decifrada', function () {
     $member = ephemeralMember();
 
-    $path = photoStore()->store(ephemeralUpload(), $member->id);
+    ['path' => $path] = photoStore()->store(ephemeralUpload(), $member->id);
 
     $onDisk = Storage::disk(MemberPhotoStore::DISK)->get($path);
 
@@ -134,7 +134,7 @@ it('remove EXIF/GPS antes de cifrar', function () {
     $before = @exif_read_data($upload->getRealPath());
     expect($before)->toBeArray()->toHaveKeys(['GPSLatitude', 'GPSLongitude']);
 
-    $bytes = photoStore()->retrieve(photoStore()->store($upload, $member->id));
+    $bytes = photoStore()->retrieve(photoStore()->store($upload, $member->id)['path']);
 
     // Higienizar ANTES de cifrar: cifrar primeiro só embrulharia as coordenadas.
     $tmp = tempnam(sys_get_temp_dir(), 'limen_photo_check_');
@@ -155,7 +155,7 @@ it('nunca deriva o caminho do nome enviado pelo cliente', function () {
 
     // Disciplina copiada do KycDocumentStore (§ 1.10): nome do chamador,
     // extensão do que o SERVIDOR produziu, sufixo .enc.
-    $path = photoStore()->store(ephemeralUpload(name: '../../../etc/passwd.jpg'), $member->id);
+    ['path' => $path] = photoStore()->store(ephemeralUpload(name: '../../../etc/passwd.jpg'), $member->id);
 
     expect($path)->toMatch('#^'.$member->id.'/[A-Za-z0-9]{40}\.jpg\.enc$#')
         ->and($path)->not->toContain('passwd');
@@ -591,7 +591,7 @@ it('reporta como alarme as fotos vencidas há mais de um ciclo e ainda no disco'
     expirePhoto(photoService()->create($member, ephemeralUpload(), 24), '-3 hours');
 
     $this->artisan('member-photos:purge')
-        ->expectsOutputToContain('expired=1 deleted=1 stale=1 failed=0')
+        ->expectsOutputToContain('expired=1 deleted=1 quarantined=0 stale=1 failed=0')
         ->assertSuccessful();
 });
 
@@ -674,7 +674,7 @@ it('reexamina a foto cuja linha morreu com o arquivo ainda no disco', function (
         ->and(photoStore()->exists($photo->path_encrypted))->toBeTrue();
 
     $this->artisan('member-photos:purge')
-        ->expectsOutputToContain('expired=1 deleted=1 stale=1 failed=0')
+        ->expectsOutputToContain('expired=1 deleted=1 quarantined=0 stale=1 failed=0')
         ->assertSuccessful();
 
     expect(photoStore()->exists($photo->path_encrypted))->toBeFalse();
@@ -691,7 +691,7 @@ it('não reprocessa para sempre a foto já recolhida', function () {
     // sem arquivo sai da contagem: sem esse corte, cada rodada horária
     // decifraria `path_encrypted` de toda foto que já existiu só para pular.
     $this->artisan('member-photos:purge')
-        ->expectsOutputToContain('expired=0 deleted=0 stale=0 failed=0')
+        ->expectsOutputToContain('expired=0 deleted=0 quarantined=0 stale=0 failed=0')
         ->assertSuccessful();
 
     expect(MemberPhoto::withTrashed()->count())->toBe(0);

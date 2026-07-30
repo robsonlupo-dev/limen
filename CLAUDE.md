@@ -117,9 +117,11 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
    Hoje **moderador = admin, e admin vê tudo**; a fila é `/admin/reports` sob
    `role:admin`. Agora há conteúdo publicado esperando revisão, não só backlog.
    Destrava junto o **Curador das FC Sessions** — duas features, um pré-requisito.
-2. **Os 4 🔴 da Foto Efêmera** (abaixo). O 9C **não tocou em nenhum**: ele tornou
-   denunciável o *story*, não a *foto*. Fechar o primeiro deles ficou barato — o
-   PR #108 já fez o caminho inteiro para story, é adaptar, não desenhar.
+2. ~~**Os 4 🔴 da Foto Efêmera**~~ — **fechados** na branch
+   `fix/sprint9b-photo-moderation` (denúncia, quarentena, audit e a extração de
+   `canMemberSendTo`), reusando o caminho que o PR #108 abriu para o story. A
+   feature deixou de ter bloqueador; **ligar para usuário real continua sendo
+   decisão do PO**, e os 🟡 residuais estão na seção da Foto Efêmera.
 
 > **Numeração — só existe UMA: Sprint.** O trabalho fundacional era numerado por
 > "Fase", e as duas sequências colidiam (a antiga Fase 3 e o Sprint 3 são coisas
@@ -304,15 +306,69 @@ mesma disciplina do painel de visitantes e do geobloqueio.
 - **O gate de compartilhar é chat ativo**, e vive em
   `MemberPhotoService::shareWith()`. `grantTo()` segue sem ele de propósito — é o
   primitivo. **Chamador novo entra por `shareWith()`.**
-- **"Chat ativo" pergunta ao `ChatAccessService` se o membro pode ENVIAR agora**
+- **"Chat ativo" é `ChatAccessService::canMemberSendTo()` — fonte única, lida
+  pelo chat E pela foto.** Ela pergunta se o membro pode ENVIAR agora
   (`can_send`), nunca "existe linha em `chat_access`": assinante de Círculo tem
   chat livre e **não gera linha** — a leitura literal recusaria quem paga mais.
   Carência não passa. A recusa é sempre `no_active_chat`, para não devolver ao
   membro o estado da conta dela.
+  **Regra nova sobre "o membro pode falar com esta performer" entra LÁ** e fecha
+  as duas portas de uma vez. O que NÃO está lá, de propósito: a performer estar
+  de pé (perfil encerrado / conta suspensa) é gate exclusivo da foto e continua
+  em `shareWith()` — trazê-lo para a fonte única passaria a impedir o membro de
+  responder no chat de uma performer suspensa, que é mudar o chat, não unificar.
+- **Foto recebida é denunciável pela performer** (`Report::REPORTABLE_TYPES`
+  conhece `member_photo`), pela porta `/reportar` que já existe. **O handle é o
+  `access_id`, nunca o id da foto** — este é comum a todas as performers com quem
+  o mesmo membro compartilhou, e exibi-lo daria um identificador correlacionável
+  entre perfis, que é o que o `FanAlias` existe para impedir. Quem traduz é
+  `Report::resolveFromHandle()`; quem autoriza é `MemberPhotoService::performerCanView()`,
+  a mesma regra do serving. **Foto vencida não é mais denunciável** — a janela de
+  denúncia é a de exibição, igual ao story.
+- **Denúncia em aberto retém os BYTES e congela o GC** (`Report::OPEN_STATUSES`,
+  a mesma constante do story). Sem isso, quem envia conteúdo ilegal tem o botão
+  de destruir a prova contra si a um clique. A retenção **não** dá visibilidade:
+  foto retida e vencida não é legível por ninguém — nem pela performer que
+  denunciou —, senão denunciar viraria a forma de esticar o próprio acesso.
+- **O revoke SEMPRE responde sucesso, e o corpo é idêntico com e sem denúncia.**
+  Diferente do story, que RECUSA a deleção da denunciada: story é 1:N, e a
+  performer saber que "alguém entre os seguidores denunciou" não identifica
+  ninguém; a foto costuma ter **uma** destinatária, então recusar entregaria a
+  denunciante ao denunciado — com o chat entre os dois ainda aberto. Sob
+  denúncia o revoke faz o que o titular pediu (some da lista, acessos vencem na
+  hora, ninguém mais lê) e retém apenas bytes e linha para a revisão.
+  **A copy de retenção na tela é UNIFORME**, para toda foto revogada: uma frase
+  condicional seria o mesmo oráculo com outra roupa. Achado da revisão de
+  segurança de 30/07 — **não reintroduza a recusa** sem resolver aquele canal.
+- **Audit no fluxo: `member_photo.shared`, `.viewed`, `.revoked` — id e nada
+  mais.** Sem caminho, sem nome de arquivo e sem `performer_profile_id`. O
+  `.viewed` é gravado só na PRIMEIRA abertura (a tela é uma `<img>`; sem a dedup,
+  recarregar a página enterra a trilha — mesma disciplina do filtro de chat).
+- **O SUJEITO do `.viewed` é o ACESSO, não a foto — e isso é o controle, não um
+  detalhe.** `Audit::log()` grava o ATOR em `user_id` e o alvo em `subject_id`.
+  Como o ator do `.shared` é o MEMBRO e o do `.viewed` é a PERFORMER, apontar os
+  dois para a mesma foto deixaria o par (membro, performer) a um
+  `JOIN ... ON subject_id` de distância — **cópia permanente do mapa que morre
+  com a foto**, na única tabela que o `DeletionService` preserva intacta.
+  Apontando para o acesso, a ligação depende da linha de `member_photo_access`,
+  que morre em hard delete junto com a foto. **Omitir o id da performer do
+  metadata não fecha isso sozinho** (foi o achado da revisão de 30/07): evento
+  novo neste fluxo escolhe o sujeito pelo LADO de quem age.
 - **A linha morre em HARD delete**, e só depois de confirmar que os bytes saíram
   do disco. Linha soft-deletada guardaria "o membro X mandou 43 fotos, nestes
   horários" e faria o GC decifrar `path_encrypted` de todas a cada hora só para
   pular. `deleted_at` é estado intermediário (linha ida, bytes de pé).
+  **Exceção: a foto DENUNCIADA sobrevive ao encerramento de conta** — encerrar a
+  conta era o terceiro e mais poderoso botão de destruir a prova. A linha fica
+  (soft-deletada e vencida, para o GC nunca mais tocá-la), **os bytes vão embora
+  como os de todo mundo**, e o que resta é o `content_hash` + os carimbos:
+  **prova sem conteúdo**, a mesma resposta do story. Reter os bytes de quem
+  exerceu o direito de exclusão seria trocar um problema por outro.
+- **`content_hash` é SHA-256 dos bytes processados, calculado ANTES do `Crypt`.**
+  O ciphertext muda a cada gravação (IV aleatório), então hashear o que está no
+  disco daria um valor diferente para o mesmo conteúdo — inútil para casar contra
+  listas de hash conhecidas, que é o que de fato bloqueia o re-upload. `$hidden`
+  e fora do `$fillable`: prova escolhida pelo acusado não é prova.
 - **Ingestão re-encoda para matar EXIF/GPS** e, no mesmo passo, polyglot — o
   arquivo servido deixa de ser o arquivo enviado. `Content-Type` sai de re-sniff
   no **servidor**, nunca do que o upload declarou. **Nada de URL assinada:** a
@@ -331,20 +387,20 @@ mesma disciplina do painel de visitantes e do geobloqueio.
   exclusão escrita: **quem converter aquele script para denylist reintroduz o
   problema em silêncio.**
 
-> **Os 4 🔴 que bloqueiam o go-live da feature:** (1) foto não é denunciável —
-> `Report::REPORTABLE_TYPES` conhece `performer`, `message` e `performer_story`
-> (Sprint 9C), mas **não `member_photo`**; (2) o GC não põe
-> foto denunciada em quarentena, então a denúncia chega para arquivo que já não
-> existe; (3) nenhum `audit_log` no fluxo — e é a única trilha que sobra depois
-> que os acessos somem no TTL (quando entrar: **id e nada mais**, sem caminho,
-> sem nome, sem bytes); (4) `canMemberSend` não é fonte única.
-
-> **Enquanto `canMemberSend` não for extraído: regra nova no envio de mensagem do
-> chat TEM de ser replicada em `MemberPhotoService::shareWith()`.** As duas portas
-> (`can_send` + `conversation->status === 'active'`) são hoje uma **cópia** de
-> `ChatService::sendMessage()`, e foi assim que o `status === 'active'` passou
-> batido na primeira versão. Não foi unificado porque `sendMessage()` distingue as
-> falhas em exceções diferentes e unificar mudaria a resposta do chat.
+> **Os 4 🔴 que bloqueavam o go-live foram FECHADOS** (branch
+> `fix/sprint9b-photo-moderation`): (1) foto denunciável pela performer via
+> `member_photo`; (2) denúncia congela GC e revoke; (3) audit em share/view/revoke;
+> (4) `canMemberSendTo` como fonte única. Detalhe nos itens acima.
+>
+> **Fechar os 🔴 não é o mesmo que liberar** — a decisão de ligar para usuário
+> real é do PO, e continua valendo tudo o que esta seção diz sobre a natureza da
+> feature (des-anonimização consentida, o rosto como chave de join global).
+> **Segue em aberto**, agora como 🟡 e não como bloqueador: o cap de performers
+> por foto (§ 1.1), a varredura de órfãos no disco (§ 1.5), e os achados da
+> revisão de segurança de 30/07 registrados em `MASTER_HANDOFF_FINAL.md` — **a
+> fila do admin não tem visualizador da prova retida** e **não há prazo máximo de
+> retenção**. Os três caminhos de destruição de prova (revoke, GC e encerramento
+> de conta) estão fechados.
 
 ## Stories da Performer — Sprint 9C (entregue, tag `v1.0-sprint9`)
 

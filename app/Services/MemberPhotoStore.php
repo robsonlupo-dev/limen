@@ -41,7 +41,7 @@ class MemberPhotoStore
     public function __construct(private ImageProcessingService $images) {}
 
     /**
-     * Higieniza, cifra e grava. Devolve o caminho no disco.
+     * Higieniza, cifra e grava. Devolve o caminho no disco e o hash do conteúdo.
      *
      * O nome é aleatório (40 caracteres) e não deriva de nada do upload: um nome
      * previsível daria a quem tivesse leitura no disco um alvo para adivinhar, e
@@ -50,9 +50,19 @@ class MemberPhotoStore
      * suposição: o ImageProcessingService SEMPRE devolve JPEG, porque o arquivo
      * é gerado a partir do bitmap.
      *
+     * O HASH é calculado aqui porque é aqui que os bytes processados existem em
+     * memória — recalculá-lo depois exigiria reler e DECIFRAR o arquivo. E é
+     * sobre os bytes em claro, **antes do `Crypt`**: o ciphertext muda a cada
+     * gravação (IV aleatório), então hashear o que foi para o disco daria um
+     * valor diferente para o mesmo conteúdo, inútil para matching. É a única
+     * diferença de mecânica em relação ao `PerformerStoryStore`, cujo disco não
+     * é cifrado.
+     *
+     * @return array{path:string,hash:string}
+     *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      */
-    public function store(UploadedFile $file, int $userId): string
+    public function store(UploadedFile $file, int $userId): array
     {
         $processed = $this->images->process($file);
 
@@ -81,7 +91,12 @@ class MemberPhotoStore
                 throw new RuntimeException('Falha ao gravar a foto efêmera no disco.');
             }
 
-            return $path;
+            return [
+                'path' => $path,
+                // `hash()` e não `hash_file()`: os bytes já estão aqui, e o
+                // arquivo no disco é o ciphertext — hasheá-lo não serviria.
+                'hash' => hash('sha256', $bytes),
+            ];
         } finally {
             // O temporário do service é responsabilidade do chamador. O SO limpa
             // o tmp, mas não na hora — e até lá é uma cópia EM CLARO da foto,

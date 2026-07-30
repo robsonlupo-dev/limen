@@ -226,8 +226,19 @@ Route::middleware(['auth', '2fa'])->group(function () {
     // motivos e alvos variados uma conta só geraria milhares de e-mails ao
     // admin e enterraria uma denúncia real de conteúdo com menor no ruído.
     // 30/dia é folgado para quem denuncia de boa-fé e caro para quem inunda.
+    // O `documents.accepted` entra porque desde o Sprint 9B a PERFORMER também
+    // denuncia por aqui (a foto efêmera que ela recebeu). O middleware ignora
+    // quem não é performer, então a rota continua aberta ao membro exatamente
+    // como antes — é o mesmo padrão do chat, que é rota compartilhada.
+    //
+    // O que NÃO entra é `role:performer`: esta porta é a mesma para os quatro
+    // tipos, e três deles (perfil, mensagem, story) são denunciados pelo MEMBRO.
+    // Quem restringe a denúncia de foto à performer que a recebeu é
+    // `Report::visibleTo()`, que exige um acesso VIVO àquela foto — condição
+    // estritamente mais forte do que "tem papel de performer", e que um
+    // middleware de papel não teria como expressar.
     Route::post('/reportar', [ReportController::class, 'store'])
-        ->middleware(['throttle:20,1', 'throttle:30,1440'])
+        ->middleware(['documents.accepted', 'throttle:20,1', 'throttle:30,1440'])
         ->name('report.store');
 
     // Chat pós-desbloqueio de Interesse. Membro e performer compartilham as

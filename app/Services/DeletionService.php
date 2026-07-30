@@ -303,6 +303,7 @@ class DeletionService
             $summary['profile_visits'] = $this->purgeProfileVisits($user);
             $summary['profile_visits_received'] = $this->purgeVisitsToOwnProfile($user);
             $summary['member_photos'] = $this->purgeMemberPhotos($user);
+            $summary['member_photos_preserved'] = $this->preservedMemberPhotoCount($user);
             $summary['member_photo_access_received'] = $this->purgePhotoAccessToOwnProfile($user);
             $summary['story_views'] = $this->purgeStoryViews($user);
             $summary['story_views_received'] = $this->purgeStoryViewsToOwnProfile($user);
@@ -716,6 +717,32 @@ class DeletionService
      * purgeProfileVisits). Sem esta varredura, o rosto do titular continuaria no
      * disco até o TTL — até 7 dias depois do encerramento — e servível a quem já
      * tinha acesso concedido.
+     *
+     * ── EXCEÇÃO: a foto DENUNCIADA mantém a linha (30/07/2026) ──────────────
+     * Mesma regra que este serviço já aplica a `reports` e aos stories, pela
+     * mesma frase: *"apagá-la porque o denunciado pediu exclusão daria ao
+     * infrator um botão para destruir a prova contra si"*. Encerrar a conta é a
+     * versão mais poderosa desse botão — e era o último caminho que continuava
+     * aberto depois de o revoke e o GC terem sido fechados.
+     *
+     * **Os BYTES saem mesmo assim, de toda foto**, inclusive das preservadas
+     * (`collectFilePaths()` as recolhe todas). É a diferença que importa em
+     * relação à retenção do revoke: lá o titular ainda existe e a revisão pode
+     * precisar olhar o conteúdo; aqui ele exerceu o direito de exclusão, e
+     * guardar o rosto de quem pediu para sumir seria trocar um problema por
+     * outro. O que sobrevive é o `content_hash` + os carimbos — **prova sem
+     * conteúdo**, exatamente como no story.
+     *
+     * A linha preservada sai SOFT-deletada e com `expires_at` no passado. As duas
+     * coisas juntas fazem o GC ignorá-la para sempre pelo ramo que ele já tem
+     * (`trashed()` e sem arquivo no disco = trabalho concluído): sem isso, a
+     * primeira rodada depois de a denúncia ser concluída tentaria apagar bytes
+     * que já não existem, e `MemberPhotoStore::delete()` LANÇA nesse caso — a
+     * foto entraria em `failed` a cada hora, para sempre.
+     *
+     * Os ACESSOS saem sempre, também das preservadas: são PII de terceiros (o
+     * mapa de para quem o rosto foi mostrado) e não são a prova de nada — a
+     * denúncia guarda quem denunciou.
      */
     private function purgeMemberPhotos(User $user): int
     {
@@ -729,7 +756,51 @@ class DeletionService
 
         DB::table('member_photo_access')->whereIn('member_photo_id', $photoIds)->delete();
 
-        return MemberPhoto::withTrashed()->whereIn('id', $photoIds)->forceDelete();
+        $reportedIds = DB::table('reports')
+            ->where('reportable_type', (new MemberPhoto)->getMorphClass())
+            ->whereIn('reportable_id', $photoIds)
+            ->pluck('reportable_id')
+            ->all();
+
+        if ($reportedIds !== []) {
+            // `update()` cru e não os models: `deleted_at` e `expires_at` estão
+            // fora do `$fillable`, e a varredura não precisa instanciar nada.
+            MemberPhoto::withTrashed()
+                ->whereIn('id', $reportedIds)
+                ->update(['deleted_at' => now(), 'expires_at' => now()]);
+        }
+
+        $deletableIds = array_values(array_diff($photoIds->all(), $reportedIds));
+
+        if ($deletableIds === []) {
+            return 0;
+        }
+
+        return MemberPhoto::withTrashed()->whereIn('id', $deletableIds)->forceDelete();
+    }
+
+    /**
+     * Quantas fotos do titular tiveram a LINHA preservada por denúncia.
+     *
+     * Contada para a prova de conformidade, como `preservedStoryCount()`: o
+     * resumo do encerramento precisa dizer o que NÃO foi apagado, senão a única
+     * leitura possível de "member_photos: 3" seria "apagou tudo".
+     */
+    private function preservedMemberPhotoCount(User $user): int
+    {
+        $photoIds = MemberPhoto::withTrashed()
+            ->where('user_id', $user->id)
+            ->pluck('id');
+
+        if ($photoIds->isEmpty()) {
+            return 0;
+        }
+
+        return DB::table('reports')
+            ->where('reportable_type', (new MemberPhoto)->getMorphClass())
+            ->whereIn('reportable_id', $photoIds)
+            ->distinct()
+            ->count('reportable_id');
     }
 
     /**

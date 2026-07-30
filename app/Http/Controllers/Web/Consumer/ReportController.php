@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreReportRequest;
 use App\Mail\ReportReceivedMail;
 use App\Models\Report;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Cache;
@@ -18,9 +17,21 @@ class ReportController extends Controller
     {
         $data = $request->validated();
 
-        /** @var class-string<Model> $class */
-        $class = Report::classForAlias($data['reportable_type']);
-        $reportable = $class::find($data['reportable_id']);
+        // `resolveFromHandle` e não `find()`: para `member_photo` o número do
+        // payload é o id do ACESSO, não o da foto (ver Report::REPORTABLE_TYPES).
+        // Um `find()` cru ali acharia a foto de OUTRO membro cujo id coincidisse
+        // com o do acesso — e a checagem de visibilidade logo abaixo a recusaria
+        // com a resposta uniforme, então o bug seria invisível e permanente.
+        //
+        // O denunciante vai junto porque o handle é do PAR: sem ele, uma
+        // performer usaria o `access_id` de outra sobre a MESMA foto e o
+        // `visibleTo()` abaixo diria sim (ela tem o acesso dela àquela foto).
+        // Ver o docblock de resolveFromHandle().
+        $reportable = Report::resolveFromHandle(
+            $data['reportable_type'],
+            (int) $data['reportable_id'],
+            $request->user(),
+        );
 
         // Inexistente e invisível respondem IGUAL de propósito: separar os dois
         // devolveria o oráculo de enumeração que Report::visibleTo() fecha.

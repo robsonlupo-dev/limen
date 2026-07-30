@@ -6,9 +6,13 @@ import { postJson } from '@/lib/http'
 
 const props = defineProps({
     show: { type: Boolean, default: false },
-    // Apelido do alvo — 'performer' | 'message' | 'performer_story'. Espelha
-    // Report::REPORTABLE_TYPES; o servidor rejeita qualquer outro valor.
+    // Apelido do alvo — 'performer' | 'message' | 'performer_story' |
+    // 'member_photo'. Espelha Report::REPORTABLE_TYPES; o servidor rejeita
+    // qualquer outro valor.
     reportableType: { type: String, required: true },
+    // O HANDLE do alvo, que nem sempre é a chave: em 'member_photo' é o
+    // access_id (o par foto↔performer), não o id da foto. Ver
+    // Report::resolveFromHandle().
     reportableId: { type: [Number, String], required: true },
 })
 
