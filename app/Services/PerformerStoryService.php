@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
+use App\Exceptions\StoryException;
 use App\Models\PerformerProfile;
 use App\Models\PerformerStory;
 use App\Models\Report;
 use App\Models\StoryView;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +32,9 @@ use Throwable;
  * vazando, e filtrar no front seria pior ainda, porque o número trafegaria nas
  * props do Inertia e bastaria abrir o DevTools.
  *
- * Os endpoints (PR 2) e a checagem de visibilidade por tier (PR 3) só delegam.
+ * Os controllers só delegam. A pergunta "quem alcança este nível" foi extraída
+ * para o `StoryVisibilityService` (§ 2.3) — este service é o ciclo de vida, aquele
+ * é o paywall, e cada um tem uma dona só.
  */
 class PerformerStoryService
 {
@@ -71,7 +75,118 @@ class PerformerStoryService
      */
     public const OPEN_REPORT_STATUSES = ['pending', 'reviewed'];
 
-    public function __construct(private PerformerStoryStore $store) {}
+    public function __construct(
+        private PerformerStoryStore $store,
+        private StoryVisibilityService $visibility,
+    ) {}
+
+    /**
+     * Os stories vivos desta performer, do mais recente para o mais antigo.
+     *
+     * É o que o painel dela lista. Passa pelo escopo `active()` — a dona do
+     * critério "story vivo" — para que a tela e o serving nunca discordem.
+     *
+     * @return Collection<int, PerformerStory>
+     */
+    public function activeFor(PerformerProfile $profile)
+    {
+        return PerformerStory::query()
+            ->active()
+            ->where('performer_profile_id', $profile->getKey())
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    /**
+     * Bytes do story para um MEMBRO — a porta única da leitura.
+     *
+     * ── Autorização reavaliada AQUI, a cada request (§ 2.3) ─────────────────
+     * A pergunta "este membro alcança este nível?" é do `StoryVisibilityService`,
+     * que é a dona dela e a responde com follow e tier resolvidos agora. O
+     * controller não decide nada: se decidisse, a segunda rota de serving que
+     * aparecesse (API Sanctum, um preview de admin) nasceria sem paywall — foi
+     * exatamente esse o erro do `performer.media` assinado.
+     *
+     * ── E o prazo é conferido na LEITURA (§ 2.8) ────────────────────────────
+     * Dentro do `canView()`. Se o corte dependesse do `stories:purge`, um job
+     * parado não custaria disco: custaria a promessa de 24h do produto.
+     *
+     * A view é registrada DEPOIS de os bytes saírem do disco — marcar antes e
+     * falhar na leitura contaria audiência que não aconteceu. E `viewStory()` é
+     * quem aplica os guards de Ghost Mode/Modo Discreto (§ 2.7): a view pode não
+     * ser gravada e a leitura seguir normal, porque contabilidade não é
+     * autorização.
+     *
+     * @throws StoryException vencido/destruído (404) ou nível insuficiente (403)
+     */
+    public function readForMember(User $member, PerformerStory $story): string
+    {
+        // O MOTIVO vem da regra, não daqui: 404 para vencido/fora do ar e 403 para
+        // nível insuficiente são respostas diferentes, e escolher entre elas neste
+        // método faria a decisão ter dois donos (ver `denialFor()`).
+        $denial = $this->visibility->denialFor($story, $member);
+
+        if ($denial === StoryException::EXPIRED) {
+            throw StoryException::expired();
+        }
+
+        if ($denial !== null) {
+            throw StoryException::forbidden();
+        }
+
+        $bytes = $this->store->retrieve($story->media_path);
+
+        $this->viewStory($story, $member);
+
+        return $bytes;
+    }
+
+    /**
+     * Bytes do story para a PRÓPRIA performer (thumbnail do painel dela).
+     *
+     * Rota separada da do membro, e não uma exceção dentro dela: o serving do
+     * membro é onde vive o paywall, e "é a dona" seria um ramo a mais justamente
+     * no caminho que precisa ser lido sem ressalva. Aqui não há nível a checar —
+     * só propriedade e prazo.
+     *
+     * Ver o próprio story NÃO gera `story_views`: a tabela é de audiência, e a
+     * performer abrindo o próprio conteúdo inflaria a faixa dela mesma (o guard
+     * também está em `viewStory()`, que nem é chamado aqui).
+     *
+     * @throws StoryException não é dela (403), ou vencido/destruído (404)
+     */
+    public function readForOwner(PerformerProfile $profile, PerformerStory $story): string
+    {
+        if ($story->performer_profile_id !== $profile->getKey()) {
+            throw StoryException::notOwner();
+        }
+
+        if ($story->trashed() || $story->isExpired()) {
+            throw StoryException::expired();
+        }
+
+        return $this->store->retrieve($story->media_path);
+    }
+
+    /**
+     * Destruição pela DONA — a porta que o endpoint de delete chama.
+     *
+     * `destroy()` é primitivo de sistema (GC) e não tem ator; esta é a versão com
+     * dono, pela mesma razão do `destroyForMember()` da foto efêmera: com
+     * route-model binding em `DELETE /performer/stories/{story}` e um controller
+     * que só delega, o primitivo exposto deixaria qualquer performer autenticada
+     * apagar o story de outra — bytes, views e linha.
+     *
+     * @throws StoryException não é dela
+     */
+    public function destroyForOwner(PerformerProfile $profile, PerformerStory $story): void
+    {
+        if ($story->performer_profile_id !== $profile->getKey()) {
+            throw StoryException::notOwner();
+        }
+
+        $this->destroy($story);
+    }
 
     /**
      * Publica um story. Prazo fixo de 24h, EXIF removido, bytes antes da linha.
@@ -246,6 +361,15 @@ class PerformerStoryService
      * invisibilidade. O que a faixa do Nível 2 revela é quantos seguidores
      * assinam alguma coisa — métrica de negócio legítima. A linha do corte cai
      * exatamente onde o perk começa.
+     *
+     * ── Consequência conhecida, e ela AMPLIA a decisão nº 3 ────────────────
+     * O Black nasce com Ghost Mode LIGADO (`PrivacyPerkService::PRIVATE_DEFAULT`),
+     * e o guard do § 2.7 não grava a view de quem o tem. Logo o assinante Black
+     * não entra em contador NENHUM — nem no do Nível 1, nem no do Nível 2. É
+     * coerente com o rationale da decisão nº 3 ("membro que pagou por
+     * invisibilidade não aparece em nenhum contador, nem agregado"), e a
+     * contrapartida é que a faixa do Nível 2 subconta justamente o topo da base.
+     * Não é bug e não se "corrige" gravando a view: isso é o que o perk compra.
      *
      * ── A tabela de faixas é a de seguidores, e não uma segunda ─────────────
      * `PerformerProfile::followersLabelFor()` é a dona (decisão nº 1), pela mesma

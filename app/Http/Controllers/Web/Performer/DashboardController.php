@@ -7,14 +7,17 @@ use App\Models\IdentityVerification;
 use App\Models\MemberPhotoAccess;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
+use App\Models\PerformerStory;
 use App\Models\Tip;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\FollowerVisibilityService;
 use App\Services\InterestService;
+use App\Services\PerformerStoryService;
 use App\Services\ProfileVisitService;
 use App\Support\FanAlias;
+use App\Support\StoryPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,7 +25,10 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __construct(private ProfileVisitService $visits) {}
+    public function __construct(
+        private ProfileVisitService $visits,
+        private PerformerStoryService $stories,
+    ) {}
 
     public function index(Request $request): Response|RedirectResponse
     {
@@ -72,6 +78,17 @@ class DashboardController extends Controller
             'anonymityFloor' => app(FollowerVisibilityService::class)->floor(),
             // Fotos efêmeras que membros compartilharam com ela (Sprint 9B).
             'receivedPhotos' => $this->receivedPhotos($profile),
+            // Stories vivos dela (Sprint 9C). O payload vem do StoryPresenter, que
+            // é a dona dele: a seção também recarrega por `performer.stories.index`
+            // depois de publicar/apagar, e duas montagens do mesmo card
+            // divergiriam — provavelmente na faixa, que é o que não pode virar
+            // número (§ 2.2, decisão nº 3).
+            'stories' => StoryPresenter::forOwner($profile, $this->stories),
+            'storyVisibilityLevels' => PerformerStory::VISIBILITY_LEVELS,
+            // A performer PENDENTE alcança este painel de propósito (Sprint 7),
+            // mas as rotas de story exigem `can('performer-active')`. A tela não é
+            // o guard — ela só evita oferecer um botão que responderia 403.
+            'canPublishStories' => $user->status === 'active',
         ]);
     }
 

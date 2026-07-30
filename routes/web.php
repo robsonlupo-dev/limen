@@ -20,6 +20,7 @@ use App\Http\Controllers\Web\Consumer\MemberPhotoController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileController;
 use App\Http\Controllers\Web\Consumer\ReportController;
+use App\Http\Controllers\Web\Consumer\StoryController as ConsumerStoryController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Web\Performer\PayoutController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\ReceivedPhotoController;
 use App\Http\Controllers\Web\Performer\SentInterestsController;
+use App\Http\Controllers\Web\Performer\StoryController as PerformerStoryController;
 use App\Http\Controllers\Web\Performer\TwoFactorController;
 use App\Http\Controllers\Web\PublicCatalogController;
 use App\Http\Controllers\Web\UserPreferencesController;
@@ -407,6 +409,43 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.photos.image')
             ->can('performer-active');
 
+        // Stories da performer (Sprint 9C). Dentro do grupo `documents.accepted`,
+        // que por sua vez está sob `auth`+`2fa`: a rota nasce nos dois gates, como
+        // manda o CLAUDE.md ("rota autenticada nova entra no gate"). Publicar
+        // conteúdo é exatamente o que a Política de Conteúdo Proibido governa, e
+        // `can('performer-active')` porque quem ainda está em KYC não publica.
+        //
+        // O POST leva o throttle de 10/min — é a rota cara (re-encode do
+        // ImageProcessingService, com o pico de memória do config/image.php) e a
+        // única que grava em disco. Mesmo teto do upload da foto efêmera.
+        Route::middleware('role:performer')->group(function () {
+            Route::get('/performer/stories', [PerformerStoryController::class, 'index'])
+                ->middleware('throttle:60,1')
+                ->name('performer.stories.index')
+                ->can('performer-active');
+
+            Route::post('/performer/stories', [PerformerStoryController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->name('performer.stories.store')
+                ->can('performer-active');
+
+            Route::delete('/performer/stories/{story}', [PerformerStoryController::class, 'destroy'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('story')
+                ->name('performer.stories.destroy')
+                ->can('performer-active');
+
+            // Thumbnail do painel dela. Rota separada da do membro de propósito —
+            // o serving do membro é onde vive o paywall (§ 2.3), e um ramo "ou é a
+            // dona" ali seria exceção dentro do caminho que precisa ser lido sem
+            // ressalva.
+            Route::get('/performer/stories/{story}/imagem', [PerformerStoryController::class, 'image'])
+                ->middleware('throttle:60,1')
+                ->whereNumber('story')
+                ->name('performer.stories.image')
+                ->can('performer-active');
+        });
+
         // Histórico dos envios desta performer (para quem, quem revelou, cota do dia).
         Route::get('/performer/interesses', [SentInterestsController::class, 'index'])
             ->middleware('throttle:60,1')
@@ -533,6 +572,23 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:60,1')
             ->whereNumber('photo')
             ->name('member.photos.image');
+
+        // Stories do lado do membro (Sprint 9C). Dentro de `role:consumer` +
+        // `member.verified`, e o grupo já está sob `auth`+`2fa` — a rota nasce no
+        // gate pelas duas portas sem repetir middleware.
+        //
+        // O serving é AUTENTICADO por sessão, com follow e tier resolvidos a cada
+        // request (§ 2.3). Não há — e não deve haver — versão assinada desta rota:
+        // assinatura não amarra viewer nenhum, e a URL do membro Black viraria um
+        // bearer token que qualquer pessoa deslogada usa até expirar.
+        Route::get('/stories/feed', [ConsumerStoryController::class, 'feed'])
+            ->middleware('throttle:60,1')
+            ->name('stories.feed');
+
+        Route::get('/stories/{story}/imagem', [ConsumerStoryController::class, 'image'])
+            ->middleware('throttle:120,1')
+            ->whereNumber('story')
+            ->name('stories.image');
 
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');
