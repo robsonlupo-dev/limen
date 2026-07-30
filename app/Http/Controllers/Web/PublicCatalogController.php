@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Services\ChatAccessService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
+use App\Services\StoryVisibilityService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,6 +28,7 @@ class PublicCatalogController extends Controller
         private PerformerCatalogService $catalogService,
         private ChatAccessService $chatAccessService,
         private ProfileVisitService $profileVisits,
+        private StoryVisibilityService $storyVisibility,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -49,6 +51,29 @@ class PublicCatalogController extends Controller
         $paginated = PerformerPublicResource::collection($performers)
             ->response()
             ->getData(true);
+
+        // Pontinho de "story não visto" (Sprint 9C). Esta porta é pública, mas o
+        // membro logado também chega aqui por link direto ou busca — e para ele o
+        // indicador tem de funcionar igual ao /catalogo. Visitante deslogado
+        // recebe `false` em todos os cards sem tocar o banco (o service devolve
+        // lista vazia): não há "não visto" para quem não tem conta.
+        //
+        // Uma query para a página inteira, nunca por card. É o único estado de
+        // membro nesta listagem — follow continua fora, porque seguir exige auth.
+        $profiles = collect($performers->items());
+        $unseenStoryIds = $this->storyVisibility->profileIdsWithUnseenStories(
+            $profiles->pluck('id')->all(),
+            $request->user(),
+        );
+        $unseenBySlug = $profiles->mapWithKeys(fn ($profile) => [
+            $profile->slug => in_array($profile->id, $unseenStoryIds, true),
+        ]);
+
+        $paginated['data'] = collect($paginated['data'])
+            ->map(fn ($item) => array_merge($item, [
+                'has_unseen_stories' => $unseenBySlug[$item['slug']] ?? false,
+            ]))
+            ->all();
 
         return Inertia::render('Performers/Index', [
             'performers' => $paginated,
@@ -81,6 +106,11 @@ class PublicCatalogController extends Controller
 
         return Inertia::render('Performers/Show', [
             'performer' => $performer,
+            // Stories vivos dela (Sprint 9C). Para o visitante deslogado vêm
+            // todos `locked` e sem URL — ele vê que existe conteúdo e a tela leva
+            // ao cadastro, mesmo caminho de toda ação desta página. Story fechado
+            // NUNCA recebe URL: blur em CSS não é paywall (ver profileStripFor).
+            'stories' => $this->storyVisibility->profileStripFor($profile, $request->user()),
             // Estado do chat para ESTE espectador. Chat é interest-gated: só há
             // conversa se a performer mandou Interesse e o membro desbloqueou —
             // não dá para iniciar chat frio daqui. Null (guest, performer/admin,

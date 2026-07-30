@@ -42,6 +42,18 @@ defineProps({
                     />
                     <span v-else class="font-serif text-xl text-gold">{{ performer.stage_name?.charAt(0) }}</span>
                 </div>
+
+                <!-- Story não visto (Sprint 9C). Idêntico ao card autenticado —
+                     esta porta é pública, mas o membro logado também chega aqui
+                     por link direto, e para ele o indicador funciona igual. Para
+                     visitante deslogado o servidor manda `false` em todos.
+                     Sem pulsar: o pulso é do "ao vivo". -->
+                <span
+                    v-if="performer.has_unseen_stories"
+                    role="img"
+                    aria-label="Stories não vistos"
+                    class="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-gold ring-2 ring-white"
+                />
             </div>
         </div>
 

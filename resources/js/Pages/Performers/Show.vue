@@ -7,6 +7,7 @@ import VerificationBadges from '@/Components/VerificationBadges.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
+import StoryStrip from '@/Components/StoryStrip.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
@@ -19,6 +20,9 @@ const props = defineProps({
     // com esta performer (a performer mandou Interesse + o membro desbloqueou).
     // Null = guest / performer / membro sem conversa → sem botão de chat aqui.
     chat: { type: Object, default: null },
+    // Stories vivos dela, com `locked` já resolvido pelo servidor para ESTE
+    // espectador (visitante deslogado: todos fechados, nenhum com URL).
+    stories: { type: Array, default: () => [] },
     // Alvo da denúncia ({ type, id }) ou null para visitante deslogado — a rota
     // POST /reportar exige auth.
     report: { type: Object, default: null },
@@ -214,6 +218,18 @@ const lockedTiles = 6
                         </span>
                     </div>
                 </div>
+
+                <!-- Stories (Sprint 9C). Nesta porta o CTA do bloqueado leva ao
+                     cadastro, não a assinar: o visitante ainda não tem conta, e
+                     é o mesmo caminho de toda ação desta página. Para o membro
+                     logado que chegar aqui por link direto, o `locked` já vem
+                     resolvido pelo tier dele. -->
+                <StoryStrip
+                    :stories="stories"
+                    :performer-name="performer.stage_name"
+                    :locked-href="canTip ? route('subscribe.index') : route('entrada')"
+                    :locked-label="canTip ? 'Assine para ver' : 'Crie sua conta'"
+                />
 
                 <!-- Locked gallery -->
                 <div class="mt-8 space-y-3">

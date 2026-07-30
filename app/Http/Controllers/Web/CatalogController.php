@@ -10,6 +10,7 @@ use App\Models\PerformerProfile;
 use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
+use App\Services\StoryVisibilityService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -21,6 +22,7 @@ class CatalogController extends Controller
         private PerformerCatalogService $catalogService,
         private FollowService $followService,
         private ProfileVisitService $profileVisits,
+        private StoryVisibilityService $storyVisibility,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -56,10 +58,26 @@ class CatalogController extends Controller
             $profile->slug => in_array($profile->id, $followingIds, true),
         ]);
 
+        // Pontinho de "story não visto" (Sprint 9C). Uma query para a página
+        // inteira, no mesmo molde do `is_following` acima — por card seria N+1 na
+        // tela mais visitada do produto. Quem decide o que este membro alcança é
+        // o StoryVisibilityService, que é a dona da regra.
+        $unseenStoryIds = $this->storyVisibility->profileIdsWithUnseenStories(
+            $profiles->pluck('id')->all(),
+            $request->user(),
+        );
+
+        // Chaveado por slug pela mesma razão do follow: índice posicional
+        // cruzaria o estado errado se qualquer uma das coleções reordenasse.
+        $unseenBySlug = $profiles->mapWithKeys(fn ($profile) => [
+            $profile->slug => in_array($profile->id, $unseenStoryIds, true),
+        ]);
+
         $paginated = PerformerPublicResource::collection($performers)->response()->getData(true);
         $paginated['data'] = collect($paginated['data'])
             ->map(fn ($item) => array_merge($item, [
                 'is_following' => $followingBySlug[$item['slug']] ?? false,
+                'has_unseen_stories' => $unseenBySlug[$item['slug']] ?? false,
             ]))
             ->all();
 
@@ -97,6 +115,10 @@ class CatalogController extends Controller
 
         return Inertia::render('Catalog/Show', [
             'performer' => $performer,
+            // Stories vivos dela (Sprint 9C). Cada item já vem com `locked` e, se
+            // aberto, a URL do serving autenticado — story fechado NÃO recebe URL
+            // (ver profileStripFor: blur em CSS não é paywall).
+            'stories' => $this->storyVisibility->profileStripFor($profile, $request->user()),
             // Alvo da denúncia (ver PublicCatalogController::show). Toda a rota
             // já está atrás de auth, então não há caso de visitante aqui.
             'report' => ['type' => 'performer', 'id' => $profile->id],
