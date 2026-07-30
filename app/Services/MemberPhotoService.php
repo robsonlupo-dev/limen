@@ -220,10 +220,10 @@ class MemberPhotoService
             throw MemberPhotoException::activeLimitReached();
         }
 
-        $path = $this->store->store($file, $member->id);
+        ['path' => $path, 'hash' => $hash] = $this->store->store($file, $member->id);
 
         try {
-            return DB::transaction(function () use ($member, $file, $path, $ttlHours) {
+            return DB::transaction(function () use ($member, $file, $path, $hash, $ttlHours) {
                 User::query()->whereKey($member->getKey())->lockForUpdate()->first();
 
                 // MESMO critério do serving (escopo do model): contar linha já
@@ -240,10 +240,13 @@ class MemberPhotoService
                     'size_bytes' => $this->store->size($path),
                 ]);
 
-                // Fora do fillable: dono vem do request autenticado, caminho vem
-                // do Store. Nenhum dos dois aceita payload.
+                // Fora do fillable: dono vem do request autenticado, caminho e
+                // hash vêm do Store. Nenhum dos três aceita payload — e o hash
+                // menos que todos: prova escolhida pelo acusado não é prova
+                // (mesma regra do `content_hash` do story).
                 $photo->user_id = $member->id;
                 $photo->path_encrypted = $path;
+                $photo->content_hash = $hash;
                 $photo->original_filename = $this->sanitizeFilename($file->getClientOriginalName());
                 $photo->save();
 

@@ -77,6 +77,12 @@ class MemberPhoto extends Model
         'original_filename',
         'user_id',
         'expires_at',
+        // SHA-256 dos bytes processados. `$hidden` e fora do `$fillable` pela
+        // mesma razão do `content_hash` do story: é EVIDÊNCIA, e evidência
+        // escolhida pelo acusado não é evidência. Nenhuma tela precisa dele —
+        // quem o consome é a preservação por denúncia no encerramento de conta
+        // e, no futuro, o matching contra listas de hash conhecidas.
+        'content_hash',
     ];
 
     protected function casts(): array

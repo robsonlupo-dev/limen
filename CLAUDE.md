@@ -358,6 +358,17 @@ mesma disciplina do painel de visitantes e do geobloqueio.
   do disco. Linha soft-deletada guardaria "o membro X mandou 43 fotos, nestes
   horários" e faria o GC decifrar `path_encrypted` de todas a cada hora só para
   pular. `deleted_at` é estado intermediário (linha ida, bytes de pé).
+  **Exceção: a foto DENUNCIADA sobrevive ao encerramento de conta** — encerrar a
+  conta era o terceiro e mais poderoso botão de destruir a prova. A linha fica
+  (soft-deletada e vencida, para o GC nunca mais tocá-la), **os bytes vão embora
+  como os de todo mundo**, e o que resta é o `content_hash` + os carimbos:
+  **prova sem conteúdo**, a mesma resposta do story. Reter os bytes de quem
+  exerceu o direito de exclusão seria trocar um problema por outro.
+- **`content_hash` é SHA-256 dos bytes processados, calculado ANTES do `Crypt`.**
+  O ciphertext muda a cada gravação (IV aleatório), então hashear o que está no
+  disco daria um valor diferente para o mesmo conteúdo — inútil para casar contra
+  listas de hash conhecidas, que é o que de fato bloqueia o re-upload. `$hidden`
+  e fora do `$fillable`: prova escolhida pelo acusado não é prova.
 - **Ingestão re-encoda para matar EXIF/GPS** e, no mesmo passo, polyglot — o
   arquivo servido deixa de ser o arquivo enviado. `Content-Type` sai de re-sniff
   no **servidor**, nunca do que o upload declarou. **Nada de URL assinada:** a
@@ -386,9 +397,10 @@ mesma disciplina do painel de visitantes e do geobloqueio.
 > feature (des-anonimização consentida, o rosto como chave de join global).
 > **Segue em aberto**, agora como 🟡 e não como bloqueador: o cap de performers
 > por foto (§ 1.1), a varredura de órfãos no disco (§ 1.5), e os achados da
-> revisão de segurança de 30/07 registrados em `MASTER_HANDOFF_FINAL.md` — o
-> Hard Delete de conta ainda apaga foto denunciada, a fila do admin não tem
-> visualizador da prova retida, e não há prazo máximo de retenção.
+> revisão de segurança de 30/07 registrados em `MASTER_HANDOFF_FINAL.md` — **a
+> fila do admin não tem visualizador da prova retida** e **não há prazo máximo de
+> retenção**. Os três caminhos de destruição de prova (revoke, GC e encerramento
+> de conta) estão fechados.
 
 ## Stories da Performer — Sprint 9C (entregue, tag `v1.0-sprint9`)
 

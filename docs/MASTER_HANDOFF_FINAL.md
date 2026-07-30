@@ -70,7 +70,7 @@
 | Métrica | Valor | Fonte |
 |---|---|---|
 | Suíte de testes | **1245 testes verdes, 6359 asserts** | `php artisan test` (~165 s) |
-| Migrations | **78** | `ls database/migrations/*.php \| wc -l` |
+| Migrations | **79** | `ls database/migrations/*.php \| wc -l` |
 | Rotas registradas | **148** | `php artisan route:list` (rodapé *Showing*) |
 | `Route::` em `routes/web.php` | 114 | `grep` |
 | Rotas HTTP em `routes/api.php` | 39 (**nenhuma de foto nem de story** — as duas superfícies de mídia de usuário são só web) | `grep` |
@@ -629,14 +629,30 @@ usuário real é decisão do PO, e tudo o que esta seção diz sobre a natureza 
   "quando o membro mandou" também ficam retidos por tempo indeterminado**, não só
   o arquivo. Reforça o item do prazo máximo abaixo.
 
-- 🟡 **O Hard Delete de conta ainda apaga foto denunciada.**
-  `DeletionService::purgeMemberPhotos()` faz `forceDelete()` direto, sem consultar
-  denúncia aberta — então encerrar a conta continua sendo o botão de destruir a
-  prova, só que mais caro. **Ficou mais visível depois da troca do revoke:** o
-  caminho barato foi fechado, este não. O story resolveu o equivalente preservando a LINHA da
-  denunciada e levando só os bytes; para a foto isso é decisão de LGPD (o titular
-  é o denunciado, e a linha guarda `user_id`), e por isso **não foi feito aqui
-  sem o PO**. É o furo mais relevante que sobra na quarentena.
+- ✅ ~~O Hard Delete de conta apaga foto denunciada~~ — **FECHADO em 30/07**, por
+  decisão do PO, na mesma branch. Era o terceiro e último botão de destruir a
+  prova (revoke e GC já estavam fechados) e o mais poderoso deles.
+  `purgeMemberPhotos()` passou a preservar a LINHA da foto denunciada; as demais
+  saem em hard delete como antes.
+  **Os BYTES saem mesmo assim, de toda foto**, e é a divergência deliberada em
+  relação à retenção do revoke: lá o titular ainda existe e a revisão pode
+  precisar olhar o conteúdo; aqui ele exerceu o direito de exclusão, e reter o
+  rosto de quem pediu para sumir trocaria um problema por outro. O que sobrevive
+  é o **`content_hash` + os carimbos — prova sem conteúdo**, exatamente a resposta
+  que o story já dava.
+  Para isso a foto ganhou `content_hash` (migration nova, 78 → **79**): SHA-256
+  dos bytes processados, calculado no store **antes do `Crypt`** — o ciphertext
+  muda a cada gravação (IV aleatório), então hashear o que está no disco daria um
+  valor diferente para o mesmo conteúdo, inútil para matching. `$hidden` e fora
+  do `$fillable`, como o do story.
+  A linha preservada sai **soft-deletada e vencida**: as duas juntas fazem o GC
+  ignorá-la para sempre pelo ramo que ele já tem (`trashed()` + sem bytes no
+  disco = trabalho concluído). Sem isso, a primeira rodada depois de a denúncia
+  ser concluída tentaria apagar bytes inexistentes — e `MemberPhotoStore::delete()`
+  **lança** nesse caso, então a foto entraria em `failed` a cada hora, para
+  sempre. Os ACESSOS saem sempre, também das preservadas: são PII de terceiros e
+  não são prova de nada. O resumo ganhou `member_photos_preserved`, para que
+  "member_photos: 1" não se leia como "apagou tudo".
 - 🟡 **A fila do admin não tem visualizador da prova.** `/admin/reports` mostra
   `member_photo #id` como texto; não há rota para o admin abrir os bytes
   retidos. Hoje a evidência só é alcançável no disco, por quem tem acesso ao
@@ -996,12 +1012,12 @@ reconstruir o que a tela esconde. Sempre consulte a fonte única.
 | `PaymentEvent` | webhook Asaas | ver §7 |
 | `PerformerTag` | tags da performer (Sprint 9A) | **tabela de junção** com índice — decisão R8, não `whereJsonContains` |
 | `MemberInterest` | interesses do membro (Sprint 9A) | idem R8; mesmo conjunto de tags da performer |
-| `MemberPhoto` | foto efêmera do membro (Sprint 9B) | `path_encrypted`; `user_id` e `expires_at` em `$hidden`; `ACTIVE_LIMIT` 5, `TTL_HOURS` [24,72,168]; morre em **hard delete** |
+| `MemberPhoto` | foto efêmera do membro (Sprint 9B) | `path_encrypted` + `content_hash` (SHA-256 dos bytes processados, antes do `Crypt`); `user_id`, `expires_at` e `content_hash` em `$hidden`; `ACTIVE_LIMIT` 5, `TTL_HOURS` [24,72,168]; morre em **hard delete** — **exceto a denunciada**, cuja linha é preservada no encerramento de conta |
 | `MemberPhotoAccess` | acesso de uma performer a uma foto (Sprint 9B) | FKs e `expires_at` **fora do `$fillable`** (o prazo é derivado do clamp) |
 | `PerformerStory` | story da performer (Sprint 9C) | caminho **em claro** em disco privado (não `Crypt` — § 2.5); `TTL_HOURS` 24 fixo; `content_hash` e `expires_at` `$hidden` e fora do `$fillable`; escopo `active()` é a dona de "story vivo" |
 | `StoryView` | visualização de um story por um membro (Sprint 9C) | par único (story, membro); **não existe para quem tem Ghost Mode** — a linha não é criada, não há coluna `hidden`; morre junto com o story |
 
-### 5.2 Migrations (78) — linha do tempo
+### 5.2 Migrations (79) — linha do tempo
 
 As três primeiras (`0001_01_01_*`) são o esqueleto do Laravel (users, cache,
 jobs). A partir de `2026_06_24` começa o Limen. Marcos:
@@ -1046,6 +1062,13 @@ jobs). A partir de `2026_06_24` começa o Limen. Marcos:
   comentário do script agora nomeia os dois discos efêmeros — **continua sendo
   allowlist, e quem converter para denylist reintroduz o problema nas duas
   features de uma vez.**
+- **Fecho dos bloqueadores do 9B (30/07):** `add_content_hash_to_member_photos`
+  — a foto ganhou o mesmo `content_hash` do story, para que o encerramento de
+  conta possa preservar **prova sem conteúdo**. Calculado antes do `Crypt` (o
+  ciphertext muda a cada gravação), `char(64)` nullable com índice simples.
+  Nullable porque as fotos anteriores não têm como ser preenchidas
+  retroativamente — decifrar a tabela inteira num `up()` seria pagar o volume
+  todo por um backfill que o TTL resolve sozinho em no máximo 7 dias.
 
 > **`stage_name` é unique** (`2026_07_15_000001`) — foi bug de branch parada que
 > regrediu isso antes; não remover o índice.
@@ -1785,6 +1808,11 @@ Proibido + Contrato de Performance. Versão vigente em `config/documents.php`.
   **Exceção deliberada:** linha de story **denunciado** é preservada — encerrar a
   conta seria a versão mais forte do botão de destruir prova que o service já
   recusa a dar. Os bytes vão e a audiência vai: **evidência sem conteúdo**.
+- **A foto efêmera segue a MESMA regra desde 30/07** (`purgeMemberPhotos`): linha
+  de foto **denunciada** preservada — soft-deletada e vencida, para o GC não
+  tentar apagar bytes que já não existem —, bytes de todas destruídos, acessos de
+  todas destruídos. Sobrevive o `content_hash` e os carimbos. Contagem do que
+  ficou em `member_photos_preserved`, como `performer_stories_preserved`.
 - **`deletion_token_hash` é `$hidden`.**
 - O que sobrevive ao hard delete: registros com valor fiscal/legal (ledger, audit
   log). O que é apagado: PII, mapa de interesses (profile_visits), perks.
