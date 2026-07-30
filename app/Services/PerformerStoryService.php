@@ -68,9 +68,9 @@ class PerformerStoryService
      * `pending` e `reviewed` são os estados EM ABERTO: o admin ainda não concluiu.
      * `resolved` e `dismissed` são conclusão, e aí o GC volta a agir.
      *
-     * O outro lado disso ainda não existe e é o PR 5: `PerformerStory` não está
-     * em `Report::REPORTABLE_TYPES`, então **hoje nenhum story chega a ser
-     * denunciado**. A quarentena é escrita antes do gatilho de propósito — a
+     * O gatilho do outro lado é `Report::REPORTABLE_TYPES`, que conhece
+     * `performer_story` — story é denunciável pela mesma porta `/reportar` dos
+     * outros alvos. A quarentena foi escrita ANTES do gatilho de propósito: a
      * ordem inversa (denúncia primeiro, quarentena depois) é exatamente a janela
      * em que a evidência some.
      */
@@ -482,8 +482,8 @@ class PerformerStoryService
      * morta guardaria "o membro X mandou 43 fotos, nestes horários" — retenção de
      * PII de quem enviou. Esta linha é da própria performer sobre o próprio
      * conteúdo publicado, e é ela que dá lastro ao § 2.4: preservar evidência
-     * SEM preservar conteúdo é justamente a pergunta que a feature levanta. O
-     * hash da ingestão (§ 2.4, parte 1) pendura aqui no PR 5.
+     * SEM preservar conteúdo é justamente a pergunta que a feature levanta. É
+     * nesta linha que o `content_hash` da ingestão (§ 2.4, parte 1) fica pendurado.
      *
      * ── As views saem em DELETE de verdade (§ 2.6) ──────────────────────────
      * Elas são o mapa de interesses membro→performer, estruturalmente idêntico a
