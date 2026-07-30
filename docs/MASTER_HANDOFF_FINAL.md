@@ -7,11 +7,16 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 29/07/2026 — **Sprint 9B PARCIAL** (`main`, `b620e9e`,
-> PRs #101–#104). O Sprint 9A fechou antes, no mesmo dia, e **ganhou a tag
-> `v1.0-sprint9a`** depois que este doc registrou a ausência dela — ver §1.
-> **O 9B não está fechado:** a Foto Efêmera existe ponta a ponta e **não pode ir
-> a go-live** com os 🔴 da seção "Sprint 9B — Em andamento" abertos.
+> **Última atualização:** 30/07/2026 — **Sprint 9C FECHADO** (`main`, `57aab21`,
+> PRs #105–#108, tag **`v1.0-sprint9`**). Stories da Performer entregue com os 7
+> 🔴 da pré-análise endereçados. Suíte: **1245 testes verdes, 6359 asserts**.
+>
+> **A tag `v1.0-sprint9` fecha o SPRINT, não libera a Foto Efêmera.** Ela cobre
+> as três trilhas do Sprint 9 (9A entregue, 9B implementado, 9C entregue), e o
+> código do 9B viaja dentro dela — mas os **4 🔴 da Foto Efêmera continuam
+> abertos** e a feature **não pode ir a go-live**. Ver "Sprint 9B — Em andamento",
+> que segue valendo palavra por palavra. Quem ler a tag como "Sprint 9 liberado"
+> liga uma feature que a própria tag documenta como travada.
 > **Método:** escrito a partir da **inspeção do código real** — `git log`,
 > `route:list`, `composer.json`, migrations, services, controllers, configs e a
 > suíte de testes rodada de ponta a ponta. Onde um doc antigo contradiz o código,
@@ -63,35 +68,48 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1141 testes verdes, 5956 asserts** | `php artisan test` (~120 s) |
-| Migrations | **75** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **142** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 107 | `grep` |
-| Rotas HTTP em `routes/api.php` | 39 (**nenhuma de foto** — a Foto Efêmera é só web) | `grep` |
-| Services | 26 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/` |
-| Models | 32 | `ls app/Models/` |
-| Controllers Web | 43 | `find app/Http/Controllers/Web` |
+| Suíte de testes | **1245 testes verdes, 6359 asserts** | `php artisan test` (~165 s) |
+| Migrations | **78** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **148** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 114 | `grep` |
+| Rotas HTTP em `routes/api.php` | 39 (**nenhuma de foto nem de story** — as duas superfícies de mídia de usuário são só web) | `grep` |
+| Services | 29 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
+| Models | 34 | `ls app/Models/` |
+| Controllers Web | 45 | `find app/Http/Controllers/Web` |
 | Controllers API | 21 | `find app/Http/Controllers/Api` |
 | Middleware | 10 | `ls app/Http/Middleware/` |
-| Commands (agendáveis) | 10 | `ls app/Console/Commands/` |
+| Commands (agendáveis) | 11 | `ls app/Console/Commands/` |
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 26 | `ls config/` |
-| Tag Git | `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation`. **O Sprint 9B não tem tag — está em andamento** | `git tag` |
+| Tag Git | **`v1.0-sprint9` (`57aab21`, fecho do 9C)**, `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
-> **Correção do que este doc dizia no fecho do 9A: a tag `v1.0-sprint9a` EXISTE**
-> (`1a51d77`, criada em 29/07/2026, depois da redação daquela seção). O parágrafo
-> anterior registrava a ausência dela como quebra de padrão deliberada; o PO
-> cortou a tag em seguida e o padrão dos Sprints 6→9A está restaurado. Fica o
-> registro para quem cruzar as duas versões do doc. **O 9B, esse sim, não tem tag
-> — e não deve ter enquanto estiver em andamento.** Range do 9B até aqui:
-> `1a51d77..b620e9e`.
+> **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
+> o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
+> `1a51d77`), 9B (`b620e9e`, nunca teve tag própria) e 9C (`57aab21`). Range do 9C:
+> `b620e9e..57aab21`.
+>
+> **Ela não libera nada.** O código da Foto Efêmera do 9B está dentro da tag e a
+> feature **continua com os 4 🔴 abertos** — a tag é marco de sprint, não carimbo
+> de go-live. O padrão de nomes fica com uma irregularidade herdada: existe
+> `v1.0-sprint9a` **e** `v1.0-sprint9`, e a segunda **não** é "a versão sem sufixo
+> da primeira" — é o fecho do arco. Não existe `v1.0-sprint9b` nem `v1.0-sprint9c`.
 
-**Branch atual:** `main` (em `b620e9e`, com os PRs #101→#104 do **Sprint 9B**
-mergeados por cima dos #88→#100 do 9A). Últimos commits relevantes (mais recente
-primeiro):
+**Branch atual:** `main` (em `57aab21`, com os PRs #105→#108 do **Sprint 9C**
+mergeados por cima dos #101→#104 do 9B e dos #88→#100 do 9A). Últimos commits
+relevantes (mais recente primeiro):
 
 ```
+57aab21 Merge pull request #108 from robsonlupo-dev/feat/sprint9c-stories-moderation (tag v1.0-sprint9)
+82968b4 close the story moderation and retention gaps
+239cbe9 Merge pull request #107 from robsonlupo-dev/feat/sprint9c-stories-catalog
+caf2504 add unseen-story indicator to the catalog and stories on the profile
+f0934a2 Merge pull request #106 from robsonlupo-dev/feat/sprint9c-stories-endpoints
+73d0ee2 add story endpoints for performer and member
+91f9828 Merge pull request #105 from robsonlupo-dev/feat/sprint9c-stories-models
+ac92207 add performer stories tables, models, store and GC
+c73df3b docs: atualiza o CLAUDE.md com o estado do Sprint 9B
+d79ff80 docs: registra o Sprint 9B parcial no MASTER_HANDOFF_FINAL
 b620e9e Merge pull request #104 from robsonlupo-dev/feat/sprint9b-photo-endpoints
 4a0a972 fix the three defects the verification found
 4a454f9 close the review findings on the photo endpoints
@@ -144,24 +162,33 @@ c376b75 add opt-in location to the performer profile
 | Geobloqueio FOSTA-SESTA | `85eb33c` | §22 |
 | Filtro de conteúdo do chat | `85eb33c`, `d9594ab` | §17 |
 
-> **Estado de módulo de conteúdo — MUDOU NO SPRINT 9B. Leia com atenção.**
-> Continua **não existindo** pipeline de **publicação**: não há model de post,
-> feed, vídeo ou mídia paga, e o perfil da performer segue com `avatar_path` e
-> `cover_path` e mais nada.
+> **Estado de módulo de conteúdo — MUDOU DE NOVO NO SPRINT 9C. Leia com atenção.**
+> **O projeto agora PUBLICA conteúdo de usuário.** Stories da Performer (Sprint
+> 9C) é feed efêmero, 1:N, com paywall por nível — é o módulo de conteúdo do
+> `LEGAL_GAP_ANALYSIS.md` chegando, ainda que na versão mínima (só imagem, TTL
+> fixo de 24h). O que **continua não existindo**: post permanente, vídeo, mídia
+> paga avulsa e galeria — o perfil segue com `avatar_path`, `cover_path` e agora
+> a tira de stories.
 >
-> **O que mudou:** o Sprint 9B abriu a **primeira superfície de upload de mídia
-> por usuário** do projeto — a Foto Efêmera do Membro (seção "Sprint 9B — Em
-> andamento"). Ela é 1:1 e privada
-> (membro → performer com chat ativo, TTL, sem URL assinada, sem feed), então
-> **não** é o "módulo de conteúdo" do `LEGAL_GAP_ANALYSIS.md` chegando. Mas é
-> arquivo de usuário entrando no volume, e a consequência prática é imediata:
-> **hoje uma foto enviada não pode ser denunciada** — `Report::REPORTABLE_TYPES`
-> só conhece `performer` e `message` — e o GC apaga por TTL sem saber se alguém
-> denunciou. É o primeiro 🔴 daquela seção e **bloqueia o go-live da feature**.
+> **A regra "moderação ANTES do primeiro upload" foi cumprida — na parte que é
+> código.** O 9C subiu com denúncia de story pela porta existente
+> (`Report::REPORTABLE_TYPES` agora conhece `performer_story`), quarentena que
+> congela GC **e** delete manual enquanto houver denúncia aberta, `content_hash`
+> SHA-256 dos bytes processados como prova que sobrevive ao arquivo, e cobertura
+> nos dois sentidos do `DeletionService`. Ver "Sprint 9C — O que foi entregue".
 >
-> A janela original **segue aberta e vale para Stories** (Sprint 9C), que é
-> publicação de verdade: moderação e verificação de conteúdo devem ser construídas
-> **antes** do primeiro upload, não depois. Ver `docs/LEGAL_GAP_ANALYSIS.md`.
+> **O que a janela ainda deixa aberto, e é honesto dizer:** a fila humana continua
+> sendo `/admin/reports` sob `role:admin` — **moderador = admin, e admin vê tudo**.
+> O refactor de `role` que o backlog exigia como dependência dura do 9C **não
+> aconteceu**; Stories subiu sem ele porque a quarentena e a trilha não dependem
+> de quem revisa, mas o Curador das FC Sessions segue travado no mesmo
+> pré-requisito. Também não há verificação proativa de conteúdo (só reativa por
+> denúncia) nem vínculo conteúdo↔pessoa verificada além do KYC da dona do perfil.
+>
+> **A Foto Efêmera do 9B continua sem poder ser denunciada** —
+> `REPORTABLE_TYPES` ganhou `performer_story`, **não** `member_photo`. É o
+> primeiro 🔴 daquela seção e segue **bloqueando o go-live daquela feature**.
+> Fechar os de Stories não fechou os dela.
 
 ---
 
@@ -361,9 +388,16 @@ propósito. Ver §15.1.
 
 ## Sprint 9B — Em andamento
 
-> **NÃO FECHADO. Sem tag.** Range até aqui: `1a51d77..b620e9e` — **4 PRs, #101 a
-> #104**, todos pela Regra de Ouro do Git Flow. Suíte: 912 (fecho do Sprint 8) →
-> **1141 testes verdes** (5956 asserts), somando o 9A e o 9B.
+> **NÃO FECHADO — e a tag `v1.0-sprint9` não muda isso.** Range: `1a51d77..b620e9e`
+> — **4 PRs, #101 a #104**, todos pela Regra de Ouro do Git Flow. Suíte no fecho
+> do 9B: 912 (fecho do Sprint 8) → **1141 testes verdes** (5956 asserts), somando
+> o 9A e o 9B. Hoje a suíte está em 1245/6359 com o 9C por cima.
+>
+> **Sem tag própria: o 9B nunca teve `v1.0-sprint9b`.** O que existe é a
+> `v1.0-sprint9` do fecho do 9C (30/07/2026), e o código desta seção viaja dentro
+> dela por ser ancestral — **não** porque a feature tenha sido liberada. Os 4 🔴
+> abaixo continuam abertos, um a um, e o 9C **não tocou em nenhum deles**: ele
+> tornou denunciável o *story*, não a *foto*. Esta seção segue valendo inteira.
 >
 > **O que "em andamento" quer dizer aqui:** a Foto Efêmera do Membro está
 > **completa ponta a ponta** — processamento, storage cifrado, expiração,
@@ -485,11 +519,14 @@ problema em silêncio.
 
 Nenhum destes impede desenvolver; todos impedem **ligar para usuário real**.
 
-- 🔴 **Foto não é denunciável.** `Report::REPORTABLE_TYPES` só conhece
-  `performer` e `message`. O produto passou a transportar imagem de usuário e
-  **não há caminho de denúncia para ela** — nem da performer que recebe algo
-  ilegal, nem do membro. Numa plataforma adulta isso é exposição de compliance,
-  não dívida de UX.
+- 🔴 **Foto não é denunciável.** `Report::REPORTABLE_TYPES` conhece `performer`,
+  `message` e — desde o Sprint 9C — `performer_story`. **`member_photo` não
+  entrou.** O produto passou a transportar imagem de usuário e **não há caminho de
+  denúncia para ela** — nem da performer que recebe algo ilegal, nem do membro.
+  Numa plataforma adulta isso é exposição de compliance, não dívida de UX.
+  **Ficou mais barato de fechar:** o PR #108 já fez o caminho inteiro para story
+  (entrada no mapa, `visibleTo` delegando à visibilidade para o POST não virar
+  oráculo de existência, e quarentena no GC). Para a foto é adaptar, não desenhar.
 - 🔴 **Quarentena: o GC tem de pular foto denunciada.** Depende do item acima e
   é o outro lado dele: hoje `purgeExpired()` apaga por TTL sem consultar nada, e
   a denúncia de uma foto que expira em 24h chega para um arquivo que já não
@@ -536,6 +573,146 @@ Nenhum destes impede desenvolver; todos impedem **ligar para usuário real**.
 Efêmera", "Follow-ups aceitos pelo PO", "Bloqueadores para o PR dos endpoints —
 FECHADOS" e "Gate de compartilhamento — RESOLVIDO". A pré-análise que originou o
 desenho é a seção "Sprint 9 — Pré-análise de Segurança", itens § 1.1 a § 1.11.
+
+---
+
+## Sprint 9C — O que foi entregue
+
+> **FECHADO na tag `v1.0-sprint9`** (`57aab21`). Range: `b620e9e..57aab21` —
+> **4 PRs, #105 a #108**, todos pela Regra de Ouro do Git Flow. Suíte: 1141 →
+> **1245 testes verdes** (5956 → 6359 asserts).
+>
+> **Stories da Performer** (Modelo C): a performer publica imagem com TTL fixo de
+> 24h e escolhe o nível de visibilidade; o membro vê no feed, na tira do perfil e
+> no ponto dourado do catálogo. **Não há lista de quem viu — em lugar nenhum.**
+>
+> O sprint começou pelos 🔴, como o backlog mandava: **os 7 bloqueadores da
+> pré-análise (§ 2.1 a § 2.7) foram endereçados**, e o PR #108 existiu só para
+> fechar os dois que sobraram (§ 2.4 moderação e § 2.6 retenção). O que **não**
+> foi feito é a outra dependência dura: **o refactor de `role` não aconteceu** —
+> ver "O que ficou de fora", abaixo.
+
+### ENTREGUE
+
+| Entrega | PR |
+|---|---|
+| **Camada de dados** — `performer_stories` + `story_views`, `PerformerStory`, `StoryView`, `PerformerStoryStore` (disco privado `performer_stories`, `serve => false`), `PerformerStoryService` e o command `DeleteExpiredStories` (GC de hora em hora) | #105 |
+| **Endpoints + UI** — publicar/listar/apagar/thumbnail do lado da performer, serving autenticado + feed do lado do membro, `StoryVisibilityService` como dona do paywall, `StoryPanel.vue` no dashboard | #106 |
+| **Descoberta** — ponto dourado de story não visto no catálogo (resolvido **uma vez por página**, não por card) e tira de Stories nos dois perfis (autenticado e público), com tile bloqueado **sem `image_url`** | #107 |
+| **Moderação e retenção** — `content_hash` SHA-256 na ingestão, story denunciável pela porta `/reportar`, quarentena que congela GC **e** delete manual, `DeletionService` nos dois sentidos, audit `story.published` / `story.deleted` | #108 |
+
+**Migrations novas (3):** `create_performer_stories_table`,
+`create_story_views_table`, `add_content_hash_to_performer_stories` (75 → **78**).
+**Models novos (2):** `PerformerStory`, `StoryView`.
+**Services novos (3):** `PerformerStoryService` (ciclo de vida),
+`PerformerStoryStore` (bytes), `StoryVisibilityService` (paywall).
+**Support novo:** `StoryPresenter`. **Exception nova:** `StoryException`.
+**Command novo:** `DeleteExpiredStories`. **Disco novo:** `performer_stories`
+(local, privado, `serve => false`). **Dependência nova: nenhuma** — a ingestão
+reusa o `ImageProcessingService` do 9B, que foi escrito compartilhado de propósito.
+
+**Rotas (6, todas web — não há porta de API para story):**
+`performer.stories.index` / `.store` / `.destroy` / `.image` do lado da dona,
+`stories.feed` e `stories.image` do lado do membro. As da performer estão nos
+grupos que já carregam `2fa` e `documents.accepted`; todas as seis estão em
+`config/ziggy.php`.
+
+### Como os 7 🔴 foram fechados
+
+| § | Bloqueador | Como ficou |
+|---|---|---|
+| 2.1 | Lista de "quem viu meu story" derruba o Piso de Anonimato | **Não existe lista, em superfície nenhuma.** A única saída é uma **faixa de membros únicos**, reusando `PerformerProfile::followersLabelFor` — a mesma dona da faixa de seguidores, não uma segunda cópia |
+| 2.2 | Níveis 2 e 3 vazam o tier de quem paga por invisibilidade | Story exclusivo retorna **`null`, nunca zero** (`viewCount()`); `DISTINCT member_id` vem **antes** da faixa, senão um membro que reabre 5 vezes empurra a faixa sozinho e devolve comportamento em vez de audiência |
+| 2.3 | Copiar o padrão `performer.media` (URL assinada) destrói o paywall | **Nenhuma rota assinada para mídia de story.** Autorização por sessão, follow e tier resolvidos **a cada request** — uma assinatura não amarra espectador, então a URL do membro Black viraria bearer token. Há teste que cobra a stack de middleware para impedir a regressão |
+| 2.4 | Auto-delete de 24h é destruição de prova embutida no produto | Denúncia aberta (`pending`/`reviewed`) **congela o GC e o delete manual** (`destroyForOwner` recusa). Só GC educado não protegeria nada: a performer clicaria em apagar quando a denúncia chegasse. `content_hash` é a prova que sobrevive ao arquivo |
+| 2.5 | `media_path_encrypted` para vídeo bate no bloqueio das FC Sessions | **Disco privado SEM `Crypt`**, ao contrário da foto do 9B — story é 1:N e o `Crypt` carregaria o arquivo inteiro por espectador simultâneo, sem `Range`/seek. A autorização por request num disco `serve => false` faz o papel. **v1 é só imagem**; vídeo continua no Sprint 10, e continua esbarrando no mesmo bloqueio |
+| 2.6 | `story_views` no `DeletionService`, nos dois sentidos | Cobertos os dois: as views **do membro** e as views **recebidas** pelos stories da performer, mais os stories (linhas + bytes). **Linhas de story DENUNCIADO são preservadas** — encerrar a conta é a versão mais forte do botão de destruir prova —, mas os bytes vão e a audiência vai: evidência sem conteúdo |
+| 2.7 | Ghost Mode / Modo Discreto precisam do guard desde o dia 1, e no Service | Guard no **service**, nunca no controller (item 9 do `CLAUDE.md`: `story_views` é literalmente "a terceira rota"). **Não há coluna `hidden`** — a visita simplesmente não gera linha |
+
+### Decisões tomadas (e o porquê de cada uma)
+
+**Uma dona só para "quem alcança este nível", e ela serve as duas superfícies.**
+`StoryVisibilityService` responde tanto ao filtro do feed quanto à autorização do
+serving. Se fossem duas regras, o par viraria oráculo nos dois sentidos: feed
+mostra + imagem 403 anuncia o que a performer publicou para quem não pode ver;
+o inverso é buraco de paywall. `LEVEL_CAPABILITIES` mapeia nível → capacidades
+que o abrem, o predicado de linha intersecta o mapa e o filtro SQL pergunta ao
+mapa quais níveis aquelas capacidades abrem. **Nível não mapeado falha fechado
+dos dois lados**, e um teste parametrizado cobra que ponto dourado e status HTTP
+concordem em todas as combinações de nível × tier × follow.
+
+**Blur de CSS não é paywall.** O tile bloqueado não recebe `image_url` nenhum: uma
+miniatura real entregue "borrada" está intacta no DevTools. A tela desenha
+placeholder, não cópia degradada de conteúdo pago.
+
+**404 para vencido, 403 para tier insuficiente** — e a decisão vive em
+`denialFor()`, na regra, não no controller. 404 também cobre performer fora do ar:
+o estado da conta dela não é assunto do membro. O 403 é o upsell que o Modelo C
+monetiza — é a única negativa que pode ser específica.
+
+**A expiração vale na LEITURA; `stories:purge` é só GC.** Mesmo precedente do
+`ChatAccess` e da foto efêmera: o escopo `active()` e `isExpired()` cortam o
+acesso a cada request, então job parado custa disco, não privacidade. E como o TTL
+é **fixo em 24h**, o relógio não é oráculo de TTL — não havia o que faixar aqui.
+
+**O `content_hash` é calculado no store, sobre os bytes JÁ processados.** É onde
+eles estão em memória; recalcular depois exigiria reler o arquivo. Fica `$hidden`
+e **fora do `$fillable`**: prova escolhida pelo acusado não é prova.
+
+**Denúncia entra pela porta existente (`/reportar`), não por rota própria.** O
+dedup por janela, o lock anti-duplo-submit, a recusa de autodenúncia e a resposta
+uniforme de "não existe" já vivem no `ReportController`; uma segunda rota nasceria
+sem alguma delas. `Report::visibleTo` delega a `StoryVisibilityService::canView`,
+senão o POST de denúncia viraria **oráculo de existência** para story que o membro
+não alcança.
+
+**Audit com id e nada mais.** `story.published` leva id e nível; `story.deleted`,
+o id. Sem caminho, sem hash, sem bytes — mesma disciplina do filtro de chat.
+**`story.reported` NÃO foi adicionado, de propósito**: o `ReportController`
+documenta por que denúncia não é auditada (poria o IP do denunciante em claro ao
+lado da acusação, num log que muito mais gente lê — e quem denuncia coerção é
+exatamente quem não pode pagar esse preço). A linha em `reports` já é o registro.
+**Registrado aqui para o PO decidir, não silenciado.**
+
+### Consequência conhecida — Ghost Mode e o ponto dourado
+
+Membro Black/FC carrega **Ghost Mode ligado por padrão**, e o guard do § 2.7 vale
+para `story_views`: a visualização dele **nunca é gravada**. Duas consequências,
+documentadas nos dois call sites (`viewCount()` e `feedFor()`):
+
+1. ele não aparece em contador nenhum — coerente com o perk;
+2. **o ponto dourado nunca apaga para ele**, e o feed marca todo story como não
+   visto, para sempre.
+
+Não é bug e não tem correção parcial: a alternativa é gravar exatamente a linha
+que o perk existe para não gravar. **Quem for "consertar" isso está desligando o
+Ghost Mode.**
+
+### O que ficou de fora
+
+- ⛔ **O refactor de `role` NÃO aconteceu.** O backlog o listava como dependência
+  dura do 9C (§ 2.4). Stories subiu sem ele porque quarentena, `content_hash` e
+  trilha independem de *quem* revisa — mas a fila continua em `/admin/reports` sob
+  `role:admin`, **moderador = admin, e admin vê tudo**. O **Curador das FC
+  Sessions segue travado no mesmo pré-requisito** (memória `fc-sessions-vault-blocked`).
+  Duas features ainda esperam esse refactor; agora com uma superfície de conteúdo
+  publicada em produção esperando junto.
+- **Vídeo.** v1 é só imagem (`mimes:jpeg,png`, máx. 5 MB). Vídeo é Sprint 10 e
+  esbarra no bloqueio das FC Sessions (§ 2.5).
+- **Comentário/menção de story `story.reported` no audit** — decisão do PO
+  pendente, ver acima.
+- **Release em lote / faixa fechada** para o contador, análogo à ressalva de
+  polling do painel de visitantes: a faixa de espectadores únicos é observável ao
+  vivo, então quem acompanha dois refreshes vê a diferença. O k-anonimato do
+  painel de visitantes **não** foi replicado aqui — a faixa é o único controle.
+
+### Onde está o registro completo
+
+`docs/SECURITY_ISSUES.md`, seção "Sprint 9 — Pré-análise de Segurança", itens
+§ 2.1 a § 2.10 — que é o registro do **desenho**, não painel de status: os títulos
+lá seguem marcados 🔴 porque descrevem o risco original. **O status vive aqui**,
+nesta seção — mesma convenção adotada no 9B. As mensagens de commit dos 4 PRs
+carregam o racional item a item.
 
 ---
 
@@ -597,7 +774,7 @@ php artisan test
 > Pest re-roda `migrate:fresh` a cada teste e o processo *parece travar*. Para
 > ver a exceção real, rode `php artisan migrate:fresh` sozinho.
 
-> A suíte tem **1141 testes** e leva **~2min**. Em foreground isso estoura o
+> A suíte tem **1245 testes** e leva **~3min**. Em foreground isso estoura o
 > timeout de 120s de uma chamada de shell; rode em background e aguarde a
 > notificação de conclusão.
 
@@ -716,8 +893,10 @@ reconstruir o que a tela esconde. Sempre consulte a fonte única.
 | `MemberInterest` | interesses do membro (Sprint 9A) | idem R8; mesmo conjunto de tags da performer |
 | `MemberPhoto` | foto efêmera do membro (Sprint 9B) | `path_encrypted`; `user_id` e `expires_at` em `$hidden`; `ACTIVE_LIMIT` 5, `TTL_HOURS` [24,72,168]; morre em **hard delete** |
 | `MemberPhotoAccess` | acesso de uma performer a uma foto (Sprint 9B) | FKs e `expires_at` **fora do `$fillable`** (o prazo é derivado do clamp) |
+| `PerformerStory` | story da performer (Sprint 9C) | caminho **em claro** em disco privado (não `Crypt` — § 2.5); `TTL_HOURS` 24 fixo; `content_hash` e `expires_at` `$hidden` e fora do `$fillable`; escopo `active()` é a dona de "story vivo" |
+| `StoryView` | visualização de um story por um membro (Sprint 9C) | par único (story, membro); **não existe para quem tem Ghost Mode** — a linha não é criada, não há coluna `hidden`; morre junto com o story |
 
-### 5.2 Migrations (73) — linha do tempo
+### 5.2 Migrations (78) — linha do tempo
 
 As três primeiras (`0001_01_01_*`) são o esqueleto do Laravel (users, cache,
 jobs). A partir de `2026_06_24` começa o Limen. Marcos:
@@ -754,6 +933,14 @@ jobs). A partir de `2026_06_24` começa o Limen. Marcos:
   `create_member_photo_access_table`. Disco novo `member_photos`
   (`storage/app/member-photos`) em `config/filesystems.php` — privado,
   `serve => false`, e **fora do `backup.sh`** (que é allowlist).
+- **Sprint 9C (jul):** `create_performer_stories_table`,
+  `create_story_views_table`, `add_content_hash_to_performer_stories`. Disco novo
+  `performer_stories` (`storage/app/performer-stories`) — privado, `serve => false`,
+  **sem `Crypt`** (§ 2.5) e **também fora do `backup.sh`**: conteúdo com TTL de
+  24h não pode sobreviver dentro de um tarball com `RETENTION_DAYS=14`. O
+  comentário do script agora nomeia os dois discos efêmeros — **continua sendo
+  allowlist, e quem converter para denylist reintroduz o problema nas duas
+  features de uma vez.**
 
 > **`stage_name` é unique** (`2026_07_15_000001`) — foi bug de branch parada que
 > regrediu isso antes; não remover o índice.
@@ -1487,6 +1674,12 @@ Proibido + Contrato de Performance. Versão vigente em `config/documents.php`.
 - **`profile_visits` são apagadas** (`purgeProfileVisits()`, `DELETE` real na
   transação); visitas recebidas saem quando a performer encerra
   (`purgeVisitsToOwnProfile()`).
+- **Stories e `story_views` saem nos dois sentidos (Sprint 9C):** as views que o
+  **membro** deu, as views **recebidas** pelos stories da performer, e os stories
+  dela (linhas + bytes, os bytes por `collectFilePaths` **depois do commit**).
+  **Exceção deliberada:** linha de story **denunciado** é preservada — encerrar a
+  conta seria a versão mais forte do botão de destruir prova que o service já
+  recusa a dar. Os bytes vão e a audiência vai: **evidência sem conteúdo**.
 - **`deletion_token_hash` é `$hidden`.**
 - O que sobrevive ao hard delete: registros com valor fiscal/legal (ledger, audit
   log). O que é apagado: PII, mapa de interesses (profile_visits), perks.
@@ -1496,6 +1689,17 @@ Proibido + Contrato de Performance. Versão vigente em `config/documents.php`.
 Sistema mínimo viável de denúncia (compliance legal).
 
 - Model: `Report`. Exige `reporter_id` e um **alvo morfável** (`morphTo`).
+- **Alvos (`REPORTABLE_TYPES`, por apelido público — nunca o FQCN):**
+  `performer`, `message` e, desde o Sprint 9C, **`performer_story`**. Fora do
+  mapa, 422. **`member_photo` NÃO está lá** — é o 🔴 aberto do 9B.
+- **`visibleTo` delega ao dono da regra de cada alvo** — para story, ao
+  `StoryVisibilityService::canView`. Sem isso o POST de denúncia viraria oráculo
+  de existência para conteúdo pago que o denunciante não alcança.
+- **Denúncia aberta congela a destruição do alvo** (story: GC **e** delete manual,
+  enquanto o status for `pending`/`reviewed`).
+- **Denúncia não é auditada, de propósito:** poria o IP do denunciante em claro ao
+  lado da acusação, num log que muito mais gente lê — e quem denuncia coerção é
+  exatamente quem não pode pagar isso. A linha em `reports` é o registro.
 - Alias do denunciante: `app/Support/ReporterAlias.php`.
 - Controllers: `Web/Consumer/ReportController` (criar),
   `Web/Admin/ReportAdminController` (moderar).
@@ -1510,8 +1714,12 @@ Sistema mínimo viável de denúncia (compliance legal).
 
 ### 25.1 Rotas
 
-137 rotas no total. `routes/web.php` (102 `Route::`), `routes/api.php` (39 HTTP),
+148 rotas no total. `routes/web.php` (114 `Route::`), `routes/api.php` (39 HTTP),
 `routes/channels.php` (broadcasting), `routes/console.php` (commands).
+
+> **As duas superfícies de mídia de usuário são só web.** Nem a Foto Efêmera (9B)
+> nem os Stories (9C) têm porta de API: a autorização é por sessão, resolvida a
+> cada request, e não há rota assinada para os bytes de nenhuma das duas.
 
 > **⚠️ Ziggy allowlist — tela preta.** `config/ziggy.php` tem um `only`
 > (allowlist). Se um componente Vue chamar `route('x')` e `x` não estiver na
@@ -1621,8 +1829,8 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 
 ### Sprint 9 — UX e Monetização (baseado em SEEKING_UX_CASE_STUDY.md)
 
-> **⚠️ Atualizado no Sprint 9B (29/07/2026). Das três trilhas do Sprint 9, duas
-> saíram e a terceira — a mais perigosa — segue sem uma linha de código.**
+> **⚠️ Atualizado no Sprint 9C (30/07/2026). As três trilhas do Sprint 9 saíram;
+> uma delas continua sem poder ser ligada.**
 >
 > - ✅ **Trilha de UX e descoberta — ENTREGUE** (PRs #88–#100): tags, campos
 >   adicionais, interesses do membro, filtros do catálogo, badges, contador de
@@ -1632,16 +1840,17 @@ Arrastados do Sprint 7 (previstos e **não iniciados** — seguem abertos):
 >   Existe ponta a ponta e a suíte está verde; **4 bloqueadores 🔴 impedem o
 >   go-live da feature** (denúncia de foto, quarentena no GC, audit log,
 >   `canMemberSend`). Os itens `[x]` logo abaixo são o registro do escopo
->   entregue. Ver "Sprint 9B — Em andamento".
-> - 🔴 **Stories da Performer — NÃO INICIADA.** Nenhuma linha de código. É o
->   Sprint 9C (§ próprio, abaixo) e continua com os **7 🔴** da pré-análise
->   abertos — incluindo o pipeline de moderação exigido **antes** do primeiro
->   upload.
+>   entregue. Ver "Sprint 9B — Em andamento". **O 9C não mexeu em nenhum deles.**
+> - ✅ **Stories da Performer — ENTREGUE** (PRs #105–#108, tag `v1.0-sprint9`).
+>   Os **7 🔴** da pré-análise (§ 2.1–2.7) foram endereçados e o sprint começou
+>   por eles, como o backlog exigia. Ver "Sprint 9C — O que foi entregue".
+>   **Ficou de fora a outra dependência dura: o refactor de `role`.**
 >
-> **Consequência para quem pega o próximo sprint:** a janela do §1 continua aberta
-> **para Stories**, que é publicação de conteúdo de verdade. A Foto Efêmera abriu
-> upload 1:1 privado e trouxe os próprios 🔴 junto — fechar os dela **não** fecha
-> os de Stories. Começar a trilha de Stories pelos 🔴, não pela feature.
+> **Consequência para quem pega o próximo sprint:** o projeto agora **publica**
+> conteúdo de usuário, com moderação reativa (denúncia + quarentena + hash) e
+> **fila humana ainda admin-only**. A Foto Efêmera abriu upload 1:1 privado e
+> trouxe os próprios 🔴 junto — fechar os de Stories **não** fechou os dela, e
+> continua sendo a lista mais curta entre o produto e uma feature pronta parada.
 >
 > **Itens de alta prioridade do Sprint 9 que NÃO saíram:** a verificação de
 > documento como produto (R$9,90, badge "✓ ID Verificado") — que é a fonte de dado
@@ -1699,42 +1908,59 @@ que falta para ligar está em "Sprint 9B — Em andamento", não aqui.
       "ou perfil sem foto" é o estado atual por omissão, e a efêmera não ficou
       condicionada a ela. Se a escolha explícita for para valer, é escopo novo.
 
-**Feature: Stories da Performer (feed efêmero — Modelo C) → virou o SPRINT 9C.
-Ver a seção própria abaixo. A lista de escopo continua aqui.**
-- [ ] Performer posta foto/vídeo curto com expiração de 24h fixo
-- [ ] Seguir é automático — membro clica "Seguir" e já acessa
-- [ ] Stories em 3 níveis de visibilidade (performer escolhe por post):
+**Feature: Stories da Performer (feed efêmero — Modelo C) — ✅ ENTREGUE no SPRINT
+9C (PRs #105–#108, tag `v1.0-sprint9`).** Lista mantida como memória do escopo; o
+registro do que saiu está em "Sprint 9C — O que foi entregue".
+- [x] Performer posta foto com expiração de 24h fixo (`PerformerStory::TTL_HOURS`)
+- [x] Seguir é automático — membro clica "Seguir" e já acessa. **Ver NÃO cria
+      Follow** (§ 2.10): o consentimento de seguir é do membro, não efeito colateral
+- [x] Stories em 3 níveis de visibilidade (performer escolhe por post):
       Nível 1 — Público: todos os seguidores veem
       Nível 2 — Assinantes: só membros com Círculo ativo (qualquer tier)
       Nível 3 — Exclusivo: só membros Black e Founders Circle
-- [ ] Membros Black/FC podem ver Stories públicos de performers que não seguem ainda
-- [ ] Indicador de Stories não vistos no catálogo (ponto dourado no avatar)
-- [ ] Stories expirados: arquivo deletado do disco, removido do feed
-- [ ] Job: DeleteExpiredStories (roda a cada hora)
-- [ ] Tabela: performer_stories (id, performer_profile_id, media_path_encrypted, 
-      visibility_level enum(public/subscribers/exclusive), expires_at, deleted_at)
-- [ ] Decisão de produto: Modelo C — seguir é livre, controle é por nível de conteúdo,
+      (`PerformerStory::VISIBILITY_LEVELS`; quem abre cada um é
+      `StoryVisibilityService::LEVEL_CAPABILITIES`, dona única da regra)
+- [x] Membros Black/FC podem ver Stories públicos de performers que não seguem ainda
+- [x] Indicador de Stories não vistos no catálogo (ponto dourado no avatar) —
+      resolvido **uma vez por página**, com teste que cobra a contagem de queries
+- [x] Stories expirados: arquivo deletado do disco, removido do feed. **E a
+      expiração vale na LEITURA** — o command é só GC
+- [x] Command: `DeleteExpiredStories` (`stories:purge`, de hora em hora)
+- [x] Tabela: `performer_stories` + `story_views`. **Sem `media_path_encrypted`:**
+      o caminho vai em claro num disco privado `serve => false`, porque `Crypt`
+      em conteúdo 1:N carregaria o arquivo inteiro por espectador (§ 2.5)
+- [x] Decisão de produto: Modelo C — seguir é livre, controle é por nível de conteúdo,
       não por aprovação de seguidor. Cria incentivo para assinar Círculo.
-- [ ] Visualizações: faixa de membros únicos (não lista, não repetições)
-- [ ] Nível 3 (Exclusivo): sem contador de visualizações — retorna null, não zero.
+- [x] Visualizações: faixa de membros únicos (não lista, não repetições) —
+      `DISTINCT member_id` **antes** da faixa
+- [x] Nível 3 (Exclusivo): sem contador de visualizações — retorna null, não zero.
       Níveis 1 e 2: faixa de membros únicos.
-- [ ] Mídia: v1 só imagem, vídeo no Sprint 10
+- [x] Mídia: v1 só imagem (`jpeg`/`png`, 5 MB), vídeo no Sprint 10
+- [x] **Fora do escopo original, entrou no #108:** `content_hash` na ingestão,
+      story denunciável, quarentena por denúncia aberta, `DeletionService` nos
+      dois sentidos, audit `story.published` / `story.deleted`
 
 > **Revisão de segurança pré-implementação:** `docs/SECURITY_ISSUES.md`, seção
 > "Sprint 9 — Pré-análise de Segurança". A pré-análise registrou **11
-> bloqueadores 🔴** somando as duas features. Estado em 29/07/2026:
+> bloqueadores 🔴** somando as duas features. Estado em 30/07/2026:
 >
-> - **Feature 1 (Foto Efêmera) — os 4 🔴 foram endereçados no Sprint 9B**
->   (§ 1.1 des-anonimização consentida, § 1.2 faixa em vez de relógio,
+> - **Feature 1 (Foto Efêmera) — os 4 🔴 da PRÉ-ANÁLISE foram endereçados no
+>   Sprint 9B** (§ 1.1 des-anonimização consentida, § 1.2 faixa em vez de relógio,
 >   § 1.3 expiração na leitura, § 1.5 cobertura no `DeletionService`). **Dois
 >   deixaram resíduo aberto**: o cap de performers por foto (§ 1.1) e a varredura
->   de órfãos (§ 1.5), ambos 🟡 na seção do 9B. Os títulos seguem marcados 🔴 no
->   `SECURITY_ISSUES.md` porque aquela seção é o registro da pré-análise, não um
->   painel de status — **o status vive na seção do 9B**.
-> - **Feature 2 (Stories) — os 7 🔴 continuam ABERTOS, todos** (§ 2.1 a § 2.7).
->   Nenhum foi tocado: nada de Stories foi codificado. Incluem a moderação — o
->   backlog exige pipeline **antes** do primeiro upload — e o padrão de URL
->   assinada que destruiria o paywall do Modelo C.
+>   de órfãos (§ 1.5), ambos 🟡 na seção do 9B. **Não confundir com os 4 🔴 que
+>   bloqueiam o go-live**, que são achados da revisão PÓS-implementação (denúncia,
+>   quarentena, audit, `canMemberSend`) e **continuam abertos**.
+> - **Feature 2 (Stories) — os 7 🔴 foram endereçados no Sprint 9C** (§ 2.1 a
+>   § 2.7), item a item na tabela de "Sprint 9C — O que foi entregue". Inclui a
+>   moderação que o backlog exigia **antes** do primeiro upload (denúncia +
+>   quarentena + `content_hash`) e a recusa do padrão de URL assinada que
+>   destruiria o paywall do Modelo C. **Fora do código, seguiu aberto** o refactor
+>   de `role`: a fila de revisão continua admin-only.
+>
+> Os títulos seguem marcados 🔴 no `SECURITY_ISSUES.md` — nas duas features —
+> porque aquela seção é o registro da **pré-análise**, não um painel de status.
+> **O status vive nas seções de sprint deste doc.**
 
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
 
@@ -1971,36 +2197,59 @@ vetos — são pontos que colidem com decisão já travada ou com princípio do
 
 ---
 
-### Sprint 9C — Stories da Performer (backlog)
+### Sprint 9C — Stories da Performer ✅ ENTREGUE
 
-**Nenhuma linha de código escrita.** O escopo do produto é a lista "Feature:
-Stories da Performer (Modelo C)" acima; esta seção registra só o que trava.
+**Fechado em 30/07/2026** (PRs #105–#108, tag `v1.0-sprint9`). O registro do que
+saiu, com as 7 decisões de segurança item a item, está em **"Sprint 9C — O que foi
+entregue"**. O escopo de produto é a lista "Feature: Stories da Performer (Modelo
+C)" acima, agora com os `[x]`. Esta seção guarda só **o que travava e o que
+sobrou**:
 
-- 🔴 **7 bloqueadores abertos** na pré-análise (`docs/SECURITY_ISSUES.md`,
-  § 2.1 a § 2.7): lista de "quem viu meu story" derrubando o Piso de Anonimato,
-  vazamento de tier nos Níveis 2 e 3, URL assinada destruindo o paywall,
-  auto-delete de 24h como destruição de prova, `media_path_encrypted` para vídeo
-  batendo no bloqueio das FC Sessions, `story_views` no `DeletionService` nos dois
-  sentidos, e o guard de Ghost Mode / Modo Discreto no Service desde o dia 1.
-- ⛔ **Depende do pipeline de moderação, que tem de existir ANTES do primeiro
-  upload.** Não é recomendação: é a regra que o backlog já fixou para o módulo de
-  conteúdo, e **Stories é o primeiro upload publicado** do projeto. A Foto
-  Efêmera do 9B **não** satisfaz este pré-requisito — ela é 1:1 privada, e o
-  próprio 9B abriu 🔴 de denúncia e quarentena que Stories herda ampliados.
-- ⛔ **Depende do refactor de `role` para moderação** (§ 2.4). Hoje moderador =
-  admin, e um admin vê tudo. O mesmo refactor destrava o Curador das FC Sessions:
-  **duas features travadas no mesmo pré-requisito** — ver a memória
-  `fc-sessions-vault-blocked`.
-- **O que o 9B deixa pronto para reuso:** `ImageProcessingService` (compartilhado
-  de propósito — não salva, não cifra, não conhece disco), o padrão
-  expiração-na-leitura, `ExpirySlot` e os passos do `DeletionService`.
+- ✅ **Os 7 bloqueadores foram endereçados** (`docs/SECURITY_ISSUES.md`, § 2.1 a
+  § 2.7): sem lista de "quem viu meu story" em superfície nenhuma, faixa de
+  membros únicos com `null` no exclusivo, autorização por sessão a cada request
+  (nenhuma rota assinada para mídia de story), quarentena por denúncia aberta
+  congelando GC **e** delete manual, disco privado sem `Crypt` em vez de
+  `media_path_encrypted`, `DeletionService` nos dois sentidos, e o guard de Ghost
+  Mode / Modo Discreto no Service desde o primeiro PR.
+- ✅ **Pipeline de moderação antes do primeiro upload — cumprido na parte que é
+  código.** Story é denunciável pela porta `/reportar` existente, denúncia aberta
+  congela a destruição, e o `content_hash` (SHA-256 dos bytes processados) é a
+  prova que sobrevive ao arquivo.
+- ⛔ **O refactor de `role` NÃO foi feito, e a dívida mudou de dono.** Continua
+  valendo o que esta seção dizia: hoje **moderador = admin, e um admin vê tudo**;
+  a fila é `/admin/reports` sob `role:admin`. Stories subiu sem ele — decisão
+  consciente, porque quarentena e trilha independem de quem revisa —, mas agora
+  há **conteúdo publicado em produção** esperando o refactor, não só backlog. O
+  mesmo refactor destrava o Curador das FC Sessions: **duas features travadas no
+  mesmo pré-requisito** — ver a memória `fc-sessions-vault-blocked`. **É o
+  candidato natural a primeiro item do Sprint 10.**
+- **O que o 9B deixou pronto e foi de fato reusado:** `ImageProcessingService`
+  (compartilhado de propósito — não salva, não cifra, não conhece disco), o padrão
+  expiração-na-leitura, o par `STALE_AFTER_HOURS` / `RESCUE_WINDOW_HOURS` do GC e
+  os passos do `DeletionService`. **`ExpirySlot` não foi reusado**: o TTL do story
+  é fixo em 24h, então não há prazo escolhido pelo usuário para faixar.
 
 ### Sprint 10 — Backlog
 
-Aberto no fecho do Sprint 9A e ampliado no 9B. Além do que já estava marcado como
-Sprint 10 acima (cruzamento de afinidade / "Compatíveis com você" — ver **R4**;
-badge de Instagram via OAuth Meta — ver **R5**; vídeo nos Stories), entram os
-caminhos abaixo.
+Aberto no fecho do Sprint 9A e ampliado no 9B e no 9C. Além do que já estava
+marcado como Sprint 10 acima (cruzamento de afinidade / "Compatíveis com você" —
+ver **R4**; badge de Instagram via OAuth Meta — ver **R5**; vídeo nos Stories),
+entram os caminhos abaixo.
+
+> **Dois itens saíram do 9C já com prioridade de topo, e não são "caminhos":**
+>
+> 1. **Refactor de `role` para moderação.** Era dependência dura do 9C e não
+>    aconteceu. Hoje moderador = admin, e agora há conteúdo publicado esperando
+>    revisão. Destrava junto o Curador das FC Sessions.
+> 2. **Fechar os 4 🔴 da Foto Efêmera do 9B.** A feature está pronta, testada e
+>    **desligada** desde 29/07 — é a menor distância entre o backlog e algo que já
+>    existe. O primeiro deles (denúncia de foto) é agora um copy-and-adapt do que
+>    o #108 fez para story: `REPORTABLE_TYPES` + `visibleTo` + quarentena no GC.
+>
+> **Vídeo nos Stories continua esbarrando no bloqueio das FC Sessions** (§ 2.5):
+> `Crypt` não serve para vídeo, e ainda não há decisão de storage para mídia
+> grande. Não é escopo de UI.
 
 > **Registrados por título, spec pendente.** O PO nomeou os dois no fecho do 9A;
 > o detalhe de escopo **não foi transferido para este doc** e não está em nenhum
@@ -2014,10 +2263,15 @@ segunda porta (seguidores + visitantes, PR #95).
 
 **Caminho 2 — Convite via Stories**
 - [ ] Spec pendente com o PO.
-- **Dependência dura:** Stories **não existe**. É a trilha de conteúdo efêmero do
-      Sprint 9 que continua aberta, com os 🔴 da pré-análise — inclusive o
-      pipeline de moderação exigido **antes** do primeiro upload. Este caminho
-      não pode ser implementado antes dela.
+- **Dependência dura: DESTRAVADA no Sprint 9C.** Stories existe (PRs #105–#108) e
+      os 🔴 da pré-análise foram endereçados, inclusive a moderação exigida antes
+      do primeiro upload. **O que sobra de pré-requisito** é o refactor de `role`
+      — não bloqueia este caminho, mas bloqueia a fila que revisaria o que ele
+      gerar.
+- **Herda três invariantes do 9C, não negociáveis por spec de convite:** o convite
+      **não** pode revelar quem viu o story (§ 2.1/2.2 — não existe lista, e o
+      contador é faixa); **não** pode virar URL assinada para a mídia (§ 2.3); e
+      **não** pode criar `Follow` como efeito colateral (§ 2.10).
 - **Perguntas em aberto:** quem convida quem (performer→membro, como o Interesse,
       ou membro→performer?); custa token?; o convite respeita o nível de
       visibilidade do Story (público / assinantes / exclusivo)?; entra na mesma
@@ -2190,6 +2444,11 @@ conscientes, não bugs.
 | **Foto Efêmera** | foto privada membro→performer, cifrada, TTL 24h/72h/7d, gate de chat ativo (Sprint 9B) |
 | **ExpirySlot** | tempo restante em faixa ("expira hoje"), nunca em relógio — o `visited_slot` da foto |
 | **Des-anonimização consentida** | o que a Foto Efêmera é: o rosto revoga o `FanAlias` entre perfis, e a UI diz isso no envio |
+| **Story** | imagem publicada pela performer, TTL fixo de 24h, 3 níveis de visibilidade (Sprint 9C) |
+| **Modelo C** | decisão de produto do Stories: seguir é livre, o controle é por nível de conteúdo — não por aprovação de seguidor |
+| **Quarentena** | denúncia aberta congela GC **e** delete manual daquele story: auto-delete de 24h seria destruição de prova |
+| **`content_hash`** | SHA-256 dos bytes já processados do story — a prova que sobrevive ao arquivo; `$hidden` e fora do `$fillable` |
+| **Ponto dourado** | indicador de story não visto no card do catálogo; nunca apaga para quem tem Ghost Mode, e isso é o perk funcionando |
 | **Duas portas de auth** | API = Sanctum (token); Web = sessão + CSRF |
 | **Fonte única** | serviço dono de uma regra; duplicar cria oráculo |
 | **Sprint N** | única numeração válida (Fase N em docs antigos é legado, ≠ Sprint N) |
@@ -2214,15 +2473,23 @@ FollowerVisibilityService · DiscreteModeService · ProfileVisitService · Priva
 DocumentAcceptanceService · DeletionService · TwoFactorService
 GeoLocationService · SharedRegistrationIpService · HCaptchaVerifier
 ImageProcessingService · MemberPhotoService · MemberPhotoStore   (Sprint 9B)
+PerformerStoryService · PerformerStoryStore · StoryVisibilityService   (Sprint 9C)
 Asaas/ (AsaasHttpClient, FakeAsaasClient) · Kyc/ (DiditKycClient, KycHttpClient,
 FakeKycClient, KycDocumentStore) · Waitlist/ (FounderPresenter, …)
 ```
+
+> **Os três de Stories têm fronteira deliberada:** `PerformerStoryService` é o
+> ciclo de vida (publicar, ver, contar, destruir), `PerformerStoryStore` são os
+> bytes, e `StoryVisibilityService` é o **paywall** — a pergunta "quem alcança
+> este nível" tem uma dona só, e é ela que serve o feed **e** o serving. Regra
+> nova de visibilidade entra lá, não no controller nem no Vue.
 
 ### Support (`app/Support/`)
 
 ```
 FanAlias · ReporterAlias · ClientFingerprint · CpfHash · DocumentHash · Audit
 ChatContentFilter · AvatarPlaceholder · ExpirySlot   (ExpirySlot: Sprint 9B)
+StoryPresenter   (Sprint 9C)
 ```
 
 ### Middleware (`app/Http/Middleware/`)
@@ -2239,6 +2506,9 @@ ExpireSubscriptions · ProcessScheduledDeletions · PurgeExpiredChatAccess
 PurgeExpiredProfileVisits · ReconcilePayments · ReconcilePayouts
 ReconcileWallets · SendWaitlistNurture · BackfillPerformerAvatars
 DeleteExpiredMemberPhotos   (Sprint 9B — GC; a expiração vale na LEITURA)
+DeleteExpiredStories        (Sprint 9C — `stories:purge`, de hora em hora;
+                             idem: o corte real é na leitura, e denúncia
+                             aberta congela a remoção)
 ```
 
 ### Configs (`config/`)
@@ -2280,10 +2550,18 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 ## Checklist de continuidade para o próximo chat
 
 - [ ] Ler o `CLAUDE.md` inteiro (é o cérebro; este handoff é o mapa).
-- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **1141 verdes** antes de
-      começar.
+- [ ] Rodar a suíte com os `DB_*` de MySQL e confirmar **1245 verdes** (6359
+      asserts, ~165 s) antes de começar.
 - [ ] **A Foto Efêmera está implementada e NÃO liberada.** Antes de ligar para
-      usuário real, fechar os 4 🔴 da seção "Sprint 9B — Em andamento".
+      usuário real, fechar os 4 🔴 da seção "Sprint 9B — Em andamento". A tag
+      `v1.0-sprint9` **não** liberou nada — ela fecha o sprint.
+- [ ] **Regra nova de visibilidade de story → `StoryVisibilityService`**, nunca no
+      controller nem no Vue: feed e serving perguntam à mesma dona, e discordar
+      vira oráculo (feed mostra / imagem 403) ou buraco de paywall.
+- [ ] **Nunca criar lista de "quem viu o story"** — nem no painel, nem em API, nem
+      em export. A única saída é a faixa de membros únicos, `null` no exclusivo.
+- [ ] **Nenhuma URL assinada para mídia de story ou de foto.** Autorização por
+      sessão, a cada request. Há teste cobrando a stack de middleware.
 - [ ] Endpoint web novo que o JavaScript consumir → trait
       `Web\Concerns\FailsValidationAsJson` (senão a validação vira redirect).
 - [ ] Regra nova no envio de mensagem do chat → **replicar em
@@ -2307,9 +2585,10 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
 real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
 (`main`, `93b2878`, tag `v1.0-sprint8`), em 29/07/2026 no fecho do **Sprint 9A**
-(`main`, `1a51d77`, hoje com a tag `v1.0-sprint9a`) e em 29/07/2026 com o
-**Sprint 9B PARCIAL** (`main`, `b620e9e`, PRs #101–#104, sem tag — em andamento).
-Números do snapshot e do 9B conferidos contra `git log`, `route:list`, o
-filesystem e a suíte rodada de ponta a ponta (1141 verdes, 5956 asserts). Onde
-este doc e o código divergirem no futuro, o código vence — e a divergência deve
-ser registrada aqui ou no CLAUDE.md.*
+(`main`, `1a51d77`, tag `v1.0-sprint9a`), em 29/07/2026 com o **Sprint 9B PARCIAL**
+(`main`, `b620e9e`, PRs #101–#104, sem tag — implementado e NÃO liberado) e em
+30/07/2026 no fecho do **Sprint 9C** (`main`, `57aab21`, PRs #105–#108, tag
+`v1.0-sprint9`). Números do snapshot e do 9C conferidos contra `git log`,
+`route:list`, o filesystem e a suíte rodada de ponta a ponta (**1245 verdes, 6359
+asserts**, ~165 s). Onde este doc e o código divergirem no futuro, o código vence
+— e a divergência deve ser registrada aqui ou no CLAUDE.md.*
