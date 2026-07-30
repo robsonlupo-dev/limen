@@ -76,6 +76,45 @@ return [
             'report' => false,
         ],
 
+        // Stories da performer (docs/SECURITY_ISSUES.md § 2.3 e § 2.5).
+        //
+        // Disco PRÓPRIO, pelas mesmas duas razões do `member_photos` e por uma
+        // terceira que é só daqui:
+        //
+        //  1. Fora de `storage/app/private` e de `storage/app/kyc` porque o
+        //     `docs/backup.sh` tarballa esses dois por diretório com
+        //     RETENTION_DAYS=14 — um story com prazo de 24h que caísse ali
+        //     sobreviveria duas semanas no backup, e "expira em 24h" viraria
+        //     falso na primeira noite. Nenhuma exclusão no repo salvaria: o tar
+        //     captura o diretório inteiro. Hoje isso vale porque aquele script é
+        //     ALLOWLIST — quem o converter para denylist reintroduz o problema em
+        //     silêncio, nas duas features.
+        //  2. Nunca o disco `kyc`, que o DeletionService trata como "destruir no
+        //     encerramento": misturar as retenções confundiria os dois lados.
+        //  3. Nunca o mesmo disco da foto efêmera do membro: lá o conteúdo é
+        //     ciphertext e aqui é imagem em claro (§ 2.5, decisão de storage). Um
+        //     disco só faria a próxima pessoa presumir a cifra errada dos dois
+        //     lados — e a que erra presumindo cifra abre um caminho de serving sem
+        //     authz por request, que é o § 2.3.
+        //
+        // `serve => false` como o `kyc` e o `member_photos`: os bytes só saem pelo
+        // PerformerStoryStore, atrás de autorização reavaliada A CADA request.
+        // **Nada de URL assinada** — assinatura não amarra viewer nenhum, e a URL
+        // do membro Black seria um bearer token colável no WhatsApp que evapora o
+        // paywall do Nível 3 (§ 2.3).
+        //
+        // `throw => false` como o resto dos discos — o `retrieve()` do Store
+        // depende de `get()` devolver null em vez de estourar. A contrapartida é
+        // que put/delete devolvem `false` em silêncio quando falham, e por isso o
+        // PerformerStoryStore CONFERE o retorno dos dois e lança ele mesmo.
+        'performer_stories' => [
+            'driver' => 'local',
+            'root' => storage_path('app/performer-stories'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

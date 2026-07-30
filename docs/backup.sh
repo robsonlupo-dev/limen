@@ -40,6 +40,13 @@ unset MYSQL_PWD
 # ── Arquivos privados de storage (mídia + documentos KYC) ───────────────────
 # Dois discos distintos: 'private' (storage/app/private) e 'kyc'
 # (storage/app/kyc, docs .enc). Ambos entram no mesmo tarball criptografado.
+#
+# ATENÇÃO — esta lista é ALLOWLIST, e é o que mantém o conteúdo EFÊMERO fora do
+# backup: 'member-photos' (TTL de 24h a 7 dias) e 'performer-stories' (24h) NÃO
+# podem sobreviver ao prazo dentro de um tarball com RETENTION_DAYS=14 — "expira
+# em 24h" viraria falso na primeira noite. Não há exclusão escrita em lugar
+# nenhum: quem converter este tar para denylist (ex.: `storage/app` inteiro com
+# --exclude) reintroduz o problema em silêncio, nas duas features.
 echo "▶ Backup de storage/app/private + storage/app/kyc (criptografado)"
 # Garante que os diretórios existam: num servidor novo que ainda não
 # recebeu upload, o disco 'kyc' (ou 'private') pode não existir, e com

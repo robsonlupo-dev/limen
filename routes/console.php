@@ -68,6 +68,24 @@ Schedule::command('deletions:process')->dailyAt('04:00')->withoutOverlapping(30)
 // `deletions:process`.
 Schedule::command('member-photos:purge')->hourly()->withoutOverlapping(10);
 
+// Stories da performer: recolhe do disco o que já venceu. De hora em hora porque
+// o prazo é fixo em 24h e o produto promete que o conteúdo some — deixar os bytes
+// um dia inteiro além do prazo seria o contrário do que a feature vende.
+//
+// Isto é GC, não a expiração: quem nega o story vencido é a leitura, pelo escopo
+// `active()`/`isExpired()` (docs/SECURITY_ISSUES.md § 2.8). Uma rodada perdida
+// custa disco, nunca acesso indevido.
+//
+// A rodada PULA story com denúncia em aberto (§ 2.4): o auto-delete de 24h seria,
+// senão, o botão de destruir a prova contra si que o DeletionService recusa dar ao
+// denunciado.
+//
+// withoutOverlapping: a rodada apaga arquivo do disco e só então solta a linha —
+// duas varreduras concorrentes fariam a segunda tropeçar em caminhos que a
+// primeira já removeu e contariam falha onde não houve. Mesmo motivo do
+// `member-photos:purge`.
+Schedule::command('stories:purge')->hourly()->withoutOverlapping(10);
+
 // Retenção das visitas a perfis: o painel mostra 24h, guardamos 7 dias. Diário
 // basta — o prazo é em dias, e um DELETE por faixa de data não disputa nada com
 // o resto da madrugada.
