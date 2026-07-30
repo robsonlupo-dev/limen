@@ -22,12 +22,27 @@ use App\Models\User;
  * **A faixa é GLOBAL, o pseudônimo é POR PAR.** O FanAlias deriva um apelido
  * diferente para cada (perfil, membro) exatamente para que duas performers não
  * consigam casar suas listas. A faixa não: o mesmo membro sai "Premium" para
- * todas elas. Duas performers comparando listas fora da plataforma ganham uma
- * chave de join de baixa entropia — 7 valores, sendo o mais comum "não
- * declarou" — que sozinha não identifica ninguém, mas ESTREITA o conjunto de
- * candidatos quando combinada com o que as duas telas já dão (faixa de horário
- * da visita, data de follow). É a mesma classe de problema do rosto na Foto
- * Efêmera (§ 1.1 do CLAUDE.md), várias ordens de grandeza mais fraca.
+ * todas elas. É a mesma classe de problema do rosto na Foto Efêmera (§ 1.1 do
+ * CLAUDE.md), várias ordens de grandeza mais fraca — mas com duas ressalvas
+ * que a média esconde, e que a revisão de segurança de 30/07 apontou:
+ *
+ *  - **Ela CRIA o eixo, não soma a um existente.** Tudo o mais nessas telas é
+ *    por par (FanAlias) ou por evento (`following_since`, `created_at` da
+ *    gorjeta, `visited_slot`). Esta é a primeira dimensão ESTÁVEL de join entre
+ *    listas de performers diferentes. "Chave fraca" descreve a entropia, não a
+ *    novidade.
+ *  - **O risco é INVERSAMENTE proporcional à entropia da faixa.** Na média são
+ *    ~1,3–1,8 bits e o join é inútil. Mas `elite` e `patrono` são raros por
+ *    construção da própria copy: numa base de centenas, "Patrono" são poucas
+ *    pessoas na plataforma inteira, e duas performers que acham "um Patrono em
+ *    ambas as listas" têm interseção quase única. Quem declara alto é
+ *    justamente quem tem mais a perder — e o incentivo do produto empurra
+ *    nessa direção.
+ *
+ * O que existe hoje contra isso é a adesão ser opcional e o padrão não
+ * declarar. **Não é k-anonimato sobre o atributo**: suprimir o rótulo enquanto
+ * menos de K membros ativos sustentarem a faixa está registrado como follow-up
+ * para o PO, não implementado. Não descreva a faixa como anônima.
  *
  * Consequências práticas, e nenhuma delas é opcional:
  *  - O campo é OPCIONAL e o padrão é não declarar. Quem não declara não entra

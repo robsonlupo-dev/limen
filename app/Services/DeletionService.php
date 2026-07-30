@@ -1033,6 +1033,12 @@ class DeletionService
             // ("era Patrono") sem lastro fiscal nem legal, e ainda alcançável
             // por quem cruzasse listas antigas de performers. Sai junto, pelo
             // mesmo motivo dos perks de privacidade logo abaixo.
+            //
+            // E sai DE VERDADE: o evento `member_lifestyle_tier_updated` grava
+            // só o booleano `disclosed`, nunca o slug. Se ele gravasse o valor,
+            // este scrub seria cosmético — `audit_logs` é preservado intacto
+            // (§ 3 acima), então a faixa sobreviveria ali, com o IP ao lado.
+            // Quem for enriquecer aquele evento tem esta linha como motivo.
             'lifestyle_tier' => null,
             // Digest do IP de cadastro: é o que permite dizer "esta conta veio
             // do mesmo IP que aquela". Serve à detecção de sybil enquanto a

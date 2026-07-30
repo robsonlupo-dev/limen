@@ -182,20 +182,66 @@ it('rejects a tier outside the scale', function () {
     expect($member->fresh()->lifestyle_tier)->toBeNull();
 });
 
-it('records the change in the audit log with the slug and nothing else', function () {
+/** Último evento de faixa do membro no audit. */
+function ltAuditLog(User $member): ?object
+{
+    return DB::table('audit_logs')
+        ->where('user_id', $member->id)
+        ->where('action', 'member_lifestyle_tier_updated')
+        ->latest('id')
+        ->first();
+}
+
+it('records the change in the audit log without the value', function () {
     $member = ltMember();
 
     $this->actingAs($member)
         ->patch(route('consumer.profile.lifestyle-tier'), ['lifestyle_tier' => 'patrono']);
 
-    $log = DB::table('audit_logs')
-        ->where('user_id', $member->id)
-        ->where('action', 'member_lifestyle_tier_updated')
-        ->latest('id')
-        ->first();
+    $log = ltAuditLog($member);
 
+    // Só o booleano. `audit_logs` é a única tabela que o DeletionService
+    // preserva INTACTA (§ 3 do cabeçalho dele), com o IP em claro ao lado —
+    // gravar o slug ali faria o scrub do Hard Delete ser cosmético, e uma linha
+    // por alteração seria a trajetória patrimonial declarada do membro.
     expect($log)->not->toBeNull()
-        ->and(json_decode($log->metadata, true))->toBe(['lifestyle_tier' => 'patrono']);
+        ->and(json_decode($log->metadata, true))->toBe(['disclosed' => true]);
+});
+
+it('never writes the tier slug into the audit log — not even on opt-out', function () {
+    $member = ltMember();
+
+    foreach (['elite', LifestyleTier::NOT_DISCLOSED, 'essencial'] as $tier) {
+        $this->actingAs($member)
+            ->patch(route('consumer.profile.lifestyle-tier'), ['lifestyle_tier' => $tier]);
+    }
+
+    // Toda a trilha do membro, não só o último evento: o furo que isto trava é
+    // o histórico acumulado, que sobrevive ao Hard Delete.
+    $trail = DB::table('audit_logs')->where('user_id', $member->id)->pluck('metadata')->implode(' ');
+
+    foreach (['elite', 'essencial', 'patrono', 'luxo', 'premium', 'confortavel'] as $slug) {
+        expect($trail)->not->toContain($slug);
+    }
+
+    expect(json_decode(ltAuditLog($member)->metadata, true))->toBe(['disclosed' => true]);
+});
+
+it('the column enum matches the scale', function () {
+    // A migration guarda a lista LITERAL de propósito (snapshot, não referência
+    // viva ao código). Esta é a trava da divergência: um slug novo em
+    // LifestyleTier sem migration de acompanhamento quebra AQUI, e não no
+    // INSERT em produção — que é o que aconteceria se a migration lesse a
+    // constante, porque `migrate:fresh` da suíte criaria a coluna já correta.
+    $type = DB::selectOne(
+        'SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        ['users', 'lifestyle_tier']
+    )->t;
+
+    preg_match_all("/'([^']+)'/", $type, $matches);
+
+    expect($matches[1])->toBe(LifestyleTier::storableValues());
 });
 
 // ─── Mass assignment e serialização ─────────────────────────────────────────
@@ -375,11 +421,19 @@ it('is not a catalog filter', function () {
 // ─── Hard Delete ────────────────────────────────────────────────────────────
 
 it('clears the tier on hard delete', function () {
-    $member = ltMember('luxo');
+    $member = ltMember();
 
-    app(DeletionService::class)->executeDeletion($member);
+    $this->actingAs($member)
+        ->patch(route('consumer.profile.lifestyle-tier'), ['lifestyle_tier' => 'luxo']);
+
+    app(DeletionService::class)->executeDeletion($member->fresh());
 
     // Auto-declaração patrimonial sem lastro fiscal nem legal — e a única
     // daquela tela que terceiro já viu. Sai junto com `seeking` e os perks.
-    expect(DB::table('users')->where('id', $member->id)->value('lifestyle_tier'))->toBeNull();
+    expect(DB::table('users')->where('id', $member->id)->value('lifestyle_tier'))->toBeNull()
+        // E o scrub não pode ser cosmético: a faixa passou pelo endpoint real,
+        // então se o audit gravasse o slug ele sobreviveria aqui — `audit_logs`
+        // é preservado intacto, com o IP do titular ao lado.
+        ->and(DB::table('audit_logs')->where('user_id', $member->id)->pluck('metadata')->implode(' '))
+        ->not->toContain('luxo');
 });

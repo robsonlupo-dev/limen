@@ -124,22 +124,27 @@ class ProfileController extends Controller
 
         $user->forceFill(['lifestyle_tier' => $request->tier()])->save();
 
-        // Audit COM o valor, ao contrário do member_profile_updated logo acima —
-        // e a diferença é exatamente o que separa os dois campos. `interests` e
-        // `seeking` são dado sensível de vida sexual (LGPD art. 5º, II) que nunca
-        // sai para terceiro, então registrar o conteúdo criaria uma segunda cópia
-        // sem finalidade. A faixa é auto-declaração patrimonial GROSSA que o
-        // produto já mostra à performer; o que o audit precisa responder é
-        // "quando esta faixa passou a ser exibida, e por decisão de quem" — a
-        // pergunta que aparece se um dia alguém contestar o que a tela dela
-        // mostrou. Sai o slug, nada mais: sem IP no metadata, sem o valor
-        // anterior (que reconstruiria a trajetória declarada do membro).
+        // Audit SEM o valor — só se passou a haver faixa exibida ou não.
         //
-        // `null` vira NOT_DISCLOSED no log para o evento ter sempre a mesma
-        // forma — um campo ausente lido como "não mexeu" é a ambiguidade que a
-        // trilha existe para não ter.
+        // A primeira versão gravava o slug, e estava errada: `audit_logs` é a
+        // única tabela que o DeletionService PRESERVA INTACTA (§ 3 do cabeçalho
+        // dele), inclusive com o IP em claro. Gravar "patrono" ali fazia o scrub
+        // de `lifestyle_tier` no Hard Delete ser cosmético — a linha encerrada
+        // continuaria carregando o retrato patrimonial que o scrub existe para
+        // tirar, ao lado do IP de quem pediu para sumir. E uma linha por
+        // alteração, em ordem, É a trajetória declarada do membro: o histórico
+        // que eu tinha afirmado no comentário não estar guardando.
+        //
+        // O booleano responde a pergunta que o audit precisa responder ("desde
+        // quando havia faixa exibida na tela dela, e por decisão de quem") sem
+        // guardar QUAL. É o mesmo corte do filtro de chat, que grava categoria e
+        // `rule_hash` e nunca o corpo, e do member_profile_updated logo acima,
+        // que grava os nomes dos campos e nunca o conteúdo.
+        //
+        // Sempre presente e sempre booleano: um campo ausente lido como "não
+        // mexeu" é a ambiguidade que a trilha existe para não ter.
         Audit::log('member_lifestyle_tier_updated', $user, [
-            'lifestyle_tier' => $request->tier() ?? LifestyleTier::NOT_DISCLOSED,
+            'disclosed' => $request->tier() !== null,
         ], $request);
 
         return back()->with('success', 'Estilo de vida atualizado.');
