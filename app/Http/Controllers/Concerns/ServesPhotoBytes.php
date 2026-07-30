@@ -5,9 +5,17 @@ namespace App\Http\Controllers\Concerns;
 use Illuminate\Http\Response;
 
 /**
- * Resposta binária das fotos efêmeras — a mesma nos dois lados (membro e
- * performer), porque um segundo lugar montando estes cabeçalhos divergiria
- * exatamente nos que importam.
+ * Resposta binária de imagem privada — a mesma para todos os consumidores,
+ * porque um segundo lugar montando estes cabeçalhos divergiria exatamente nos
+ * que importam.
+ *
+ * Três hoje: a foto efêmera do lado do membro, a mesma do lado da performer e o
+ * Story (Sprint 9C). O Story entra aqui e não num trait próprio porque o conjunto
+ * de cabeçalhos é o mesmo pelas mesmas razões — sniff no servidor, `nosniff`,
+ * `inline`, `no-store` —, e o `no-store` vale nele até com mais força: cache é
+ * retenção, e um story de 24h guardado por um proxy sobreviveria ao TTL. O custo é
+ * banda (todo viewer rebaixa o arquivo a cada request), e é custo aceito: o
+ * conteúdo do Nível 3 num cache compartilhado seria paywall furado.
  */
 trait ServesPhotoBytes
 {
@@ -41,8 +49,12 @@ trait ServesPhotoBytes
      *
      * `no-store` porque cache é retenção: uma foto de 24h no disco do navegador
      * (ou num proxy) sobrevive ao TTL, que é o problema inteiro da feature.
+     *
+     * `$filename` só troca o rótulo do `Content-Disposition` (foto.jpg / story.jpg)
+     * e nunca vem do request: é literal do chamador, pela mesma razão que o nome
+     * original do membro não sai daqui.
      */
-    private function photoResponse(string $bytes): Response
+    private function photoResponse(string $bytes, string $filename = 'foto.jpg'): Response
     {
         $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
 
@@ -51,7 +63,7 @@ trait ServesPhotoBytes
         return response($bytes, 200, [
             'Content-Type' => self::SERVABLE_MIME,
             'Content-Length' => (string) strlen($bytes),
-            'Content-Disposition' => 'inline; filename="foto.jpg"',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, no-store, max-age=0',
             'Pragma' => 'no-cache',

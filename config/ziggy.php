@@ -73,6 +73,12 @@ return [
         // Leitura da foto efêmera recebida de um membro
         'performer.photos.image',
 
+        // Stories da performer (publicar, listar, apagar, thumbnail do painel)
+        'performer.stories.index',
+        'performer.stories.store',
+        'performer.stories.destroy',
+        'performer.stories.image',
+
         // 2FA TOTP da performer
         'performer.2fa.show',
         'performer.2fa.enable',
@@ -107,6 +113,11 @@ return [
         'member.photos.share',
         'member.photos.destroy',
         'member.photos.image',
+
+        // Stories do lado do membro (feed + serving autenticado por sessão).
+        // Não há versão assinada destas rotas de propósito — § 2.3.
+        'stories.feed',
+        'stories.image',
 
         // Consumer wallet
         'wallet.index',

@@ -4,6 +4,7 @@ import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
+import StoryPanel from '@/Components/StoryPanel.vue'
 import { postJson } from '@/lib/http'
 
 const props = defineProps({
@@ -30,6 +31,11 @@ const props = defineProps({
     // Fotos que membros compartilharam com ela. Já chegam pseudonimizadas
     // (FanAlias) e com a faixa de tempo — nunca o id do membro nem relógio.
     receivedPhotos: { type: Array, default: () => [] },
+    // Stories vivos dela. `view_count` já vem em FAIXA (ou null no exclusivo) —
+    // o número cru não trafega nas props, que é o caminho do DevTools.
+    stories: { type: Array, default: () => [] },
+    storyVisibilityLevels: { type: Array, default: () => [] },
+    canPublishStories: { type: Boolean, default: false },
 })
 
 // A foto abre em overlay, servida inline pelo endpoint. Não há botão de baixar:
@@ -275,6 +281,16 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     definição.
                 </p>
             </div>
+
+            <!-- Meus Stories (Sprint 9C). A faixa e o `null` do nível exclusivo
+                 vêm resolvidos do servidor — o componente não decide nada. Some
+                 para a performer ainda em KYC: as rotas exigem
+                 `can('performer-active')`, e oferecer o botão seria oferecer 403. -->
+            <StoryPanel
+                v-if="canPublishStories"
+                :stories="stories"
+                :visibility-levels="storyVisibilityLevels"
+            />
 
             <!-- Fotos recebidas (Sprint 9B) -->
             <div class="space-y-4">
