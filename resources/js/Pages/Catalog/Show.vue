@@ -9,10 +9,14 @@ import FollowButton from '@/Components/FollowButton.vue'
 import Button from '@/Components/Button.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
+import StoryStrip from '@/Components/StoryStrip.vue'
 import { stateLabel } from '@/lib/performerAttributes'
 
 const props = defineProps({
     performer: { type: Object, required: true },
+    // Stories vivos dela, já com `locked` resolvido pelo servidor. Story fechado
+    // chega SEM `image_url` — ver StoryStrip.
+    stories: { type: Array, default: () => [] },
     // Alvo da denúncia ({ type, id }). Ver PublicCatalogController::show.
     report: { type: Object, default: null },
 })
@@ -123,6 +127,15 @@ function onTipSent(data) {
                 <p v-if="performer.state && !performer.is_live" class="mt-4 text-sm text-muted">
                     Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
                 </p>
+
+                <!-- Stories (Sprint 9C). O CTA do bloqueado leva a assinar: o
+                     membro já tem conta, o que falta é o tier. -->
+                <StoryStrip
+                    :stories="stories"
+                    :performer-name="performer.stage_name"
+                    :locked-href="route('subscribe.index')"
+                    locked-label="Assine para ver"
+                />
 
                 <!-- Bio -->
                 <div v-if="performer.bio" class="mt-8 space-y-2">

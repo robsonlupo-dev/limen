@@ -46,6 +46,21 @@ const categoryLabels = {
                         />
                         <span v-else class="font-serif text-xl text-gold">{{ performer.stage_name?.charAt(0) }}</span>
                     </div>
+
+                    <!-- Story não visto (Sprint 9C): ponto dourado, sem texto e
+                         SEM pulsar — o pulso é do "ao vivo", que é estado em
+                         tempo real; story é conteúdo parado esperando você.
+                         Dois indicadores pulsando no mesmo card competiriam.
+                         Fica FORA do wrapper com overflow-hidden, senão o
+                         arredondamento do avatar corta o ponto.
+                         `has_unseen_stories` é dado do MEMBRO — a performer não
+                         recebe nada daqui (ver StoryVisibilityService). -->
+                    <span
+                        v-if="performer.has_unseen_stories"
+                        role="img"
+                        aria-label="Stories não vistos"
+                        class="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-gold ring-2 ring-white"
+                    />
                 </div>
             </div>
 
