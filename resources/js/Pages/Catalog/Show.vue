@@ -13,6 +13,7 @@ import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
+import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import { stateLabel } from '@/lib/performerAttributes'
 
 const props = defineProps({
@@ -20,6 +21,9 @@ const props = defineProps({
     // Stories vivos dela, já com `locked` resolvido pelo servidor. Story fechado
     // chega SEM `image_url` — ver StoryStrip.
     stories: { type: Array, default: () => [] },
+    // Galeria de fotos pública (Sprint 10): cada item { id, url }. Público, sem
+    // paywall — ver PhotoCarousel.
+    photos: { type: Array, default: () => [] },
     // Alvo da denúncia ({ type, id }). Ver PublicCatalogController::show.
     report: { type: Object, default: null },
 })
@@ -184,6 +188,10 @@ function onTipSent(data) {
                 <!-- Sobre mim: tags, idiomas, altura, bebida e fumo. Componente
                      compartilhado com Performers/Show.vue. -->
                 <PerformerAbout :performer="performer" />
+
+                <!-- Galeria de fotos (Sprint 10). Público, sem paywall — separada
+                     do avatar/capa e dos stories. Some por inteiro sem foto. -->
+                <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" />
 
                 <!-- Work modes -->
                 <div v-if="performer.work_modes?.length" class="mt-8 space-y-3">

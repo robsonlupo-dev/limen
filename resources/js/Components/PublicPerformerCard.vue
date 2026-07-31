@@ -31,6 +31,18 @@ defineProps({
                 class="absolute bottom-2 left-2 h-3 w-3 rounded-full bg-green-500 ring-2 ring-white animate-pulse"
             />
 
+            <!-- Contador da galeria (Sprint 10). Discreto, no canto da capa, e só
+                 quando há foto além do avatar. `photos_count` vem do
+                 withCount('photos') do resource — número exato, é conteúdo público
+                 da performer (não é canal lateral como o de seguidores). -->
+            <div
+                v-if="performer.photos_count > 0"
+                :aria-label="`${performer.photos_count} fotos`"
+                class="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-xs text-cream backdrop-blur-sm"
+            >
+                <span aria-hidden="true">📷</span>{{ performer.photos_count }}
+            </div>
+
             <div class="absolute -bottom-6 left-4">
                 <div class="h-14 w-14 rounded-full border-2 border-gold bg-surface-2 overflow-hidden flex items-center justify-center shadow-lg">
                     <img

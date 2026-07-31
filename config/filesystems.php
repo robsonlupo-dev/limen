@@ -115,6 +115,36 @@ return [
             'report' => false,
         ],
 
+        // Galeria de fotos do perfil da performer (Sprint 10).
+        //
+        // Disco PRÓPRIO, e a razão é a MESMA dos Stories, invertida num ponto:
+        //
+        //  - Como os Stories, e ao contrário da foto efêmera do membro, o
+        //    conteúdo aqui é imagem EM CLARO (§ R1: sem Crypt). Um disco só com o
+        //    `member_photos` faria a próxima pessoa presumir a cifra errada dos
+        //    dois lados.
+        //  - AO CONTRÁRIO dos Stories e da foto efêmera, aqui NÃO há TTL: foto de
+        //    perfil é permanente. Então, diferente dos outros dois discos
+        //    efêmeros, este PODE entrar no backup — e por isso fica sob
+        //    `storage/app/private`, que o `docs/backup.sh` (allowlist) tarballa.
+        //    Foto de perfil dentro de um backup de 14 dias é o comportamento
+        //    correto, não o bug que tira os efêmeros dali.
+        //
+        // `serve => false` como os outros discos privados: os bytes só saem pelo
+        // PerformerPhotoStore, com re-sniff de Content-Type no SERVIDOR. A rota de
+        // serving é pública (é o perfil público), mas continua passando pela
+        // camada de bytes — nunca uma URL de disco.
+        //
+        // `throw => false` como o resto — o Store CONFERE o retorno de put/delete
+        // e lança ele mesmo, mesma disciplina do PerformerStoryStore.
+        'performer_photos' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/performer-photos'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

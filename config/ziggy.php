@@ -79,6 +79,13 @@ return [
         'performer.stories.destroy',
         'performer.stories.image',
 
+        // Galeria de fotos do perfil (Sprint 10): gestão pela performer +
+        // serving público (usado no carrossel do perfil e no grid de edição)
+        'performer.gallery.store',
+        'performer.gallery.destroy',
+        'performer.gallery.reorder',
+        'performer.gallery.image',
+
         // 2FA TOTP da performer
         'performer.2fa.show',
         'performer.2fa.enable',

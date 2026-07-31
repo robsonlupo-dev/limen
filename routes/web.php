@@ -38,6 +38,7 @@ use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
+use App\Http\Controllers\Web\Performer\PhotoController as PerformerPhotoController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\ReceivedPhotoController;
 use App\Http\Controllers\Web\Performer\SentInterestsController;
@@ -116,6 +117,21 @@ Route::get('/performers/{slug}', [PublicCatalogController::class, 'show'])
     ->middleware('throttle:60,1')
     ->where('slug', '[a-z0-9\-]+')
     ->name('performers.public.show');
+
+// Serving público das fotos da galeria do perfil (Sprint 10). PÚBLICO de
+// propósito: a galeria é do perfil público, então qualquer visitante — logado ou
+// não — vê os bytes, igual ao avatar/cover. Continua passando pela camada de
+// bytes (re-sniff de Content-Type no servidor + nosniff), nunca por URL de disco:
+// o disco `performer_photos` roda `serve => false`. Sem paywall e sem sessão, ao
+// contrário do serving de Story (§ 2.3) — lá o conteúdo é gated, aqui é vitrine.
+// Nome `performer.gallery.*` e NÃO `performer.photos.*`: este último já é da
+// foto efêmera RECEBIDA (`performer.photos.image`, ReceivedPhotoController). Nome
+// repetido não dá erro — o último registrado vence no lookup e `route()` no front
+// apontaria para a rota errada. Ver a nota do RouteNameCollisionTest no CLAUDE.md.
+Route::get('/performer/fotos/{photo}/imagem', [PerformerPhotoController::class, 'image'])
+    ->middleware('throttle:120,1')
+    ->whereNumber('photo')
+    ->name('performer.gallery.image');
 
 // Auth (guest only)
 Route::middleware('guest')->group(function () {
@@ -455,6 +471,31 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->middleware('throttle:60,1')
                 ->whereNumber('story')
                 ->name('performer.stories.image')
+                ->can('performer-active');
+
+            // Galeria de fotos do perfil (Sprint 10). Mesmos gates da edição de
+            // perfil e dos stories: já sob `auth`+`2fa`+`documents.accepted`, mais
+            // `role:performer` (grupo) e `can('performer-active')` — publicar
+            // conteúdo de perfil é para performer no ar. O serving fica FORA daqui
+            // (rota pública lá em cima); estas três são gestão.
+            //
+            // O POST leva o throttle de 10/min — é a rota cara (re-encode com o
+            // pico de memória do config/image.php) e a única que grava em disco.
+            // Mesmo teto do upload do story e da foto efêmera.
+            Route::post('/performer/fotos', [PerformerPhotoController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->name('performer.gallery.store')
+                ->can('performer-active');
+
+            Route::delete('/performer/fotos/{photo}', [PerformerPhotoController::class, 'destroy'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('photo')
+                ->name('performer.gallery.destroy')
+                ->can('performer-active');
+
+            Route::patch('/performer/fotos/reordenar', [PerformerPhotoController::class, 'reorder'])
+                ->middleware('throttle:30,1')
+                ->name('performer.gallery.reorder')
                 ->can('performer-active');
         });
 

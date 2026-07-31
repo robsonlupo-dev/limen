@@ -57,6 +57,14 @@ class PerformerProfile extends Model
      */
     public const MAX_TAGS = 8;
 
+    /**
+     * Teto de fotos na galeria do perfil (Sprint 10, decisão do PO). Fonte única
+     * do número, como MAX_TAGS: o PerformerPhotoService o aplica sob lock, o Form
+     * Request pode citá-lo na mensagem e a tela desenha "3/6". Sem cifra por foto,
+     * este cap é a única contenção de volume no disco `performer_photos`.
+     */
+    public const MAX_PHOTOS = 6;
+
     public const LANGUAGES = [
         'portugues', 'ingles', 'espanhol', 'frances', 'italiano', 'alemao', 'japones',
     ];
@@ -192,6 +200,12 @@ class PerformerProfile extends Model
     {
         return $query
             ->with(['user', 'tags'])
+            // Contador da galeria (Sprint 10) para o selo "📷 N" no card. É
+            // withCount e não with(): o card só precisa do NÚMERO, não das
+            // linhas, e uma subquery agregada evita hidratar até 6 fotos por
+            // perfil numa página de 24 cards. Vitrine pública legítima — ao
+            // contrário do favorito, o número de fotos é da própria performer.
+            ->withCount('photos')
             ->whereHas('user', fn (Builder $q) => $q->where('status', 'active'))
             ->where('is_verified', true)
             ->whereNotNull('slug');
@@ -227,6 +241,21 @@ class PerformerProfile extends Model
     public function follows(): HasMany
     {
         return $this->hasMany(Follow::class);
+    }
+
+    /**
+     * A galeria pública de fotos (Sprint 10), sempre na ordem do carrossel.
+     *
+     * `orderBy('position')` na própria relação porque NÃO existe leitura da
+     * galeria fora de ordem: card, carrossel, tela de edição e reordenação
+     * consomem a mesma sequência. Ao contrário de `favorites` (que
+     * deliberadamente NÃO tem relação inversa por ser bookmark privado), foto é
+     * conteúdo público da performer — a relação direta é exatamente o que se
+     * quer, e `withCount('photos')` no catálogo é métrica de vitrine legítima.
+     */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(PerformerPhoto::class)->orderBy('position');
     }
 
     /*

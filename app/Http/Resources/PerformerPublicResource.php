@@ -74,6 +74,14 @@ class PerformerPublicResource extends JsonResource
             'tier' => $this->tier,
             'avatar_url' => $this->mediaUrl('avatar'),
             'cover_url' => $this->mediaUrl('cover'),
+            // Contador da galeria (Sprint 10) para o selo "📷 N" no card. Vem do
+            // `withCount('photos')` do scope publicCatalog — as duas listagens e
+            // as duas telas de perfil passam por ele. Fallback em 0 para uma linha
+            // carregada fora do scope (nunca acontece nas telas públicas, mas o
+            // resource não deve quebrar). Foto de perfil é conteúdo público, então
+            // o número exato pode aparecer — não é canal lateral como o de
+            // seguidores nem privado como o de favoritos.
+            'photos_count' => (int) ($this->photos_count ?? 0),
         ];
     }
 
