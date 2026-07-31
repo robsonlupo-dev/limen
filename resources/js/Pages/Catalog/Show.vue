@@ -12,6 +12,7 @@ import Button from '@/Components/Button.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
+import PerformerAbout from '@/Components/PerformerAbout.vue'
 import { stateLabel } from '@/lib/performerAttributes'
 
 const props = defineProps({
@@ -162,6 +163,17 @@ function onTipSent(data) {
                     <h2 class="font-serif text-xl text-cream">Sobre</h2>
                     <p class="text-muted leading-relaxed whitespace-pre-line">{{ performer.bio }}</p>
                 </div>
+
+                <!-- O que procuro: parágrafo logo abaixo da bio. Opt-in — some
+                     por inteiro para quem não preencheu. -->
+                <div v-if="performer.looking_for" class="mt-6 space-y-2">
+                    <h2 class="font-serif text-xl text-cream">O que procuro</h2>
+                    <p class="text-muted leading-relaxed whitespace-pre-line">{{ performer.looking_for }}</p>
+                </div>
+
+                <!-- Sobre mim: tags, idiomas, altura, bebida e fumo. Componente
+                     compartilhado com Performers/Show.vue. -->
+                <PerformerAbout :performer="performer" />
 
                 <!-- Work modes -->
                 <div v-if="performer.work_modes?.length" class="mt-8 space-y-3">

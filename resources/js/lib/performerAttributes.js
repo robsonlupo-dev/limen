@@ -84,6 +84,64 @@ export const SMOKES = [
     { value: 'fuma', label: 'Fuma' },
 ]
 
+// Slug → rótulo para os campos de escolha do "Sobre mim". A tela de edição
+// consome as listas acima (LANGUAGES/DRINKS/SMOKES) para desenhar os controles;
+// as telas de EXIBIÇÃO só têm o slug guardado e precisam traduzi-lo — mesma
+// tabela, mesma razão do `tagLabel`. Sem rótulo, cai no slug cru.
+const LANGUAGE_LABELS = Object.fromEntries(LANGUAGES.map((l) => [l.value, l.label]))
+const DRINK_LABELS = Object.fromEntries(DRINKS.map((d) => [d.value, d.label]))
+const SMOKE_LABELS = Object.fromEntries(SMOKES.map((s) => [s.value, s.label]))
+
+export function languageLabel(slug) {
+    return LANGUAGE_LABELS[slug] ?? slug
+}
+
+export function drinkLabel(slug) {
+    return DRINK_LABELS[slug] ?? slug
+}
+
+export function smokeLabel(slug) {
+    return SMOKE_LABELS[slug] ?? slug
+}
+
+// Ícone por escolha, só para a EXIBIÇÃO — a tela de edição não usa emoji. Fica
+// aqui, junto do rótulo, para os dois perfis públicos não divergirem no primeiro
+// valor novo. Fallback neutro para slug desconhecido.
+const DRINK_ICONS = {
+    nao_bebe: '🚫',
+    bebe_socialmente: '🍷',
+    bebe_frequentemente: '🍸',
+}
+
+const SMOKE_ICONS = {
+    nao_fuma: '🚭',
+    fuma_socialmente: '🚬',
+    fuma: '🚬',
+}
+
+export function drinkIcon(slug) {
+    return DRINK_ICONS[slug] ?? '🥂'
+}
+
+export function smokeIcon(slug) {
+    return SMOKE_ICONS[slug] ?? '🚬'
+}
+
+/**
+ * Agrupa os slugs de tag da performer pela mesma estrutura de TAG_GROUPS que a
+ * tela de edição usa, para o perfil público exibir as pílulas na mesma ordem e
+ * sob os mesmos títulos. Grupo sem nenhuma tag selecionada é omitido; slug
+ * desconhecido (tag removida do catálogo) é ignorado, não vira chip cru.
+ */
+export function groupTags(slugs) {
+    const selected = new Set(slugs ?? [])
+    return TAG_GROUPS.map((group) => ({
+        key: group.key,
+        label: group.label,
+        tags: group.tags.filter((tag) => selected.has(tag.value)),
+    })).filter((group) => group.tags.length > 0)
+}
+
 // Espelha PerformerProfile::HEIGHT_MIN_CM / HEIGHT_MAX_CM.
 export const HEIGHT_MIN_CM = 140
 export const HEIGHT_MAX_CM = 190
