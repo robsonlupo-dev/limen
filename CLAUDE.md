@@ -84,15 +84,19 @@ um erro na main derruba o site em produção.
 
 ## Estado atual
 
-> **Estado atual** (`main`, `49ef728`, depois do PR #110): **1268 testes verdes**,
-> 6520 asserts. **Base original** (PR #69, `229d852`): 556 testes, 2614.
-> O detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a
-> ler antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é histórico). Este
-> resumo só situa.
+> **Estado atual** (`main`, `96b0838`, Sprint 10 fechado + o OTP do PR #118):
+> **1381 testes, 7121 asserts** (1 falha só-local: a view 451 do GeoBlock não
+> compila neste clone de dev — verde no CI). **Base original** (PR #69, `229d852`):
+> 556 testes, 2614. O detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** —
+> esse é o doc a ler antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é
+> histórico). Este resumo só situa.
 
-**Sprints 6, 7, 8, 9A e 9C fechados** (tags `v1.0-sprint6` a `v1.0-sprint9a`, mais
-**`v1.0-sprint9`** no fecho do 9C e **`v1.0-sprint9.1`** no fecho dos bloqueadores
-da Foto Efêmera). **O Sprint 9B não tem tag própria** e não está fechado.
+**Sprints 6, 7, 8, 9A, 9C e 10 fechados** (tags `v1.0-sprint6` a `v1.0-sprint9a`,
+**`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho dos bloqueadores
+da Foto Efêmera, e **`v1.0-sprint10`** (`402d29e`) no fecho do Sprint 10). **O
+Sprint 11 está EM ANDAMENTO** — só a primeira entrega mergeou (OTP, PR #118); não
+há `v1.0-sprint11` e não é para criar. **O Sprint 9B não tem tag própria** e não
+está fechado.
 
 > **Tag é marco, nunca carimbo de go-live.** `v1.0-sprint9` (`57aab21`) fecha o
 > arco Sprint 9 inteiro (9A + 9B + 9C) e é **anterior** ao PR #110 — aponta para
@@ -159,6 +163,8 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 9A** — UX e descoberta: tags e campos da performer, interesses do membro, filtros do catálogo, badges, localização opt-in (só UF, e some com `is_live`), hCaptcha, e-mail do fundador, onboarding, camada reservada do PanicButton.
 - **Sprint 9B** (SEM TAG, não fechado) — **Foto Efêmera do Membro** (§ abaixo): `ImageProcessingService`, storage cifrado, expiração, endpoints e UI de chat, GC. **Implementada, não liberada.**
 - **Sprint 9C** — **Stories da Performer** (§ abaixo), tag `v1.0-sprint9`: publicação com TTL fixo de 24h e 3 níveis de visibilidade, feed e serving autenticados, ponto dourado no catálogo, e a moderação junto (denúncia, quarentena, `content_hash`, `DeletionService` nos dois sentidos).
+- **Sprint 10** — descoberta e perfil, tag `v1.0-sprint10` (PRs #111–#117, deploy de staging): **Estilos de Vida** (6 faixas opt-in, sem filtro, Modo Discreto suprime, fora do painel de visitantes), **Favoritos** (bookmark privado — § abaixo), "Sobre mim" no perfil público, "visto por último" em faixa (Ghost Mode suprime a escrita), barra de progresso do perfil, **galeria de fotos** (carrossel 6, EXIF strip, pública).
+- **Sprint 11** (EM ANDAMENTO, sem tag) — **Login OTP passwordless** (§ abaixo, PR #118): código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` (GC horário). O resto do backlog do Sprint 11 (badge de disponibilidade, boost pago, notas de membro, convite via Stories, videochamada LiveKit) **não foi iniciado**.
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -578,6 +584,43 @@ confirmado, então pode ser aplicado em grupo compartilhado, como o
 > Não implementado: alerta em N falhas de desafio (hoje só grava
 > `performer.2fa_challenge_failed` no audit e ninguém consome).
 
+## Login OTP passwordless — Sprint 11 (PR #118)
+Porta ALTERNATIVA ao login por senha (convive, não substitui): código de 6 dígitos
+por e-mail. Dona única das regras: `app/Services/OtpService.php`. As duas portas
+(web/sessão e API/Sanctum) chamam os MESMOS dois métodos — uma segunda cópia da
+regra numa das portas reabriria a enumeração ou o reuso.
+
+- **Anti-enumeração é o eixo.** `requestCode` responde igual para e-mail existente
+  e inexistente; o rate limit de **3/hora** conta a STRING do e-mail (normalizada
+  `mb_strtolower(trim())`) **antes** do lookup — senão o próprio limite viraria
+  oráculo. Suspensa/banida não recebe código (mesmo corte do `AuthService`), e a
+  resposta é a mesma. `verifyCode` devolve `null` para TODO modo de falha.
+- **O código é credencial efêmera.** TTL 5 min, uso único, 5 palpites por código,
+  os anteriores morrem quando um novo nasce. `code` é `$hidden` e **fora do
+  `$fillable`** (mesma regra de `discrete_mode`/2FA — nasce só no service, por
+  atribuição direta, nunca de um payload). Comparação com `hash_equals`. **NUNCA
+  entra em `audit_logs`:** os eventos (`auth.otp_requested`, `auth.otp_login`)
+  gravam o usuário e o fato, jamais o dígito.
+- **`verifyCode` roda sob `DB::transaction` + `lockForUpdate`.** Sem serializar,
+  palpites concorrentes furariam o teto de 5 e dois acertos logariam duas vezes o
+  mesmo código de uso único — mesma disciplina do recovery code do 2FA.
+- **2FA da performer se aplica DEPOIS do OTP.** O OTP prova o e-mail, não o segundo
+  fator: acerto de OTP para performer com 2FA devolve o **token de desafio**
+  (`2fa:challenge`), nunca o token cheio (idêntico ao login por senha da API). Na
+  web, o gate `2fa` desafia depois de a sessão nascer.
+- **A porta WEB confia no e-mail da SESSÃO, não do corpo do request** — um POST
+  forjado não troca o alvo da verificação. A API lê do corpo de propósito (não há
+  sessão). O `VerifyOtpRequest` exige `email` para a API; um teste trava a
+  regressão de a web voltar a lê-lo do corpo.
+- **`otp:purge` (de hora em hora) é só GC** — a expiração já vale na LEITURA
+  (`isConsumable`). Sem ele, material de auth vencido em claro se acumularia.
+  Precedente de `stories:purge` / `visits:purge`.
+- **Hard Delete varre `otp_codes`** (`DeletionService::purgeOtpCodes`, DELETE real):
+  a FK `cascadeOnDelete` não dispara porque `users` é soft-delete/anonimização.
+- **E-mail discreto** (`OtpCodeEmail`, `ShouldQueue`): assunto neutro, remetente
+  "Limen", **sem imagem remota** (pixel audit). O dígito viaja no corpo porque é o
+  produto do e-mail — não em audit, não em log.
+
 ## Geobloqueio (FOSTA-SESTA) — montado, NÃO ativo
 Middleware `GeoBlock` nos grupos `web` e `api`, 451. **Com `GEO_DRIVER=none` (o
 padrão e o valor de hoje) ele não bloqueia ninguém** — falta a fonte de
@@ -658,15 +701,30 @@ dá loop) e as páginas públicas dos textos.
 O texto jurídico ainda é placeholder (aguardando Opice Blum) — **não descrever
 para auditoria como "contrato aceito"** até o texto definitivo entrar.
 
-## Limitações do ambiente de dev
-- **Sem `gh` CLI e sem token:** não é possível abrir PR ou issue por código. O
+## Ambiente de dev (atualizado 31/07/2026) e suas limitações
+- **O dev roda NO SERVIDOR via SSH** (`deploy@62.238.46.212`, `~/limen-dev`). A
+  **VM local (`~/teste`) foi descontinuada.** `~/limen-dev` (dev) e
+  `/var/www/limen` (staging/prod) são **clones SEPARADOS** — não presuma estado
+  comum entre eles.
+- **`git credential store` configurado no servidor:** push/pull não pedem senha.
+  Mas **segue sem `gh` CLI** — abrir PR ou issue por código continua impossível; o
   push devolve a URL de `pull/new` para o PO abrir manualmente.
 - **Sem `pdo_sqlite`**, e o `phpunit.xml` aponta para sqlite. **Não edite o
-  `phpunit.xml`** — prefixe os `DB_*` no comando (é o que o CI faz):
+  `phpunit.xml`** — prefixe os `DB_*` no comando (é o que o CI faz). A senha do
+  banco de teste está no **`.env` do servidor** (usuário `limen`, banco
+  `limen_test`) — **fora do Git** (princípio 5), **não** é o `limen_dev_pw` que
+  este exemplo trazia antes (placeholder, não funciona):
   ```bash
   DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3306 \
-  DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD=limen_dev_pw \
-  php artisan test
+  DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD='<ver .env>' \
+  HCAPTCHA_ENABLED=false php artisan test
   ```
-  Migration quebrada faz o Pest re-rodar `migrate:fresh` a cada teste e **parece
+- **`HCAPTCHA_ENABLED=false` ao rodar testes localmente:** o `.env` do servidor
+  tem o hCaptcha LIGADO (é dev real), e com ele ligado os Form Requests de auth
+  exigem o campo `h-captcha-response` — a suíte inteira de auth quebra. O CI roda
+  com ele desligado; reproduza isso no comando (acima), **não** editando o config.
+- Migration quebrada faz o Pest re-rodar `migrate:fresh` a cada teste e **parece
   hang**, não erro. Rode `php artisan migrate:fresh` sozinho para ver a exceção.
+- **Ressalva de suíte local:** `GeoBlockTest` "bloqueia com 451" falha **só neste
+  clone de dev** — a view custom de erro 451 não está compilada aqui, então cai na
+  página de erro padrão do Symfony. É verde no CI. Não é regressão; não persiga.

@@ -7,12 +7,22 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 30/07/2026 — **`main` em `49ef728`**, tag
-> **`v1.0-sprint9.1`**, depois do **PR #110**, que fechou os 4 bloqueadores de
-> go-live da Foto Efêmera do Sprint 9B. Suíte: **1268 testes verdes, 6520
-> asserts**. Antes dele, no mesmo dia: **Sprint 9C FECHADO** (`57aab21`,
-> PRs #105–#108, tag **`v1.0-sprint9`**), Stories da Performer com os 7 🔴 da
-> pré-análise endereçados.
+> **Última atualização:** 31/07/2026 — **`main` em `96b0838`**, tag
+> **`v1.0-sprint10`** (`402d29e`). **Sprint 10 FECHADO** (PRs #111–#117, deploy de
+> staging em `402d29e`) e **PR #118** por cima (Login OTP passwordless — primeira
+> entrega do **Sprint 11, em andamento**). Suíte: **1381 testes, 7121 asserts**
+> (1 falha só-local: a view 451 do GeoBlock não compila neste clone de dev — verde
+> no CI).
+>
+> **A tag `v1.0-sprint10` aponta para o fecho do Sprint 10 (`402d29e`), ANTES de
+> qualquer código do Sprint 11.** O snapshot do §1, ao contrário, reflete `main`
+> HEAD (`96b0838` = Sprint 10 **+** o OTP do PR #118) — por isso os números do §1
+> são maiores do que o conteúdo da tag. Não é para criar `v1.0-sprint11`: o
+> Sprint 11 não fechou, só teve sua primeira entrega mergeada.
+>
+> **Histórico:** 30/07/2026 — `main` em `49ef728`, tag `v1.0-sprint9.1`, o PR #110
+> fechou os 4 bloqueadores da Foto Efêmera (9B); antes, `57aab21` / tag
+> `v1.0-sprint9` fechou o Sprint 9C (Stories da Performer). Suíte era 1268/6520.
 >
 > **Duas tags no mesmo arco, e a diferença importa.** `v1.0-sprint9` (`57aab21`)
 > fecha o Sprint 9 e é **anterior** ao PR #110 — aponta para um estado em que os
@@ -69,23 +79,27 @@
 
 ## 1. Snapshot do estado atual
 
+> **Snapshot de `main` HEAD (`96b0838`) — Sprint 10 fechado + o OTP do PR #118.**
+> A tag `v1.0-sprint10` (`402d29e`) tem menos: 83 migrations, 36 models, 32
+> services, 11 commands, sem as rotas/telas de OTP.
+
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1268 testes verdes, 6520 asserts** | `php artisan test` (~165 s) |
-| Migrations | **79** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **148** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 114 | `grep` |
-| Rotas HTTP em `routes/api.php` | 39 (**nenhuma de foto nem de story** — as duas superfícies de mídia de usuário são só web) | `grep` |
-| Services | 29 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
-| Models | 34 | `ls app/Models/` |
-| Controllers Web | 45 | `find app/Http/Controllers/Web` |
-| Controllers API | 21 | `find app/Http/Controllers/Api` |
-| Middleware | 10 | `ls app/Http/Middleware/` |
-| Commands (agendáveis) | 11 | `ls app/Console/Commands/` |
+| Suíte de testes | **1381 testes, 7121 asserts** (1 falha só-local: view 451 do GeoBlock, verde no CI) | `php artisan test` (~135 s) |
+| Migrations | **84** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **161** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 125 | `grep` |
+| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto e story continuam só web**) | `grep` |
+| Services | 33 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
+| Models | 37 | `ls app/Models/` |
+| Controllers Web | 49 | `find app/Http/Controllers/Web` |
+| Controllers API | 22 | `find app/Http/Controllers/Api` |
+| Middleware | 11 | `ls app/Http/Middleware/` |
+| Commands (agendáveis) | 12 | `ls app/Console/Commands/` |
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 26 | `ls config/` |
-| Tag Git | **`v1.0-sprint9.1` (`49ef728`, bloqueadores da Foto Efêmera fechados)**, `v1.0-sprint9` (`57aab21`, fecho do 9C), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Tag Git | **`v1.0-sprint10` (`402d29e`, fecho do Sprint 10)**, `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -856,6 +870,125 @@ Ghost Mode.**
 lá seguem marcados 🔴 porque descrevem o risco original. **O status vive aqui**,
 nesta seção — mesma convenção adotada no 9B. As mensagens de commit dos 4 PRs
 carregam o racional item a item.
+
+---
+
+## Sprint 10 — O que foi entregue
+
+> **FECHADO na tag `v1.0-sprint10`** (`402d29e`, Merge do PR #117). Range:
+> `49ef728..402d29e` — **7 PRs, #111 a #117**, todos pela Regra de Ouro do Git
+> Flow. **Deploy de staging realizado** (`402d29e`). A tag aponta para este commit,
+> **antes** de qualquer código do Sprint 11 (o OTP entrou depois, no PR #118).
+>
+> Sprint de descoberta e perfil: Estilos de Vida, Favoritos (bookmark privado),
+> "Sobre mim" no perfil público, "visto por último" em faixa, barra de progresso
+> do perfil e a primeira galeria de fotos da performer.
+
+### ENTREGUE
+
+| Entrega | PR |
+|---|---|
+| **Estilos de Vida** (`lifestyle_tier`) — 6 faixas opt-in exibidas no perfil; **sem filtro no catálogo**, Modo Discreto **suprime** a exibição e a faixa **não entra no painel de visitantes**. Regra e slugs em `App\Support\LifestyleTier` | #111 |
+| **Favoritos** (`favorites`) — bookmark **PRIVADO**: a performer NUNCA sabe que foi favoritada. Invariante nova no `CLAUDE.md` (§ "Favoritos do membro"), dona única `FavoriteService`, cobertura nos dois sentidos do `DeletionService` | #112 |
+| **"Sobre mim"** — campos de perfil renderizados na página pública da performer | #113 |
+| **"Visto por último"** em FAIXA (`last_active_at` + `App\Support\ActivitySlot`) — **Ghost Mode suprime a ESCRITA** (§ abaixo), nunca em relógio | #114 |
+| **Fix flaky `stage_name`** — sufixo aleatório do teste de `Str::random(4)` para `(8)`, contra colisão no CI | #115 |
+| **Barra de progresso do perfil** da performer | #116 |
+| **Galeria de fotos** — carrossel de até 6 fotos, EXIF strip na ingestão, **pública**; `PerformerPhoto`, `PerformerPhotoService`, `PerformerPhotoStore`, `PhotoGalleryPresenter` | #117 |
+
+**Migrations novas (4):** `add_lifestyle_tier_to_users`, `create_favorites_table`,
+`add_last_active_at_to_users`, `create_performer_photos_table` (79 → **83**).
+**Models novos (2):** `Favorite`, `PerformerPhoto` (34 → **36**).
+**Services novos (3):** `FavoriteService`, `PerformerPhotoService`,
+`PerformerPhotoStore`. **Support novo (3):** `LifestyleTier`, `ActivitySlot`,
+`PhotoGalleryPresenter`. **Dependência nova: nenhuma** — a galeria reusa o
+`ImageProcessingService` do 9B para o EXIF strip.
+
+### Decisões que não se deduzem do diff
+
+**Favorito é o gesto PRIVADO; follow é o PÚBLICO — e a assimetria é a invariante.**
+O `CLAUDE.md` ganhou a seção "Favoritos do membro" com as consequências duras:
+nenhuma superfície do lado da performer, nenhum contador (nem em faixa), nada em
+`audit_logs`, o gate de "perfil no ar" no `FavoriteService::toggle()` (não no
+controller), toggle idempotente sob duplo-submit (`lockForUpdate` +
+`UniqueConstraintViolationException`) e Hard Delete varrendo os dois sentidos. Um
+teste varre os props de TODAS as telas da performer e falha se a string `favorit`
+aparecer.
+
+**Estilo de Vida é exibição, não faceta.** As 6 faixas são opt-in e aparecem no
+perfil, mas **não filtram o catálogo** e **não entram no painel de visitantes** —
+Modo Discreto as suprime. O slug fica **fora do `audit_logs`** (mesmo raciocínio
+do favorito: seria cópia do mapa de interesses que o Hard Delete apaga). **Gap
+conhecido, registrado no backlog:** não há k-anonimato sobre `lifestyle_tier` — o
+caso "Patrono único" (uma faixa com um só membro) pode ser correlacionável.
+
+**"Visto por último" repete a disciplina do painel de visitantes.** `last_active_at`
+sai em FAIXA (`ActivitySlot`), nunca em relógio, e **Ghost Mode suprime a ESCRITA**
+— quem tem o perk não atualiza a coluna, então a ausência de atualização É o
+produto, como a ausência de linha em `profile_visits` (item 9 do `CLAUDE.md`).
+
+---
+
+## Sprint 11 — Em andamento
+
+> **NÃO É UM SPRINT FECHADO — não há tag `v1.0-sprint11`, e não é para criar.**
+> Primeira entrega mergeada: **PR #118 — Login passwordless por código OTP**
+> (`96b0838`, sobre a `main` já com o Sprint 10). O resto do backlog do Sprint 11
+> (badge de disponibilidade, boost pago, notas de membro, convite via Stories,
+> videochamada) **não tem código escrito** — ver Apêndice A.
+>
+> Revisão de segurança rodada (duas passadas, `security-reviewer`) e **limpa**;
+> os achados reais foram aplicados na branch antes do merge (lock em `verifyCode`,
+> GC `otp:purge`, e-mail da sessão como fonte, `digits:6`).
+
+### ENTREGUE — Login OTP (PR #118)
+
+Porta ALTERNATIVA ao login por senha (convive, não substitui): um código de 6
+dígitos é enviado por e-mail, vale 5 min, uso único, 5 palpites por código,
+3 códigos/hora por e-mail. `OtpService` é a dona única das regras; as duas portas
+(web/sessão e API/Sanctum) chamam os mesmos dois métodos.
+
+| Peça | Arquivo |
+|---|---|
+| Regras (emissão, verificação, GC) | `App\Services\OtpService` |
+| Linha do código | `App\Models\OtpCode` (`code` `$hidden` e fora do `$fillable`) |
+| Porta web (2 telas: e-mail → código) | `Web\Auth\OtpLoginController` + Vue `Auth/OtpRequest`, `Auth/OtpVerify` |
+| Porta API | `Api\V1\Auth\OtpController` |
+| Form Requests (compartilhados) | `RequestOtpRequest` (com hCaptcha), `VerifyOtpRequest` (`digits:6`) |
+| E-mail discreto | `App\Mail\OtpCodeEmail` (`ShouldQueue`, assunto neutro, sem pixel remoto) |
+| GC | command `otp:purge` (`PurgeExpiredOtpCodes`, de hora em hora) |
+
+**Migration nova (1):** `create_otp_codes_table` (83 → **84**). **Model novo (1):**
+`OtpCode` (36 → **37**). **Service novo (1):** `OtpService`. **Command novo (1):**
+`PurgeExpiredOtpCodes` (11 → **12**). **Exception nova:** `OtpThrottleException`.
+**Concern novo:** `Web\Auth\Concerns\RedirectsToHome` (destino de home
+compartilhado entre o login por senha e o por código).
+
+**Rotas novas:** web `otp.request.show` / `otp.request` / `otp.verify.show` /
+`otp.verify` (guest-only, throttle por IP); API `auth.otp.request` /
+`auth.otp.verify`. As quatro web em `config/ziggy.php`.
+
+### Invariantes de segurança (as que amarram o desenho)
+
+- **Anti-enumeração.** `requestCode` responde igual para e-mail existente e
+  inexistente; o rate limit de 3/hora conta a STRING do e-mail (normalizada
+  `lower+trim`) **antes** do lookup — senão o próprio limite viraria oráculo.
+  Suspensa/banida não recebe código, e a resposta é a mesma.
+- **Código é credencial efêmera.** `hash_equals` (tempo constante), NUNCA em
+  `audit_logs` (os eventos gravam o usuário e o fato, jamais o dígito), fora do
+  `$fillable`, anteriores morrem quando um novo nasce.
+- **Uso único e teto de palpite sob `lockForUpdate`.** `verifyCode` roda em
+  transação com a linha travada — sem isso, palpites concorrentes furariam o teto
+  de 5 e dois acertos simultâneos logariam duas vezes o mesmo código (mesma
+  disciplina do recovery code do 2FA).
+- **2FA da performer se aplica DEPOIS do OTP.** O OTP prova o e-mail, não o segundo
+  fator: acerto de OTP para performer com 2FA devolve o **token de desafio**
+  (`2fa:challenge`), não o token cheio — idêntico ao login por senha da API. Na
+  web, o gate `2fa` desafia depois de a sessão nascer.
+- **Web confia no e-mail da SESSÃO**, não do corpo do request (um POST forjado não
+  troca o alvo da verificação); a API lê do corpo de propósito (não há sessão).
+- **Hard Delete varre `otp_codes`** (`DeletionService::purgeOtpCodes`) — a FK
+  `cascadeOnDelete` não dispara porque `users` é soft-delete/anonimização.
 
 ---
 
@@ -2136,6 +2269,71 @@ registro do que saiu está em "Sprint 9C — O que foi entregue".
 > **O status vive nas seções de sprint deste doc.**
 
 **Referência:** docs/SEEKING_UX_CASE_STUDY.md (41 telas analisadas, julho/2026)
+
+---
+
+### Sprint 10 — ENTREGUE (memória do escopo)
+
+> Fechado na tag `v1.0-sprint10` (`402d29e`), PRs #111–#117. Registro completo em
+> "Sprint 10 — O que foi entregue". Lista aqui só como memória.
+
+- [x] **Estilos de Vida** (`lifestyle_tier`, 6 faixas opt-in) — exibição, **sem
+      filtro**, Modo Discreto suprime, fora do painel de visitantes, slug fora do audit
+- [x] **Favoritos** (bookmark privado — a performer nunca sabe; invariante no `CLAUDE.md`)
+- [x] **"Sobre mim"** no perfil público · [x] **"Visto por último"** em faixa (Ghost Mode suprime a escrita)
+- [x] **Barra de progresso do perfil** · [x] **Galeria de fotos** (carrossel 6, EXIF strip, pública)
+- [x] **Fix flaky** do `stage_name` (`Str::random(4→8)`)
+
+### Sprint 11 — Em andamento (backlog registrado)
+
+> **Primeira entrega mergeada: OTP passwordless (PR #118)** — ver "Sprint 11 — Em
+> andamento". O restante do backlog do Sprint 11 **não tem código escrito**:
+
+- [ ] **Badge "Disponível para conversa"** — sinal de disponibilidade no card/perfil.
+- [ ] **Boost pago** — destaque no catálogo por tokens (posição/ordenação paga).
+      Toca o ledger e a ordenação do catálogo; passa por revisão de segurança.
+- [ ] **Notas de membro** — a performer anota sobre um membro **pelo `FanAlias`**,
+      nunca pelo id. ⚠️ Superfície nova que liga performer↔membro: a nota é texto
+      livre onde a performer pode escrever o nome real, reintroduzindo a correlação
+      que o `FanAlias` isola. Passa por decisão de produto **e** segurança antes de
+      uma linha.
+- [ ] **Convite via Stories** — convidar pela superfície de Stories (9C).
+- [ ] **Videochamada (LiveKit)** — Sprint 11 ou 12. **Nada implementado, nenhuma
+      dependência no projeto** (§2 / `CLAUDE.md`). Esbarra no bloqueio das FC
+      Sessions e no refactor de `role` (Curador), como o vídeo de story.
+
+### Sprint 10+ / pós-go-live — backlog registrado
+
+- [ ] **OTP como único método (remover a senha)** — follow-up do PR #118. Hoje o
+      OTP convive com o login por senha; torná-lo o único método é decisão de
+      produto (recuperação de conta, dependência total do e-mail).
+- [ ] **Visualizador de prova retida no admin** — a fila `/admin/reports` mostra
+      `member_photo #id` / `performer_story #id` como texto; não há tela para o
+      admin abrir os bytes retidos por denúncia. É o par que falta da troca do
+      revoke. Já 🟡 na seção do 9B — repetido como item de backlog.
+- [ ] **Prazo máximo de quarentena** — foto/story retidos por denúncia ficam no
+      disco indefinidamente se a denúncia nunca fechar; sem prazo nem alarme para
+      denúncia parada. 🟡 do 9B/9C.
+- [ ] **k-anonimato sobre `lifestyle_tier`** — o caso "Patrono único" (faixa de
+      Estilo de Vida com um só membro) pode ser correlacionável. Não há k mínimo na
+      exibição da faixa, como há no painel de visitantes.
+- [ ] **Expansão LATAM** — pós go-live.
+
+> **Fora do servidor / projeto separado:** **CRM de recrutamento** — projeto à
+> parte, **não roda neste servidor** nem neste repo. Registrado para não ser
+> confundido com backlog da plataforma.
+
+### Infraestrutura de desenvolvimento (atualizado 31/07/2026)
+
+- **Claude Code roda no SERVIDOR via SSH** (`deploy@62.238.46.212`, `~/limen-dev`).
+  A **VM local (`~/teste`) foi descontinuada** como ambiente de dev.
+- **Banco `limen_test` criado no servidor** (MySQL); usuário `limen`, senha no
+  `.env` do servidor (**fora do Git** — princípio 5). O exemplo antigo do
+  `CLAUDE.md` trazia `limen_dev_pw`, que é **placeholder e não funciona**.
+- **GitHub credential store configurado no servidor** — push/pull sem prompt.
+  Segue **sem `gh` CLI**: abrir PR/issue continua manual (ver "Limitações").
+- **Dois clones SEPARADOS, não compartilhados:** `~/limen-dev` (dev) e
+  `/var/www/limen` (staging/prod). Não presuma estado comum entre eles.
 
 ---
 
