@@ -16,7 +16,7 @@ function makePerformer(array $userAttrs = [], array $profileAttrs = []): array
     ], $userAttrs));
 
     $profile = $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Ana Lima '.Str::random(4),
+        'stage_name' => 'Ana Lima '.Str::random(8),
         'slug' => 'ana-lima-'.strtolower(Str::random(4)),
         'category' => 'mulheres',
         'is_verified' => true,

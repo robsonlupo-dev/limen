@@ -31,7 +31,7 @@ function sprint7Performer(array $userAttrs = [], array $profileAttrs = []): User
     $user = User::factory()->performer()->create($userAttrs);
 
     $user->performerProfile()->create(array_merge([
-        'stage_name' => 'Aurora Vex '.Str::random(4),
+        'stage_name' => 'Aurora Vex '.Str::random(8),
         'category' => 'mulheres',
     ], $profileAttrs));
 

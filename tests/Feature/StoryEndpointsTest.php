@@ -279,7 +279,7 @@ it('leva os stories para o painel dela, com a faixa e sem contador no exclusivo'
 it('não oferece publicação à performer que ainda está em KYC', function () {
     $user = User::factory()->create(['role' => 'performer', 'status' => 'pending']);
     $user->performerProfile()->create([
-        'stage_name' => 'Pendente '.Str::random(4),
+        'stage_name' => 'Pendente '.Str::random(8),
         'slug' => 'pend-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => false,

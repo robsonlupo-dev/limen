@@ -58,7 +58,7 @@ function modPerformer(): PerformerProfile
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create([
-        'stage_name' => 'Perf '.Str::random(4),
+        'stage_name' => 'Perf '.Str::random(8),
         'slug' => 'mod-'.strtolower(Str::random(8)),
         'category' => 'mulheres',
         'is_verified' => true,

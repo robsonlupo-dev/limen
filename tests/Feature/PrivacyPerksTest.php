@@ -40,7 +40,7 @@ function perkPerformer(): PerformerProfile
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create([
-        'stage_name' => 'Perf '.Str::random(4),
+        'stage_name' => 'Perf '.Str::random(8),
         'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,

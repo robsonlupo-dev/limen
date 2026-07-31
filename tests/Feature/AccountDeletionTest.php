@@ -47,7 +47,7 @@ function delPerformer(): User
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     $user->performerProfile()->create([
-        'stage_name' => 'Perf '.Str::random(4),
+        'stage_name' => 'Perf '.Str::random(8),
         'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'level' => 'iniciante',

@@ -24,7 +24,7 @@ function kycAdmVerification(string $status = 'pending'): IdentityVerification
 {
     $user = User::factory()->create(['role' => 'performer', 'status' => 'pending']);
     $user->performerProfile()->create([
-        'stage_name' => 'Perf '.Str::random(4),
+        'stage_name' => 'Perf '.Str::random(8),
         'slug' => 'kycadm-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => false,

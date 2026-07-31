@@ -18,7 +18,7 @@ function makeVerifiedPerformerWithLevel(string $level, int $splitPct, array $use
     ], $userAttrs));
 
     $profile = $user->performerProfile()->create([
-        'stage_name' => 'Performer '.Str::random(4),
+        'stage_name' => 'Performer '.Str::random(8),
         'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,

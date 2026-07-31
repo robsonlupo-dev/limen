@@ -29,7 +29,7 @@ function twoFactorPerformer(string $status = 'active'): User
     ]);
 
     $user->performerProfile()->create([
-        'stage_name' => 'Perf '.Str::random(4),
+        'stage_name' => 'Perf '.Str::random(8),
         'slug' => 'perf-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => $status === 'active',

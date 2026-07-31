@@ -40,7 +40,7 @@ function welPerformerVerification(): IdentityVerification
     ]);
 
     $user->performerProfile()->create([
-        'stage_name' => 'Perf '.Str::random(4),
+        'stage_name' => 'Perf '.Str::random(8),
         'slug' => 'wel-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => false,
