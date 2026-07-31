@@ -4,6 +4,7 @@ import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
+import ProfileProgress from '@/Components/ProfileProgress.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryPanel from '@/Components/StoryPanel.vue'
 import { postJson } from '@/lib/http'
@@ -37,6 +38,10 @@ const props = defineProps({
     stories: { type: Array, default: () => [] },
     storyVisibilityLevels: { type: Array, default: () => [] },
     canPublishStories: { type: Boolean, default: false },
+    // Campos do perfil para a barra de completude (Sprint 10). Só presença de
+    // foto + os campos de "Sobre mim" — nada é persistido, a % é derivada no
+    // componente. Ver ProfileProgress.vue.
+    profileProgress: { type: Object, required: true },
 })
 
 // A foto abre em overlay, servida inline pelo endpoint. Não há botão de baixar:
@@ -129,6 +134,10 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                     Ir ao vivo
                 </Button>
             </div>
+
+            <!-- Completude do perfil (Sprint 10): topo do painel, antes dos
+                 demais. Some (vira selo discreto) quando chega a 100%. -->
+            <ProfileProgress :profile="profileProgress" />
 
             <!-- Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
