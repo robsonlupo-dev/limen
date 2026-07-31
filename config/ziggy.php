@@ -101,6 +101,11 @@ return [
         'consumer.profile.update',
         'consumer.profile.lifestyle-tier',
 
+        // Favoritos do membro (bookmark privado — a performer não tem rota
+        // irmã aqui, e não é para ganhar uma).
+        'favorites.index',
+        'favorites.toggle',
+
         // Consumer tips
         'tips.send',
 

@@ -10,6 +10,7 @@ import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
+import FavoriteButton from '@/Components/FavoriteButton.vue'
 import { WORLD_LABELS, WORLD_ICONS } from '@/lib/worlds'
 import { stateLabel } from '@/lib/performerAttributes'
 import { postJson } from '@/lib/http'
@@ -26,6 +27,9 @@ const props = defineProps({
     // Alvo da denúncia ({ type, id }) ou null para visitante deslogado — a rota
     // POST /reportar exige auth.
     report: { type: Object, default: null },
+    // Estado do favorito para ESTE espectador, ou null quando ele não pode
+    // favoritar (visitante, performer, admin). Ver PublicCatalogController::show.
+    favorite: { type: Object, default: null },
     meta: { type: Object, default: () => ({ title: 'Limen', description: '' }) },
 })
 
@@ -175,6 +179,20 @@ const lockedTiles = 6
                         >
                             Enviar gorjeta
                         </Link>
+                        <!-- Salvar (Sprint 10): bookmark PRIVADO. A prop chega
+                             null para visitante deslogado, performer e admin —
+                             só `role:consumer` alcança a rota, e um botão que
+                             levaria a 403 não é oferecido. Sem link de cadastro
+                             no lugar, ao contrário de Seguir/Gorjeta: "salvar
+                             para ver depois" não é chamariz de conversão, e o
+                             visitante já tem dois botões que levam à entrada. -->
+                        <FavoriteButton
+                            v-if="favorite"
+                            :slug="performer.slug"
+                            :saved="favorite.saved"
+                            :reload-only="['favorite']"
+                            variant="button"
+                        />
                     </div>
                 </div>
 

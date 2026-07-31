@@ -1,13 +1,25 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
+import { computed } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import VerificationBadges from '@/Components/VerificationBadges.vue'
 import StarRating from '@/Components/StarRating.vue'
 import FollowButton from '@/Components/FollowButton.vue'
+import FavoriteButton from '@/Components/FavoriteButton.vue'
 
-defineProps({
+const props = defineProps({
     performer: { type: Object, required: true },
+    // Quais props recarregar depois do toggle de favorito. O catálogo recarrega
+    // 'performers'; a tela de Favoritos usa o mesmo nome de prop.
+    favoriteReloadOnly: { type: Array, default: () => ['performers'] },
 })
+
+// O catálogo autenticado não é exclusivo do membro — performer e admin também
+// navegam por ele. Só `role:consumer` alcança POST /favoritos/{slug}, então o
+// coração só aparece para quem o clique levaria a algum lugar. Mesmo corte do
+// `canTip` na página pública do perfil.
+const page = usePage()
+const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
 
 const categoryLabels = {
     mulheres: 'Mulheres',
@@ -18,7 +30,21 @@ const categoryLabels = {
 </script>
 
 <template>
-    <div class="group rounded-xl border border-frame bg-surface overflow-hidden transition-all duration-200 hover:border-gold/40 hover:shadow-[0_0_24px_-8px_rgba(201,162,75,0.35)]">
+    <div class="group relative rounded-xl border border-frame bg-surface overflow-hidden transition-all duration-200 hover:border-gold/40 hover:shadow-[0_0_24px_-8px_rgba(201,162,75,0.35)]">
+        <!-- Coração de "salvar para ver depois" (Sprint 10).
+             Fica FORA do <Link> — um <button> dentro de um <a> é HTML inválido e
+             o clique disputaria com a navegação. Como irmão posicionado, o
+             toggle não abre o perfil e o card inteiro continua clicável.
+             Bookmark PRIVADO: nada daqui chega à performer, e por isso não há
+             contador ao lado (ver FavoriteService). -->
+        <div v-if="canFavorite" class="absolute top-2 right-2 z-10">
+            <FavoriteButton
+                :slug="performer.slug"
+                :saved="!!performer.is_favorited"
+                :reload-only="favoriteReloadOnly"
+            />
+        </div>
+
         <Link :href="route('catalog.show', performer.slug)" class="block no-underline">
             <div class="relative aspect-[4/3] bg-surface-2 overflow-hidden">
                 <img

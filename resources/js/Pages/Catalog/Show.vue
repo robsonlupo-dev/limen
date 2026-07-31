@@ -1,11 +1,13 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import VerificationBadges from '@/Components/VerificationBadges.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import StarRating from '@/Components/StarRating.vue'
 import FollowButton from '@/Components/FollowButton.vue'
+import FavoriteButton from '@/Components/FavoriteButton.vue'
 import Button from '@/Components/Button.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
@@ -36,6 +38,12 @@ const workModeLabels = {
     privado: 'Sessão privada',
     exclusivo: 'Conteúdo exclusivo',
 }
+
+// Esta tela é do grupo `auth`, não de `role:consumer` — performer e admin
+// logados também a alcançam. Só o membro pode favoritar (é o que POST
+// /favoritos/{slug} exige), então o botão só aparece para ele.
+const page = usePage()
+const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
 
 const showTipModal = ref(false)
 const showReportModal = ref(false)
@@ -104,6 +112,17 @@ function onTipSent(data) {
                             :slug="performer.slug"
                             :following="performer.is_following"
                             :reload-only="['performer']"
+                        />
+                        <!-- Salvar: bookmark PRIVADO, ao lado de Seguir, que é
+                             público. Só para membro — performer e admin também
+                             chegam nesta tela e só `role:consumer` alcança a
+                             rota do toggle. -->
+                        <FavoriteButton
+                            v-if="canFavorite"
+                            :slug="performer.slug"
+                            :saved="!!performer.is_favorited"
+                            :reload-only="['performer']"
+                            variant="button"
                         />
                         <Button variant="ghost" @click="showTipModal = true">Enviar gorjeta</Button>
                     </div>

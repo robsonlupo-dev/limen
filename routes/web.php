@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
+use App\Http\Controllers\Web\Consumer\FavoriteController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\MemberPhotoController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
@@ -537,6 +538,28 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::patch('/meu-perfil/estilo-de-vida', [ConsumerProfileController::class, 'updateLifestyleTier'])
             ->middleware('throttle:20,1')
             ->name('consumer.profile.lifestyle-tier');
+
+        // Favoritos (Sprint 10) — bookmark PRIVADO do membro.
+        //
+        // Aqui e não ao lado de `catalog.follow`, apesar de o coração ficar no
+        // mesmo card: follow é superfície compartilhada (a performer lê a outra
+        // ponta), favorito é área de membro e a performer não tem lado nenhum
+        // nesta tabela. O grupo já traz `role:consumer` + `member.verified`.
+        //
+        // O param é `{slug}` como nas rotas de follow — a resolução é a mesma
+        // `PerformerCatalogService::findBySlug()`, então favoritar um perfil
+        // fora do ar 404 igual a abri-lo.
+        Route::get('/favoritos', [FavoriteController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('favorites.index');
+
+        // POST único que alterna — não há par store/destroy como no follow. Um
+        // clique no coração não sabe (nem deve precisar saber) o estado atual do
+        // servidor; a corrida entre dois cliques é resolvida no
+        // FavoriteService::toggle(), sob lock, e não pelo verbo HTTP.
+        Route::post('/favoritos/{slug}', [FavoriteController::class, 'toggle'])
+            ->middleware('throttle:30,1')
+            ->name('favorites.toggle');
 
         // Configurações do membro (hoje: Modo Discreto).
         Route::get('/configuracoes', [ConsumerPreferencesController::class, 'index'])

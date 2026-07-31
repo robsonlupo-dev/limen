@@ -113,6 +113,14 @@ function logout() {
                         >
                             Interesses
                         </Link>
+                        <!-- Bookmark privado — a performer não é avisada. Fica
+                             na nav do MEMBRO e não tem espelho na da performer. -->
+                        <Link
+                            :href="route('favorites.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Salvos
+                        </Link>
                         <Link
                             :href="route('chat.index')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"

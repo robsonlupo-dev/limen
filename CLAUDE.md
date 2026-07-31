@@ -284,6 +284,51 @@ Nova superfície que mostre membro à performer usa `FanAlias`, não o id.
 O id segue sendo a chave interna (ledger, audit log) — isto é apresentação.
 Registro completo em `docs/SECURITY_ISSUES.md`.
 
+## Favoritos do membro — Sprint 10 (bookmark PRIVADO)
+
+**A performer NUNCA sabe que foi favoritada.** Não é preferência de UI — é o
+produto, e é a única razão de a tabela `favorites` existir ao lado de `follows`.
+O follow é o gesto PÚBLICO (a performer conta seguidores e, a partir do Piso de
+Anonimato, vê a lista); o favorito é o gesto PRIVADO ("salvar para ver depois"),
+e a assimetria entre os dois é a invariante. Dona única da regra:
+`app/Services/FavoriteService.php`; o model `Favorite` carrega o mesmo cabeçalho.
+
+Consequências, e nenhuma é opcional:
+- **Nenhuma superfície do lado dela.** Sem relação inversa em `PerformerProfile`
+  (`$profile->favorites` seria a porta por onde um `withCount` entraria num
+  resource dela), sem coluna `favorites_count`, sem contador em lugar nenhum —
+  nem em faixa. Faixa resolve k-anonimato de PERTENCIMENTO; aqui o problema é
+  outro: o número em si não é dela. Um teste varre os props de todas as telas da
+  performer e falha se a string `favorit` aparecer.
+- **O serviço não tem, e não pode ganhar, um método que responda pelo lado
+  dela** ("quem me favoritou", "quantos"). Superfície nova pergunta a este
+  serviço — nunca uma segunda cópia da regra, mesma disciplina do
+  `FollowerVisibilityService`: duas cópias divergem, e a divergência é o
+  vazamento.
+- **Nada entra em `audit_logs`.** É a única tabela que o `DeletionService`
+  preserva intacta, com o IP do membro em claro ao lado: uma linha
+  `favorite.added` com `subject_id = performer_profile_id` seria a cópia
+  permanente do mapa de interesses que o Hard Delete apaga — o mesmo raciocínio
+  que mantém o slug do Estilo de Vida fora do audit (ver `App\Support\LifestyleTier`)
+  e que apaga `profile_visits` inteira.
+- **O gate de "perfil no ar" mora no `FavoriteService::toggle()`, não no
+  controller.** O toggle reconsulta que o perfil existe, está `active` e não está
+  soft-deletado antes de gravar; um perfil fora do ar dá `ModelNotFoundException`
+  (404), indistinguível de um slug que nunca existiu, para o par não virar
+  oráculo de existência. O `findBySlug()` do controller segue como resolvedor do
+  slug (e mantém a paridade do 404 para perfil não-verificado), mas a invariante
+  de liveness deixou de depender da porta de entrada.
+- **O toggle é idempotente sob duplo-submit.** `lockForUpdate` serializa os dois
+  requests e o catch do `UniqueConstraintViolationException` é a segunda linha de
+  defesa: a corrida perdida devolve o estado final (favoritado), nunca um 500 nem
+  linha duplicada. Testado de verdade (injeção no gancho `creating`), não só no
+  ramo do DELETE.
+- **O Hard Delete leva os favoritos NOS DOIS SENTIDOS** — os do membro e os
+  apontados para o perfil da performer. As FKs `cascadeOnDelete` **nunca
+  disparam** (os dois lados são soft-delete/anonimização), então a varredura é
+  explícita no `DeletionService`; sem ela a linha ficaria órfã para sempre, pois
+  favorito não tem retenção que o varra depois.
+
 ## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
 
 Foto privada que o membro manda para a performer no chat: cifrada em disco
