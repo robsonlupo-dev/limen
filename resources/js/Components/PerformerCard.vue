@@ -104,6 +104,14 @@ const categoryLabels = {
                 <p class="text-xs text-muted uppercase tracking-wide">
                     {{ categoryLabels[performer.category] ?? performer.category }}
                 </p>
+                <!-- Última atividade em faixa (Sprint 10): texto discreto abaixo
+                     do nome. Vem pronto do servidor (ActivitySlot) — nunca um
+                     horário. Suprimido quando is_live: aí a bolinha verde na foto
+                     já diz "agora", e repetir em texto seria redundante (decisão
+                     do PO). Ausente quando null (nunca ativa ou perk ligado). -->
+                <p v-if="performer.activity_label && !performer.is_live" class="text-xs text-muted">
+                    {{ performer.activity_label }}
+                </p>
                 <!-- Estado: SÓ a UF, e some quando a performer está ao vivo.
                      São duas regras distintas do PO no mesmo elemento:
                      1. Fica na área de info, NUNCA sobre a foto — a bolinha

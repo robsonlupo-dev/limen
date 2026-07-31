@@ -144,9 +144,19 @@ function onTipSent(data) {
                      Ausente também enquanto ela está ao vivo — mesma regra do
                      card e da página pública: o selo "ao vivo" desta tela mais a
                      UF entregam onde ela está NESTE momento. -->
-                <p v-if="performer.state && !performer.is_live" class="mt-4 text-sm text-muted">
-                    Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
-                </p>
+                <div
+                    v-if="!performer.is_live && (performer.state || performer.activity_label)"
+                    class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"
+                >
+                    <span v-if="performer.state">
+                        Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
+                    </span>
+                    <span v-if="performer.state && performer.activity_label" aria-hidden="true" class="text-muted/50">·</span>
+                    <!-- Última atividade em faixa, ao lado do estado (Sprint 10).
+                         Faixa, nunca relógio (ActivitySlot). Some quando is_live
+                         — o LiveBadge do topo já diz "agora" — e quando null. -->
+                    <span v-if="performer.activity_label">{{ performer.activity_label }}</span>
+                </div>
 
                 <!-- Stories (Sprint 9C). O CTA do bloqueado leva a assinar: o
                      membro já tem conta, o que falta é o tier. -->

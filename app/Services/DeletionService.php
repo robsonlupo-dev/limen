@@ -1118,6 +1118,11 @@ class DeletionService
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
             'two_factor_last_used_ts' => null,
+            // "Última atividade" (Sprint 10): o carimbo do último request da
+            // performer. Sem lastro fiscal nem legal, e é exatamente o tipo de
+            // rastro temporal que o encerramento apaga — some junto. A faixa
+            // pública derivada dele passa a ser null (nada a exibir).
+            'last_active_at' => null,
             'deletion_token_hash' => null,
             'deletion_token_expires_at' => null,
         ])->save();

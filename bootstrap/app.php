@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\GeoBlock;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\TrackPerformerActivity;
 use App\Http\Middleware\TwoFactorChallenge;
 use App\Http\Middleware\VerifyAsaasWebhookIp;
 use Illuminate\Foundation\Application;
@@ -48,6 +49,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // por área: banido some do site todo, não só do dashboard. No-op
             // para guest e para qualquer status que não seja `banned`.
             BlockBannedUsers::class,
+            // Carimba `last_active_at` da performer (throttle 5 min) para a faixa
+            // "Última atividade". DEPOIS do BlockBannedUsers de propósito: a
+            // performer banida é derrubada antes daqui, então não conta como
+            // ativa. No-op para guest, membro e admin. Ver TrackPerformerActivity.
+            TrackPerformerActivity::class,
         ]);
         // UI-only flags written by the front-end in plaintext (age gate + intro).
         // They carry no secret, so they must be exempt from cookie encryption —

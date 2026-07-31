@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ActivitySlot;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\URL;
@@ -43,6 +44,16 @@ class PerformerPublicResource extends JsonResource
             // Travado por teste (LocationTest).
             'state' => $this->state,
             'is_live' => $this->is_live,
+            // "Última atividade" em FAIXA (Sprint 10). String ("Ativa hoje" /
+            // "esta semana" / "este mês") ou null — nunca o timestamp
+            // `last_active_at`, que é $hidden no User e não sai daqui em forma
+            // nenhuma. ActivitySlot é a dona única da regra; a supressão por
+            // Ghost Mode / Status Invisível já aconteceu na ESCRITA (o carimbo
+            // nem existe para quem tem o perk), então aqui basta traduzir o que
+            // houver. "Ativa agora" (is_live) é a bolinha verde, não este
+            // rótulo — a tela oculta a faixa quando is_live, para não repetir o
+            // sinal em duas formas.
+            'activity_label' => ActivitySlot::for($this->user?->last_active_at),
             'rating_avg' => $this->rating_avg,
             'rating_count' => $this->rating_count,
             // Faixa, nunca o número exato: ver PerformerProfile::followersCountLabel().
