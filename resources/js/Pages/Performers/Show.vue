@@ -214,9 +214,19 @@ const lockedTiles = 6
                      sem o `!performer.is_live` a correlação "está transmitindo
                      AGORA + está em SP" continuava de pé aqui depois de ter sido
                      fechada no catálogo — e é a página que um link direto abre. -->
-                <p v-if="performer.state && !performer.is_live" class="mt-4 text-sm text-muted">
-                    Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
-                </p>
+                <div
+                    v-if="!performer.is_live && (performer.state || performer.activity_label)"
+                    class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"
+                >
+                    <span v-if="performer.state">
+                        Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
+                    </span>
+                    <span v-if="performer.state && performer.activity_label" aria-hidden="true" class="text-muted/50">·</span>
+                    <!-- Última atividade em faixa, ao lado do estado (Sprint 10).
+                         Faixa, nunca relógio (ActivitySlot). Some quando is_live
+                         — o LiveBadge do topo já diz "agora" — e quando null. -->
+                    <span v-if="performer.activity_label">{{ performer.activity_label }}</span>
+                </div>
 
                 <!-- Bio -->
                 <div v-if="performer.bio" class="mt-8 space-y-2">

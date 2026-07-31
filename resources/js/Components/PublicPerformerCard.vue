@@ -72,6 +72,12 @@ defineProps({
                 <span aria-hidden="true">{{ WORLD_ICONS[performer.category] }}</span>
                 {{ WORLD_LABELS[performer.category] ?? performer.category }}
             </p>
+            <!-- Última atividade em faixa (Sprint 10): idêntico ao card
+                 autenticado. Some quando is_live (a bolinha já diz "agora") e
+                 quando null. Ver ActivitySlot. -->
+            <p v-if="performer.activity_label && !performer.is_live" class="text-xs text-muted">
+                {{ performer.activity_label }}
+            </p>
             <!-- Mesma regra do PerformerCard: UF só, fora da foto (onde mora a
                  bolinha de ao vivo) e ausente enquanto ela estiver ao vivo. -->
             <p v-if="performer.state && !performer.is_live" class="text-xs text-muted">

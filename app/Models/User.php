@@ -68,6 +68,14 @@ class User extends Authenticatable implements MustVerifyEmail
         // superfície pública onde não há nem o piso de anonimato para segurar a
         // correlação entre perfis. Mesma razão do registration_ip_hash acima.
         'lifestyle_tier',
+        // "Última atividade" (Sprint 10). O carimbo NUNCA sai como timestamp: o
+        // público só vê a faixa que App\Support\ActivitySlot deriva dele
+        // (PerformerPublicResource::activity_label). Escondê-lo aqui é o que
+        // impede o instante exato de pegar carona num prop de Inertia genérico —
+        // e o horário exato de atividade é justamente o que a faixa existe para
+        // não revelar (mesma disciplina do painel de visitantes). Fora do
+        // $fillable também: quem escreve é só o TrackPerformerActivity.
+        'last_active_at',
     ];
 
     protected function casts(): array
@@ -82,6 +90,9 @@ class User extends Authenticatable implements MustVerifyEmail
             'welcome_email_sent_at' => 'datetime',
             'lgpd_consent_at' => 'datetime',
             'last_login_at' => 'datetime',
+            // "Última atividade" (Sprint 10). Datetime para o ActivitySlot
+            // comparar janelas; nunca serializado (é $hidden).
+            'last_active_at' => 'datetime',
             'password' => 'hashed',
             // 2FA TOTP. Cifrado em repouso pela APP_KEY: um dump do banco não
             // pode render segundo fator. Rotacionar a APP_KEY invalida os dois
