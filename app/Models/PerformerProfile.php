@@ -229,6 +229,25 @@ class PerformerProfile extends Model
         return $this->hasMany(Follow::class);
     }
 
+    /*
+     * NÃO EXISTE `favorites()` AQUI, E NÃO É ESQUECIMENTO.
+     *
+     * Favorito (Sprint 10) é bookmark PRIVADO: a performer nunca sabe que foi
+     * favoritada. `follows()` logo acima existe porque follow é o gesto público
+     * — ela conta seguidores e, passado o Piso de Anonimato, vê a lista.
+     *
+     * A relação inversa é justamente a porta pela qual isso vazaria sem ninguém
+     * decidir vazá-lo: com `$profile->favorites` no model, um
+     * `withCount('favorites')` cabe numa linha dentro de qualquer query que a
+     * performer consome, e um `favorites_count` aparece num resource dela como
+     * se fosse métrica de vitrine. O contador não é dela.
+     *
+     * Quem precisa do outro sentido é o Hard Delete, e ele o faz por coluna, no
+     * DeletionService (purgeFavoritesToOwnProfile) — sem relação e sem cascade,
+     * que aqui nunca dispara porque os dois lados são soft-delete/anonimização
+     * (item 11 do CLAUDE.md).
+     */
+
     public function sentInterests(): HasMany
     {
         return $this->hasMany(PerformerInterest::class);

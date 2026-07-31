@@ -9,6 +9,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -154,6 +155,36 @@ class User extends Authenticatable implements MustVerifyEmail
     public function follows(): HasMany
     {
         return $this->hasMany(Follow::class);
+    }
+
+    // ─── Favoritos do membro (Sprint 10) ─────────────────────────────────────
+    //
+    // Bookmark PRIVADO — a performer nunca sabe que foi favoritada. As duas
+    // relações abaixo vivem só neste lado: `PerformerProfile` não tem a inversa,
+    // e isso é deliberado (ver o comentário lá e o cabeçalho de Favorite).
+
+    /** As linhas de favorito deste membro. */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /**
+     * Os perfis que este membro salvou.
+     *
+     * belongsToMany aqui, ao contrário de `interests()`: existe uma entidade do
+     * outro lado (`performer_profiles`) para dar JOIN — é exatamente o caso que
+     * a relação many-to-many resolve.
+     *
+     * **Sem `withTimestamps()`**: a junção não tem `updated_at` (ver a migration
+     * e a const UPDATED_AT de Favorite), e o helper tentaria escrevê-lo.
+     * A ordenação por "salvo mais recentemente" fica no
+     * FavoriteService::paginateFor(), junto do recorte de catálogo público.
+     */
+    public function favoritedProfiles(): BelongsToMany
+    {
+        return $this->belongsToMany(PerformerProfile::class, 'favorites')
+            ->withPivot('created_at');
     }
 
     /** Interesses recebidos por este usuário enquanto membro (consumer). */

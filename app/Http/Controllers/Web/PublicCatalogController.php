@@ -7,6 +7,7 @@ use App\Http\Requests\CatalogFilterRequest;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Conversation;
 use App\Services\ChatAccessService;
+use App\Services\FavoriteService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
 use App\Services\StoryVisibilityService;
@@ -29,6 +30,7 @@ class PublicCatalogController extends Controller
         private ChatAccessService $chatAccessService,
         private ProfileVisitService $profileVisits,
         private StoryVisibilityService $storyVisibility,
+        private FavoriteService $favorites,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -123,6 +125,18 @@ class PublicCatalogController extends Controller
             // atrás de auth, enquanto o resource também serve a listagem pública.
             'report' => $request->user()
                 ? ['type' => 'performer', 'id' => $profile->id]
+                : null,
+            // Favorito (Sprint 10) — bookmark PRIVADO, e por isso uma prop
+            // própria em vez de um campo no PerformerPublicResource: aquele
+            // resource também serve a LISTAGEM pública, e um `is_favorited`
+            // dentro dele passaria a ser calculado em toda superfície que o usa,
+            // inclusive as que a performer enxerga. Aqui é uma tela só.
+            //
+            // Null para quem não é membro (visitante, performer, admin): só
+            // `role:consumer` alcança a rota do toggle, e oferecer o coração a
+            // quem levaria 403 seria um botão morto. Mesmo corte do `canTip`.
+            'favorite' => $request->user()?->role === 'consumer'
+                ? ['saved' => $this->favorites->isFavorited($request->user(), $profile)]
                 : null,
             'meta' => [
                 'title' => "{$stageName} · Limen",

@@ -7,6 +7,7 @@ use App\Http\Requests\CatalogFilterRequest;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
+use App\Services\FavoriteService;
 use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
@@ -23,6 +24,7 @@ class CatalogController extends Controller
         private FollowService $followService,
         private ProfileVisitService $profileVisits,
         private StoryVisibilityService $storyVisibility,
+        private FavoriteService $favorites,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -73,11 +75,24 @@ class CatalogController extends Controller
             $profile->slug => in_array($profile->id, $unseenStoryIds, true),
         ]);
 
+        // Coração preenchido (Sprint 10). Uma query para a página inteira, mesmo
+        // molde dos dois acima. É dado do MEMBRO e só dele: a performer não
+        // recebe nada daqui, nem contador nem lista (ver FavoriteService).
+        $favoritedIds = $this->favorites->favoritedProfileIds(
+            $request->user(),
+            $profiles->pluck('id')->all(),
+        );
+
+        $favoritedBySlug = $profiles->mapWithKeys(fn ($profile) => [
+            $profile->slug => in_array($profile->id, $favoritedIds, true),
+        ]);
+
         $paginated = PerformerPublicResource::collection($performers)->response()->getData(true);
         $paginated['data'] = collect($paginated['data'])
             ->map(fn ($item) => array_merge($item, [
                 'is_following' => $followingBySlug[$item['slug']] ?? false,
                 'has_unseen_stories' => $unseenBySlug[$item['slug']] ?? false,
+                'is_favorited' => $favoritedBySlug[$item['slug']] ?? false,
             ]))
             ->all();
 
@@ -107,6 +122,10 @@ class CatalogController extends Controller
             [
                 'tips_count' => $profile->tips_count,
                 'is_following' => $this->followService->isFollowing($request->user(), $profile),
+                // Bookmark privado — só o membro logado vê o próprio estado.
+                // A performer que abrir o próprio perfil por aqui recebe false
+                // e a tela não desenha o botão (ver Catalog/Show.vue).
+                'is_favorited' => $this->favorites->isFavorited($request->user(), $profile),
                 'rate_public' => $profile->rate_public,
                 'rate_private' => $profile->rate_private,
                 'rate_camera' => $profile->rate_camera,

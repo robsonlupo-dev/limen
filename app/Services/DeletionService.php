@@ -298,6 +298,8 @@ class DeletionService
             $summary['identity_verifications'] = $this->purgeKycRecords($user);
             $summary['age_verification_scrubbed'] = $this->scrubAgeVerification($user);
             $summary['follows'] = $this->purgeFollows($user);
+            $summary['favorites'] = $this->purgeFavorites($user);
+            $summary['favorites_received'] = $this->purgeFavoritesToOwnProfile($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
             $summary['member_interests'] = $this->purgeMemberInterests($user);
             $summary['profile_visits'] = $this->purgeProfileVisits($user);
@@ -477,6 +479,50 @@ class DeletionService
         }
 
         return $deleted;
+    }
+
+    /**
+     * Favoritos do titular (Sprint 10): quais perfis ele salvou.
+     *
+     * Mesma família de `profile_visits` e dos interesses — mapa de interesse do
+     * titular, sem valor fiscal e sem trilha legal. Some inteiro, e sem
+     * contrapartida a acertar: ao contrário do follow logo acima, favorito não
+     * alimenta contador nenhum, porque não existe contador de favoritos em
+     * lugar nenhum (ver Favorite e PerformerProfile).
+     *
+     * A FK `cascadeOnDelete` de `favorites` NÃO dispara: `users` usa
+     * SoftDeletes e anonymizeUser() não apaga a linha, então o banco não tem o
+     * que cascatear (item 11 do CLAUDE.md).
+     */
+    private function purgeFavorites(User $user): int
+    {
+        return DB::table('favorites')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro sentido: os favoritos APONTADOS para o perfil da performer que
+     * encerra.
+     *
+     * É escolha de terceiros — membros que continuam ativos — pendurada num
+     * perfil que deixou de existir. Não sai pelo purgeFavorites (aquele é por
+     * `user_id`) nem pela FK, pelo mesmo motivo de purgeVisitsToOwnProfile: as
+     * duas `cascadeOnDelete` de `favorites` nunca disparam, porque nenhum dos
+     * dois lados sofre DELETE físico. E aqui não há sequer a retenção de 7 dias
+     * do `visits:purge` para varrer depois — favorito não expira. Sem esta
+     * linha, a órfã ficaria para sempre.
+     *
+     * Roda ANTES do anonymizePerformerProfile, enquanto a relação ainda resolve,
+     * e consulta pela coluna em vez da relação carregada — mesma razão lá.
+     */
+    private function purgeFavoritesToOwnProfile(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('favorites')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**
