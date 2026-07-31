@@ -311,6 +311,7 @@ class DeletionService
             $summary['story_views_received'] = $this->purgeStoryViewsToOwnProfile($user);
             $summary['performer_stories'] = $this->purgePerformerStories($user);
             $summary['performer_stories_preserved'] = $this->preservedStoryCount($user);
+            $summary['performer_photos'] = $this->purgePerformerPhotos($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
@@ -416,6 +417,20 @@ class DeletionService
         foreach (['avatar_path', 'cover_path'] as $column) {
             if ($profile && ($path = $profile->{$column})) {
                 $paths[] = ['disk' => 'local', 'path' => $path];
+            }
+        }
+
+        // Fotos da galeria do perfil (Sprint 10). Conteúdo PÚBLICO da própria
+        // performer, sem cifra e sem TTL — some no encerramento como avatar/cover.
+        // Uma direção só, ao contrário do favorito: foto é sempre da performer,
+        // não existe "foto apontada para o perfil" vinda de terceiro. A FK
+        // `cascadeOnDelete` NÃO dispara (o perfil sai por soft-delete), então
+        // este é o último varredor que enxerga o caminho no disco.
+        if ($profile) {
+            foreach ($profile->photos as $photo) {
+                if ($path = $photo->path) {
+                    $paths[] = ['disk' => PerformerPhotoStore::DISK, 'path' => $path];
+                }
             }
         }
 
@@ -963,6 +978,32 @@ class DeletionService
         }
 
         return PerformerStory::withTrashed()->whereIn('id', $deletableIds)->forceDelete();
+    }
+
+    /**
+     * A galeria de fotos do perfil da performer que encerra (Sprint 10): as
+     * LINHAS. Os BYTES saem em `deleteFiles()`, depois do commit.
+     *
+     * Uma direção só — foto é sempre da própria performer, e não há a
+     * contraparte "foto apontada para o perfil" que existe no favorito e nas
+     * visitas. Sem denúncia a preservar (foto de perfil não é moderada por hash
+     * na v1), então é DELETE de verdade e sem contador de preservados.
+     *
+     * DELETE cru pela COLUNA, dentro da transação: a FK `cascadeOnDelete` NÃO
+     * dispara (o perfil sai por soft-delete/anonimização — item 11 do CLAUDE.md),
+     * e consultar pela coluna não depende do cache de relações numa re-execução
+     * do job. Sem esta varredura, as fotos sobreviveriam ao Hard Delete, sem
+     * retenção que as varra depois — foto de perfil não expira.
+     */
+    private function purgePerformerPhotos(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('performer_photos')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**

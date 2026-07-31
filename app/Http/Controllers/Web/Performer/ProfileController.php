@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Web\Performer;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
+use App\Models\PerformerProfile;
 use App\Services\PerformerProfileService;
 use App\Support\Audit;
+use App\Support\PhotoGalleryPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -64,6 +66,12 @@ class ProfileController extends Controller
                     ])
                     : null,
             ],
+            // Galeria de fotos (Sprint 10): a lista atual, na ordem do carrossel,
+            // e o teto para a tela desenhar "N/6". As mutações (upload, delete,
+            // reordenar) vão por endpoints JSON próprios que devolvem a lista
+            // atualizada — esta prop é só o estado inicial.
+            'photos' => PhotoGalleryPresenter::forProfile($profile),
+            'maxPhotos' => PerformerProfile::MAX_PHOTOS,
         ]);
     }
 

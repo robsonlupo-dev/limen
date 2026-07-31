@@ -11,6 +11,7 @@ use App\Services\FavoriteService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
 use App\Services\StoryVisibilityService;
+use App\Support\PhotoGalleryPresenter;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -113,6 +114,11 @@ class PublicCatalogController extends Controller
             // ao cadastro, mesmo caminho de toda ação desta página. Story fechado
             // NUNCA recebe URL: blur em CSS não é paywall (ver profileStripFor).
             'stories' => $this->storyVisibility->profileStripFor($profile, $request->user()),
+            // Galeria de fotos (Sprint 10) para o carrossel. Conteúdo público —
+            // cada item traz a URL do serving público direto, sem paywall e sem
+            // depender de login (o visitante deslogado vê as fotos, é vitrine).
+            // Avatar/cover NÃO entram aqui: são separados.
+            'photos' => PhotoGalleryPresenter::forProfile($profile),
             // Estado do chat para ESTE espectador. Chat é interest-gated: só há
             // conversa se a performer mandou Interesse e o membro desbloqueou —
             // não dá para iniciar chat frio daqui. Null (guest, performer/admin,

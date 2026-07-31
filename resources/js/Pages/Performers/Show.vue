@@ -9,6 +9,7 @@ import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
+import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
@@ -25,6 +26,9 @@ const props = defineProps({
     // Stories vivos dela, com `locked` já resolvido pelo servidor para ESTE
     // espectador (visitante deslogado: todos fechados, nenhum com URL).
     stories: { type: Array, default: () => [] },
+    // Galeria de fotos pública (Sprint 10): cada item { id, url }. Público, sem
+    // paywall — o visitante deslogado também vê. Ver PhotoCarousel.
+    photos: { type: Array, default: () => [] },
     // Alvo da denúncia ({ type, id }) ou null para visitante deslogado — a rota
     // POST /reportar exige auth.
     report: { type: Object, default: null },
@@ -244,6 +248,10 @@ const lockedTiles = 6
                 <!-- Sobre mim: tags, idiomas, altura, bebida e fumo. Componente
                      compartilhado com Catalog/Show.vue. -->
                 <PerformerAbout :performer="performer" />
+
+                <!-- Galeria de fotos (Sprint 10). Pública — o visitante deslogado
+                     também vê. Separada do avatar/capa e dos stories. -->
+                <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" />
 
                 <!-- Work modes -->
                 <div v-if="performer.work_modes?.length" class="mt-8 space-y-3">

@@ -4,6 +4,7 @@ import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
+import PhotoGalleryManager from '@/Components/PhotoGalleryManager.vue'
 import {
     TAG_GROUPS,
     MAX_TAGS,
@@ -17,6 +18,10 @@ import {
 
 const props = defineProps({
     profile: { type: Object, required: true },
+    // Galeria de fotos (Sprint 10): estado inicial + teto. As mutações vão por
+    // endpoints JSON próprios (ver PhotoGalleryManager), não por este form.
+    photos: { type: Array, default: () => [] },
+    maxPhotos: { type: Number, default: 6 },
 })
 
 const avatarForm = useForm({ file: null })
@@ -185,6 +190,9 @@ function save() {
                     </div>
                 </div>
             </div>
+
+            <!-- Galeria de fotos (Sprint 10) -->
+            <PhotoGalleryManager :initial-photos="photos" :max-photos="maxPhotos" />
 
             <!-- Name & bio -->
             <form class="rounded-xl border border-frame bg-surface p-6 space-y-5" @submit.prevent="save">

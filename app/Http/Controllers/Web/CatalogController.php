@@ -12,6 +12,7 @@ use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
 use App\Services\StoryVisibilityService;
+use App\Support\PhotoGalleryPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -138,6 +139,11 @@ class CatalogController extends Controller
             // aberto, a URL do serving autenticado — story fechado NÃO recebe URL
             // (ver profileStripFor: blur em CSS não é paywall).
             'stories' => $this->storyVisibility->profileStripFor($profile, $request->user()),
+            // Galeria de fotos (Sprint 10) para o carrossel. Conteúdo público,
+            // então cada item traz a URL do serving público direto — sem paywall,
+            // ao contrário dos stories. Avatar/cover NÃO entram aqui: são
+            // separados (o resource os expõe em avatar_url/cover_url).
+            'photos' => PhotoGalleryPresenter::forProfile($profile),
             // Alvo da denúncia (ver PublicCatalogController::show). Toda a rota
             // já está atrás de auth, então não há caso de visitante aqui.
             'report' => ['type' => 'performer', 'id' => $profile->id],
