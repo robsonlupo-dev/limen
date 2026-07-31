@@ -26,7 +26,7 @@ function fbBannablePerformer(string $cpf = FB_CPF): User
 {
     $user = User::factory()->performer()->create(['status' => 'active']);
     $user->performerProfile()->create([
-        'stage_name' => 'FB '.Str::random(4),
+        'stage_name' => 'FB '.Str::random(8),
         'slug' => 'fb-'.strtolower(Str::random(6)),
         'category' => 'mulheres',
         'is_verified' => true,

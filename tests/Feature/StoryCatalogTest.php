@@ -54,7 +54,7 @@ function scPerformer(?string $stageName = null): PerformerProfile
     $user = User::factory()->create(['role' => 'performer', 'status' => 'active']);
 
     return $user->performerProfile()->create([
-        'stage_name' => $stageName ?? 'Perf '.Str::random(4),
+        'stage_name' => $stageName ?? 'Perf '.Str::random(8),
         'slug' => 'sc-'.strtolower(Str::random(8)),
         'category' => 'mulheres',
         'is_verified' => true,
