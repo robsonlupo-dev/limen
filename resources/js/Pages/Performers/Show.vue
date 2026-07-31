@@ -208,6 +208,39 @@ const lockedTiles = 6
                     </div>
                 </div>
 
+                <!-- "Disponível para conversa" (Sprint 11) — com destaque no
+                     perfil, ao contrário do card. Some quando is_live: o LiveBadge
+                     do topo já sinaliza presença agora. O CTA "Iniciar conversa"
+                     só aparece para quem tem conversa aberta (chat interest-gated
+                     — não há chat frio): com acesso em dia vira link, sem acesso
+                     abre o modal de compra. Visitante/membro sem conversa vê só o
+                     sinal. -->
+                <div
+                    v-if="performer.is_available && !performer.is_live"
+                    class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold/40 bg-gold/5 px-4 py-3"
+                >
+                    <p class="text-sm text-gold flex items-center gap-2">
+                        <span aria-hidden="true">💬</span> Disponível para conversa
+                    </p>
+                    <template v-if="chat">
+                        <Link
+                            v-if="chat.can_access"
+                            :href="route('chat.show', chat.conversation_id)"
+                            class="no-underline bg-gold text-background px-4 py-1.5 rounded-lg text-sm hover:bg-gold-light transition-colors"
+                        >
+                            Iniciar conversa
+                        </Link>
+                        <button
+                            v-else
+                            type="button"
+                            class="bg-gold text-background px-4 py-1.5 rounded-lg text-sm hover:bg-gold-light transition-colors"
+                            @click="showChatAccessModal = true"
+                        >
+                            Iniciar conversa
+                        </button>
+                    </template>
+                </div>
+
                 <!-- Estado por extenso. Some por inteiro para quem não preencheu
                      — o campo é opt-in, então "não informado" não é uma lacuna a
                      anunciar. A cidade NÃO chega nesta prop, por construção:
@@ -219,7 +252,7 @@ const lockedTiles = 6
                      AGORA + está em SP" continuava de pé aqui depois de ter sido
                      fechada no catálogo — e é a página que um link direto abre. -->
                 <div
-                    v-if="!performer.is_live && (performer.state || performer.activity_label)"
+                    v-if="!performer.is_live && !performer.is_available && (performer.state || performer.activity_label)"
                     class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"
                 >
                     <span v-if="performer.state">
@@ -228,7 +261,10 @@ const lockedTiles = 6
                     <span v-if="performer.state && performer.activity_label" aria-hidden="true" class="text-muted/50">·</span>
                     <!-- Última atividade em faixa, ao lado do estado (Sprint 10).
                          Faixa, nunca relógio (ActivitySlot). Some quando is_live
-                         — o LiveBadge do topo já diz "agora" — e quando null. -->
+                         — o LiveBadge do topo já diz "agora" — e quando null.
+                         Some TAMBÉM quando is_available: presença (querer conversar
+                         agora) + localização é a correlação do R2, a mesma razão
+                         de o estado ceder ao "ao vivo". -->
                     <span v-if="performer.activity_label">{{ performer.activity_label }}</span>
                 </div>
 

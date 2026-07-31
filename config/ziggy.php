@@ -70,6 +70,8 @@ return [
         'performer.payouts.history',
         'performer.payouts.store',
         'performer.followers',
+        // "Disponível para conversa" (Sprint 11): toggle do dashboard
+        'performer.availability.toggle',
         'performer.interests.send',
         'performer.interests.send-visitor',
         'performer.interests.index',

@@ -82,6 +82,13 @@ class DashboardController extends Controller
             'followers' => $profile->followersCountLabel(),
             'kycStatus' => $this->kycStatus($user),
             'isLive' => $profile->is_live,
+            // "Disponível para conversa" (Sprint 11): booleano derivado (janela
+            // de 4h lida na leitura) + a FAIXA de tempo restante para o toggle
+            // do painel. Nunca o carimbo `available_for_chat_at` — ele é $hidden
+            // e não sai em prop nenhuma; aqui vale a mesma disciplina de faixa
+            // da ActivitySlot, mesmo sendo o dado dela na tela dela.
+            'isAvailable' => $profile->isAvailableForChat(),
+            'availabilityRemaining' => $profile->availabilityRemainingLabel(),
             // Visitantes das últimas 24h, sob o mesmo FanAlias das gorjetas e
             // atrás do mesmo Piso de Anonimato da tela de seguidores (ver
             // ProfileVisitService::panelFor). Quem tem Ghost Mode (Black/FC) ou

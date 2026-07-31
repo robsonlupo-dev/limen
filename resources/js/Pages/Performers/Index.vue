@@ -38,6 +38,7 @@ const activeFilterParams = computed(() => {
     return {
         search: f.search || undefined,
         is_live: f.is_live ? 1 : undefined,
+        available: f.available ? 1 : undefined,
         has_photo: f.has_photo ? 1 : undefined,
         level: f.level || undefined,
         tier: f.tier || undefined,

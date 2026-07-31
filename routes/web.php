@@ -33,6 +33,7 @@ use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\LegalDocumentsController;
 use App\Http\Controllers\Web\LinksController;
+use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\DashboardController;
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
@@ -379,6 +380,17 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/performer/dashboard', [DashboardController::class, 'index'])
             ->middleware('role:performer')
             ->name('performer.dashboard');
+
+        // "Disponível para conversa" (Sprint 11) — o Caminho 3 do Interesse
+        // Expandido. Já dentro do grupo `documents.accepted`, que por sua vez
+        // está sob `auth`+`2fa`: a rota nasce nos dois gates, como manda o
+        // CLAUDE.md. Mais `role:performer` (só ela sinaliza) e o throttle de
+        // 10/min. SEM `can('performer-active')` de propósito: o toggle é benigno
+        // e sinalizar antes do KYC é no-op (o perfil pendente não está no
+        // catálogo), do mesmo modo que o dashboard aceita performer pendente.
+        Route::patch('/performer/disponibilidade', [AvailabilityController::class, 'toggle'])
+            ->middleware(['role:performer', 'throttle:10,1'])
+            ->name('performer.availability.toggle');
 
         // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer
         // pendente (em KYC) já tem senha, e-mail e documento enviado — é

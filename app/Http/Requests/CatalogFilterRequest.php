@@ -49,6 +49,10 @@ class CatalogFilterRequest extends FormRequest
             'sort' => $this->input('sort'),
             'level' => $this->input('level'),
             'is_live' => $this->boolean('is_live'),
+            // "Disponíveis agora" (Sprint 11). boolean() e não o valor cru pela
+            // mesma razão do is_live: '0' vindo do checkbox intocado não pode
+            // virar verdadeiro no `! empty()` do service.
+            'available' => $this->boolean('available'),
             'has_photo' => $this->boolean('has_photo'),
             'tier' => $this->input('tier'),
             // UF, validada por Rule::in(STATES) nas rules(). Não há entrada de

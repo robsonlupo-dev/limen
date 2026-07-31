@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { usePage } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import VerificationBadges from '@/Components/VerificationBadges.vue'
@@ -26,6 +26,10 @@ const props = defineProps({
     photos: { type: Array, default: () => [] },
     // Alvo da denúncia ({ type, id }). Ver PublicCatalogController::show.
     report: { type: Object, default: null },
+    // Estado do chat para o CTA "Iniciar conversa" do badge de disponibilidade
+    // (Sprint 11). Null = membro sem conversa / performer / admin — chat é
+    // interest-gated, não há chat frio. Ver CatalogController::chatStateFor.
+    chat: { type: Object, default: null },
 })
 
 const categoryLabels = {
@@ -143,13 +147,35 @@ function onTipSent(data) {
                     </div>
                 </div>
 
+                <!-- "Disponível para conversa" (Sprint 11), com destaque. Some
+                     quando is_live (o LiveBadge do topo já sinaliza presença). O
+                     CTA "Iniciar conversa" só aparece para o membro que já tem
+                     conversa aberta (chat interest-gated, sem chat frio) e leva à
+                     tela de chat — que resolve a compra de acesso se preciso. -->
+                <div
+                    v-if="performer.is_available && !performer.is_live"
+                    class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold/40 bg-gold/5 px-4 py-3"
+                >
+                    <p class="text-sm text-gold flex items-center gap-2">
+                        <span aria-hidden="true">💬</span> Disponível para conversa
+                    </p>
+                    <Link
+                        v-if="chat"
+                        :href="route('chat.show', chat.conversation_id)"
+                        class="no-underline bg-gold text-background px-4 py-1.5 rounded-lg text-sm hover:bg-gold-light transition-colors"
+                    >
+                        Iniciar conversa
+                    </Link>
+                </div>
+
                 <!-- Estado por extenso; ausente para quem não preencheu. A
                      cidade não existe nesta prop (ver PerformerPublicResource).
-                     Ausente também enquanto ela está ao vivo — mesma regra do
-                     card e da página pública: o selo "ao vivo" desta tela mais a
-                     UF entregam onde ela está NESTE momento. -->
+                     Ausente enquanto ela está ao vivo OU disponível — mesma regra
+                     do card e da página pública: presença em tempo real (selo "ao
+                     vivo" ou badge de disponibilidade) mais a UF entregam onde ela
+                     está NESTE momento (R2). -->
                 <div
-                    v-if="!performer.is_live && (performer.state || performer.activity_label)"
+                    v-if="!performer.is_live && !performer.is_available && (performer.state || performer.activity_label)"
                     class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"
                 >
                     <span v-if="performer.state">

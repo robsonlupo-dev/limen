@@ -44,6 +44,14 @@ class PerformerPublicResource extends JsonResource
             // Travado por teste (LocationTest).
             'state' => $this->state,
             'is_live' => $this->is_live,
+            // "Disponível para conversa" (Sprint 11) — BOOLEANO derivado, nunca
+            // o carimbo `available_for_chat_at` (que é $hidden e não sai daqui
+            // em forma nenhuma). isAvailableForChat() é a dona única da janela
+            // de 4h. A tela suprime o badge quando `is_live` (a bolinha já diz
+            // "agora") e NÃO o mostra junto do estado — presença + localização é
+            // a correlação do R2, a mesma razão de o estado sumir com is_live.
+            // Aqui só sai o sinal cru; o cruzamento é decidido no card/perfil.
+            'is_available' => $this->isAvailableForChat(),
             // "Última atividade" em FAIXA (Sprint 10). String ("Ativa hoje" /
             // "esta semana" / "este mês") ou null — nunca o timestamp
             // `last_active_at`, que é $hidden no User e não sai daqui em forma

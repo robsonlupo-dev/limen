@@ -39,6 +39,9 @@ class PerformerCatalogService
             'sort' => ['nullable', 'in:rating_avg,followers_count,newest'],
             'level' => ['nullable', 'in:iniciante,estrela,premium,vip'],
             'is_live' => ['nullable', 'boolean'],
+            // "Disponíveis agora" (Sprint 11): filtra por quem sinalizou
+            // disponibilidade dentro da janela de 4h. Ver scopeAvailableForChat.
+            'available' => ['nullable', 'boolean'],
 
             // Teto no array: sem ele, `tags[]` com 200 entradas monta um
             // whereIn gigante por request não autenticado. O teto é o mesmo
@@ -88,6 +91,12 @@ class PerformerCatalogService
     {
         if (! empty($filters['is_live'])) {
             $query->where('is_live', true);
+        }
+
+        // "Disponíveis agora" (Sprint 11). Delega ao scope que é a dona da
+        // janela de 4h — o número não se repete aqui (ver isAvailableForChat).
+        if (! empty($filters['available'])) {
+            $query->availableForChat();
         }
 
         if (! empty($filters['level'])) {
