@@ -317,6 +317,7 @@ class DeletionService
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
             $summary['payments_scrubbed'] = $this->scrubPayments($user);
             $summary['tokens_revoked'] = $user->tokens()->delete();
+            $summary['otp_codes'] = $this->purgeOtpCodes($user);
 
             // Preservados de propósito — contados para a prova de conformidade.
             $summary['preserved'] = [
@@ -689,6 +690,19 @@ class DeletionService
         // waitlist_email_log e waitlist_referrals apontam para a entrada com
         // cascadeOnDelete — apagar a entrada leva os dois junto.
         return DB::table('waitlist_entries')->where('email', $user->email)->delete();
+    }
+
+    /**
+     * Códigos OTP de login (Sprint 11): material de autenticação efêmero, sem
+     * valor fiscal nem legal. DELETE de verdade — a FK `cascadeOnDelete` NÃO
+     * dispara porque `anonymizeUser()` só soft-deleta o `users` (item 11 do
+     * CLAUDE.md), então sem esta varredura as linhas ficariam órfãs apontando
+     * para uma conta anonimizada. São da mesma família das sessões e dos tokens
+     * de API logo ao lado.
+     */
+    private function purgeOtpCodes(User $user): int
+    {
+        return DB::table('otp_codes')->where('user_id', $user->id)->delete();
     }
 
     /** A PK de password_reset_tokens É o e-mail: sem este passo, ele sobrevive. */

@@ -22,6 +22,12 @@ return [
         'login',
         'login.store',
         'logout',
+
+        // Login passwordless por código OTP (Sprint 11)
+        'otp.request.show',
+        'otp.request',
+        'otp.verify.show',
+        'otp.verify',
         'password.request',
         'password.email',
         'password.reset',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Auth;
 
 use App\Exceptions\AccountBlockedException;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\Auth\Concerns\RedirectsToHome;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use App\Services\AuthService;
@@ -17,6 +18,8 @@ use Inertia\Response;
 
 class LoginController extends Controller
 {
+    use RedirectsToHome;
+
     public function create(): Response
     {
         return Inertia::render('Auth/Login');
@@ -60,17 +63,6 @@ class LoginController extends Controller
         $request->session()->forget(TwoFactorService::SESSION_KEY);
 
         return redirect()->intended(route($this->homeRouteFor($user)));
-    }
-
-    private function homeRouteFor(User $user): string
-    {
-        if ($user->role !== 'performer') {
-            return 'catalog';
-        }
-
-        return $user->status === 'active'
-            ? 'performer.dashboard'
-            : 'performer.onboarding';
     }
 
     public function destroy(Request $request)

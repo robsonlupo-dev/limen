@@ -13,33 +13,32 @@ const captcha = ref(null)
 
 const form = useForm({
     email: '',
-    password: '',
     'h-captcha-response': '',
 })
 
 function submit() {
-    form.post(route('login.store'), {
-        // O token do hCaptcha é de uso único: depois de uma tentativa recusada
-        // (senha errada) ele está queimado, e sem rearmar o widget a segunda
-        // tentativa falharia no captcha em vez de na senha.
+    form.post(route('otp.request'), {
+        // O token do hCaptcha é de uso único: se o servidor recusar (teto de
+        // envios), rearma o widget para a próxima tentativa não falhar no
+        // captcha em vez de na regra.
         onError: () => captcha.value?.reset(),
-        onFinish: () => form.reset('password'),
     })
 }
 </script>
 
 <template>
-    <GuestLayout title="Entrar">
+    <GuestLayout title="Entrar com código">
         <div class="min-h-[80vh] flex items-center justify-center px-6 py-16">
             <div class="w-full max-w-sm">
-                <!-- Logo -->
                 <div class="flex justify-center mb-8">
                     <PortalLogo :size="48" />
                 </div>
 
                 <div class="bg-surface border border-frame rounded-2xl p-8">
-                    <h1 class="font-serif text-2xl text-cream mb-1">Entrar</h1>
-                    <p class="text-muted text-sm mb-8">Bem-vindo de volta ao portal.</p>
+                    <h1 class="font-serif text-2xl text-cream mb-1">Entrar com código</h1>
+                    <p class="text-muted text-sm mb-8">
+                        Informe seu e-mail e enviaremos um código de acesso de uso único.
+                    </p>
 
                     <form @submit.prevent="submit" novalidate class="space-y-5">
                         <Input
@@ -52,26 +51,6 @@ function submit() {
                             :required="true"
                             :error="form.errors.email"
                         />
-
-                        <Input
-                            id="password"
-                            v-model="form.password"
-                            label="Senha"
-                            type="password"
-                            placeholder="Sua senha"
-                            autocomplete="current-password"
-                            :required="true"
-                            :error="form.errors.password"
-                        />
-
-                        <div class="text-right -mt-2">
-                            <Link
-                                :href="route('password.request')"
-                                class="text-[13px] text-gold/70 hover:text-gold-light transition-colors"
-                            >
-                                Esqueceu sua senha?
-                            </Link>
-                        </div>
 
                         <div v-if="hcaptcha.enabled">
                             <HCaptcha
@@ -91,27 +70,14 @@ function submit() {
                             class="w-full"
                             :loading="form.processing"
                         >
-                            Entrar
+                            Enviar código
                         </Button>
                     </form>
 
-                    <div class="mt-6 flex items-center gap-3">
-                        <span class="h-px flex-1 bg-frame" />
-                        <span class="text-xs text-muted">ou</span>
-                        <span class="h-px flex-1 bg-frame" />
-                    </div>
-
-                    <Link
-                        :href="route('otp.request.show')"
-                        class="mt-6 block w-full rounded-lg border border-gold px-8 py-4 text-center text-base text-gold transition-colors hover:bg-gold/10"
-                    >
-                        Entrar com código por e-mail
-                    </Link>
-
                     <p class="mt-6 text-center text-sm text-muted">
-                        Não tem conta?
-                        <Link :href="route('register')" class="text-gold hover:text-gold-light">
-                            Criar conta
+                        Prefere sua senha?
+                        <Link :href="route('login')" class="text-gold hover:text-gold-light">
+                            Entrar com senha
                         </Link>
                     </p>
                 </div>
