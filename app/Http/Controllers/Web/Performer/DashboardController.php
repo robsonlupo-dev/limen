@@ -50,6 +50,28 @@ class DashboardController extends Controller
         $visitorPanel = $this->visits->panelFor($profile);
 
         return Inertia::render('Performer/Dashboard', [
+            // Completude do perfil (Sprint 10). Barra de incentivo, 100%
+            // frontend: nada é persistido — o componente DERIVA a porcentagem
+            // destes campos, que a performer já edita. Avatar/capa vão como
+            // booleano de presença (o caminho no storage não precisa vazar para
+            // medir "tem foto ou não"); os demais são os mesmos de "Sobre mim"
+            // que a tela de edição já devolve ao dono. `city` entra porque é a
+            // tela DELA — a regra de privacidade da cidade é sobre publicá-la a
+            // terceiros (ver PerformerPublicResource), não sobre escondê-la de
+            // quem a digitou. O Estilo de Vida é do MEMBRO e não entra.
+            'profileProgress' => [
+                'has_avatar' => (bool) $profile->avatar_path,
+                'has_cover' => (bool) $profile->cover_path,
+                'bio' => $profile->bio,
+                'looking_for' => $profile->looking_for,
+                'tags' => $profile->tagSlugs(),
+                'languages' => $profile->languages ?? [],
+                'drinks' => $profile->drinks,
+                'smokes' => $profile->smokes,
+                'height_cm' => $profile->height_cm,
+                'state' => $profile->state,
+                'city' => $profile->city,
+            ],
             'wallet' => $this->walletBalance($user),
             'totalEarned' => $this->totalEarned($user),
             'tips' => $this->recentTips($profile),
