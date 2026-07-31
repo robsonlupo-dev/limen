@@ -90,3 +90,9 @@ Schedule::command('stories:purge')->hourly()->withoutOverlapping(10);
 // basta — o prazo é em dias, e um DELETE por faixa de data não disputa nada com
 // o resto da madrugada.
 Schedule::command('visits:purge')->dailyAt('04:30')->withoutOverlapping(10);
+
+// Códigos OTP de login vencidos: GC de credencial efêmera. De hora em hora
+// porque o TTL é de 5 min — a expiração já vale na leitura (isConsumable), então
+// isto só evita acúmulo de linhas mortas. Um DELETE por faixa de data, sem
+// disputa com nada.
+Schedule::command('otp:purge')->hourly()->withoutOverlapping(10);

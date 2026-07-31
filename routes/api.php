@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
+use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\Auth\TwoFactorChallengeController;
@@ -27,6 +28,14 @@ Route::prefix('v1/auth')->group(function () {
     Route::post('register/consumer', [RegisterController::class, 'consumer'])->middleware('throttle:5,1')->name('auth.register.consumer');
     Route::post('register/performer', [RegisterController::class, 'performer'])->middleware('throttle:5,1')->name('auth.register.performer');
     Route::post('login', LoginController::class)->middleware('throttle:5,1')->name('auth.login');
+
+    // Login passwordless por código OTP (Sprint 11). Alternativa ao login por
+    // senha. `request` dispara e-mail (mesmo teto do login + hCaptcha no Form
+    // Request); `verify` devolve o token real — ou o token de desafio, se a
+    // performer tem 2FA (ver OtpController). O teto por e-mail (3/hora) vive no
+    // OtpService; o throttle aqui é por IP.
+    Route::post('otp/request', [OtpController::class, 'request'])->middleware('throttle:5,1')->name('auth.otp.request');
+    Route::post('otp/verify', [OtpController::class, 'verify'])->middleware('throttle:10,1')->name('auth.otp.verify');
 
     Route::post('password/forgot', [PasswordController::class, 'forgot'])->middleware('throttle:5,1')->name('auth.password.forgot');
     Route::post('password/reset', [PasswordController::class, 'reset'])->middleware('throttle:5,1')->name('auth.password.reset');

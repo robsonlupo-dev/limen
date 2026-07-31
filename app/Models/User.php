@@ -163,6 +163,12 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(AuditLog::class);
     }
 
+    /** Códigos OTP de login passwordless (Sprint 11). Efêmeros, geridos pelo OtpService. */
+    public function otpCodes(): HasMany
+    {
+        return $this->hasMany(OtpCode::class);
+    }
+
     public function follows(): HasMany
     {
         return $this->hasMany(Follow::class);

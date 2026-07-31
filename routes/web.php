@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\Admin\WaitlistAdminController;
 use App\Http\Controllers\Web\Auth\EmailVerificationController;
 use App\Http\Controllers\Web\Auth\ForgotPasswordController;
 use App\Http\Controllers\Web\Auth\LoginController;
+use App\Http\Controllers\Web\Auth\OtpLoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\CatalogController;
@@ -146,6 +147,26 @@ Route::middleware('guest')->group(function () {
         ->name('register.store');
     Route::get('/login', [LoginController::class, 'create'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:5,1')->name('login.store');
+
+    // Login passwordless por código OTP (Sprint 11). Alternativa ao login por
+    // senha — convive com ele. Guest-only como as demais rotas de auth.
+    //
+    // Throttle por IP nos POST (o teto por E-MAIL de 3/hora vive no OtpService, e
+    // o hCaptcha no request completa o par email+IP da spec). O envio dispara
+    // e-mail, então tem o mesmo teto do login. A verificação é 10/min por IP —
+    // os 5 palpites por código já contêm o brute de um código específico.
+    Route::get('/entrar-com-codigo', [OtpLoginController::class, 'requestForm'])
+        ->middleware('throttle:60,1')
+        ->name('otp.request.show');
+    Route::post('/entrar-com-codigo', [OtpLoginController::class, 'sendCode'])
+        ->middleware('throttle:5,1')
+        ->name('otp.request');
+    Route::get('/verificar-codigo', [OtpLoginController::class, 'verifyForm'])
+        ->middleware('throttle:60,1')
+        ->name('otp.verify.show');
+    Route::post('/verificar-codigo', [OtpLoginController::class, 'verify'])
+        ->middleware('throttle:10,1')
+        ->name('otp.verify');
 
     Route::get('/esqueci-minha-senha', [ForgotPasswordController::class, 'create'])->name('password.request');
     Route::post('/esqueci-minha-senha', [ForgotPasswordController::class, 'store'])->middleware('throttle:5,1')->name('password.email');
