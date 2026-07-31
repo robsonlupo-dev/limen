@@ -130,6 +130,23 @@ it('caps requests at 3 per hour per email, counting before the user lookup', fun
         ->toThrow(App\Exceptions\OtpThrottleException::class);
 });
 
+it('shares the per-hour cap across case and whitespace variants of the same email', function () {
+    // Trava a regressão da 1ª revisão de segurança: a chave do rate limit é
+    // derivada de mb_strtolower(trim($email)), então variar caixa/espaços NÃO
+    // rende buckets distintos — senão o teto de 3/hora seria contornável e
+    // viraria oráculo de enumeração.
+    Mail::fake();
+    User::factory()->create(['email' => 'user@example.com']);
+    $service = app(OtpService::class);
+
+    $service->requestCode('USER@example.com');
+    $service->requestCode('  user@example.com  ');
+    $service->requestCode('User@Example.com');
+
+    expect(fn () => $service->requestCode('user@example.com'))
+        ->toThrow(App\Exceptions\OtpThrottleException::class);
+});
+
 it('applies the same throttle to an unknown email (the limit is not an oracle)', function () {
     Mail::fake();
     $service = app(OtpService::class);

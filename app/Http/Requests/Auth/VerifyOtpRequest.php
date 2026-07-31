@@ -11,6 +11,15 @@ use Illuminate\Foundation\Http\FormRequest;
  * flood/enumeração). A verificação já é contida pelos 5 palpites por código e
  * pelo throttle por IP na rota. Valida só a forma — 6 dígitos —; se o código não
  * bate, o OtpService devolve a mesma resposta genérica de qualquer falha.
+ *
+ * ── O campo `email` NÃO tem a mesma autoridade nas duas portas ───────────────
+ * Na porta API o e-mail vem do corpo (não há sessão onde guardá-lo entre os dois
+ * passos). Na porta WEB o controller IGNORA este campo e usa o e-mail da SESSÃO
+ * (OtpLoginController::verify) — para um POST forjado não trocar o alvo da
+ * verificação. Aqui ele segue `required` porque a API depende dele; um refactor
+ * que fizer o controller web voltar a lê-lo daqui reabre esse buraco, e o teste
+ * "verify uses the session email, not the (forgeable) request body" existe para
+ * pegar exatamente isso.
  */
 class VerifyOtpRequest extends FormRequest
 {
