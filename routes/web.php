@@ -34,6 +34,7 @@ use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\LegalDocumentsController;
 use App\Http\Controllers\Web\LinksController;
 use App\Http\Controllers\Web\Performer\AvailabilityController;
+use App\Http\Controllers\Web\Performer\BoostController;
 use App\Http\Controllers\Web\Performer\DashboardController;
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
@@ -392,6 +393,18 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::patch('/performer/disponibilidade', [AvailabilityController::class, 'toggle'])
             ->middleware(['role:performer', 'throttle:10,1'])
             ->name('performer.availability.toggle');
+
+        // Boost pago (Sprint 11): a performer gasta tokens para destacar o perfil
+        // no topo do catálogo. Já sob `auth`+`2fa`+`documents.accepted` dos
+        // grupos-pai; `role:performer` explícito (só ela boosta) e throttle
+        // 5/min — é rota que move o ledger, teto apertado. SEM
+        // `can('performer-active')`: quem barra performer não-elegível (pendente
+        // ou suspensa) é o BoostService, ANTES de qualquer débito, com um
+        // `reason` claro — a rota não é o guard, e um 403 mudo aqui daria pior UX
+        // que a mensagem de domínio.
+        Route::post('/performer/boost', [BoostController::class, 'store'])
+            ->middleware(['role:performer', 'throttle:5,1'])
+            ->name('performer.boost');
 
         // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer
         // pendente (em KYC) já tem senha, e-mail e documento enviado — é

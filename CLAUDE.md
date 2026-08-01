@@ -164,7 +164,7 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 9B** (SEM TAG, não fechado) — **Foto Efêmera do Membro** (§ abaixo): `ImageProcessingService`, storage cifrado, expiração, endpoints e UI de chat, GC. **Implementada, não liberada.**
 - **Sprint 9C** — **Stories da Performer** (§ abaixo), tag `v1.0-sprint9`: publicação com TTL fixo de 24h e 3 níveis de visibilidade, feed e serving autenticados, ponto dourado no catálogo, e a moderação junto (denúncia, quarentena, `content_hash`, `DeletionService` nos dois sentidos).
 - **Sprint 10** — descoberta e perfil, tag `v1.0-sprint10` (PRs #111–#117, deploy de staging): **Estilos de Vida** (6 faixas opt-in, sem filtro, Modo Discreto suprime, fora do painel de visitantes), **Favoritos** (bookmark privado — § abaixo), "Sobre mim" no perfil público, "visto por último" em faixa (Ghost Mode suprime a escrita), barra de progresso do perfil, **galeria de fotos** (carrossel 6, EXIF strip, pública).
-- **Sprint 11** (EM ANDAMENTO, sem tag) — entregas mergeadas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h); **Notas privadas da performer sobre membros** (§ abaixo: nota por FanAlias, cifrada, o membro nunca vê). O resto do backlog do Sprint 11 (boost pago, convite via Stories, videochamada LiveKit) **não foi iniciado**.
+- **Sprint 11** (EM ANDAMENTO, sem tag) — entregas mergeadas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h); **Notas privadas da performer sobre membros** (§ abaixo: nota por FanAlias, cifrada, o membro nunca vê); **Boost pago** (§ abaixo: performer gasta tokens para destacar o perfil no topo do catálogo por tempo limitado). O resto do backlog do Sprint 11 (convite via Stories, videochamada LiveKit) **não foi iniciado**.
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -382,6 +382,64 @@ cabeçalho. Uma nota por par `(performer_profile_id, user_id)` (UNIQUE).
 > construção do HMAC — ver `FanAlias`), e é o preço de dar à performer memória
 > sobre o membro: decisão de produto, registrada para não ser redescoberta como
 > novidade. Não muda nada do isolamento ENTRE perfis; adensa o de dentro.
+
+## Boost pago — Sprint 11 (destaque no catálogo por tokens)
+
+Monetização INDIRETA: a performer gasta **tokens** (não dinheiro) para o perfil
+aparecer no topo do catálogo por uma janela curta. A receita vem de ela precisar
+**comprar** tokens (PIX) para ter o que gastar — o boost não credita ninguém, é
+100% plataforma, como o desbloqueio de Interesse. Dona única da regra:
+`app/Services/BoostService.php`; política em `config/boost.php` (custo 50,
+duração 6h, teto de 20 destaques simultâneos — todos por env).
+
+- **Estado DERIVADO na leitura, um carimbo só.** `boosted_until` guarda o FIM do
+  destaque; `PerformerProfile::isBoosted()` é `boosted_until` não-nulo E no
+  futuro. Sem job de expiração — vence sozinho na leitura, como `is_live` e o
+  `available_for_chat_at`. Guardar o fim (não início+duração) mantém a leitura
+  trivial e imuniza um boost ativo contra uma mudança de `BOOST_DURATION_HOURS`.
+- **`boosted_until` é `$hidden` E fora do `$fillable`.** O público vê só o
+  booleano `is_boosted` (PerformerPublicResource); expor o carimbo diria a hora
+  exata do fim (e, com o config, do início) — presença ao minuto, a mesma
+  disciplina de `available_for_chat_at`. A escrita só acontece no BoostService,
+  por `forceFill`, DEPOIS do débito.
+- **Ledger append-only (princípio nº 2).** O débito é uma linha nova
+  `spend_boost` via `TokenService::debit` — NUNCA UPDATE de saldo. Migration
+  própria abre o valor no enum de `entry_type`. `balance_after` calculado na
+  hora; saldo insuficiente (`InsufficientBalanceException`) é lançado ANTES de
+  carimbar, então nunca há destaque sem pagamento.
+- **A ordem das guardas do `boost()`, tudo numa transação que começa travando o
+  perfil (`lockForUpdate`):** (1) elegível? — verificada + conta ativa, o recorte
+  do catálogo, reconferido pela chave; (2) já boostada? → rejeita, NÃO empilha;
+  (3) tem vaga? → teto global; (4) debita; (5) carimba. O lock do perfil + o "já
+  boostada?" são o que tornam o duplo-submit seguro: o segundo request espera,
+  relê "já boostada" e recusa antes de debitar — sem débito dobrado nem destaque
+  esticado.
+- **O teto de slots é SOFT-cap sob concorrência.** O lock do perfil serializa
+  boosts do MESMO perfil, não de perfis diferentes, então dois boosts simultâneos
+  de perfis distintos podem passar juntos e chegar a `max+1`. É limite de
+  NEGÓCIO, não de dinheiro/segurança — o débito e o "não empilha" seguem exatos.
+  Fechar de vez exigiria um lock global, caro para o que o teto vale. Registrado
+  para não ser lido como bug.
+- **A ordenação "boostados primeiro" mora em `scopePublicCatalog`**, como PRIMEIRA
+  cláusula (`ORDER BY CASE WHEN boosted_until > now() THEN boosted_until END
+  DESC`): boostados no topo, ordenados entre si pelo destaque mais recente; boost
+  VENCIDO e nunca-boostado caem em NULL (por último em DESC) e a ordenação normal
+  do serviço (seguidores/rating), acrescentada DEPOIS, decide o desempate. **Sem
+  boost ativo, todos caem em NULL (empate) e a ordem existente governa tudo** —
+  por isso a mudança não mexe em quem não usou o boost.
+  - **Consequência deliberada: `scopePublicCatalog` é compartilhado.** A mesma
+    ordenação vale para toda superfície de card público que passa pelo escopo —
+    catálogo, lista de Favoritos, prévia de "Seguindo" do painel do membro. Boost
+    é visibilidade em TODA vitrine pública, não só na busca; é intencional, não
+    um vazamento do escopo. (Não afeta lookups por slug: uma linha só, ordem
+    irrelevante.)
+- **Hard Delete zera `boosted_until`** (mesma natureza de `available_for_chat_at`
+  — presença sem valor fiscal/legal). O débito que pagou o boost FICA no ledger
+  (append-only, lastro fiscal), só desvinculado como o resto.
+- **UI:** badge dourado discreto "⚡ Destaque" + borda dourada sutil no card (só
+  se boostado); seção "Destaque" no dashboard com três estados (boostada →
+  faixa de tempo; pode boostar → botão + custo + "N de 20 vagas"; sem tokens →
+  aviso + link de comprar). Faixa de tempo, nunca relógio, como a disponibilidade.
 
 ## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
 

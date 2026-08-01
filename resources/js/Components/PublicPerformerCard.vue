@@ -10,9 +10,14 @@ defineProps({
 </script>
 
 <template>
+    <!-- Boost pago (Sprint 11): borda dourada sutil quando em destaque, idêntico
+         ao card autenticado. A POSIÇÃO no topo vem da ordenação do servidor. -->
     <Link
         :href="route('performers.public.show', performer.slug)"
-        class="group block no-underline rounded-xl border border-frame bg-surface overflow-hidden transition-all duration-200 hover:border-gold/40 hover:shadow-[0_0_24px_-8px_rgba(201,162,75,0.35)]"
+        class="group block no-underline rounded-xl border bg-surface overflow-hidden transition-all duration-200 hover:shadow-[0_0_24px_-8px_rgba(201,162,75,0.35)]"
+        :class="performer.is_boosted
+            ? 'border-gold/60 shadow-[0_0_20px_-8px_rgba(201,162,75,0.45)] hover:border-gold'
+            : 'border-frame hover:border-gold/40'"
     >
         <div class="relative aspect-[4/3] bg-surface-2 overflow-hidden">
             <img
@@ -80,6 +85,11 @@ defineProps({
                 :category="performer.category"
                 :tier="performer.tier"
             />
+            <!-- Boost pago (Sprint 11): badge discreto "⚡ Destaque", idêntico ao
+                 card autenticado. -->
+            <p v-if="performer.is_boosted" class="text-xs text-gold flex items-center gap-1">
+                <span aria-hidden="true">⚡</span> Destaque
+            </p>
             <p class="text-xs text-muted uppercase tracking-wide flex items-center gap-1">
                 <span aria-hidden="true">{{ WORLD_ICONS[performer.category] }}</span>
                 {{ WORLD_LABELS[performer.category] ?? performer.category }}

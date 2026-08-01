@@ -46,6 +46,20 @@ const props = defineProps({
     // foto + os campos de "Sobre mim" — nada é persistido, a % é derivada no
     // componente. Ver ProfileProgress.vue.
     profileProgress: { type: Object, required: true },
+    // Boost pago (Sprint 11): estado do destaque + custo/vagas. Booleano +
+    // faixa de tempo, nunca o carimbo `boosted_until`. Ver DashboardController.
+    boost: {
+        type: Object,
+        default: () => ({
+            is_boosted: false,
+            remaining_label: null,
+            cost: 0,
+            duration_hours: 0,
+            available_slots: 0,
+            max_slots: 0,
+            eligible: false,
+        }),
+    },
 })
 
 // A foto abre em overlay, servida inline pelo endpoint. Não há botão de baixar:
@@ -143,6 +157,43 @@ async function toggleAvailability() {
         togglingAvailability.value = false
     }
 }
+
+// Boost pago (Sprint 11). Estado local otimista sobre a resposta: o servidor
+// devolve o booleano derivado + a faixa de tempo + saldo e vagas atualizados —
+// nunca o carimbo `boosted_until`.
+const boostState = ref({ ...props.boost })
+const walletBalance = ref(props.wallet)
+const boosting = ref(false)
+
+// Sem tokens suficientes: a tela troca o botão pelo aviso "precisa de N tokens"
+// com link de comprar. O servidor recusa de qualquer forma (o botão não é o
+// guard) — isto só evita oferecer um clique que responderia 422.
+const canAffordBoost = computed(() => walletBalance.value >= boostState.value.cost)
+
+async function activateBoost() {
+    if (boosting.value || boostState.value.is_boosted) return
+    boosting.value = true
+    try {
+        const data = await postJson(route('performer.boost'))
+        boostState.value = {
+            ...boostState.value,
+            is_boosted: data.is_boosted,
+            remaining_label: data.remaining_label,
+            available_slots: data.available_slots,
+        }
+        walletBalance.value = data.wallet
+        toastMessage.value = 'Perfil em destaque!'
+        setTimeout(() => (toastMessage.value = ''), 4000)
+    } catch (error) {
+        toastMessage.value =
+            error.status === 429
+                ? 'Muitas tentativas em pouco tempo. Aguarde um instante.'
+                : (error.data?.message ?? 'Não foi possível destacar. Tente novamente.')
+        setTimeout(() => (toastMessage.value = ''), 5000)
+    } finally {
+        boosting.value = false
+    }
+}
 </script>
 
 <template>
@@ -204,6 +255,63 @@ async function toggleAvailability() {
                 </button>
             </div>
 
+            <!-- Boost pago (Sprint 11): seção "Destaque". Três estados —
+                 boostada (faixa de tempo), pode boostar (botão + custo + vagas),
+                 ou sem tokens (aviso + link de comprar). Só para performer
+                 elegível (verificada e ativa): quem ainda está em KYC não está no
+                 catálogo, então destacar seria no-op (o servidor recusa de
+                 qualquer forma). -->
+            <div
+                v-if="boost.eligible"
+                class="rounded-xl border p-5 space-y-3"
+                :class="boostState.is_boosted ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface'"
+            >
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-sm text-cream flex items-center gap-2">
+                        <span aria-hidden="true">⚡</span> Destaque no catálogo
+                    </p>
+                    <span v-if="!boostState.is_boosted" class="text-xs text-muted">
+                        {{ boostState.available_slots }} de {{ boostState.max_slots }} vagas
+                    </span>
+                </div>
+
+                <!-- Boostada agora: faixa de tempo restante, nunca um relógio. -->
+                <template v-if="boostState.is_boosted">
+                    <p class="text-xs text-gold">
+                        Seu perfil está no topo do catálogo{{ boostState.remaining_label ? ` — ${boostState.remaining_label}` : '' }}.
+                    </p>
+                </template>
+
+                <!-- Pode boostar: botão + custo. -->
+                <template v-else-if="canAffordBoost">
+                    <p class="text-xs text-muted">
+                        Apareça no topo do catálogo por {{ boostState.duration_hours }} horas. Custa
+                        <span class="text-gold">{{ boostState.cost }} tokens</span>.
+                    </p>
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        :loading="boosting"
+                        :disabled="boostState.available_slots <= 0"
+                        :title="boostState.available_slots <= 0 ? 'Todas as vagas de destaque estão ocupadas agora' : undefined"
+                        @click="activateBoost"
+                    >
+                        Destacar meu perfil
+                    </Button>
+                </template>
+
+                <!-- Sem tokens: aviso + link de comprar. -->
+                <template v-else>
+                    <p class="text-xs text-muted">
+                        Você precisa de <span class="text-gold">{{ boostState.cost }} tokens</span> para destacar seu perfil.
+                        Você tem {{ walletBalance }}.
+                    </p>
+                    <Link :href="route('wallet.index')" class="text-sm text-gold hover:text-gold-light transition-colors no-underline">
+                        Comprar tokens &rarr;
+                    </Link>
+                </template>
+            </div>
+
             <!-- Completude do perfil (Sprint 10): topo do painel, antes dos
                  demais. Some (vira selo discreto) quando chega a 100%. -->
             <ProfileProgress :profile="profileProgress" />
@@ -215,7 +323,9 @@ async function toggleAvailability() {
                     class="rounded-xl border border-frame bg-surface p-5 space-y-1 block no-underline hover:border-gold/40 transition-colors"
                 >
                     <p class="text-xs text-muted uppercase tracking-wide">Saldo</p>
-                    <p class="font-serif text-3xl text-gold">{{ wallet }}</p>
+                    <!-- walletBalance (local) e não a prop: o boost debita tokens
+                         e o card precisa refletir sem recarregar a página. -->
+                    <p class="font-serif text-3xl text-gold">{{ walletBalance }}</p>
                     <p class="text-xs text-gold/70">Sacar &rarr;</p>
                 </Link>
 

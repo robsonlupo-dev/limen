@@ -52,6 +52,14 @@ class PerformerPublicResource extends JsonResource
             // a correlação do R2, a mesma razão de o estado sumir com is_live.
             // Aqui só sai o sinal cru; o cruzamento é decidido no card/perfil.
             'is_available' => $this->isAvailableForChat(),
+            // Boost pago (Sprint 11) — BOOLEANO derivado, nunca o carimbo
+            // `boosted_until` (que é $hidden e não sai daqui em forma nenhuma).
+            // isBoosted() é a dona única da janela. A tela usa isto para o badge
+            // "⚡ Destaque" e a borda dourada; a POSIÇÃO no topo já vem da
+            // ordenação do scopePublicCatalog. Expor o timestamp diria a hora
+            // exata em que o destaque acaba — presença ao minuto, a mesma
+            // disciplina do is_available.
+            'is_boosted' => $this->isBoosted(),
             // "Última atividade" em FAIXA (Sprint 10). String ("Ativa hoje" /
             // "esta semana" / "este mês") ou null — nunca o timestamp
             // `last_active_at`, que é $hidden no User e não sai daqui em forma
