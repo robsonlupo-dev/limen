@@ -7,7 +7,7 @@ import KycPendingBanner from '@/Components/KycPendingBanner.vue'
 import ProfileProgress from '@/Components/ProfileProgress.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryPanel from '@/Components/StoryPanel.vue'
-import { postJson } from '@/lib/http'
+import { patchJson, postJson } from '@/lib/http'
 
 const props = defineProps({
     wallet: { type: Number, required: true },
@@ -18,6 +18,10 @@ const props = defineProps({
     followers: { type: String, required: true },
     kycStatus: { type: String, required: true },
     isLive: { type: Boolean, required: true },
+    // "Disponível para conversa" (Sprint 11): estado atual + faixa de tempo
+    // restante ("por mais de 2 horas"), nunca um relógio. Ver DashboardController.
+    isAvailable: { type: Boolean, default: false },
+    availabilityRemaining: { type: String, default: null },
     // Visitantes já pseudonimizados (FanAlias) pelo servidor — o id do membro
     // não chega aqui, como nas gorjetas.
     visitors: { type: Array, default: () => [] },
@@ -112,6 +116,33 @@ const kycBadge = computed(() => {
 })
 
 const canGoLive = computed(() => props.kycStatus === 'active')
+
+// "Disponível para conversa" (Sprint 11). Estado local, otimista sobre a
+// resposta do toggle: o servidor devolve o booleano DERIVADO (janela de 4h) e a
+// faixa de tempo restante — nunca um relógio.
+const available = ref(props.isAvailable)
+const availableRemaining = ref(props.availabilityRemaining)
+const togglingAvailability = ref(false)
+
+async function toggleAvailability() {
+    if (togglingAvailability.value) return
+    togglingAvailability.value = true
+    try {
+        const data = await patchJson(route('performer.availability.toggle'), {
+            available: !available.value,
+        })
+        available.value = data.is_available
+        availableRemaining.value = data.remaining_label
+    } catch (error) {
+        toastMessage.value =
+            error.status === 429
+                ? 'Muitas trocas em pouco tempo. Aguarde um instante.'
+                : 'Não foi possível atualizar. Tente novamente.'
+        setTimeout(() => (toastMessage.value = ''), 4000)
+    } finally {
+        togglingAvailability.value = false
+    }
+}
 </script>
 
 <template>
@@ -133,6 +164,44 @@ const canGoLive = computed(() => props.kycStatus === 'active')
                 >
                     Ir ao vivo
                 </Button>
+            </div>
+
+            <!-- "Disponível para conversa" (Sprint 11): toggle on/off + a FAIXA
+                 de tempo restante ("por mais de 2 horas"), nunca um relógio. Só
+                 para performer verificada (mesma condição do "Ir ao vivo") — quem
+                 ainda está em KYC não aparece no catálogo, então sinalizar seria
+                 no-op. Expira sozinha em 4h (checada na leitura), e a própria
+                 performer pode desligar antes. -->
+            <div
+                v-if="canGoLive"
+                class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border p-5"
+                :class="available ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface'"
+            >
+                <div class="space-y-1">
+                    <p class="text-sm text-cream flex items-center gap-2">
+                        <span aria-hidden="true">💬</span> Disponível para conversa
+                    </p>
+                    <p v-if="available" class="text-xs text-gold">
+                        Você está sinalizando disponibilidade{{ availableRemaining ? ` — ${availableRemaining}` : '' }}.
+                    </p>
+                    <p v-else class="text-xs text-muted">
+                        Sinalize que quer ser abordada agora. Membros que já seguem você recebem destaque.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="available"
+                    :disabled="togglingAvailability"
+                    class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+                    :class="available ? 'bg-gold' : 'bg-frame'"
+                    @click="toggleAvailability"
+                >
+                    <span
+                        class="inline-block h-5 w-5 transform rounded-full bg-background transition-transform"
+                        :class="available ? 'translate-x-6' : 'translate-x-1'"
+                    />
+                </button>
             </div>
 
             <!-- Completude do perfil (Sprint 10): topo do painel, antes dos

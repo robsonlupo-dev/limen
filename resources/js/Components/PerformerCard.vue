@@ -113,6 +113,14 @@ const categoryLabels = {
                     :category="performer.category"
                     :tier="performer.tier"
                 />
+                <!-- "Disponível para conversa" (Sprint 11): badge discreto em
+                     dourado, na linha dos outros badges. Some quando is_live — a
+                     bolinha verde já diz "quer contato agora", e os dois juntos
+                     seriam redundantes (decisão do PO). Ver is_available no
+                     PerformerPublicResource. -->
+                <p v-if="performer.is_available && !performer.is_live" class="text-xs text-gold flex items-center gap-1">
+                    <span aria-hidden="true">💬</span> Quer conversar
+                </p>
                 <p class="text-xs text-muted uppercase tracking-wide">
                     {{ categoryLabels[performer.category] ?? performer.category }}
                 </p>
@@ -132,8 +140,14 @@ const categoryLabels = {
                         transmitindo AGORA" + "está em SP" é uma correlação em
                         tempo real que o estado sozinho não dá. Por isso o
                         `!performer.is_live`, e não só o afastamento visual.
-                     A cidade não existe nesta prop (ver PerformerPublicResource). -->
-                <p v-if="performer.state && !performer.is_live" class="text-xs text-muted">
+                     A cidade não existe nesta prop (ver PerformerPublicResource).
+
+                     Some TAMBÉM quando is_available: "quer conversar AGORA" +
+                     "está em SP" é a mesma correlação presença-em-tempo-real +
+                     localização do R2 que o `!is_live` fecha. O badge de
+                     disponibilidade é presença como o "ao vivo", então o estado
+                     cede a ele igual — nunca os dois no mesmo card. -->
+                <p v-if="performer.state && !performer.is_live && !performer.is_available" class="text-xs text-muted">
                     <span class="rounded border border-frame px-1.5 py-0.5 tracking-wide">{{ performer.state }}</span>
                 </p>
                 <div class="flex items-center justify-between pt-1">

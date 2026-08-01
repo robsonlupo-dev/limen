@@ -613,6 +613,11 @@ class DeletionService
             'avatar_path' => null,
             'cover_path' => null,
             'is_live' => false,
+            // "Disponível para conversa" (Sprint 11): o carimbo é sinal de
+            // presença, sem valor fiscal nem trilha legal — sai junto. Não
+            // basta ele estar vencido (a janela de 4h passou): o Hard Delete
+            // apaga o dado, não conta com a expiração da leitura.
+            'available_for_chat_at' => null,
             'is_verified' => false,
         ])->save();
 

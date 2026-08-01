@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CatalogFilterRequest;
 use App\Http\Resources\PerformerPublicResource;
+use App\Models\Conversation;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
+use App\Services\ChatAccessService;
 use App\Services\FavoriteService;
 use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
@@ -26,6 +28,7 @@ class CatalogController extends Controller
         private ProfileVisitService $profileVisits,
         private StoryVisibilityService $storyVisibility,
         private FavoriteService $favorites,
+        private ChatAccessService $chatAccessService,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -147,6 +150,47 @@ class CatalogController extends Controller
             // Alvo da denúncia (ver PublicCatalogController::show). Toda a rota
             // já está atrás de auth, então não há caso de visitante aqui.
             'report' => ['type' => 'performer', 'id' => $profile->id],
+            // Estado do chat para ESTE espectador — só para o CTA "Iniciar
+            // conversa" do badge de disponibilidade (Sprint 11). Chat é
+            // interest-gated: só há conversa se a performer mandou Interesse e o
+            // membro desbloqueou; não dá para iniciar chat frio daqui. Null
+            // (performer/admin, ou membro sem conversa) → o badge sai sem CTA.
+            // Mesma forma do PublicCatalogController::chatStateFor.
+            'chat' => $this->chatStateFor($request, $profile->id),
         ]);
+    }
+
+    /**
+     * Estado do chat do espectador logado com esta performer, ou null. Gêmeo do
+     * PublicCatalogController::chatStateFor — só membro (consumer) com conversa
+     * JÁ ABERTA vê algo. `can_access` = pode enviar (Círculo ativo ou janela
+     * paga em dia).
+     *
+     * @return array{conversation_id:int,state:string,can_access:bool,cost:int}|null
+     */
+    private function chatStateFor(Request $request, int $performerProfileId): ?array
+    {
+        $user = $request->user();
+
+        if (! $user || $user->role !== 'consumer') {
+            return null;
+        }
+
+        $conversation = Conversation::where('member_id', $user->id)
+            ->where('performer_profile_id', $performerProfileId)
+            ->first();
+
+        if (! $conversation) {
+            return null;
+        }
+
+        $state = $this->chatAccessService->accessState($conversation, $user);
+
+        return [
+            'conversation_id' => $conversation->id,
+            'state' => $state['state'],
+            'can_access' => $state['can_send'],
+            'cost' => (int) config('chat.access_cost'),
+        ];
     }
 }

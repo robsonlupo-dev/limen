@@ -43,6 +43,7 @@ const sorts = [
 const form = reactive({
     search: props.filters.search || '',
     is_live: !!props.filters.is_live,
+    available: !!props.filters.available,
     has_photo: !!props.filters.has_photo,
     level: props.filters.level || '',
     tier: props.filters.tier || '',
@@ -90,6 +91,7 @@ function apply() {
             // category/mundo ficam de fora: o mundo é escolhido noutro controle.
             search: form.search || undefined,
             is_live: form.is_live ? 1 : undefined,
+            available: form.available ? 1 : undefined,
             has_photo: form.has_photo ? 1 : undefined,
             level: form.level || undefined,
             tier: form.tier || undefined,
@@ -146,6 +148,7 @@ function clearFilters() {
     Object.assign(form, {
         search: '',
         is_live: false,
+        available: false,
         has_photo: false,
         level: '',
         tier: '',
@@ -165,6 +168,7 @@ const activeCount = computed(() => {
     let n = 0
     if (form.search) n++
     if (form.is_live) n++
+    if (form.available) n++
     if (form.has_photo) n++
     if (form.level) n++
     if (form.tier) n++
@@ -226,6 +230,10 @@ const activeCount = computed(() => {
                         <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
                             <input v-model="form.is_live" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />
                             ☉ Ao vivo agora
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
+                            <input v-model="form.available" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />
+                            💬 Disponíveis agora
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
                             <input v-model="form.has_photo" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />

@@ -84,6 +84,11 @@ defineProps({
                 <span aria-hidden="true">{{ WORLD_ICONS[performer.category] }}</span>
                 {{ WORLD_LABELS[performer.category] ?? performer.category }}
             </p>
+            <!-- "Disponível para conversa" (Sprint 11): idêntico ao card
+                 autenticado. Some quando is_live (a bolinha já diz "agora"). -->
+            <p v-if="performer.is_available && !performer.is_live" class="text-xs text-gold flex items-center gap-1">
+                <span aria-hidden="true">💬</span> Quer conversar
+            </p>
             <!-- Última atividade em faixa (Sprint 10): idêntico ao card
                  autenticado. Some quando is_live (a bolinha já diz "agora") e
                  quando null. Ver ActivitySlot. -->
@@ -91,8 +96,9 @@ defineProps({
                 {{ performer.activity_label }}
             </p>
             <!-- Mesma regra do PerformerCard: UF só, fora da foto (onde mora a
-                 bolinha de ao vivo) e ausente enquanto ela estiver ao vivo. -->
-            <p v-if="performer.state && !performer.is_live" class="text-xs text-muted">
+                 bolinha de ao vivo) e ausente enquanto ela estiver ao vivo OU
+                 disponível — presença + localização é a correlação do R2. -->
+            <p v-if="performer.state && !performer.is_live && !performer.is_available" class="text-xs text-muted">
                 <span class="rounded border border-frame px-1.5 py-0.5 tracking-wide">{{ performer.state }}</span>
             </p>
             <p class="text-xs text-muted pt-1">{{ performer.followers_label }} apoiadores</p>

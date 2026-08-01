@@ -27,6 +27,16 @@ class PerformerProfile extends Model
     public const TIERS = ['verificada', 'select', 'maison'];
 
     /**
+     * Janela de "Disponível para conversa" (Sprint 11), em horas. A
+     * disponibilidade é DERIVADA do carimbo `available_for_chat_at`: a performer
+     * está disponível quando ele é não-nulo e mais novo que esta janela. Fonte
+     * única do número — o resource, o filtro e o dashboard perguntam aqui, nunca
+     * repetem o `4`. Lida na LEITURA (isAvailableForChat), como o `is_live`: não
+     * há job que apaga o estado, a expiração vale a cada request.
+     */
+    public const AVAILABILITY_WINDOW_HOURS = 4;
+
+    /**
      * Tags da performer, agrupadas pela seção em que a tela as mostra. O grupo
      * é APRESENTAÇÃO — a validação e o filtro trabalham sobre o conjunto achatado
      * (allTags()), e a junção guarda só o slug. Uma tag pode mudar de grupo sem
@@ -120,6 +130,19 @@ class PerformerProfile extends Model
         'state', 'city',
     ];
 
+    /**
+     * `available_for_chat_at` é o carimbo bruto de "Disponível para conversa"
+     * (Sprint 11). $hidden porque o público só pode ver o BOOLEANO derivado
+     * (is_available no PerformerPublicResource), nunca o instante em que a
+     * performer sinalizou — o timestamp exato é presença ao minuto, mesma
+     * disciplina do `last_active_at` do User e do `visited_at` do painel de
+     * visitantes. O código que precisa dele lê o atributo direto (o $hidden só
+     * afeta a serialização), como isAvailableForChat() abaixo.
+     */
+    protected $hidden = [
+        'available_for_chat_at',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -128,6 +151,7 @@ class PerformerProfile extends Model
             'languages' => 'array',
             'height_cm' => 'integer',
             'is_live' => 'boolean',
+            'available_for_chat_at' => 'datetime',
             'is_verified' => 'boolean',
             'rating_avg' => 'decimal:2',
             'split_pct' => 'integer',
@@ -226,6 +250,66 @@ class PerformerProfile extends Model
                     ->whereNull('worlds')
                     ->where('category', $world));
         });
+    }
+
+    /**
+     * "Disponível para conversa" agora (Sprint 11), DERIVADO na leitura.
+     *
+     * Verdadeiro só quando a performer sinalizou (`available_for_chat_at`
+     * não-nulo) E o sinal ainda está dentro da janela de AVAILABILITY_WINDOW_HOURS.
+     * Sem job de expiração: exatamente como o `is_live` e o ChatAccess, o estado
+     * "vence" na leitura. É o ÚNICO lugar que decide disponibilidade — o resource
+     * (is_available), o scope do filtro e o dashboard passam por aqui.
+     */
+    public function isAvailableForChat(): bool
+    {
+        return $this->available_for_chat_at !== null
+            && $this->available_for_chat_at->greaterThan(
+                now()->subHours(self::AVAILABILITY_WINDOW_HOURS)
+            );
+    }
+
+    /**
+     * Tempo restante de disponibilidade em FAIXA, para o PRÓPRIO painel da
+     * performer — nunca sai numa superfície pública. Faixa e não relógio pela
+     * mesma disciplina da ActivitySlot/ExpirySlot: mesmo sendo o dado dela na
+     * tela dela, a copy não promete um minuto exato que o produto não expõe em
+     * lugar nenhum. Null quando não está disponível (a tela não desenha nada).
+     */
+    public function availabilityRemainingLabel(): ?string
+    {
+        if (! $this->isAvailableForChat()) {
+            return null;
+        }
+
+        $endsAt = $this->available_for_chat_at->copy()->addHours(self::AVAILABILITY_WINDOW_HOURS);
+        $hoursLeft = now()->diffInHours($endsAt, false);
+
+        return match (true) {
+            $hoursLeft >= 3 => 'por quase 4 horas',
+            $hoursLeft >= 2 => 'por mais de 2 horas',
+            $hoursLeft >= 1 => 'por mais de 1 hora',
+            default => 'por menos de 1 hora',
+        };
+    }
+
+    /**
+     * Restringe o catálogo a quem está disponível para conversa agora (Sprint
+     * 11) — o filtro "Disponíveis agora". Espelha isAvailableForChat() em SQL:
+     * carimbo dentro da janela. Quem nunca sinalizou (`null`) ou sinalizou há
+     * mais de AVAILABILITY_WINDOW_HOURS simplesmente não casa — como o filtro de
+     * estado, a faceta é opt-in e ausência não é "perdido".
+     *
+     * @param  Builder<PerformerProfile>  $query
+     * @return Builder<PerformerProfile>
+     */
+    public function scopeAvailableForChat(Builder $query): Builder
+    {
+        return $query->where(
+            'available_for_chat_at',
+            '>',
+            now()->subHours(self::AVAILABILITY_WINDOW_HOURS)
+        );
     }
 
     public function user(): BelongsTo
