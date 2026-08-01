@@ -102,10 +102,12 @@ class DashboardController extends Controller
                 'duration_hours' => $this->boost->durationHours(),
                 'available_slots' => $this->boost->availableSlots(),
                 'max_slots' => $this->boost->maxActive(),
-                // Só perfil verificado entra no catálogo — o destaque só faz
-                // sentido para quem já está lá. A tela usa isto para explicar por
-                // que o botão não aparece à performer ainda em KYC.
-                'eligible' => (bool) $profile->is_verified && $user->status === 'active',
+                // Só perfil verificado e ativo entra no catálogo — o destaque só
+                // faz sentido para quem já está lá. Delega ao BoostService (dona
+                // única da regra), o MESMO método que o guard usa: a UI e o guard
+                // não podem divergir se a elegibilidade evoluir. É só dica de
+                // tela; quem barra de verdade é o service, antes de debitar.
+                'eligible' => $this->boost->isEligible($profile),
             ],
             // Visitantes das últimas 24h, sob o mesmo FanAlias das gorjetas e
             // atrás do mesmo Piso de Anonimato da tela de seguidores (ver

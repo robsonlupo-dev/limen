@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Exceptions\BoostException;
 use App\Models\PerformerProfile;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -89,6 +88,10 @@ class BoostService
             // READ).
             $locked = PerformerProfile::query()
                 ->whereKey($profile->id)
+                // `with('user')` para o isEligible() ler o status da conta no
+                // objeto travado (fresco, dentro da transação), sem uma segunda
+                // query separada — a mesma regra que a UI consome.
+                ->with('user')
                 ->lockForUpdate()
                 ->first();
 
@@ -139,16 +142,21 @@ class BoostService
     }
 
     /**
-     * Perfil elegível ao destaque = o mesmo recorte do catálogo: conta `active` e
-     * `is_verified`. Reconsulta pela chave em vez de confiar no objeto recebido —
-     * ele pode ter sido carregado antes de a conta suspender.
+     * Perfil elegível ao destaque = o mesmo recorte do catálogo: `is_verified` e
+     * conta `active`. DONA ÚNICA da regra — o guard do boost() a chama sobre o
+     * perfil TRAVADO (com `user` carregado, então a leitura é fresca dentro da
+     * transação) e o dashboard a chama para decidir se mostra o botão. Tê-la num
+     * lugar só impede que a UI e o guard divirjam se a regra evoluir (achado da
+     * revisão de segurança).
+     *
+     * Predicado em memória (não reconsulta): quem garante a frescura é o
+     * chamador. O guard carrega o perfil sob lock imediatamente antes; o
+     * dashboard passa o perfil do request, e uma checagem de UI desatualizada por
+     * milissegundos é inofensiva — o guard é que barra de verdade.
      */
-    private function isEligible(PerformerProfile $profile): bool
+    public function isEligible(PerformerProfile $profile): bool
     {
-        return PerformerProfile::query()
-            ->whereKey($profile->getKey())
-            ->where('is_verified', true)
-            ->whereHas('user', fn (Builder $q) => $q->where('status', 'active'))
-            ->exists();
+        return (bool) $profile->is_verified
+            && $profile->user?->status === 'active';
     }
 }
