@@ -1,9 +1,9 @@
 <script setup>
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
-import { postJson } from '@/lib/http'
+import { deleteJson, postJson, putJson } from '@/lib/http'
 
 const props = defineProps({
     followers: { type: Object, required: true },
@@ -51,6 +51,90 @@ async function sendInterest(follower) {
         sendingHandle.value = null
     }
 }
+
+// Notas privadas sobre o membro (Sprint 11). Estado local por handle, semeado
+// dos props — a performer NUNCA vê o id, só o pseudônimo. O membro nunca vê nada
+// disto: é a tela dela.
+const notes = reactive(
+    Object.fromEntries(props.followers.data.map((f) => [f.member_handle, f.note ?? null])),
+)
+
+const noteModal = reactive({
+    open: false,
+    handle: null,
+    label: '',
+    draft: '',
+    saving: false,
+    error: '',
+})
+
+function hasNote(follower) {
+    return Boolean(notes[follower.member_handle])
+}
+
+function openNote(follower) {
+    noteModal.open = true
+    noteModal.handle = follower.member_handle
+    noteModal.label = follower.label
+    noteModal.draft = notes[follower.member_handle] ?? ''
+    noteModal.error = ''
+    noteModal.saving = false
+}
+
+function closeNote() {
+    noteModal.open = false
+    noteModal.handle = null
+}
+
+async function saveNote() {
+    if (noteModal.saving) return
+    const handle = noteModal.handle
+    const text = noteModal.draft.trim()
+
+    // Campo esvaziado = apagar: PUT exige conteúdo não-vazio, então a escolha é
+    // do front — se havia nota, DELETE; se não havia, nada a fazer.
+    if (text === '') {
+        if (notes[handle]) {
+            await removeNote(handle)
+        } else {
+            closeNote()
+        }
+        return
+    }
+
+    noteModal.error = ''
+    noteModal.saving = true
+    try {
+        await putJson(route('performer.notes.save', handle), { content: text })
+        notes[handle] = text
+        toastMessage.value = 'Nota salva'
+        setTimeout(() => (toastMessage.value = ''), 4000)
+        closeNote()
+    } catch (error) {
+        noteModal.error =
+            error.status === 429
+                ? 'Muitas edições em pouco tempo. Aguarde um instante.'
+                : (error.data?.message ?? 'Não foi possível salvar a nota. Tente novamente.')
+    } finally {
+        noteModal.saving = false
+    }
+}
+
+async function removeNote(handle) {
+    noteModal.error = ''
+    noteModal.saving = true
+    try {
+        await deleteJson(route('performer.notes.destroy', handle))
+        notes[handle] = null
+        toastMessage.value = 'Nota removida'
+        setTimeout(() => (toastMessage.value = ''), 4000)
+        closeNote()
+    } catch (error) {
+        noteModal.error = error.data?.message ?? 'Não foi possível remover a nota. Tente novamente.'
+    } finally {
+        noteModal.saving = false
+    }
+}
 </script>
 
 <template>
@@ -63,9 +147,14 @@ async function sendInterest(follower) {
                         Demonstre interesse em quem já segue você. O sinal não leva texto — ela decide se quer revelar quem é você.
                     </p>
                 </div>
-                <Link :href="route('performer.dashboard')" class="text-sm text-gold hover:text-gold-light transition-colors shrink-0">
-                    Voltar ao painel
-                </Link>
+                <div class="flex items-center gap-4 shrink-0">
+                    <Link :href="route('performer.notes.index')" class="text-sm text-gold hover:text-gold-light transition-colors">
+                        Minhas notas
+                    </Link>
+                    <Link :href="route('performer.dashboard')" class="text-sm text-gold hover:text-gold-light transition-colors">
+                        Voltar ao painel
+                    </Link>
+                </div>
             </div>
 
             <div class="rounded-xl border border-frame bg-surface p-5 flex items-center justify-between gap-4">
@@ -129,7 +218,27 @@ async function sendInterest(follower) {
                         </p>
                     </div>
 
-                    <div class="shrink-0">
+                    <div class="shrink-0 flex items-center gap-2">
+                        <!-- Nota privada (Sprint 11). Ícone preenchido quando já
+                             existe nota; o membro nunca vê nada disto. -->
+                        <button
+                            type="button"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
+                            :class="hasNote(follower)
+                                ? 'border-gold/60 bg-gold/10 text-gold'
+                                : 'border-frame text-muted hover:border-gold/40 hover:text-gold'"
+                            :title="hasNote(follower) ? 'Editar nota privada' : 'Adicionar nota privada'"
+                            :aria-label="hasNote(follower) ? 'Editar nota privada' : 'Adicionar nota privada'"
+                            @click="openNote(follower)"
+                        >
+                            <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true"
+                                 :fill="hasNote(follower) ? 'currentColor' : 'none'"
+                                 stroke="currentColor" stroke-width="1.6">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9A1.5 1.5 0 0118.5 16H9l-5 4V5.5z" />
+                            </svg>
+                        </button>
+
                         <span
                             v-if="alreadySent(follower)"
                             class="inline-flex items-center rounded-full border border-frame bg-muted/10 px-3 py-1 text-xs text-muted"
@@ -163,6 +272,60 @@ async function sendInterest(follower) {
                     ]"
                     v-html="link.label"
                 />
+            </div>
+        </div>
+
+        <!-- Modal da nota privada (Sprint 11). Textarea simples; o membro nunca
+             vê o conteúdo. -->
+        <div
+            v-if="noteModal.open"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            @click.self="closeNote"
+        >
+            <div class="w-full max-w-lg rounded-2xl border border-frame bg-surface p-6 space-y-4 shadow-2xl">
+                <div class="space-y-1">
+                    <h2 class="font-serif text-2xl text-cream">Nota sobre {{ noteModal.label }}</h2>
+                    <p class="text-muted text-xs">
+                        Anotação privada, só sua. {{ noteModal.label }} nunca vê o que você escreve aqui.
+                    </p>
+                </div>
+
+                <textarea
+                    v-model="noteModal.draft"
+                    rows="6"
+                    maxlength="5000"
+                    placeholder="Detalhes de conversa, preferências, o que quiser lembrar…"
+                    class="w-full rounded-xl border border-frame bg-surface-2 p-3 text-sm text-cream placeholder:text-muted/60 focus:border-gold/50 focus:outline-none"
+                ></textarea>
+
+                <p v-if="noteModal.error" class="text-xs text-danger">{{ noteModal.error }}</p>
+
+                <div class="flex items-center justify-between gap-3 pt-1">
+                    <button
+                        v-if="notes[noteModal.handle]"
+                        type="button"
+                        class="text-sm text-danger hover:opacity-80 transition-opacity disabled:opacity-40"
+                        :disabled="noteModal.saving"
+                        @click="removeNote(noteModal.handle)"
+                    >
+                        Remover nota
+                    </button>
+                    <span v-else></span>
+
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            class="text-sm text-muted hover:text-cream transition-colors"
+                            :disabled="noteModal.saving"
+                            @click="closeNote"
+                        >
+                            Cancelar
+                        </button>
+                        <Button variant="primary" size="sm" :loading="noteModal.saving" @click="saveNote">
+                            Salvar
+                        </Button>
+                    </div>
+                </div>
             </div>
         </div>
 

@@ -164,7 +164,7 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 9B** (SEM TAG, não fechado) — **Foto Efêmera do Membro** (§ abaixo): `ImageProcessingService`, storage cifrado, expiração, endpoints e UI de chat, GC. **Implementada, não liberada.**
 - **Sprint 9C** — **Stories da Performer** (§ abaixo), tag `v1.0-sprint9`: publicação com TTL fixo de 24h e 3 níveis de visibilidade, feed e serving autenticados, ponto dourado no catálogo, e a moderação junto (denúncia, quarentena, `content_hash`, `DeletionService` nos dois sentidos).
 - **Sprint 10** — descoberta e perfil, tag `v1.0-sprint10` (PRs #111–#117, deploy de staging): **Estilos de Vida** (6 faixas opt-in, sem filtro, Modo Discreto suprime, fora do painel de visitantes), **Favoritos** (bookmark privado — § abaixo), "Sobre mim" no perfil público, "visto por último" em faixa (Ghost Mode suprime a escrita), barra de progresso do perfil, **galeria de fotos** (carrossel 6, EXIF strip, pública).
-- **Sprint 11** (EM ANDAMENTO, sem tag) — **Login OTP passwordless** (§ abaixo, PR #118): código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` (GC horário). O resto do backlog do Sprint 11 (badge de disponibilidade, boost pago, notas de membro, convite via Stories, videochamada LiveKit) **não foi iniciado**.
+- **Sprint 11** (EM ANDAMENTO, sem tag) — entregas mergeadas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h); **Notas privadas da performer sobre membros** (§ abaixo: nota por FanAlias, cifrada, o membro nunca vê). O resto do backlog do Sprint 11 (boost pago, convite via Stories, videochamada LiveKit) **não foi iniciado**.
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -334,6 +334,54 @@ Consequências, e nenhuma é opcional:
   disparam** (os dois lados são soft-delete/anonimização), então a varredura é
   explícita no `DeletionService`; sem ela a linha ficaria órfã para sempre, pois
   favorito não tem retenção que o varra depois.
+
+## Notas da performer sobre membros — Sprint 11 (anotação PRIVADA)
+
+Inspirada nas "Notas dos membros" do Seeking: a performer anota observações
+sobre um FanAlias (detalhes de conversa, preferências) para lembrar depois. **O
+membro NUNCA vê a nota** — é o oposto exato do favorito (privado do lado do
+MEMBRO); aqui o privado é do lado da PERFORMER. Dona única da regra:
+`app/Services/MemberNoteService.php`; o model `MemberNote` carrega o mesmo
+cabeçalho. Uma nota por par `(performer_profile_id, user_id)` (UNIQUE).
+
+- **`content` é cifrado em repouso** (cast `encrypted` sobre a APP_KEY) — é
+  opinião pessoal sobre alguém, PII sensível que não pode ficar legível no banco
+  nem em log. `user_id` é `$hidden`; FKs fora do `$fillable` (a linha só nasce no
+  serviço, nunca de array de request — mesma disciplina de `favorites` e do 2FA).
+- **O id do membro nunca chega ao front:** a tela e o payload usam
+  `FanAlias::handle`/`label`, e o PUT/DELETE recebem o **handle** (16 hex) na
+  rota, não o id. Quem resolve `member_handle` → membro é o trait
+  `ResolvesMemberNoteTarget`, contra os **seguidores listáveis E os visitantes
+  reveláveis** — o padrão do Interesse, unido porque a nota alcança qualquer
+  membro que a performer vê por qualquer das duas telas. **Abaixo do Piso de
+  Anonimato nada resolve** (a lista está escondida), e todo modo de falha é o
+  **mesmo 404** — distinguir "não existe" de "escondido" viraria oráculo.
+- **Handle é por par:** a nota de outra performer sobre o mesmo membro é uma
+  linha SEPARADA, e o handle de um perfil **não resolve** no outro (HMAC por
+  par). Não há como uma performer tocar a nota de outra — 404, não 403.
+- **O upsert é idempotente sob duplo-submit** (`lockForUpdate` + catch do
+  `UniqueConstraintViolationException`), como o toggle do favorito. O DELETE é
+  idempotente (apagar o que não existe é no-op).
+- **Nada entra em `audit_logs`, e a nota NÃO aparece em denúncia/`Report`** —
+  seria a cópia permanente do dossiê que o Hard Delete apaga, na única tabela que
+  o `DeletionService` preserva com o IP em claro. Mesmo raciocínio do favorito e
+  do slug do Estilo de Vida.
+- **O Hard Delete leva a nota NOS DOIS SENTIDOS** — as escritas SOBRE o membro
+  (`purgeMemberNotes`, por `user_id`) e as escritas PELA performer
+  (`purgeMemberNotesByPerformer`, por `performer_profile_id`). As FKs
+  `cascadeOnDelete` **nunca disparam** (os dois lados são
+  soft-delete/anonimização), e não há retenção que varra depois — sem as duas
+  varreduras a linha ficaria órfã para sempre (item 11, mesma armadilha de
+  `favorites`/`profile_visits`).
+
+> **Ressalva de segurança — a nota adensa o dossiê por FanAlias.** O `FanAlias` é
+> estável por par, e a nota cola no MESMO pseudônimo que já carrega as gorjetas e
+> a linha de seguidor. Somando **lifestyle_tier + nota + gorjetas + horário de
+> visita em faixa**, a performer monta um perfil persistente do "Membro #0042 de
+> sempre". É correlação DENTRO de um perfil (o alias não cruza perfis, por
+> construção do HMAC — ver `FanAlias`), e é o preço de dar à performer memória
+> sobre o membro: decisão de produto, registrada para não ser redescoberta como
+> novidade. Não muda nada do isolamento ENTRE perfis; adensa o de dentro.
 
 ## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
 

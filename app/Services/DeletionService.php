@@ -300,6 +300,8 @@ class DeletionService
             $summary['follows'] = $this->purgeFollows($user);
             $summary['favorites'] = $this->purgeFavorites($user);
             $summary['favorites_received'] = $this->purgeFavoritesToOwnProfile($user);
+            $summary['member_notes'] = $this->purgeMemberNotes($user);
+            $summary['member_notes_written'] = $this->purgeMemberNotesByPerformer($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
             $summary['member_interests'] = $this->purgeMemberInterests($user);
             $summary['profile_visits'] = $this->purgeProfileVisits($user);
@@ -539,6 +541,44 @@ class DeletionService
         }
 
         return DB::table('favorites')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * As notas escritas SOBRE o titular (Sprint 11): o que outras performers
+     * anotaram sobre ele.
+     *
+     * É opinião de terceiros pendurada no membro que encerra — PII sensível dele
+     * (o dossiê que uma performer montou por FanAlias) sem valor fiscal nem
+     * trilha legal. Some inteiro, da mesma família de `favorites` e
+     * `profile_visits`. A FK `cascadeOnDelete` de `member_notes` NÃO dispara:
+     * `anonymizeUser()` só soft-deleta o `users`, então o banco não tem o que
+     * cascatear (item 11 do CLAUDE.md). Sem esta varredura as notas
+     * sobreviveriam ao Hard Delete — e não há retenção que as varra depois.
+     */
+    private function purgeMemberNotes(User $user): int
+    {
+        return DB::table('member_notes')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro sentido: as notas ESCRITAS pela performer que encerra sobre os
+     * membros dela.
+     *
+     * Análogo exato de `purgeFavoritesToOwnProfile()` — dado que sai pelo
+     * `performer_profile_id`, não pelo `user_id`, e que nenhuma das duas FKs
+     * `cascadeOnDelete` de `member_notes` remove (os dois lados são
+     * soft-delete/anonimização). Roda ANTES do `anonymizePerformerProfile`,
+     * enquanto o perfil ainda resolve, e consulta pela coluna, não pela relação.
+     */
+    private function purgeMemberNotesByPerformer(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('member_notes')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**

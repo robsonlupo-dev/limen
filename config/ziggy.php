@@ -70,6 +70,11 @@ return [
         'performer.payouts.history',
         'performer.payouts.store',
         'performer.followers',
+        // Notas privadas da performer sobre membros (Sprint 11): lista, salvar,
+        // apagar. O membro não tem rota irmã aqui — a nota é só do lado dela.
+        'performer.notes.index',
+        'performer.notes.save',
+        'performer.notes.destroy',
         // "Disponível para conversa" (Sprint 11): toggle do dashboard
         'performer.availability.toggle',
         'performer.interests.send',
