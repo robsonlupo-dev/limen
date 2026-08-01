@@ -25,6 +25,12 @@ use Inertia\Response;
  * O id cru do membro nunca sai daqui: index e as respostas de PUT usam
  * `FanAlias` via `MemberNoteService::present()`; o handle da rota de PUT/DELETE
  * é resolvido de volta pelo trait.
+ *
+ * Gates (ver routes/web.php): `auth`+`2fa`+`documents.accepted` dos grupos-pai,
+ * mais `role:performer` e `can('performer-active')` EXPLÍCITOS em cada rota — o
+ * grupo `documents.accepted` não aplica `role:performer` no todo. O
+ * `Gate::authorize('performer-active')` aqui é a terceira camada (defesa em
+ * profundidade), não a única.
  */
 class MemberNotesController extends Controller
 {

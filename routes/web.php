@@ -432,25 +432,30 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->can('performer-active');
 
         // Notas privadas da performer sobre membros (Sprint 11). A performer
-        // anota sobre um FanAlias; o membro NUNCA vê. Mesmos gates da lista de
-        // seguidores — de onde ela abre o modal de nota — e do Interesse: já sob
-        // `auth`+`2fa`+`documents.accepted`, mais `role:performer` (grupo pai) e
-        // `can('performer-active')`. O `member_handle` da rota é o handle opaco
-        // do FanAlias (16 hex), resolvido contra seguidores/visitantes no Form
+        // anota sobre um FanAlias; o membro NUNCA vê. Já sob
+        // `auth`+`2fa`+`documents.accepted` (grupos-pai). `role:performer` é
+        // EXPLÍCITO em cada rota, não herdado: este grupo `documents.accepted`
+        // NÃO aplica `role:performer` no todo — só subgrupos específicos o fazem,
+        // e as notas não estão em nenhum deles. `can('performer-active')` já
+        // exigiria `role===performer`, mas mantê-lo redundante é o piso de papel
+        // que sobrevive a um afrouxamento futuro do gate (como o dashboard e o
+        // toggle de disponibilidade, que aceitam performer `pending`) — achado da
+        // revisão de segurança. O `member_handle` da rota é o handle opaco do
+        // FanAlias (16 hex), resolvido contra seguidores/visitantes no Form
         // Request — nunca o id do membro. Ver Web\Performer\MemberNotesController.
         Route::get('/performer/notas', [MemberNotesController::class, 'index'])
-            ->middleware('throttle:60,1')
+            ->middleware(['role:performer', 'throttle:60,1'])
             ->name('performer.notes.index')
             ->can('performer-active');
 
         Route::put('/performer/notas/{member_handle}', [MemberNotesController::class, 'update'])
-            ->middleware('throttle:30,1')
+            ->middleware(['role:performer', 'throttle:30,1'])
             ->whereAlphaNumeric('member_handle')
             ->name('performer.notes.save')
             ->can('performer-active');
 
         Route::delete('/performer/notas/{member_handle}', [MemberNotesController::class, 'destroy'])
-            ->middleware('throttle:30,1')
+            ->middleware(['role:performer', 'throttle:30,1'])
             ->whereAlphaNumeric('member_handle')
             ->name('performer.notes.destroy')
             ->can('performer-active');
