@@ -77,6 +77,8 @@ return [
         'performer.notes.destroy',
         // "Disponível para conversa" (Sprint 11): toggle do dashboard
         'performer.availability.toggle',
+        // Boost pago (Sprint 11): destaca o perfil no topo do catálogo
+        'performer.boost',
         'performer.interests.send',
         'performer.interests.send-visitor',
         'performer.interests.index',

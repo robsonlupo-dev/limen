@@ -30,7 +30,15 @@ const categoryLabels = {
 </script>
 
 <template>
-    <div class="group relative rounded-xl border border-frame bg-surface overflow-hidden transition-all duration-200 hover:border-gold/40 hover:shadow-[0_0_24px_-8px_rgba(201,162,75,0.35)]">
+    <!-- Boost pago (Sprint 11): borda dourada sutil quando em destaque. O
+         is_boosted é o booleano derivado do resource — a POSIÇÃO no topo já vem
+         da ordenação do servidor; a borda só sinaliza. -->
+    <div
+        class="group relative rounded-xl border bg-surface overflow-hidden transition-all duration-200 hover:shadow-[0_0_24px_-8px_rgba(201,162,75,0.35)]"
+        :class="performer.is_boosted
+            ? 'border-gold/60 shadow-[0_0_20px_-8px_rgba(201,162,75,0.45)] hover:border-gold'
+            : 'border-frame hover:border-gold/40'"
+    >
         <!-- Coração de "salvar para ver depois" (Sprint 10).
              Fica FORA do <Link> — um <button> dentro de um <a> é HTML inválido e
              o clique disputaria com a navegação. Como irmão posicionado, o
@@ -113,6 +121,12 @@ const categoryLabels = {
                     :category="performer.category"
                     :tier="performer.tier"
                 />
+                <!-- Boost pago (Sprint 11): badge discreto "⚡ Destaque" em
+                     dourado, só quando boostado. Sinal de vitrine da própria
+                     performer — nunca um timestamp. -->
+                <p v-if="performer.is_boosted" class="text-xs text-gold flex items-center gap-1">
+                    <span aria-hidden="true">⚡</span> Destaque
+                </p>
                 <!-- "Disponível para conversa" (Sprint 11): badge discreto em
                      dourado, na linha dos outros badges. Some quando is_live — a
                      bolinha verde já diz "quer contato agora", e os dois juntos

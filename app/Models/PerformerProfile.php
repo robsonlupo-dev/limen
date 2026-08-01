@@ -141,6 +141,13 @@ class PerformerProfile extends Model
      */
     protected $hidden = [
         'available_for_chat_at',
+        // Boost pago (Sprint 11): o carimbo do FIM do destaque. $hidden porque o
+        // público só pode ver o BOOLEANO derivado (is_boosted no
+        // PerformerPublicResource) — expor o `boosted_until` diria a hora exata
+        // em que o destaque acaba (e, com a duração do config, quando começou).
+        // Fora do $fillable também: a escrita só acontece no BoostService, por
+        // forceFill, depois do débito no ledger — nunca de um payload de massa.
+        'boosted_until',
     ];
 
     protected function casts(): array
@@ -152,6 +159,7 @@ class PerformerProfile extends Model
             'height_cm' => 'integer',
             'is_live' => 'boolean',
             'available_for_chat_at' => 'datetime',
+            'boosted_until' => 'datetime',
             'is_verified' => 'boolean',
             'rating_avg' => 'decimal:2',
             'split_pct' => 'integer',
@@ -232,7 +240,23 @@ class PerformerProfile extends Model
             ->withCount('photos')
             ->whereHas('user', fn (Builder $q) => $q->where('status', 'active'))
             ->where('is_verified', true)
-            ->whereNotNull('slug');
+            ->whereNotNull('slug')
+            // Boost pago (Sprint 11): boostados ANTES de todos, ordenados entre
+            // si por quem tem o destaque mais recente (boosted_until maior).
+            //
+            // A expressão devolve o carimbo só para quem está boostado AGORA
+            // (`boosted_until > now()`) e NULL para os demais — incluindo boost
+            // VENCIDO (carimbo no passado), que assim não rouba posição de quem
+            // nunca boostou. Como é a PRIMEIRA cláusula de ordenação, é a
+            // primária: os serviços de catálogo acrescentam a ordenação normal
+            // (seguidores/rating) DEPOIS, que passa a valer só como desempate
+            // dentro de cada grupo. Sem boost ativo na base, todos caem em NULL
+            // (empate) e a ordem existente decide tudo — por isso adicionar isto
+            // aqui não mexe no catálogo de quem não usou o boost.
+            //
+            // NULLs vão por último em DESC (MySQL e SQLite concordam nisso), então
+            // "boostado primeiro" sai de graça, sem um CASE/booleano extra.
+            ->orderByRaw('CASE WHEN boosted_until > ? THEN boosted_until END DESC', [now()]);
     }
 
     /**
@@ -310,6 +334,56 @@ class PerformerProfile extends Model
             '>',
             now()->subHours(self::AVAILABILITY_WINDOW_HOURS)
         );
+    }
+
+    /**
+     * O perfil está em destaque AGORA (Sprint 11), DERIVADO na leitura.
+     *
+     * Verdadeiro só quando `boosted_until` foi setado E ainda está no futuro.
+     * Sem job de expiração — como `is_live`, `isAvailableForChat` e o ChatAccess,
+     * o estado "vence" na leitura. É o ÚNICO lugar que decide destaque: o resource
+     * (is_boosted), a ordenação do catálogo e o BoostService passam por aqui.
+     */
+    public function isBoosted(): bool
+    {
+        return $this->boosted_until !== null && $this->boosted_until->isFuture();
+    }
+
+    /**
+     * Tempo restante de destaque em FAIXA, para o PRÓPRIO painel da performer —
+     * nunca sai em superfície pública. Faixa e não relógio pela mesma disciplina
+     * da availabilityRemainingLabel/ActivitySlot: mesmo sendo o dado dela na tela
+     * dela, a copy não promete um minuto exato que o produto não expõe. Null
+     * quando não está boostado (a tela não desenha nada).
+     *
+     * As faixas se adaptam à duração do config: quem tem 6h vê "por quase 6
+     * horas" no começo; encolhe conforme o relógio anda.
+     */
+    public function boostRemainingLabel(): ?string
+    {
+        if (! $this->isBoosted()) {
+            return null;
+        }
+
+        $hoursLeft = (int) ceil(now()->diffInMinutes($this->boosted_until, false) / 60);
+        $hoursLeft = max(1, $hoursLeft);
+
+        return $hoursLeft === 1
+            ? 'por menos de 1 hora'
+            : "por cerca de {$hoursLeft} horas";
+    }
+
+    /**
+     * Restringe a quem está boostado agora (Sprint 11) — usado pelo BoostService
+     * para contar os slots ocupados. Espelha isBoosted() em SQL: carimbo no
+     * futuro. Quem nunca boostou (`null`) ou teve o boost vencido não casa.
+     *
+     * @param  Builder<PerformerProfile>  $query
+     * @return Builder<PerformerProfile>
+     */
+    public function scopeBoosted(Builder $query): Builder
+    {
+        return $query->where('boosted_until', '>', now());
     }
 
     public function user(): BelongsTo

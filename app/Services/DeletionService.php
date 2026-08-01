@@ -658,6 +658,12 @@ class DeletionService
             // basta ele estar vencido (a janela de 4h passou): o Hard Delete
             // apaga o dado, não conta com a expiração da leitura.
             'available_for_chat_at' => null,
+            // Boost pago (Sprint 11): o carimbo do destaque, mesma natureza do
+            // `available_for_chat_at` acima — presença sem valor fiscal nem
+            // legal. Sai junto, sem contar com a expiração da leitura. O débito
+            // de tokens que pagou o boost FICA no ledger (append-only, lastro
+            // fiscal), só desvinculado como o resto — não é este campo.
+            'boosted_until' => null,
             'is_verified' => false,
         ])->save();
 

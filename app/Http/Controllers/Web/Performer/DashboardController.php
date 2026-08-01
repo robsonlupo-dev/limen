@@ -12,6 +12,7 @@ use App\Models\Tip;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Services\BoostService;
 use App\Services\FollowerVisibilityService;
 use App\Services\InterestService;
 use App\Services\PerformerStoryService;
@@ -29,6 +30,7 @@ class DashboardController extends Controller
     public function __construct(
         private ProfileVisitService $visits,
         private PerformerStoryService $stories,
+        private BoostService $boost,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
@@ -89,6 +91,22 @@ class DashboardController extends Controller
             // da ActivitySlot, mesmo sendo o dado dela na tela dela.
             'isAvailable' => $profile->isAvailableForChat(),
             'availabilityRemaining' => $profile->availabilityRemainingLabel(),
+            // Boost pago (Sprint 11): seção "Destaque". Booleano derivado + faixa
+            // de tempo restante (nunca o carimbo `boosted_until`, que é $hidden) +
+            // custo, vagas livres e a elegibilidade (verificada) para a tela
+            // decidir entre botão / faixa / aviso. O saldo já vai em `wallet`.
+            'boost' => [
+                'is_boosted' => $profile->isBoosted(),
+                'remaining_label' => $profile->boostRemainingLabel(),
+                'cost' => $this->boost->cost(),
+                'duration_hours' => $this->boost->durationHours(),
+                'available_slots' => $this->boost->availableSlots(),
+                'max_slots' => $this->boost->maxActive(),
+                // Só perfil verificado entra no catálogo — o destaque só faz
+                // sentido para quem já está lá. A tela usa isto para explicar por
+                // que o botão não aparece à performer ainda em KYC.
+                'eligible' => (bool) $profile->is_verified && $user->status === 'active',
+            ],
             // Visitantes das últimas 24h, sob o mesmo FanAlias das gorjetas e
             // atrás do mesmo Piso de Anonimato da tela de seguidores (ver
             // ProfileVisitService::panelFor). Quem tem Ghost Mode (Black/FC) ou
