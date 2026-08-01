@@ -7,6 +7,7 @@ use App\Models\Follow;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Services\FollowerVisibilityService;
+use App\Services\MemberNoteService;
 use App\Support\FanAlias;
 use App\Support\LifestyleTier;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +29,10 @@ use Inertia\Response;
  */
 class FollowersController extends Controller
 {
-    public function __construct(private FollowerVisibilityService $visibility) {}
+    public function __construct(
+        private FollowerVisibilityService $visibility,
+        private MemberNoteService $notes,
+    ) {}
 
     public function index(Request $request): Response|RedirectResponse
     {
@@ -89,6 +93,16 @@ class FollowersController extends Controller
             collect($follows->items())->pluck('user_id')->all()
         );
 
+        // Notas privadas desta performer sobre os membros DESTA página (Sprint
+        // 11). Resolvido em lote (uma query, uma descriptografia por nota) e
+        // devolvido inline por handle: o modal abre com o texto já em mãos, sem
+        // um GET extra por membro. A chave sai como HANDLE, nunca o user_id — o
+        // mapa cru (user_id => conteúdo) não passa deste método.
+        $notesByMember = $this->notes->contentByMember(
+            $profile,
+            collect($follows->items())->pluck('user_id')->all()
+        );
+
         return Inertia::render('Performer/Followers', [
             'followers' => $follows->through(fn (Follow $follow) => [
                 // Handle opaco, não o id: é ele que volta no POST do Interesse.
@@ -99,6 +113,9 @@ class FollowersController extends Controller
                 'lifestyle' => $lifestyleLabels[$follow->user_id] ?? null,
                 'following_since' => $follow->created_at->format('d/m/Y'),
                 'interest_sent' => in_array($follow->user_id, $inCooldown, true),
+                // A nota da performer sobre este membro, ou null. Só a própria
+                // performer recebe isto — é a tela dela.
+                'note' => $notesByMember[$follow->user_id] ?? null,
             ]),
             'remainingToday' => max(0, $dailyLimit - $sentToday),
             'dailyLimit' => $dailyLimit,

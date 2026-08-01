@@ -38,6 +38,7 @@ use App\Http\Controllers\Web\Performer\DashboardController;
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
+use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
 use App\Http\Controllers\Web\Performer\PhotoController as PerformerPhotoController;
@@ -428,6 +429,35 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/performer/seguidores', [FollowersController::class, 'index'])
             ->middleware('throttle:60,1')
             ->name('performer.followers')
+            ->can('performer-active');
+
+        // Notas privadas da performer sobre membros (Sprint 11). A performer
+        // anota sobre um FanAlias; o membro NUNCA vê. Já sob
+        // `auth`+`2fa`+`documents.accepted` (grupos-pai). `role:performer` é
+        // EXPLÍCITO em cada rota, não herdado: este grupo `documents.accepted`
+        // NÃO aplica `role:performer` no todo — só subgrupos específicos o fazem,
+        // e as notas não estão em nenhum deles. `can('performer-active')` já
+        // exigiria `role===performer`, mas mantê-lo redundante é o piso de papel
+        // que sobrevive a um afrouxamento futuro do gate (como o dashboard e o
+        // toggle de disponibilidade, que aceitam performer `pending`) — achado da
+        // revisão de segurança. O `member_handle` da rota é o handle opaco do
+        // FanAlias (16 hex), resolvido contra seguidores/visitantes no Form
+        // Request — nunca o id do membro. Ver Web\Performer\MemberNotesController.
+        Route::get('/performer/notas', [MemberNotesController::class, 'index'])
+            ->middleware(['role:performer', 'throttle:60,1'])
+            ->name('performer.notes.index')
+            ->can('performer-active');
+
+        Route::put('/performer/notas/{member_handle}', [MemberNotesController::class, 'update'])
+            ->middleware(['role:performer', 'throttle:30,1'])
+            ->whereAlphaNumeric('member_handle')
+            ->name('performer.notes.save')
+            ->can('performer-active');
+
+        Route::delete('/performer/notas/{member_handle}', [MemberNotesController::class, 'destroy'])
+            ->middleware(['role:performer', 'throttle:30,1'])
+            ->whereAlphaNumeric('member_handle')
+            ->name('performer.notes.destroy')
             ->can('performer-active');
 
         Route::get('/performer/payouts', [PayoutController::class, 'index'])

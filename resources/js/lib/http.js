@@ -35,6 +35,10 @@ export function patchJson(url, body) {
     return request('PATCH', url, body)
 }
 
+export function putJson(url, body) {
+    return request('PUT', url, body)
+}
+
 export function getJson(url) {
     return request('GET', url)
 }
