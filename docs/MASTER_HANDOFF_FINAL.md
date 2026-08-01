@@ -7,18 +7,17 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 31/07/2026 — **`main` em `96b0838`**, tag
-> **`v1.0-sprint10`** (`402d29e`). **Sprint 10 FECHADO** (PRs #111–#117, deploy de
-> staging em `402d29e`) e **PR #118** por cima (Login OTP passwordless — primeira
-> entrega do **Sprint 11, em andamento**). Suíte: **1381 testes, 7121 asserts**
-> (1 falha só-local: a view 451 do GeoBlock não compila neste clone de dev — verde
-> no CI).
+> **Última atualização:** 01/08/2026 — **`main` em `11354b4`**, tag
+> **`v1.0-sprint11`** (`11354b4`). **Sprint 11 FECHADO** — 4 entregas: PR #118
+> (Login OTP passwordless), PR #119 (badge "Disponível para conversa"), PR #120
+> (Notas privadas de membros), PR #121 (Boost pago). Suíte: **1429 testes, 7393
+> asserts** (1 falha só-local: a view 451 do GeoBlock não compila neste clone de
+> dev — verde no CI).
 >
-> **A tag `v1.0-sprint10` aponta para o fecho do Sprint 10 (`402d29e`), ANTES de
-> qualquer código do Sprint 11.** O snapshot do §1, ao contrário, reflete `main`
-> HEAD (`96b0838` = Sprint 10 **+** o OTP do PR #118) — por isso os números do §1
-> são maiores do que o conteúdo da tag. Não é para criar `v1.0-sprint11`: o
-> Sprint 11 não fechou, só teve sua primeira entrega mergeada.
+> **A tag `v1.0-sprint11` (`11354b4`) marca o fecho do Sprint 11, e é marco de
+> CÓDIGO, não de go-live.** Deploy de staging pendente: **só o PR #118 (OTP) foi
+> deployado; #119, #120 e #121 ainda NÃO subiram para staging.** O snapshot do §1
+> reflete `main` HEAD = a própria tag (mais esta atualização de doc por cima).
 >
 > **Histórico:** 30/07/2026 — `main` em `49ef728`, tag `v1.0-sprint9.1`, o PR #110
 > fechou os 4 bloqueadores da Foto Efêmera (9B); antes, `57aab21` / tag
@@ -79,27 +78,26 @@
 
 ## 1. Snapshot do estado atual
 
-> **Snapshot de `main` HEAD (`96b0838`) — Sprint 10 fechado + o OTP do PR #118.**
-> A tag `v1.0-sprint10` (`402d29e`) tem menos: 83 migrations, 36 models, 32
-> services, 11 commands, sem as rotas/telas de OTP.
+> **Snapshot de `main` HEAD (`11354b4`) = tag `v1.0-sprint11` — Sprint 11
+> fechado (PRs #118–#121).** Os números abaixo refletem esse estado.
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1381 testes, 7121 asserts** (1 falha só-local: view 451 do GeoBlock, verde no CI) | `php artisan test` (~135 s) |
-| Migrations | **84** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **161** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 125 | `grep` |
-| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto e story continuam só web**) | `grep` |
-| Services | 33 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
-| Models | 37 | `ls app/Models/` |
-| Controllers Web | 49 | `find app/Http/Controllers/Web` |
+| Suíte de testes | **1429 testes, 7393 asserts** (1 falha só-local: view 451 do GeoBlock, verde no CI) | `php artisan test` (~155 s) |
+| Migrations | **88** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **166** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 130 | `grep` |
+| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto, story, notas e boost continuam só web**) | `grep` |
+| Services | 35 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
+| Models | 38 | `ls app/Models/` |
+| Controllers Web | 52 | `find app/Http/Controllers/Web` |
 | Controllers API | 22 | `find app/Http/Controllers/Api` |
 | Middleware | 11 | `ls app/Http/Middleware/` |
 | Commands (agendáveis) | 12 | `ls app/Console/Commands/` |
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
-| Configs | 26 | `ls config/` |
-| Tag Git | **`v1.0-sprint10` (`402d29e`, fecho do Sprint 10)**, `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Configs | 27 | `ls config/` |
+| Tag Git | **`v1.0-sprint11` (`11354b4`, fecho do Sprint 11)**, `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -929,17 +927,22 @@ produto, como a ausência de linha em `profile_visits` (item 9 do `CLAUDE.md`).
 
 ---
 
-## Sprint 11 — Em andamento
+## Sprint 11 — Fechado
 
-> **NÃO É UM SPRINT FECHADO — não há tag `v1.0-sprint11`, e não é para criar.**
-> Primeira entrega mergeada: **PR #118 — Login passwordless por código OTP**
-> (`96b0838`, sobre a `main` já com o Sprint 10). O resto do backlog do Sprint 11
-> (badge de disponibilidade, boost pago, notas de membro, convite via Stories,
-> videochamada) **não tem código escrito** — ver Apêndice A.
+> **FECHADO — tag `v1.0-sprint11` (`11354b4`).** Quatro entregas mergeadas:
+> **PR #118** (Login OTP passwordless), **PR #119** (badge "Disponível para
+> conversa"), **PR #120** (Notas privadas de membros), **PR #121** (Boost pago).
+> Suíte no fecho: **1429 testes, 7393 asserts**.
 >
-> Revisão de segurança rodada (duas passadas, `security-reviewer`) e **limpa**;
-> os achados reais foram aplicados na branch antes do merge (lock em `verifyCode`,
-> GC `otp:purge`, e-mail da sessão como fonte, `digits:6`).
+> **Deploy de staging PENDENTE:** só o **PR #118 (OTP)** foi para staging; **#119,
+> #120 e #121 ainda NÃO subiram.** A tag é marco de código, não de go-live.
+>
+> **Revisão de segurança rodada em cada entrega** (`security-reviewer`) e **limpa**;
+> os achados reais foram aplicados antes do merge — OTP (lock em `verifyCode`, GC
+> `otp:purge`, e-mail da sessão como fonte, `digits:6`); notas (rota com
+> `role:performer` explícito); boost (elegibilidade com dona única no
+> `BoostService`). O detalhe de cada feature vive no **CLAUDE.md** (§§ próprias);
+> as sub-seções abaixo situam.
 
 ### ENTREGUE — Login OTP (PR #118)
 
@@ -989,6 +992,79 @@ compartilhado entre o login por senha e o por código).
   troca o alvo da verificação); a API lê do corpo de propósito (não há sessão).
 - **Hard Delete varre `otp_codes`** (`DeletionService::purgeOtpCodes`) — a FK
   `cascadeOnDelete` não dispara porque `users` é soft-delete/anonimização.
+
+### ENTREGUE — Badge "Disponível para conversa" (PR #119)
+
+Caminho 3 do Interesse Expandido: a performer sinaliza que quer ser abordada
+agora. Estado DERIVADO na leitura do carimbo `available_for_chat_at` — "ligar" é
+carimbar `now()`, "desligar" é `null`, e expira sozinho em **4h** na leitura
+(`PerformerProfile::isAvailableForChat`, sem job). Detalhe no CLAUDE.md, § do badge.
+
+- **`available_for_chat_at` é `$hidden` e fora do `$fillable`** — o público vê só
+  o booleano `is_available` (PerformerPublicResource); o carimbo é presença ao
+  minuto (mesma disciplina do `last_active_at` e do `visited_at`). Escrita via
+  `forceFill` no `AvailabilityController` (toggle PATCH idempotente).
+- **Faixa de tempo, nunca relógio** (`availabilityRemainingLabel`), mesmo no
+  painel dela. O badge do card some quando `is_live` (a bolinha verde já diz
+  "agora") e não aparece junto do estado (presença + localização é a correlação
+  do R2). Scope `scopeAvailableForChat` para o filtro "Disponíveis agora".
+- **Hard Delete zera `available_for_chat_at`.**
+
+### ENTREGUE — Notas privadas da performer sobre membros (PR #120)
+
+Inspirada nas "Notas dos membros" do Seeking: a performer anota sobre um FanAlias
+(detalhes de conversa, preferências). **Anotação PRIVADA — o membro NUNCA vê.** É
+o oposto do favorito (privado do lado do membro); aqui o privado é da performer.
+Dona única: `MemberNoteService`. Detalhe no CLAUDE.md, § própria.
+
+- **`content` cifrado em repouso** (cast `encrypted` sobre a APP_KEY); `user_id`
+  `$hidden`, FKs fora do `$fillable`. Uma nota por par `(performer_profile_id,
+  user_id)` (UNIQUE); upsert idempotente sob `lockForUpdate` + catch do UNIQUE.
+- **O id do membro nunca chega ao front** — tela e payload usam `FanAlias`; o
+  PUT/DELETE recebem o **handle** (16 hex) na rota, resolvido contra seguidores
+  listáveis E visitantes reveláveis (padrão do Interesse). Abaixo do Piso de
+  Anonimato nada resolve; todo modo de falha é o mesmo **404**.
+- **Nada em `audit_logs` nem em `Report`** (seria a cópia do dossiê que o Hard
+  Delete apaga). **Hard Delete varre nos DOIS sentidos** (`purgeMemberNotes` por
+  `user_id`, `purgeMemberNotesByPerformer` por perfil) — as FKs `cascadeOnDelete`
+  nunca disparam sob soft-delete.
+- **Rotas** `performer.notes.index/save/destroy` com `role:performer` explícito +
+  `2fa` + `documents.accepted` + `can('performer-active')`. **Migration nova (1):**
+  `create_member_notes_table`. **Model/Service/Controller novos.**
+- **Ressalva registrada:** a nota adensa o dossiê por FanAlias (lifestyle + nota +
+  gorjetas + visita), DENTRO de um perfil — o alias não cruza perfis (HMAC por
+  par). Correlação intra-perfil, decisão de produto.
+
+### ENTREGUE — Boost pago (PR #121)
+
+Monetização INDIRETA: a performer gasta **tokens** (não dinheiro) para o perfil
+aparecer no topo do catálogo por uma janela curta (config `boost.php`: custo 50,
+duração 6h, teto 20 simultâneos). Não credita ninguém — 100% plataforma, como o
+desbloqueio de Interesse. Dona única: `BoostService`. Detalhe no CLAUDE.md, § própria.
+
+- **Ledger append-only (princípio nº 2):** o débito é linha nova `spend_boost` via
+  `TokenService::debit` — NUNCA UPDATE de saldo. Migration própria abre o valor no
+  enum de `entry_type`. Saldo insuficiente rejeita ANTES de carimbar → nunca há
+  destaque sem pagamento.
+- **Estado DERIVADO na leitura, um carimbo só:** `boosted_until` (o FIM do
+  destaque) — `isBoosted()` é não-nulo E futuro, sem job. `$hidden` e fora do
+  `$fillable`; escrita via `forceFill` DEPOIS do débito, tudo numa transação que
+  começa travando o perfil (`lockForUpdate`). Ordem das guardas: elegível → já
+  boostada (não empilha) → tem vaga → debita → carimba. O lock + "não empilha"
+  tornam o duplo-submit seguro (sem débito dobrado).
+- **Público vê só o booleano `is_boosted`**, nunca o carimbo. Ordenação
+  "boostados primeiro" em `scopePublicCatalog` (`CASE ... boosted_until DESC` como
+  cláusula primária); sem boost ativo, todos caem em NULL e a ordem existente
+  governa. **Compartilhado por toda vitrine de card público** (catálogo,
+  Favoritos, prévia de "Seguindo") — deliberado.
+- **Teto de slots é SOFT-cap** sob concorrência entre perfis distintos (o lock do
+  perfil não os serializa) — limite de negócio, não de dinheiro; o débito e o "não
+  empilha" seguem exatos. **Hard Delete zera `boosted_until`; o débito FICA no
+  ledger** (lastro fiscal).
+- **Migrations novas (2):** `add_boost_columns_to_performer_profiles`,
+  `add_spend_boost_to_token_ledger_entry_type`. **Service/Exception/Controller
+  novos.** Rota `performer.boost` (`role:performer` + `2fa` + `documents.accepted`,
+  throttle 5/min).
 
 ---
 
@@ -2284,19 +2360,24 @@ registro do que saiu está em "Sprint 9C — O que foi entregue".
 - [x] **Barra de progresso do perfil** · [x] **Galeria de fotos** (carrossel 6, EXIF strip, pública)
 - [x] **Fix flaky** do `stage_name` (`Str::random(4→8)`)
 
-### Sprint 11 — Em andamento (backlog registrado)
+### Sprint 11 — Fechado (tag `v1.0-sprint11`)
 
-> **Primeira entrega mergeada: OTP passwordless (PR #118)** — ver "Sprint 11 — Em
-> andamento". O restante do backlog do Sprint 11 **não tem código escrito**:
+> **FECHADO — 4 entregas mergeadas** (ver "Sprint 11 — Fechado"): PR #118 (OTP),
+> PR #119 (badge disponibilidade), PR #120 (notas de membro), PR #121 (boost).
+> **Deploy de staging: só o #118 subiu; #119–#121 pendentes.**
 
-- [ ] **Badge "Disponível para conversa"** — sinal de disponibilidade no card/perfil.
-- [ ] **Boost pago** — destaque no catálogo por tokens (posição/ordenação paga).
-      Toca o ledger e a ordenação do catálogo; passa por revisão de segurança.
-- [ ] **Notas de membro** — a performer anota sobre um membro **pelo `FanAlias`**,
-      nunca pelo id. ⚠️ Superfície nova que liga performer↔membro: a nota é texto
-      livre onde a performer pode escrever o nome real, reintroduzindo a correlação
-      que o `FanAlias` isola. Passa por decisão de produto **e** segurança antes de
-      uma linha.
+- [x] **Login OTP passwordless** — PR #118. Deployado em staging.
+- [x] **Badge "Disponível para conversa"** — PR #119. `available_for_chat_at`,
+      janela de 4h com auto-expiração na leitura.
+- [x] **Notas de membro** — PR #120. A performer anota **pelo `FanAlias`**, cifrado,
+      e o membro nunca vê. A ressalva prevista aqui (a nota adensa o dossiê por
+      alias) **foi confirmada e registrada** no CLAUDE.md — é correlação DENTRO de
+      um perfil (o alias não cruza perfis), aceita como decisão de produto.
+- [x] **Boost pago** — PR #121. Ledger append-only (`spend_boost`), 50 tokens, 6h,
+      teto de 20. Revisão de segurança limpa.
+
+**Ainda no backlog do Sprint 11 (não iniciado):**
+
 - [ ] **Convite via Stories** — convidar pela superfície de Stories (9C).
 - [ ] **Videochamada (LiveKit)** — Sprint 11 ou 12. **Nada implementado, nenhuma
       dependência no projeto** (§2 / `CLAUDE.md`). Esbarra no bloqueio das FC
@@ -2652,20 +2733,20 @@ segunda porta (seguidores + visitantes, PR #95).
       visibilidade do Story (público / assinantes / exclusivo)?; entra na mesma
       cota e no mesmo cooldown de 30 dias do Interesse, ou tem os seus?
 
-**Caminho 3 — Badge "Disponível para conversa"**
-- [ ] Spec pendente com o PO.
-- **É sinal de presença**, e presença é a categoria de risco que o **R2** acabou
-      de tratar: a localização da performer some quando `is_live` está ligado,
-      justamente para não somar "onde" com "agora". Um badge de disponibilidade é
-      outro "agora" — decidir se ele coexiste com a UF ou se entra na mesma
-      exclusão.
-- **Perguntas em aberto:** quem liga o badge (performer manualmente, ou derivado
-      de atividade?); se derivado, é presença inferida e cai na mesma ressalva do
-      `is_invisible` (§12.4 / props do Inertia); vale para o membro também, ou só
-      para a performer?
-- **Se um dia valer para o MEMBRO, é superfície nova de exposição membro →
-      performer** e entra pela regra do `CLAUDE.md`: passa por `FanAlias`, nunca
-      pelo id, e entra na pré-análise de segurança antes de virar código.
+**Caminho 3 — Badge "Disponível para conversa" — ENTREGUE (PR #119)**
+- [x] Entregue no Sprint 11. Como as perguntas abaixo se resolveram:
+- **É sinal de presença**, e presença é a categoria de risco que o **R2** tratou:
+      a localização da performer some quando `is_live` está ligado, para não somar
+      "onde" com "agora". **Resolução:** o badge é outro "agora", então entra na
+      MESMA exclusão — o card não mostra a UF junto do badge, e o badge some quando
+      `is_live` (a bolinha verde já diz "agora").
+- **Quem liga:** a performer, MANUALMENTE (toggle no dashboard) — não é presença
+      inferida, então não cai na ressalva do `is_invisible`. Carimbo
+      `available_for_chat_at`, janela de 4h com auto-expiração na leitura.
+- **Vale só para a PERFORMER** (não há badge de disponibilidade do membro), então
+      não abriu superfície nova membro → performer. Se um dia valer para o membro,
+      volta a regra do `CLAUDE.md`: passa por `FanAlias`, nunca pelo id, e pela
+      pré-análise de segurança antes de virar código.
 
 **OTP passwordless por e-mail** (inspirado no Seeking)
 - [ ] Spec pendente com o PO.

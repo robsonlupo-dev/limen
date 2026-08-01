@@ -84,19 +84,24 @@ um erro na main derruba o site em produção.
 
 ## Estado atual
 
-> **Estado atual** (`main`, `96b0838`, Sprint 10 fechado + o OTP do PR #118):
-> **1381 testes, 7121 asserts** (1 falha só-local: a view 451 do GeoBlock não
-> compila neste clone de dev — verde no CI). **Base original** (PR #69, `229d852`):
-> 556 testes, 2614. O detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** —
-> esse é o doc a ler antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é
-> histórico). Este resumo só situa.
+> **Estado atual** (`main`, `11354b4`, Sprint 11 FECHADO): **1429 testes, 7393
+> asserts** (1 falha só-local: a view 451 do GeoBlock não compila neste clone de
+> dev — verde no CI). **Base original** (PR #69, `229d852`): 556 testes, 2614. O
+> detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler
+> antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo
+> só situa.
 
-**Sprints 6, 7, 8, 9A, 9C e 10 fechados** (tags `v1.0-sprint6` a `v1.0-sprint9a`,
-**`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho dos bloqueadores
-da Foto Efêmera, e **`v1.0-sprint10`** (`402d29e`) no fecho do Sprint 10). **O
-Sprint 11 está EM ANDAMENTO** — só a primeira entrega mergeou (OTP, PR #118); não
-há `v1.0-sprint11` e não é para criar. **O Sprint 9B não tem tag própria** e não
-está fechado.
+**Sprints 6, 7, 8, 9A, 9C, 10 e 11 fechados** (tags `v1.0-sprint6` a
+`v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
+dos bloqueadores da Foto Efêmera, **`v1.0-sprint10`** (`402d29e`) no fecho do
+Sprint 10, e **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11). **O Sprint 9B
+não tem tag própria** e não está fechado.
+
+> **Sprint 11 fechou com 4 entregas** (tag `v1.0-sprint11`, `11354b4`): PR #118
+> (Login OTP passwordless), PR #119 (badge "Disponível para conversa"), PR #120
+> (Notas privadas de membros), PR #121 (Boost pago) — §§ abaixo. **Deploy de
+> staging pendente:** só o PR #118 (OTP) foi deployado; **#119, #120 e #121 ainda
+> NÃO foram para staging.** A tag é marco de código, não de go-live (ver abaixo).
 
 > **Tag é marco, nunca carimbo de go-live.** `v1.0-sprint9` (`57aab21`) fecha o
 > arco Sprint 9 inteiro (9A + 9B + 9C) e é **anterior** ao PR #110 — aponta para
@@ -164,7 +169,7 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 9B** (SEM TAG, não fechado) — **Foto Efêmera do Membro** (§ abaixo): `ImageProcessingService`, storage cifrado, expiração, endpoints e UI de chat, GC. **Implementada, não liberada.**
 - **Sprint 9C** — **Stories da Performer** (§ abaixo), tag `v1.0-sprint9`: publicação com TTL fixo de 24h e 3 níveis de visibilidade, feed e serving autenticados, ponto dourado no catálogo, e a moderação junto (denúncia, quarentena, `content_hash`, `DeletionService` nos dois sentidos).
 - **Sprint 10** — descoberta e perfil, tag `v1.0-sprint10` (PRs #111–#117, deploy de staging): **Estilos de Vida** (6 faixas opt-in, sem filtro, Modo Discreto suprime, fora do painel de visitantes), **Favoritos** (bookmark privado — § abaixo), "Sobre mim" no perfil público, "visto por último" em faixa (Ghost Mode suprime a escrita), barra de progresso do perfil, **galeria de fotos** (carrossel 6, EXIF strip, pública).
-- **Sprint 11** (EM ANDAMENTO, sem tag) — entregas mergeadas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h); **Notas privadas da performer sobre membros** (§ abaixo: nota por FanAlias, cifrada, o membro nunca vê); **Boost pago** (§ abaixo: performer gasta tokens para destacar o perfil no topo do catálogo por tempo limitado). O resto do backlog do Sprint 11 (convite via Stories, videochamada LiveKit) **não foi iniciado**.
+- **Sprint 11** — FECHADO, tag `v1.0-sprint11` (`11354b4`), 4 entregas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h com auto-expiração na leitura); **Notas privadas da performer sobre membros** (§ abaixo, PR #120: nota por FanAlias, cifrada, o membro nunca vê); **Boost pago** (§ abaixo, PR #121: 50 tokens, 6h, ledger append-only `spend_boost`, destaca o perfil no topo do catálogo). **Deploy de staging: só o PR #118 subiu; #119–#121 pendentes.** O resto do backlog do Sprint 11 (convite via Stories, videochamada LiveKit) **não foi iniciado**.
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
