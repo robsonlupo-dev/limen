@@ -1,6 +1,8 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
+import Modal from '@/Components/Modal.vue'
+import { postJson, deleteJson } from '@/lib/http'
 import {
     FILTERABLE_TAG_GROUPS,
     LANGUAGES,
@@ -22,6 +24,11 @@ const props = defineProps({
     // Parâmetros que não são faceta e precisam sobreviver a cada apply
     // (ex.: { mundo: 'mulheres' } no catálogo público).
     baseParams: { type: Object, default: () => ({}) },
+    // Buscas salvas (Sprint 12) — só no catálogo do MEMBRO. O público
+    // (/performers) não recebe canSave, então nem o botão nem o dropdown
+    // aparecem lá: salvar busca é área de membro (decisão do PO).
+    savedSearches: { type: Array, default: () => [] },
+    canSave: { type: Boolean, default: false },
 })
 
 const open = ref(false)
@@ -181,6 +188,94 @@ const activeCount = computed(() => {
     n += form.languages.length
     return n
 })
+
+// ── Buscas salvas (Sprint 12) ────────────────────────────────────────────────
+
+const saveOpen = ref(false)
+const savedOpen = ref(false)
+const searchName = ref('')
+const saving = ref(false)
+const saveError = ref('')
+
+// Só as facetas ATIVAS, com os tipos que o allowlist do servidor espera
+// (booleano de verdade, número na altura). É o que vai no JSON salvo; chave
+// inativa não entra, e o servidor ainda descarta qualquer chave que não conheça.
+function activeFilters() {
+    const f = {}
+    if (form.search) f.search = form.search
+    if (form.is_live) f.is_live = true
+    if (form.available) f.available = true
+    if (form.has_photo) f.has_photo = true
+    if (form.level) f.level = form.level
+    if (form.tier) f.tier = form.tier
+    if (form.state) f.state = form.state
+    if (form.sort !== 'rating_avg') f.sort = form.sort
+    if (form.tags.length) f.tags = [...form.tags]
+    if (form.languages.length) f.languages = [...form.languages]
+    if (form.drinks) f.drinks = form.drinks
+    if (form.smokes) f.smokes = form.smokes
+    if (heightNarrowed.value) {
+        f.height_min = form.height_min
+        f.height_max = form.height_max
+    }
+    return f
+}
+
+async function saveSearch() {
+    if (saving.value) return
+    const name = searchName.value.trim()
+    if (!name) {
+        saveError.value = 'Dê um nome para a busca.'
+        return
+    }
+
+    saving.value = true
+    saveError.value = ''
+    try {
+        await postJson(route('saved-searches.store'), { name, filters: activeFilters() })
+        searchName.value = ''
+        saveOpen.value = false
+        // Recarrega só a prop das buscas salvas — o servidor é a fonte da lista.
+        router.reload({ only: ['savedSearches'] })
+    } catch (e) {
+        saveError.value = e.data?.message ?? 'Não foi possível salvar a busca.'
+    } finally {
+        saving.value = false
+    }
+}
+
+// Aplica uma busca salva: repõe o form a partir do JSON (com os mesmos defaults
+// do estado inicial) e dispara o apply. Filtro ausente volta ao neutro.
+function applySaved(filters) {
+    Object.assign(form, {
+        search: filters.search || '',
+        is_live: !!filters.is_live,
+        available: !!filters.available,
+        has_photo: !!filters.has_photo,
+        level: filters.level || '',
+        tier: filters.tier || '',
+        state: filters.state || '',
+        sort: filters.sort || 'rating_avg',
+        tags: [...(filters.tags ?? [])],
+        languages: [...(filters.languages ?? [])],
+        drinks: filters.drinks || '',
+        smokes: filters.smokes || '',
+        height_min: Number(filters.height_min ?? HEIGHT_MIN_CM),
+        height_max: Number(filters.height_max ?? HEIGHT_MAX_CM),
+    })
+    savedOpen.value = false
+    apply()
+}
+
+async function deleteSaved(id) {
+    try {
+        await deleteJson(route('saved-searches.destroy', id))
+        router.reload({ only: ['savedSearches'] })
+    } catch {
+        // Silencioso: apagar uma busca é reversível (salva de novo), e um erro
+        // de rede não merece bloquear a tela. O item reaparece no próximo load.
+    }
+}
 </script>
 
 <template>
@@ -193,6 +288,67 @@ const activeCount = computed(() => {
             class="w-full sm:w-64 rounded-lg border border-frame bg-surface px-4 py-2.5 text-sm text-cream placeholder:text-muted focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold"
             @input="onSearchInput"
         />
+
+        <!-- Buscas salvas (Sprint 12) — só no catálogo do membro. -->
+        <template v-if="canSave">
+            <!-- Salvar a busca atual: só quando há faceta ativa para salvar. -->
+            <button
+                v-if="activeCount"
+                type="button"
+                class="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-frame bg-surface px-3 py-2.5 text-sm text-cream hover:border-gold/50 transition-colors"
+                @click="saveOpen = true"
+            >
+                💾 Salvar busca
+            </button>
+
+            <!-- Dropdown das buscas salvas -->
+            <div v-if="savedSearches.length" class="relative">
+                <button
+                    type="button"
+                    :aria-expanded="savedOpen"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-frame bg-surface px-3 py-2.5 text-sm text-cream hover:border-gold/50 transition-colors"
+                    @click="savedOpen = !savedOpen"
+                >
+                    💾 Buscas salvas
+                    <span class="rounded-full bg-gold text-background text-xs px-1.5 py-0.5">
+                        {{ savedSearches.length }}
+                    </span>
+                </button>
+
+                <div v-if="savedOpen" class="fixed inset-0 z-20 sm:hidden" @click="savedOpen = false" />
+
+                <div
+                    v-if="savedOpen"
+                    class="absolute left-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-frame bg-surface-2 shadow-xl"
+                >
+                    <ul class="max-h-72 overflow-y-auto py-1">
+                        <li
+                            v-for="s in savedSearches"
+                            :key="s.id"
+                            class="flex items-center justify-between gap-2 px-2 hover:bg-surface"
+                        >
+                            <button
+                                type="button"
+                                class="flex-1 truncate py-2 pl-2 text-left text-sm text-cream"
+                                :title="s.name"
+                                @click="applySaved(s.filters)"
+                            >
+                                {{ s.name }}
+                            </button>
+                            <button
+                                type="button"
+                                class="shrink-0 rounded p-1 text-xs text-muted hover:text-danger"
+                                :aria-label="`Apagar busca ${s.name}`"
+                                title="Apagar"
+                                @click="deleteSaved(s.id)"
+                            >
+                                ✕
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </template>
 
         <!-- Filters toggle -->
         <div class="relative ml-auto">
@@ -488,4 +644,33 @@ const activeCount = computed(() => {
             </div>
         </div>
     </div>
+
+    <!-- Modal de nome ao salvar a busca (Sprint 12). Só é montado no catálogo do
+         membro — canSave guarda a abertura. -->
+    <Modal :show="saveOpen" max-width="sm" @close="saveOpen = false">
+        <h2 class="font-serif text-xl text-cream">Salvar busca</h2>
+        <p class="mt-1 text-sm text-muted">Dê um nome para reaplicar estes filtros depois.</p>
+        <input
+            v-model="searchName"
+            type="text"
+            maxlength="100"
+            placeholder="Ex.: Fitness SP"
+            class="mt-4 w-full rounded-lg border border-frame bg-surface px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
+            @keyup.enter="saveSearch"
+        />
+        <p v-if="saveError" class="mt-2 text-xs text-danger">{{ saveError }}</p>
+        <div class="mt-5 flex justify-end gap-3">
+            <button type="button" class="text-sm text-muted hover:text-cream" @click="saveOpen = false">
+                Cancelar
+            </button>
+            <button
+                type="button"
+                class="rounded-lg bg-gold px-4 py-2 text-sm text-background hover:bg-gold-light disabled:opacity-50"
+                :disabled="saving || !searchName.trim()"
+                @click="saveSearch"
+            >
+                {{ saving ? 'Salvando…' : 'Salvar' }}
+            </button>
+        </div>
+    </Modal>
 </template>

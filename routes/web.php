@@ -22,6 +22,7 @@ use App\Http\Controllers\Web\Consumer\MemberPhotoController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileController;
 use App\Http\Controllers\Web\Consumer\ReportController;
+use App\Http\Controllers\Web\Consumer\SavedSearchController;
 use App\Http\Controllers\Web\Consumer\StoryController as ConsumerStoryController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
@@ -677,6 +678,28 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/favoritos/{slug}', [FavoriteController::class, 'toggle'])
             ->middleware('throttle:30,1')
             ->name('favorites.toggle');
+
+        // Buscas salvas (Sprint 12) — o membro guarda combinações de filtros do
+        // catálogo para reaplicar. Área de membro: a performer não tem rota irmã
+        // aqui e não é para ganhar uma (decisão do PO — R3 do Sprint 9). O grupo
+        // já traz `role:consumer` + `member.verified`, sob `auth`+`2fa`.
+        //
+        // Consumidas por `fetch` (JSON): o Form Request usa FailsValidationAsJson,
+        // e o cap de 10 é imposto sob lock no SavedSearchService.
+        Route::get('/buscas-salvas', [SavedSearchController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('saved-searches.index');
+
+        Route::post('/buscas-salvas', [SavedSearchController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('saved-searches.store');
+
+        // `{search}` numérico e checagem de dono no controller — 404 para a busca
+        // de outro membro, indistinguível de inexistente.
+        Route::delete('/buscas-salvas/{search}', [SavedSearchController::class, 'destroy'])
+            ->middleware('throttle:30,1')
+            ->whereNumber('search')
+            ->name('saved-searches.destroy');
 
         // Configurações do membro (hoje: Modo Discreto).
         Route::get('/configuracoes', [ConsumerPreferencesController::class, 'index'])
