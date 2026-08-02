@@ -81,6 +81,24 @@ class PerformerStoryService
      */
     public const OPEN_REPORT_STATUSES = Report::OPEN_STATUSES;
 
+    /**
+     * Teto de Stories-convite ATIVOS por performer (Sprint 12).
+     *
+     * Conta convites VIVOS (dentro das 24h, não apagados), não "publicados hoje":
+     * como o TTL é fixo em 24h, "2 convites ativos" equivale na prática a "2 por
+     * dia" — e amarrar o limite ao que o seguidor de fato VÊ agora é mais honesto
+     * que uma janela de calendário, que ainda esbarraria no fuso (UTC no banco,
+     * America/Sao_Paulo na exibição). Um convite que expira libera a vaga sozinho,
+     * na leitura, sem job — mesmo mecanismo do próprio Story (§ 2.8).
+     *
+     * É limite de NEGÓCIO (anti-spam), não de dinheiro/segurança: sob duplo-submit
+     * concorrente dois convites podem passar juntos e chegar a 3, exatamente como
+     * o soft-cap do Boost. Fechar de vez exigiria um lock por performer, caro para
+     * o que o teto vale; a rota já leva `throttle:10,1`. Registrado para não ser
+     * lido como bug.
+     */
+    public const MAX_ACTIVE_INVITES = 2;
+
     public function __construct(
         private PerformerStoryStore $store,
         private StoryVisibilityService $visibility,
@@ -240,7 +258,31 @@ class PerformerStoryService
     }
 
     /**
+     * Quantos Stories-convite ATIVOS esta performer tem agora (Sprint 12).
+     *
+     * Passa pelo escopo `active()` — a dona do critério "story vivo" — para que o
+     * teto de convites e o que o seguidor VÊ concordem: convite vencido já saiu do
+     * feed e não deve mais ocupar vaga. É a mesma inversão do § 2.8: a expiração
+     * vale na leitura, então a vaga se libera sozinha, sem depender do
+     * `stories:purge`.
+     */
+    public function activeInviteCount(PerformerProfile $profile): int
+    {
+        return PerformerStory::query()
+            ->active()
+            ->where('performer_profile_id', $profile->getKey())
+            ->where('is_invite', true)
+            ->count();
+    }
+
+    /**
      * Publica um story. Prazo fixo de 24h, EXIF removido, bytes antes da linha.
+     *
+     * ── Ordem: guarda de convite ANTES dos bytes ────────────────────────────
+     * O teto de convites (Sprint 12) é checado no topo, antes de o Store gravar e
+     * re-encodar: rejeitar depois desperdiçaria o disco e o pico de memória do
+     * re-encode num request que já se sabe recusado, e obrigaria a compensação do
+     * catch a limpar bytes que nunca deveriam ter sido escritos.
      *
      * ── Ordem: bytes primeiro, linha depois ─────────────────────────────────
      * Mesma escolha do `MemberPhotoService::create()`, pelo mesmo motivo: o
@@ -261,12 +303,24 @@ class PerformerStoryService
      * PR 3.
      *
      * @throws InvalidArgumentException nível fora dos três
+     * @throws StoryException teto de convites ativos atingido (INVITE_LIMIT → 422)
      * @throws ImageProcessingException imagem recusada ou indecodificável
      */
-    public function publish(PerformerProfile $profile, UploadedFile $file, string $visibility): PerformerStory
-    {
+    public function publish(
+        PerformerProfile $profile,
+        UploadedFile $file,
+        string $visibility,
+        bool $isInvite = false,
+    ): PerformerStory {
         if (! in_array($visibility, PerformerStory::VISIBILITY_LEVELS, true)) {
             throw new InvalidArgumentException("Nível de visibilidade desconhecido: {$visibility}");
+        }
+
+        // Teto de convites ANTES de gravar bytes — ver o docblock. Só quando o
+        // Story está sendo marcado como convite: publicação normal nunca esbarra
+        // aqui, mesmo com convites ativos ocupando as vagas.
+        if ($isInvite && $this->activeInviteCount($profile) >= self::MAX_ACTIVE_INVITES) {
+            throw StoryException::inviteLimitReached(self::MAX_ACTIVE_INVITES);
         }
 
         ['path' => $path, 'hash' => $hash] = $this->store->store($file, $profile->getKey());
@@ -282,16 +336,22 @@ class PerformerStoryService
             // os bytes JÁ processados — ver PerformerStoryStore::store().
             $story->content_hash = $hash;
             $story->expires_at = now()->addHours(PerformerStory::TTL_HOURS);
+            // Também fora do fillable: um bool já validado que GATEIA comportamento
+            // (rate limit + destaque no feed), nunca vindo de array de request.
+            $story->is_invite = $isInvite;
             $story->save();
 
-            // Trilha de publicação: id e nível, nada mais. Sem caminho, sem hash,
-            // sem bytes — mesma regra que o § 2.4 fixa para a foto efêmera ("id e
-            // nada mais"). O NÍVEL entra porque é o que distingue "publicou algo"
-            // de "publicou algo atrás do paywall", e é dado da performer sobre a
-            // própria publicação: nada aqui é de membro.
+            // Trilha de publicação: id, nível e se é convite — nada mais. Sem
+            // caminho, sem hash, sem bytes — mesma regra que o § 2.4 fixa para a
+            // foto efêmera ("id e nada mais"). O NÍVEL distingue "publicou algo" de
+            // "publicou atrás do paywall"; `is_invite` distingue publicação de
+            // isca. Tudo é dado da performer sobre a própria publicação: nada aqui
+            // é de membro, e não há "quem recebeu" a registrar — o alvo nunca é
+            // materializado.
             Audit::log('story.published', $story, [
                 'performer_story_id' => $story->id,
                 'visibility_level' => $story->visibility_level,
+                'is_invite' => $story->is_invite,
             ]);
 
             return $story;

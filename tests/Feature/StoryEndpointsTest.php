@@ -143,10 +143,12 @@ it('publica o story pelo endpoint com prazo de 24h', function () {
     // A resposta é o StoryPresenter, e o que ela NÃO tem é a parte que importa:
     // nem `media_path`, nem qualquer coisa vinda de `story_views` além da faixa.
     expect(array_keys($response->json('story')))
-        ->toBe(['id', 'visibility_level', 'view_count', 'expires_in_hours', 'image_url'])
+        ->toBe(['id', 'visibility_level', 'view_count', 'expires_in_hours', 'image_url', 'is_invite'])
         ->and($response->json('story.visibility_level'))->toBe('subscribers')
         ->and($response->json('story.view_count'))->toBe('Menos de 5')
-        ->and($response->json('story.expires_in_hours'))->toBe(24);
+        ->and($response->json('story.expires_in_hours'))->toBe(24)
+        // Sem a caixinha marcada, é Story normal — o default.
+        ->and($response->json('story.is_invite'))->toBeFalse();
 
     expect($story->expires_at->timestamp)->toBe(now()->addHours(24)->timestamp)
         ->and($story->performer_profile_id)->toBe($performer->id)

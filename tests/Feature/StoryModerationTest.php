@@ -377,9 +377,12 @@ it('registra a publicação e a deleção sem caminho, hash nem bytes', function
     // JSON volta do banco não é a asserção.
     expect($publicado->subject_id)->toBe($story->id)
         ->and(array_keys($publicado->metadata))
-        ->toEqualCanonicalizing(['performer_story_id', 'visibility_level'])
+        // `is_invite` (Sprint 12) entra na trilha: é dado da performer sobre a
+        // própria publicação, como o nível — não há membro nem "quem recebeu".
+        ->toEqualCanonicalizing(['performer_story_id', 'visibility_level', 'is_invite'])
         ->and($publicado->metadata['performer_story_id'])->toBe($story->id)
-        ->and($publicado->metadata['visibility_level'])->toBe('subscribers');
+        ->and($publicado->metadata['visibility_level'])->toBe('subscribers')
+        ->and($publicado->metadata['is_invite'])->toBeFalse();
 
     $this->actingAs($performer->user)
         ->deleteJson(route('performer.stories.destroy', $story->id))

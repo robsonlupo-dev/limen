@@ -135,6 +135,11 @@ class DashboardController extends Controller
             // número (§ 2.2, decisão nº 3).
             'stories' => StoryPresenter::forOwner($profile, $this->stories),
             'storyVisibilityLevels' => PerformerStory::VISIBILITY_LEVELS,
+            // Teto de convites via Stories (Sprint 12). Só o LIMITE vai como prop;
+            // o quanto já foi usado a tela deriva de `stories` (cada card traz
+            // `is_invite`), então o contador fica em sincronia depois de cada
+            // publicar/apagar sem uma segunda fonte para divergir.
+            'storyInviteLimit' => PerformerStoryService::MAX_ACTIVE_INVITES,
             // A performer PENDENTE alcança este painel de propósito (Sprint 7),
             // mas as rotas de story exigem `can('performer-active')`. A tela não é
             // o guard — ela só evita oferecer um botão que responderia 403.

@@ -46,6 +46,13 @@ use Illuminate\Support\Collection;
 class StoryVisibilityService
 {
     /**
+     * O feed precisa saber se o membro já tem chat com a performer para decidir o
+     * selo de convite (Sprint 12). A pergunta é do domínio de chat, então vem do
+     * `ChatAccessService` — dona única —, não reescrita aqui. Ver `feedFor()`.
+     */
+    public function __construct(private ChatAccessService $chatAccess) {}
+
+    /**
      * Tier mínimo do Nível 3 (`exclusive`).
      *
      * Coincide hoje com `PrivacyPerkService::MIN_TIER`, e a coincidência é
@@ -266,8 +273,21 @@ class StoryVisibilityService
 
         return $visible
             ->groupBy('performer_profile_id')
-            ->map(function (Collection $stories) use ($seenIds) {
+            ->map(function (Collection $stories) use ($seenIds, $member) {
                 $profile = $stories->first()->performerProfile;
+
+                // Selo de convite (Sprint 12): dado da performer (`is_invite` no
+                // story), mas exibido POR ESPECTADOR. Só o seguidor que ainda não
+                // tem chat com ela vê o convite; quem já conversa vê o story normal
+                // (sem selo). A pergunta "já tem chat?" é resolvida no MÁXIMO uma
+                // vez por performer, e só quando há convite no grupo — a esmagadora
+                // maioria dos grupos não tem convite e não paga a consulta.
+                //
+                // O membro nunca sabe que foi "selecionado": não há seleção: o selo
+                // acende para toda a categoria "seguidor sem chat", não para uma
+                // lista escolhida. `is_invite:false` volta para quem tem chat.
+                $hasInvite = $stories->contains(fn (PerformerStory $s) => $s->is_invite);
+                $alreadyChatting = $hasInvite && $this->chatAccess->memberHasChatWith($member, $profile);
 
                 $items = $stories
                     // Mais antigo primeiro DENTRO da performer: é ordem de
@@ -277,6 +297,7 @@ class StoryVisibilityService
                         'id' => $story->id,
                         'visibility_level' => $story->visibility_level,
                         'seen' => in_array($story->id, $seenIds, true),
+                        'is_invite' => $story->is_invite && ! $alreadyChatting,
                     ])
                     ->values()
                     ->all();

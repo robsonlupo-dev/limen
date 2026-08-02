@@ -41,6 +41,7 @@ const props = defineProps({
     // o número cru não trafega nas props, que é o caminho do DevTools.
     stories: { type: Array, default: () => [] },
     storyVisibilityLevels: { type: Array, default: () => [] },
+    storyInviteLimit: { type: Number, default: 2 },
     canPublishStories: { type: Boolean, default: false },
     // Campos do perfil para a barra de completude (Sprint 10). Só presença de
     // foto + os campos de "Sobre mim" — nada é persistido, a % é derivada no
@@ -490,6 +491,7 @@ async function activateBoost() {
                 v-if="canPublishStories"
                 :stories="stories"
                 :visibility-levels="storyVisibilityLevels"
+                :invite-limit="storyInviteLimit"
             />
 
             <!-- Fotos recebidas (Sprint 9B) -->
