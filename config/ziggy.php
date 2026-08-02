@@ -173,6 +173,11 @@ return [
         'moderacao.reports.index',
         'moderacao.reports.show',
         'moderacao.reports.update',
+        // Visualizador da prova retida: a tela de detalhe monta o src da <img> e
+        // o fetch do corpo da mensagem por route().
+        'moderacao.evidence.photo',
+        'moderacao.evidence.story',
+        'moderacao.evidence.message',
 
         // Chat (canal aberto pós-desbloqueio de Interesse)
         'chat.index',

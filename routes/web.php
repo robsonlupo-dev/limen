@@ -28,6 +28,7 @@ use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\ConviteController;
+use App\Http\Controllers\Web\Moderation\EvidenceController;
 use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FollowController;
@@ -229,6 +230,23 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
     Route::patch('/denuncias/{report}', [ModerationController::class, 'update'])
         ->whereNumber('report')
         ->name('moderacao.reports.update');
+
+    // Visualizador da PROVA RETIDA (Sprint 13). Serve o conteúdo denunciado —
+    // foto efêmera, story, corpo da mensagem — SÓ quando há denúncia apontando
+    // para ele (o EvidenceController resolve o alvo por id + `withTrashed` e casa
+    // com uma linha de `reports`; sem ela, 404). `throttle` porque estes endpoints
+    // decifram/leem bytes e são a superfície mais sensível da área de moderação.
+    Route::middleware('throttle:30,1')->group(function () {
+        Route::get('/evidencia/foto/{photo}', [EvidenceController::class, 'photo'])
+            ->whereNumber('photo')
+            ->name('moderacao.evidence.photo');
+        Route::get('/evidencia/story/{story}', [EvidenceController::class, 'story'])
+            ->whereNumber('story')
+            ->name('moderacao.evidence.story');
+        Route::get('/evidencia/mensagem/{message}', [EvidenceController::class, 'message'])
+            ->whereNumber('message')
+            ->name('moderacao.evidence.message');
+    });
 });
 
 // Authenticated area
