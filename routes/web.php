@@ -28,6 +28,7 @@ use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
 use App\Http\Controllers\Web\ConviteController;
+use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\FounderPanelController;
@@ -215,6 +216,19 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/users/{user}/ban', [UserBanController::class, 'ban'])
         ->whereNumber('user')
         ->name('admin.users.ban');
+});
+
+// Área de moderação (Sprint 13 — refactor de roles). SEPARADA de /admin/*: o
+// moderador vê a fila de denúncias, mas NÃO alcança KYC, payout, ban nem tier.
+// `moderator.access` deixa passar moderator OU admin (o admin não perde nada).
+Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(function () {
+    Route::get('/denuncias', [ModerationController::class, 'index'])->name('moderacao.reports.index');
+    Route::get('/denuncias/{report}', [ModerationController::class, 'show'])
+        ->whereNumber('report')
+        ->name('moderacao.reports.show');
+    Route::patch('/denuncias/{report}', [ModerationController::class, 'update'])
+        ->whereNumber('report')
+        ->name('moderacao.reports.update');
 });
 
 // Authenticated area
