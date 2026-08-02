@@ -300,6 +300,7 @@ class DeletionService
             $summary['follows'] = $this->purgeFollows($user);
             $summary['favorites'] = $this->purgeFavorites($user);
             $summary['favorites_received'] = $this->purgeFavoritesToOwnProfile($user);
+            $summary['saved_searches'] = $this->purgeSavedSearches($user);
             $summary['member_notes'] = $this->purgeMemberNotes($user);
             $summary['member_notes_written'] = $this->purgeMemberNotesByPerformer($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
@@ -754,6 +755,19 @@ class DeletionService
     private function purgeOtpCodes(User $user): int
     {
         return DB::table('otp_codes')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * Buscas salvas do membro (Sprint 12): combinações de filtros, sem valor
+     * fiscal nem legal, e só do lado do membro (não há "recebidas"). DELETE de
+     * verdade — a FK `cascadeOnDelete` NÃO dispara porque `anonymizeUser()` só
+     * soft-deleta o `users` (item 11 do CLAUDE.md), então sem esta varredura a
+     * busca salva sobreviveria à conta anonimizada. Mesma família de `favorites`
+     * e `otp_codes`.
+     */
+    private function purgeSavedSearches(User $user): int
+    {
+        return DB::table('saved_searches')->where('user_id', $user->id)->delete();
     }
 
     /** A PK de password_reset_tokens É o e-mail: sem este passo, ele sobrevive. */

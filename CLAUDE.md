@@ -493,6 +493,43 @@ pelo ledger. Coluna `performer_stories.is_invite` (bool, default false).
   é testado mas sem consumidor Vue hoje); o contrato — `is_invite` por item no
   payload — está entregue e testado.
 
+## Buscas salvas do membro — Sprint 12 (combinações de filtros do catálogo)
+
+O membro salva combinações de filtros do catálogo ("Fitness SP") para reaplicar
+depois. **Decisão do PO (R3 do Sprint 9): quem salva filtros é o MEMBRO, nunca a
+performer** — a direção segura, a mesma do `CatalogFilterRequest` (membro filtra
+performers; o inverso não existe e não deve passar a existir). Dona única:
+`app/Services/SavedSearchService.php`; model `SavedSearch` (`MAX_SAVED = 10`).
+
+- **É privado do membro, e a performer não tem lado nenhum** — sem rota irmã, sem
+  relação inversa, nada em `audit_logs`. Mesma assimetria de `Favorite`. Os
+  `filters` são o allowlist do catálogo (slugs de tag, enums de bebida/fumo, faixa
+  de altura, UF, nível, ordenação) mais o texto que o PRÓPRIO membro digitou:
+  nenhuma PII de terceiro, nada que volte para superfície da performer.
+- **O allowlist de filtros tem uma dona só:** `SavedSearchService::allowedFilterKeys()`
+  deriva de `PerformerCatalogService::filterRules()` (a fonte única das facetas),
+  nunca uma lista à mão. O Form Request valida o TIPO de cada faceta conhecida
+  (reusando `filterRules()` com o prefixo `filters.`); o service faz `Arr::only`
+  antes de gravar, então **chave desconhecida é descartada** e o JSON nunca vira
+  blob arbitrário. Faceta nova no catálogo passa a ser salvável sem tocar aqui.
+- **O teto de 10 é DURO, imposto sob lock** (`save()` trava a linha do `users`,
+  que sempre existe, e reconta) — diferente do soft-cap do Boost, porque aqui há
+  uma linha-âncora natural para serializar os saves concorrentes do membro. Excede
+  → `SavedSearchException::LIMIT` → 422.
+- **Busca de outro membro → 404** (não 403): o escopo por `user_id` no
+  `deleteFor`/controller faz o erro cair do lado seguro, indistinguível de
+  inexistente, para o par de respostas não virar oráculo. Gate: `auth` + `2fa` +
+  `role:consumer` + `member.verified` (grupo da área de membro).
+- **Hard Delete varre `saved_searches`** (`DeletionService::purgeSavedSearches`,
+  DELETE real): a FK `cascadeOnDelete` NÃO dispara porque `anonymizeUser()` só
+  soft-deleta o `users` (item 11 do CLAUDE.md) — mesma família de `favorites` e
+  `otp_codes`. Só do lado do membro (não há "recebidas").
+- **UI:** o `FilterPanel` do catálogo ganha, **só no catálogo do membro**
+  (`canSave` — o público `/performers` não recebe), o botão "💾 Salvar busca"
+  (quando há faceta ativa) com modal de nome, e um dropdown "Buscas salvas" que
+  aplica ao clicar e apaga por item. A lista chega como prop do `CatalogController`
+  (mesma fonte do endpoint `saved-searches.index`), recarregada após salvar/apagar.
+
 ## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
 
 Foto privada que o membro manda para a performer no chat: cifrada em disco

@@ -128,6 +128,12 @@ return [
         'favorites.index',
         'favorites.toggle',
 
+        // Buscas salvas do membro (combinações de filtros do catálogo). Área de
+        // membro, sem lado da performer — mesma disciplina dos favoritos.
+        'saved-searches.index',
+        'saved-searches.store',
+        'saved-searches.destroy',
+
         // Consumer tips
         'tips.send',
 

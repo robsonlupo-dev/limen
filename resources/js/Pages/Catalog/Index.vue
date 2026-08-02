@@ -13,6 +13,8 @@ const props = defineProps({
     filters: { type: Object, default: () => ({}) },
     currentWorld: { type: String, default: 'mulheres' },
     userWorld: { type: String, default: null },
+    // Buscas salvas do membro (Sprint 12). Só o catálogo autenticado as recebe.
+    savedSearches: { type: Array, default: () => [] },
 })
 
 const worlds = [
@@ -75,7 +77,7 @@ function selectWorld(value) {
                 </button>
             </div>
 
-            <FilterPanel :filters="filters" />
+            <FilterPanel :filters="filters" :saved-searches="savedSearches" :can-save="true" />
 
             <!-- Skeleton loading -->
             <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">

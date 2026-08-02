@@ -13,6 +13,7 @@ use App\Services\FavoriteService;
 use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
+use App\Services\SavedSearchService;
 use App\Services\StoryVisibilityService;
 use App\Support\PhotoGalleryPresenter;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class CatalogController extends Controller
         private StoryVisibilityService $storyVisibility,
         private FavoriteService $favorites,
         private ChatAccessService $chatAccessService,
+        private SavedSearchService $savedSearches,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -110,6 +112,11 @@ class CatalogController extends Controller
             ]),
             'currentWorld' => $currentWorld,
             'userWorld' => $request->user()->preferred_world,
+            // Buscas salvas (Sprint 12): dado do MEMBRO, servido junto para o
+            // painel de filtros sem um round-trip extra. Mesma fonte do endpoint
+            // de listagem (SavedSearchService::listFor), que a tela recarrega após
+            // salvar/apagar. `user_id` nunca sai (o service já mapeia campo a campo).
+            'savedSearches' => $this->savedSearches->listFor($request->user()),
         ]);
     }
 
