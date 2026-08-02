@@ -75,17 +75,12 @@ class UpdatePerformerProfileRequest extends FormRequest
             // da bio de propósito: é um parágrafo, não uma segunda biografia.
             'looking_for' => ['sometimes', 'nullable', 'string', 'max:1000', new NoProhibitedOffer],
 
-            // Localização opt-in (Sprint 9). `sometimes` + `nullable` como o
-            // resto do bloco: ausente é "não mexe", presente-e-nulo é "limpa" —
-            // que é o que o link "Não compartilhar localização" manda.
-            //
-            // `state` é fechado em Rule::in(STATES): é o único campo dos dois que
-            // vira dado público, então não aceita texto livre. `city` é livre
-            // porque é interno e a lista de municípios do Brasil não cabe numa
-            // constante — mas justamente por ser livre é que ela não sai em
-            // resource nenhum.
-            'state' => ['sometimes', 'nullable', Rule::in(PerformerProfile::STATES)],
-            'city' => ['sometimes', 'nullable', 'string', 'max:100'],
+            // Localização NÃO entra mais aqui (Sprint 13): virou lista de até 3 e
+            // tem porta própria (`performer.locations.update` →
+            // UpdatePerformerLocationsRequest → PerformerLocationService, a dona
+            // única da escrita). Aceitar `state`/`city` neste request reabriria o
+            // segundo dono que a coluna-cache existe para não ter — um save de
+            // perfil sem os campos zeraria a localização em silêncio.
         ];
     }
 

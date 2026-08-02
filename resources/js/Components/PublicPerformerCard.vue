@@ -108,8 +108,15 @@ defineProps({
             <!-- Mesma regra do PerformerCard: UF só, fora da foto (onde mora a
                  bolinha de ao vivo) e ausente enquanto ela estiver ao vivo OU
                  disponível — presença + localização é a correlação do R2. -->
-            <p v-if="performer.state && !performer.is_live && !performer.is_available" class="text-xs text-muted">
-                <span class="rounded border border-frame px-1.5 py-0.5 tracking-wide">{{ performer.state }}</span>
+            <p
+                v-if="performer.states && performer.states.length && !performer.is_live && !performer.is_available"
+                class="flex flex-wrap items-center gap-1 text-xs text-muted"
+            >
+                <span
+                    v-for="uf in performer.states"
+                    :key="uf"
+                    class="rounded border border-frame px-1.5 py-0.5 tracking-wide"
+                >{{ uf }}</span>
             </p>
             <p class="text-xs text-muted pt-1">{{ performer.followers_label }} apoiadores</p>
         </div>

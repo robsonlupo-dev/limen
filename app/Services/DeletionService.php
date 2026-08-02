@@ -315,6 +315,7 @@ class DeletionService
             $summary['performer_stories'] = $this->purgePerformerStories($user);
             $summary['performer_stories_preserved'] = $this->preservedStoryCount($user);
             $summary['performer_photos'] = $this->purgePerformerPhotos($user);
+            $summary['performer_locations'] = $this->purgePerformerLocations($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
@@ -1083,6 +1084,27 @@ class DeletionService
         }
 
         return DB::table('performer_photos')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Localizações da performer (Sprint 13). DELETE real por `performer_profile_id`:
+     * a FK `cascadeOnDelete` NÃO dispara porque o perfil sai por
+     * soft-delete/anonimização (item 11 do CLAUDE.md), então sem esta varredura as
+     * linhas — `city` interno incluído — sobreviveriam ao encerramento. Uma
+     * direção só, como as fotos da galeria: localização é sempre da performer, não
+     * existe "localização apontada para o perfil" vinda de terceiro. As colunas
+     * cache `state`/`city` do próprio perfil já são zeradas por
+     * anonymizePerformerProfile().
+     */
+    private function purgePerformerLocations(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('performer_locations')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**

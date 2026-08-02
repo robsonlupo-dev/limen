@@ -32,6 +32,11 @@ const props = defineProps({
     chat: { type: Object, default: null },
 })
 
+// Localizações (Sprint 13): UFs → nomes por extenso, "São Paulo · Rio de
+// Janeiro". `states` cai em [state] quando há uma só (fallback do resource).
+const hasStates = computed(() => (props.performer.states?.length ?? 0) > 0)
+const statesLabel = computed(() => (props.performer.states ?? []).map(stateLabel).join(' · '))
+
 const categoryLabels = {
     mulheres: 'Mulheres',
     homens: 'Homens',
@@ -175,13 +180,16 @@ function onTipSent(data) {
                      vivo" ou badge de disponibilidade) mais a UF entregam onde ela
                      está NESTE momento (R2). -->
                 <div
-                    v-if="!performer.is_live && !performer.is_available && (performer.state || performer.activity_label)"
+                    v-if="!performer.is_live && !performer.is_available && (hasStates || performer.activity_label)"
                     class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"
                 >
-                    <span v-if="performer.state">
-                        Estado: <span class="text-cream">{{ stateLabel(performer.state) }}</span>
+                    <!-- Múltiplas localizações (Sprint 13): estados por extenso,
+                         "São Paulo · Rio de Janeiro". Só a UF; `city` não chega. -->
+                    <span v-if="hasStates">
+                        {{ performer.states.length > 1 ? 'Estados' : 'Estado' }}:
+                        <span class="text-cream">{{ statesLabel }}</span>
                     </span>
-                    <span v-if="performer.state && performer.activity_label" aria-hidden="true" class="text-muted/50">·</span>
+                    <span v-if="hasStates && performer.activity_label" aria-hidden="true" class="text-muted/50">·</span>
                     <!-- Última atividade em faixa, ao lado do estado (Sprint 10).
                          Faixa, nunca relógio (ActivitySlot). Some quando is_live
                          — o LiveBadge do topo já diz "agora" — e quando null. -->
