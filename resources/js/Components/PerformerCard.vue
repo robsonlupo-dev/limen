@@ -161,8 +161,21 @@ const categoryLabels = {
                      localização do R2 que o `!is_live` fecha. O badge de
                      disponibilidade é presença como o "ao vivo", então o estado
                      cede a ele igual — nunca os dois no mesmo card. -->
-                <p v-if="performer.state && !performer.is_live && !performer.is_available" class="text-xs text-muted">
-                    <span class="rounded border border-frame px-1.5 py-0.5 tracking-wide">{{ performer.state }}</span>
+                <!-- Múltiplas localizações (Sprint 13): uma chip por UF, "SP · RJ".
+                     Só a UF — `city` não existe nesta prop (ver
+                     PerformerPublicResource). Mesma supressão de sempre:
+                     `!is_live && !is_available`, a correlação presença+localização
+                     do R2. `states` cai em [state] quando há uma só, então o card
+                     de quem tem uma localização fica idêntico. -->
+                <p
+                    v-if="performer.states && performer.states.length && !performer.is_live && !performer.is_available"
+                    class="flex flex-wrap items-center gap-1 text-xs text-muted"
+                >
+                    <span
+                        v-for="uf in performer.states"
+                        :key="uf"
+                        class="rounded border border-frame px-1.5 py-0.5 tracking-wide"
+                    >{{ uf }}</span>
                 </p>
                 <div class="flex items-center justify-between pt-1">
                     <StarRating :rating="performer.rating_avg" />

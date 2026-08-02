@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -74,6 +75,13 @@ class PerformerProfile extends Model
      * este cap é a única contenção de volume no disco `performer_photos`.
      */
     public const MAX_PHOTOS = 6;
+
+    /**
+     * Teto de localizações por performer (Sprint 13, decisão do PO). Fonte única
+     * do número, como MAX_TAGS/MAX_PHOTOS: o PerformerLocationService o aplica sob
+     * lock, o Form Request o cita na regra `max` e a tela desenha "3/3".
+     */
+    public const MAX_LOCATIONS = 3;
 
     public const LANGUAGES = [
         'portugues', 'ingles', 'espanhol', 'frances', 'italiano', 'alemao', 'japones',
@@ -231,7 +239,7 @@ class PerformerProfile extends Model
     public function scopePublicCatalog(Builder $query): Builder
     {
         return $query
-            ->with(['user', 'tags'])
+            ->with(['user', 'tags', 'locations'])
             // Contador da galeria (Sprint 10) para o selo "📷 N" no card. É
             // withCount e não with(): o card só precisa do NÚMERO, não das
             // linhas, e uma subquery agregada evita hidratar até 6 fotos por
@@ -273,6 +281,34 @@ class PerformerProfile extends Model
                 ->orWhere(fn (Builder $inner) => $inner
                     ->whereNull('worlds')
                     ->where('category', $world));
+        });
+    }
+
+    /**
+     * Restringe o catálogo a quem tem ALGUMA localização na UF (Sprint 13).
+     *
+     * Casa se QUALQUER localização da performer bate (OR, via whereHas), OU — para
+     * a linha que ainda não tem localização na tabela, só o cache `state` da
+     * coluna — quando a coluna bate. É o mesmo fallback do `scopeInWorld`
+     * (worlds JSON OU category legado): mantém filtráveis tanto as performers com
+     * múltiplas localizações quanto as que só têm a coluna do Sprint 9A (linha de
+     * teste criada direto, ou dado não migrado). A migração de dados popula a
+     * tabela, então o ramo do fallback é rede, não o caminho comum.
+     *
+     * Uma dona só para "está nesta UF", pela mesma razão do scopeInWorld: o filtro
+     * do catálogo autenticado, o público e a API passam por aqui — três cópias
+     * divergiriam.
+     *
+     * @param  Builder<PerformerProfile>  $query
+     * @return Builder<PerformerProfile>
+     */
+    public function scopeInState(Builder $query, string $state): Builder
+    {
+        return $query->where(function (Builder $q) use ($state) {
+            $q->whereHas('locations', fn (Builder $inner) => $inner->where('state', $state))
+                ->orWhere(fn (Builder $inner) => $inner
+                    ->whereDoesntHave('locations')
+                    ->where('state', $state));
         });
     }
 
@@ -414,6 +450,55 @@ class PerformerProfile extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(PerformerPhoto::class)->orderBy('position');
+    }
+
+    /**
+     * As localizações da performer (Sprint 13), sempre na ordem de exibição.
+     *
+     * `orderBy('position')` na própria relação porque não há leitura fora de
+     * ordem: card, perfil, tela de edição e o cache da primária consomem a mesma
+     * sequência (primária em position 0). Escrita só pelo PerformerLocationService.
+     */
+    public function locations(): HasMany
+    {
+        return $this->hasMany(PerformerLocation::class)->orderBy('position');
+    }
+
+    /**
+     * A localização primária — a que alimenta o cache `state`/`city` e abre a
+     * lista no card/perfil. Invariante "exatamente uma primária" é do
+     * PerformerLocationService; aqui é só o atalho de leitura.
+     */
+    public function primaryLocation(): HasOne
+    {
+        return $this->hasOne(PerformerLocation::class)->where('is_primary', true);
+    }
+
+    /**
+     * As UFs públicas deste perfil, distintas e na ordem de exibição (primária
+     * primeiro). É a ÚNICA porta pela qual a localização vira dado público — e
+     * `city` NÃO passa por aqui, de propósito: é a mesma disciplina do
+     * PerformerPublicResource, agora para a lista.
+     *
+     * Fallback para o cache `state` da coluna quando não há linha na tabela
+     * (Sprint 9A não migrado, ou linha de teste criada direto), no mesmo espírito
+     * do `activeWorlds()`. Lê da relação já carregada quando houver — o catálogo
+     * faz eager load, e uma query por card devolveria o N+1 que o eager load
+     * veio evitar.
+     *
+     * @return array<int, string>
+     */
+    public function locationStates(): array
+    {
+        $rows = $this->relationLoaded('locations')
+            ? $this->locations
+            : $this->locations()->get();
+
+        if ($rows->isNotEmpty()) {
+            return $rows->pluck('state')->unique()->values()->all();
+        }
+
+        return $this->state !== null ? [$this->state] : [];
     }
 
     /*

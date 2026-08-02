@@ -53,12 +53,20 @@ class ProfileController extends Controller
                 'smokes' => $profile->smokes,
                 'height_cm' => $profile->height_cm,
                 'looking_for' => $profile->looking_for,
-                // Localização. `city` aparece AQUI e em nenhum outro lugar: é a
-                // tela em que a própria performer edita o que ela mesma digitou,
-                // não uma superfície de exibição. A regra de privacidade é sobre
-                // publicar a cidade para terceiros — ver PerformerPublicResource.
+                // Localização (Sprint 13). `city` aparece AQUI e em nenhum outro
+                // lugar: é a tela em que a própria performer edita o que ela
+                // mesma digitou, não uma superfície de exibição. `state`/`city`
+                // seguem como o CACHE da primária (compat com o Sprint 9A); a
+                // lista completa vai em `locations`, que a nova seção edita e
+                // salva pela porta dedicada. `city` de cada linha só existe nesta
+                // tela — ver UpdatePerformerLocationsRequest e o resource público.
                 'state' => $profile->state,
                 'city' => $profile->city,
+                'locations' => $profile->locations->map(fn ($l) => [
+                    'state' => $l->state,
+                    'city' => $l->city,
+                    'is_primary' => $l->is_primary,
+                ])->all(),
                 'avatar_url' => $profile->avatar_path
                     ? URL::temporarySignedRoute('performer.media', now()->addMinutes(60), [
                         'profile_id' => $profile->id,
@@ -93,10 +101,10 @@ class ProfileController extends Controller
             // "Sobre mim" (Sprint 9). `tags` NÃO entra aqui: não é coluna, vai
             // pela junção logo abaixo.
             'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',
-            // Localização opt-in. Os dois entram como null quando a performer
-            // usa "Não compartilhar localização" — a tela manda o par vazio, e
-            // `nullable` no request deixa isso chegar até aqui como limpeza.
-            'state', 'city',
+            // Localização saiu daqui (Sprint 13): lista própria em
+            // performer.locations.update. Este save não toca mais nas colunas
+            // `state`/`city` (que agora são cache da primária, escrito só pelo
+            // PerformerLocationService).
         ]));
 
         // Multi-worlds: se a tela mandou a seleção de mundos, ela é a fonte da

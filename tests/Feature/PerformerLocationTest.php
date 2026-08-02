@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\PerformerLocation;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\DeletionService;
+use App\Services\PerformerLocationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -47,6 +49,23 @@ function locPerformer(string $stageName, array $attributes = []): PerformerProfi
         'level' => 'iniciante',
         'split_pct' => 65,
     ], $attributes));
+}
+
+/**
+ * Performer com uma LISTA de localizações (Sprint 13), gravada pela dona única
+ * (PerformerLocationService) — assim o cache `state`/`city` da primária fica em
+ * sincronia como em produção, e os testes de leitura exercitam a tabela, não só
+ * a coluna do Sprint 9A. Cada linha é `{state, city?, is_primary?}`.
+ *
+ * @param  array<int, array{state: string, city?: ?string, is_primary?: bool}>  $locations
+ */
+function locPerformerWith(string $stageName, array $locations): PerformerProfile
+{
+    $profile = locPerformer($stageName);
+
+    app(PerformerLocationService::class)->setLocations($profile, $locations);
+
+    return $profile->refresh();
 }
 
 function locMember(): User
@@ -255,31 +274,48 @@ it('recusa um estado que nao existe', function () {
         ->assertJsonValidationErrors('state');
 });
 
-// ─── Escrita pela tela de edição ────────────────────────────────────────────
+// ─── Escrita pela porta dedicada (Sprint 13) ─────────────────────────────────
+//
+// A localização saiu do `performer.profile.save`: virou lista e tem porta
+// própria (`performer.locations.update` → UpdatePerformerLocationsRequest →
+// PerformerLocationService, a dona única da escrita). O save do perfil não toca
+// mais em `state`/`city` — que agora são o CACHE da primária, escrito só pelo
+// service. Estes testes travam a nova porta e a sincronia do cache.
 
-it('salva estado e cidade pela tela de edicao', function () {
+it('salva estado e cidade pela porta de localizacoes e sincroniza o cache', function () {
     $profile = locPerformer('Ana');
 
     test()->actingAs($profile->user)
         ->from(route('performer.profile.edit'))
-        ->post(route('performer.profile.save'), [
-            'stage_name' => 'Ana',
-            'state' => 'MG',
-            'city' => LOC_CITY,
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'MG', 'city' => LOC_CITY, 'is_primary' => true],
+            ],
         ])
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     $profile->refresh();
 
+    // A linha nasce na tabela nova...
+    expect($profile->locations)->toHaveCount(1)
+        ->and($profile->locations[0]->state)->toBe('MG')
+        ->and($profile->locations[0]->city)->toBe(LOC_CITY)
+        ->and($profile->locations[0]->is_primary)->toBeTrue();
+
+    // ...e o cache `state`/`city` da coluna espelha a primária (compat Sprint 9A).
     expect($profile->state)->toBe('MG')
         ->and($profile->city)->toBe(LOC_CITY);
 });
 
-it('salva o perfil sem localizacao nenhuma', function () {
-    $profile = locPerformer('Ana');
+it('o save do perfil nao toca mais na localizacao', function () {
+    // Regressão do segundo dono: um POST do perfil sem `state`/`city` NÃO pode
+    // zerar a localização gravada pela porta dedicada. Era o buraco que motivou
+    // tirar os campos do UpdatePerformerProfileRequest.
+    $profile = locPerformerWith('Ana', [
+        ['state' => 'SP', 'city' => LOC_CITY, 'is_primary' => true],
+    ]);
 
-    // Os dois campos são opcionais: salvar sem eles não pode virar erro de
-    // validação, senão o opt-in vira obrigação.
     test()->actingAs($profile->user)
         ->from(route('performer.profile.edit'))
         ->post(route('performer.profile.save'), ['stage_name' => 'Ana'])
@@ -288,42 +324,72 @@ it('salva o perfil sem localizacao nenhuma', function () {
 
     $profile->refresh();
 
-    expect($profile->state)->toBeNull()->and($profile->city)->toBeNull();
+    expect($profile->state)->toBe('SP')
+        ->and($profile->city)->toBe(LOC_CITY)
+        ->and($profile->locations)->toHaveCount(1);
 });
 
-it('limpa os dois campos quando a performer recusa compartilhar', function () {
-    $profile = locPerformer('Ana', ['state' => 'SP', 'city' => LOC_CITY]);
+it('salva multiplas localizacoes com uma primaria', function () {
+    $profile = locPerformer('Ana');
 
-    // É o que o link "Não compartilhar localização" manda: o par vazio. O
-    // ConvertEmptyStringsToNull do grupo web transforma a string vazia da
-    // cidade em null antes da validação.
     test()->actingAs($profile->user)
         ->from(route('performer.profile.edit'))
-        ->post(route('performer.profile.save'), [
-            'stage_name' => 'Ana',
-            'state' => null,
-            'city' => '',
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'SP', 'city' => 'Barueri', 'is_primary' => true],
+                ['state' => 'RJ', 'city' => 'Niterói', 'is_primary' => false],
+                ['state' => 'MG', 'city' => null, 'is_primary' => false],
+            ],
         ])
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
     $profile->refresh();
 
-    expect($profile->state)->toBeNull()->and($profile->city)->toBeNull();
+    // Ordem de envio = posição; primária alimenta o cache.
+    expect($profile->locations->pluck('state')->all())->toBe(['SP', 'RJ', 'MG'])
+        ->and($profile->state)->toBe('SP')
+        ->and($profile->city)->toBe('Barueri');
+});
+
+it('limpa a localizacao quando a performer manda a lista vazia', function () {
+    $profile = locPerformerWith('Ana', [
+        ['state' => 'SP', 'city' => LOC_CITY, 'is_primary' => true],
+    ]);
+
+    // É o "Não compartilhar localização": a lista vazia apaga as linhas e zera o
+    // cache. `present` no request deixa `[]` chegar de propósito.
+    test()->actingAs($profile->user)
+        ->from(route('performer.profile.edit'))
+        ->put(route('performer.locations.update'), ['locations' => []])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $profile->refresh();
+
+    expect($profile->locations)->toHaveCount(0)
+        ->and($profile->state)->toBeNull()
+        ->and($profile->city)->toBeNull();
 
     // E some do catálogo junto.
     expect(locAuthRows()[0]['state'])->toBeNull();
 });
 
 it('recusa um estado invalido vindo do formulario', function () {
-    $profile = locPerformer('Ana', ['state' => 'SP']);
+    $profile = locPerformerWith('Ana', [
+        ['state' => 'SP', 'city' => null, 'is_primary' => true],
+    ]);
 
     test()->actingAs($profile->user)
         ->from(route('performer.profile.edit'))
-        ->post(route('performer.profile.save'), ['stage_name' => 'Ana', 'state' => 'Sao Paulo'])
-        ->assertSessionHasErrors('state');
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'Sao Paulo', 'is_primary' => true],
+            ],
+        ])
+        ->assertSessionHasErrors('locations.0.state');
 
-    // O valor anterior sobrevive à recusa.
+    // O valor anterior sobrevive à recusa (o service nem foi chamado).
     expect($profile->fresh()->state)->toBe('SP');
 });
 
@@ -332,11 +398,147 @@ it('recusa uma cidade acima do limite de 100 caracteres', function () {
 
     test()->actingAs($profile->user)
         ->from(route('performer.profile.edit'))
-        ->post(route('performer.profile.save'), [
-            'stage_name' => 'Ana',
-            'city' => Str::repeat('a', 101),
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'SP', 'city' => Str::repeat('a', 101), 'is_primary' => true],
+            ],
         ])
-        ->assertSessionHasErrors('city');
+        ->assertSessionHasErrors('locations.0.city');
+});
+
+it('recusa mais localizacoes que o teto', function () {
+    $profile = locPerformer('Ana');
+
+    test()->actingAs($profile->user)
+        ->from(route('performer.profile.edit'))
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'SP', 'is_primary' => true],
+                ['state' => 'RJ', 'is_primary' => false],
+                ['state' => 'MG', 'is_primary' => false],
+                ['state' => 'BA', 'is_primary' => false],
+            ],
+        ])
+        ->assertSessionHasErrors('locations');
+
+    expect($profile->fresh()->locations)->toHaveCount(0);
+});
+
+it('exige exatamente uma primaria', function () {
+    $profile = locPerformer('Ana');
+
+    // Nenhuma marcada.
+    test()->actingAs($profile->user)
+        ->from(route('performer.profile.edit'))
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'SP', 'is_primary' => false],
+                ['state' => 'RJ', 'is_primary' => false],
+            ],
+        ])
+        ->assertSessionHasErrors('locations');
+
+    // Duas marcadas.
+    test()->actingAs($profile->user)
+        ->from(route('performer.profile.edit'))
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'SP', 'is_primary' => true],
+                ['state' => 'RJ', 'is_primary' => true],
+            ],
+        ])
+        ->assertSessionHasErrors('locations');
+
+    expect($profile->fresh()->locations)->toHaveCount(0);
+});
+
+it('recusa localizacao duplicada (mesmo estado e cidade)', function () {
+    $profile = locPerformer('Ana');
+
+    test()->actingAs($profile->user)
+        ->from(route('performer.profile.edit'))
+        ->put(route('performer.locations.update'), [
+            'locations' => [
+                ['state' => 'SP', 'city' => 'Barueri', 'is_primary' => true],
+                ['state' => 'SP', 'city' => 'barueri', 'is_primary' => false],
+            ],
+        ])
+        ->assertSessionHasErrors('locations');
+
+    expect($profile->fresh()->locations)->toHaveCount(0);
+});
+
+// ─── Múltiplas localizações: leitura pública (Sprint 13) ─────────────────────
+
+it('expoe todas as UFs em states, na ordem de exibicao', function () {
+    locPerformerWith('Ana', [
+        ['state' => 'SP', 'city' => 'Barueri', 'is_primary' => true],
+        ['state' => 'RJ', 'city' => 'Niterói', 'is_primary' => false],
+    ]);
+
+    foreach ([locAuthRows(), locPublicRows(), locApiRows()] as $rows) {
+        expect($rows[0]['states'])->toBe(['SP', 'RJ']);
+        // A primária segue no `state` singular (cache/compat).
+        expect($rows[0]['state'])->toBe('SP');
+    }
+});
+
+it('cai em [state] pelo fallback quando so ha a coluna do Sprint 9A', function () {
+    // Linha criada direto (sem migrar para a tabela): `states` deriva do cache.
+    locPerformer('Ana', ['state' => 'SP']);
+
+    foreach ([locAuthRows(), locPublicRows(), locApiRows()] as $rows) {
+        expect($rows[0]['states'])->toBe(['SP']);
+    }
+});
+
+it('devolve states vazio para quem nao tem localizacao', function () {
+    locPerformer('Ana');
+
+    foreach ([locAuthRows(), locPublicRows(), locApiRows()] as $rows) {
+        expect($rows[0]['states'])->toBe([]);
+    }
+});
+
+it('nunca expoe a cidade de NENHUMA das localizacoes', function () {
+    // Cada linha com uma cidade distinta e procurável — o vazamento de uma
+    // secundária não daria erro em teste de funcionalidade nenhum.
+    $profile = locPerformerWith('Ana', [
+        ['state' => 'SP', 'city' => 'Barueri', 'is_primary' => true],
+        ['state' => 'RJ', 'city' => 'Petrópolis', 'is_primary' => false],
+    ]);
+
+    $responses = [
+        test()->get(route('performers.public.show', $profile->slug))->assertOk(),
+        test()->actingAs(locMember())->get(route('catalog.show', $profile->slug))->assertOk(),
+        test()->getJson(route('performers.show', $profile->slug))->assertOk(),
+        test()->actingAs(locMember())->get(route('catalog'))->assertOk(),
+        test()->get(route('performers.public'))->assertOk(),
+        test()->getJson(route('performers.index'))->assertOk(),
+    ];
+
+    foreach ($responses as $response) {
+        expect($response->getContent())
+            ->not->toContain('Barueri')
+            ->and($response->getContent())->not->toContain('Petrópolis');
+    }
+});
+
+// ─── Múltiplas localizações: filtro por estado (Sprint 13) ───────────────────
+
+it('filtra por QUALQUER localizacao, nao so a primaria', function () {
+    // Ana atende em SP (primária) e RJ (secundária).
+    locPerformerWith('Ana', [
+        ['state' => 'SP', 'city' => 'Barueri', 'is_primary' => true],
+        ['state' => 'RJ', 'city' => null, 'is_primary' => false],
+    ]);
+    // Bia só em RJ (coluna do Sprint 9A, fallback).
+    locPerformer('Bia', ['state' => 'RJ']);
+
+    // Filtrar por RJ traz as duas — Ana pela secundária, Bia pelo cache.
+    locExpectAll(['state' => 'RJ'], ['Ana', 'Bia']);
+    // Filtrar por SP traz só Ana (a primária dela).
+    locExpectAll(['state' => 'SP'], ['Ana']);
 });
 
 // ─── Hard Delete ────────────────────────────────────────────────────────────
@@ -352,4 +554,19 @@ it('limpa cidade e estado no hard delete', function () {
 
     expect($scrubbed->state)->toBeNull()
         ->and($scrubbed->city)->toBeNull();
+});
+
+it('apaga as linhas de localizacao no hard delete', function () {
+    $profile = locPerformerWith('Ana', [
+        ['state' => 'SP', 'city' => 'Barueri', 'is_primary' => true],
+        ['state' => 'RJ', 'city' => 'Niterói', 'is_primary' => false],
+    ]);
+
+    expect(PerformerLocation::where('performer_profile_id', $profile->id)->count())->toBe(2);
+
+    app(DeletionService::class)->executeDeletion($profile->user->fresh());
+
+    // DELETE real: a FK cascadeOnDelete não dispara (o perfil é soft-delete), então
+    // sem purgePerformerLocations() a linha — `city` interno incluído — sobreviveria.
+    expect(PerformerLocation::where('performer_profile_id', $profile->id)->count())->toBe(0);
 });

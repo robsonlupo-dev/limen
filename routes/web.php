@@ -46,6 +46,7 @@ use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
 use App\Http\Controllers\Web\Performer\PhotoController as PerformerPhotoController;
+use App\Http\Controllers\Web\Performer\PerformerLocationController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\ReceivedPhotoController;
 use App\Http\Controllers\Web\Performer\SentInterestsController;
@@ -405,6 +406,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/performer/perfil/foto', [PerformerProfileController::class, 'avatar'])
             ->middleware('throttle:20,1')
             ->name('performer.profile.photo')
+            ->can('performer-active');
+
+        // Localizações da performer (Sprint 13). Porta DEDICADA — separada de
+        // `performer.profile.save`, que deixou de aceitar `state`/`city`: o
+        // PerformerLocationService é a dona única da escrita (tabela + cache).
+        // `role:performer` explícito além do `can('performer-active')`, como pede
+        // a spec (auth+role:performer+2fa+documents.accepted vêm do grupo).
+        Route::put('/performer/localizacoes', [PerformerLocationController::class, 'update'])
+            ->middleware(['role:performer', 'throttle:30,1'])
+            ->name('performer.locations.update')
             ->can('performer-active');
 
         // Sprint 7: sem `can('performer-active')` de propósito — a performer

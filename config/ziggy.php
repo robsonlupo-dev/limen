@@ -85,6 +85,9 @@ return [
         'performer.profile.edit',
         'performer.profile.save',
         'performer.profile.photo',
+        // Localizações da performer (Sprint 13): a tela de edição dá PUT aqui
+        // (porta dedicada, separada do save do perfil).
+        'performer.locations.update',
         // Leitura da foto efêmera recebida de um membro
         'performer.photos.image',
 

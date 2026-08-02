@@ -42,7 +42,17 @@ class PerformerPublicResource extends JsonResource
             // dado. Esta é a única porta pelos dois catálogos e pelo perfil
             // público — acrescentar `city` aqui vaza em todas de uma vez.
             // Travado por teste (LocationTest).
+            //
+            // `state` é a UF PRIMÁRIA (cache da coluna) — mantido para compat com
+            // o Sprint 9A e para o `v-if` de supressão com is_live.
             'state' => $this->state,
+            // Múltiplas localizações (Sprint 13): a lista de UFs, distintas e na
+            // ordem de exibição (primária primeiro). Mesma disciplina de `state`:
+            // SÓ a UF entra, `city` de nenhuma linha atravessa — locationStates()
+            // é a porta única e não devolve cidade. Card e perfil exibem daqui
+            // ("SP · RJ"); com a localização única cai em `[state]` pelo fallback,
+            // então quem tem uma só continua idêntico. Travado por teste.
+            'states' => $this->locationStates(),
             'is_live' => $this->is_live,
             // "Disponível para conversa" (Sprint 11) — BOOLEANO derivado, nunca
             // o carimbo `available_for_chat_at` (que é $hidden e não sai daqui
