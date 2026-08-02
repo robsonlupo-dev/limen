@@ -10,8 +10,29 @@ APP_DIR="/var/www/limen"
 echo "▶ Iniciando deploy manual em $APP_DIR"
 cd "$APP_DIR"
 
+# O storage tem 10 arquivos VERSIONADOS (os .gitignore que criam
+# storage/app/private, storage/framework/views, storage/logs, etc). O php-fpm
+# roda como www-data e reescreve esse subtree, então o `git pull` esbarra em
+# arquivo que o deploy não consegue desatar/recriar ("unable to unlink
+# storage/app/private/.gitignore: Permission denied"). Reassumir a posse ANTES
+# torna o passo idempotente — mesma tática usada em vendor/ e public/build/.
+# É -R porque qualquer um dos 10 pode ser o próximo, e o pull também precisa
+# poder RECRIAR um que tenha sumido (escrita no diretório, não só no arquivo).
+echo "▶ Normalizando posse de storage/ antes do git"
+sudo chown -R deploy:deploy "$APP_DIR/storage"
+
 echo "▶ Atualizando código"
 git pull origin main
+
+# Devolve o storage ao www-data IMEDIATAMENTE, e não só no chown do fim do
+# script: entre o pull e aquele passo correm composer, npm ci, build e migrate
+# (minutos), e nesse intervalo o php-fpm que serve o site não conseguiria
+# escrever em storage/logs nem compilar view — 500 em request que logue. Com
+# esta linha a janela é de ~1s. Comando idêntico ao do fim de propósito: o
+# sudoers casa por string exata, então reusar a linha já autorizada não amplia
+# a superfície de sudo.
+echo "▶ Devolvendo posse de storage/ ao www-data"
+sudo chown -R www-data:www-data storage bootstrap/cache
 
 # `composer install --no-dev` remove os pacotes de dev de vendor/. Se algum
 # arquivo em vendor/ ficou com dono != deploy (ex.: www-data de um deploy
@@ -26,6 +47,14 @@ composer install --no-dev --optimize-autoloader --no-interaction
 
 echo "▶ Instalando dependências Node e compilando assets"
 npm ci
+# O `npm run build` (Vite) reescreve public/build/. Se algum arquivo ali ficou
+# com dono root (build manual rodado como root), o Vite não sobrescreve e o
+# build quebra com EACCES. Reassumir a posse antes torna o passo idempotente
+# (mesma tática do vendor/). O mkdir -p cobre o primeiro deploy, quando
+# public/build/ ainda não existe — roda como deploy (public/ já é do deploy),
+# sem sudo, porque o sudoers só libera chown/supervisorctl.
+mkdir -p "$APP_DIR/public/build"
+sudo chown -R deploy:deploy "$APP_DIR/public/build"
 npm run build
 
 echo "▶ Rodando migrations"
