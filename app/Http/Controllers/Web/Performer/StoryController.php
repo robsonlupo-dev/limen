@@ -69,8 +69,15 @@ class StoryController extends Controller
                 $profile,
                 $request->file('imagem'),
                 (string) $request->string('visibility_level'),
+                $request->boolean('is_invite'),
             );
         } catch (ImageProcessingException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (StoryException $e) {
+            // Hoje só o teto de convites (Sprint 12) chega aqui; é recusa de
+            // negócio que a tela sabe explicar. `InvalidArgumentException` (nível
+            // fora dos três) segue NÃO capturada de propósito — é erro de programa
+            // que deve estourar 500, não virar 422 silencioso.
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         }
 

@@ -446,6 +446,53 @@ duração 6h, teto de 20 destaques simultâneos — todos por env).
   faixa de tempo; pode boostar → botão + custo + "N de 20 vagas"; sem tokens →
   aviso + link de comprar). Faixa de tempo, nunca relógio, como a disponibilidade.
 
+## Convite via Stories — Sprint 12 (isca para o chat pago)
+
+Caminho 2 do Interesse Expandido: ao publicar um Story, a performer pode marcá-lo
+como **convite**. Para os SEGUIDORES que ainda não têm chat com ela, o feed exibe
+esse Story com destaque (badge "💌 Convite" + CTA para o funil pago — comprar
+acesso de chat ou assinar Círculo). É monetização INDIRETA, como o Boost: o
+convite não credita ninguém; ele empurra o membro para uma transação que passa
+pelo ledger. Coluna `performer_stories.is_invite` (bool, default false).
+
+- **`is_invite` é dado da PERFORMER, não do membro, e NÃO existe lista de "quem
+  recebeu".** O alvo é derivado na LEITURA do feed (seguidor sem chat), nunca
+  materializado — mesma disciplina da ausência de linha em `profile_visits` e
+  `story_views` (§ 2.7). Uma tabela de destinatários seria o dossiê
+  membro→performer que o produto recusa. O membro não sabe que foi "selecionado"
+  porque **não há seleção**: o selo acende para a categoria inteira "seguidor sem
+  chat", não para uma lista escolhida.
+- **O selo é POR ESPECTADOR, resolvido em `StoryVisibilityService::feedFor()`.**
+  `is_invite:true` só volta para quem NÃO tem chat com ela; quem já conversa vê o
+  Story normal (`is_invite:false`); quem não segue não vê o Story de forma alguma.
+  O feed é do próprio membro — nada aqui expõe membro à performer, então FanAlias
+  não ganha superfície nova (a feature não cria exposição membro→performer).
+- **"Já tem chat?" é `ChatAccessService::memberHasChatWith()` — dona única, NÃO
+  `canMemberSendTo()`.** São perguntas diferentes: `canMemberSendTo` é "pode
+  ENVIAR agora numa conversa ativa" (exige `Conversation`); o convite pergunta "já
+  está no funil pago". A resposta é a UNIÃO de dois vínculos: assinatura de Círculo
+  ativa (chat livre — não é alvo) OU qualquer linha de `chat_access` do par (já
+  comprou algum dia). "sem ChatAccess, sem Subscription" da spec, literal.
+  Reescrever isso no serviço de story seria a segunda cópia que diverge.
+- **Teto de 2 convites ATIVOS por performer** (`PerformerStoryService::MAX_ACTIVE_INVITES`),
+  não "2 por dia de calendário": como o TTL é fixo em 24h, "2 ativos" ≈ "2 por
+  dia" e evita o oráculo de fuso (UTC no banco, SP na exibição). A vaga se libera
+  na LEITURA quando o convite vence (escopo `active()`), sem job — § 2.8. A guarda
+  roda ANTES do Store (não desperdiça o re-encode num request recusado) e lança
+  `StoryException::INVITE_LIMIT` → 422. É **soft-cap sob concorrência**, como o
+  Boost: dois publishes simultâneos podem chegar a 3. Limite de NEGÓCIO, não de
+  dinheiro; a rota já leva `throttle:10,1`. O teto NÃO barra Story normal.
+- **`is_invite` fica FORA do `$fillable`** (nasce só no `publish()`, como bool já
+  validado — disciplina de `discrete_mode`/2FA), apesar de ser escolha da
+  performer como o nível. Entra no audit `story.published` (dado dela sobre a
+  própria publicação, ao lado do nível); **nada de membro, nada de "quem recebeu".**
+- **UI:** checkbox "Enviar como convite para novos seguidores" no `StoryPanel`,
+  com contador "N/2 convites hoje" derivado dos próprios cards (cada Story traz
+  `is_invite`) — sem segunda fonte para divergir. O selo/CTA no feed do membro
+  depende de uma tela de feed que **ainda não existe** (o endpoint `stories.feed`
+  é testado mas sem consumidor Vue hoje); o contrato — `is_invite` por item no
+  payload — está entregue e testado.
+
 ## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
 
 Foto privada que o membro manda para a performer no chat: cifrada em disco

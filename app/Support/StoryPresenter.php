@@ -61,6 +61,11 @@ class StoryPresenter
             'view_count' => $stories->viewCount($story),
             'expires_in_hours' => self::hoursLeft($story),
             'image_url' => route('performer.stories.image', $story->id),
+            // Convite (Sprint 12): dado DELA sobre a própria publicação — a tela
+            // marca quais stories são convites e conta as vagas usadas a partir
+            // disto, sem prop extra. Nada de membro atravessa aqui: o convite não
+            // guarda "quem recebeu".
+            'is_invite' => $story->is_invite,
         ];
     }
 

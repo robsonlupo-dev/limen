@@ -31,6 +31,9 @@ class StoryException extends DomainException
     /** Congelado por denúncia em aberto (§ 2.4). Só a deleção manual bate aqui. */
     public const UNDER_REVIEW = 'under_review';
 
+    /** Teto de convites simultâneos atingido (Sprint 12). Vira 422 no publish. */
+    public const INVITE_LIMIT = 'invite_limit';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -86,6 +89,22 @@ class StoryException extends DomainException
         return new self(
             self::FORBIDDEN,
             'Este story não está mais disponível.',
+        );
+    }
+
+    /**
+     * A performer já tem o máximo de convites ativos (Sprint 12).
+     *
+     * A mensagem DIZ o motivo e cita o teto: é dado dela sobre a própria conta,
+     * não há oráculo a proteger — e ela precisa entender por que a caixinha foi
+     * recusada em vez de achar que é bug. O Story SEM convite segue publicável;
+     * só a marcação de convite é barrada.
+     */
+    public static function inviteLimitReached(int $max): self
+    {
+        return new self(
+            self::INVITE_LIMIT,
+            "Você já tem {$max} convites ativos. Espere um deles expirar para enviar outro.",
         );
     }
 }

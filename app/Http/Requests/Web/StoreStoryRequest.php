@@ -45,6 +45,12 @@ class StoreStoryRequest extends FormRequest
         return [
             'imagem' => ['required', 'file', 'mimes:jpeg,png', 'max:5120'],
             'visibility_level' => ['required', 'string', Rule::in(PerformerStory::VISIBILITY_LEVELS)],
+            // Convite via Stories (Sprint 12): opcional, ausente = Story normal.
+            // O TETO de convites ativos NÃO é validado aqui — é regra de negócio
+            // que consulta o estado atual da performer, e vive no
+            // `PerformerStoryService::publish()` (a dona), como o `visibility_level`
+            // é reconferido lá. Este Form Request só garante o TIPO do campo.
+            'is_invite' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -56,6 +62,7 @@ class StoreStoryRequest extends FormRequest
             'imagem.max' => 'A imagem precisa ter no máximo 5 MB.',
             'visibility_level.required' => 'Escolha quem pode ver este story.',
             'visibility_level.in' => 'Nível de visibilidade inválido.',
+            'is_invite.boolean' => 'Marcação de convite inválida.',
         ];
     }
 }

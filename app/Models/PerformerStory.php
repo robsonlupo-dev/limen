@@ -58,6 +58,12 @@ class PerformerStory extends Model
      * fora, na mesma regra de `discrete_mode`, do segredo de 2FA e do `user_id`
      * de `member_photos`. Um `content_hash` vindo de payload seria evidência
      * escolhida pelo denunciado.
+     *
+     * `is_invite` (Sprint 12) também fica FORA, apesar de ser escolha da
+     * performer como o nível: é um flag que GATEIA comportamento (rate limit de
+     * convites, destaque no feed do membro), então nasce só no
+     * `PerformerStoryService::publish()`, como um bool já validado, nunca de um
+     * array de request. Mesma disciplina de `discrete_mode`.
      */
     protected $fillable = [
         'visibility_level',
@@ -90,6 +96,7 @@ class PerformerStory extends Model
     {
         return [
             'expires_at' => 'datetime',
+            'is_invite' => 'boolean',
         ];
     }
 

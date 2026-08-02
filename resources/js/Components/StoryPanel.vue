@@ -22,9 +22,12 @@ import { deleteJson, postForm } from '@/lib/http'
  * número só diz quando ela mesma publicou.
  */
 const props = defineProps({
-    // [{ id, visibility_level, view_count (faixa|null), expires_in_hours, image_url }]
+    // [{ id, visibility_level, view_count (faixa|null), expires_in_hours, image_url, is_invite }]
     stories: { type: Array, required: true },
     visibilityLevels: { type: Array, required: true },
+    // Teto de convites ATIVOS (Sprint 12). O usado é derivado de `stories`, não
+    // uma prop separada — assim o contador segue os cards depois de publicar/apagar.
+    inviteLimit: { type: Number, default: 2 },
 })
 
 const LEVEL_LABELS = {
@@ -36,6 +39,7 @@ const LEVEL_LABELS = {
 const file = ref(null)
 const fileInput = ref(null)
 const level = ref(props.visibilityLevels[0] ?? 'public')
+const sendAsInvite = ref(false)
 const publishing = ref(false)
 const deleting = ref(null)
 const error = ref('')
@@ -43,6 +47,12 @@ const error = ref('')
 const levelOptions = computed(() =>
     props.visibilityLevels.map((value) => ({ value, label: LEVEL_LABELS[value] ?? value })),
 )
+
+// Convites ativos derivados dos próprios cards — nunca uma segunda fonte para
+// divergir. Cada story traz `is_invite`; a vaga se libera quando o convite
+// expira (o card some da lista, que já é só de stories vivos).
+const invitesUsed = computed(() => props.stories.filter((s) => s.is_invite).length)
+const inviteFull = computed(() => invitesUsed.value >= props.inviteLimit)
 
 function labelFor(value) {
     return LEVEL_LABELS[value] ?? value
@@ -62,10 +72,14 @@ async function publish() {
     const form = new FormData()
     form.append('imagem', file.value)
     form.append('visibility_level', level.value)
+    // Só manda o campo quando marcado — ausência = story normal. O servidor é o
+    // guard do teto (o checkbox desabilitado é só conveniência de UI).
+    if (sendAsInvite.value) form.append('is_invite', '1')
 
     try {
         await postForm(route('performer.stories.store'), form)
         file.value = null
+        sendAsInvite.value = false
         if (fileInput.value) fileInput.value.value = ''
         router.reload({ only: ['stories'] })
     } catch (e) {
@@ -118,7 +132,16 @@ async function remove(story) {
                     class="h-16 w-16 shrink-0 rounded-lg object-cover"
                 />
                 <div class="min-w-0 flex-1">
-                    <p class="text-sm text-cream">{{ labelFor(story.visibility_level) }}</p>
+                    <p class="text-sm text-cream">
+                        {{ labelFor(story.visibility_level) }}
+                        <!-- Convite (Sprint 12): tag na publicação DELA. Novos
+                             seguidores sem chat veem este story com destaque. -->
+                        <span
+                            v-if="story.is_invite"
+                            class="ml-1 rounded-full bg-gold/10 px-2 py-0.5 text-[10px] text-gold"
+                            title="Enviado como convite: novos seguidores sem chat veem com destaque"
+                        >💌 Convite</span>
+                    </p>
                     <p class="text-xs text-muted">
                         Expira em {{ story.expires_in_hours }}h ·
                         <span v-if="story.view_count !== null">{{ story.view_count }} viram</span>
@@ -163,6 +186,35 @@ async function remove(story) {
                     Publicar Story
                 </Button>
             </div>
+
+            <!-- Convite via Stories (Sprint 12). O checkbox desabilita quando as
+                 vagas acabam; o contador é derivado dos cards. O servidor é o
+                 guard de verdade do teto. -->
+            <label
+                class="flex items-start gap-2 text-xs"
+                :class="inviteFull && !sendAsInvite ? 'opacity-50' : ''"
+            >
+                <input
+                    type="checkbox"
+                    v-model="sendAsInvite"
+                    :disabled="inviteFull && !sendAsInvite"
+                    class="mt-0.5 rounded border-frame bg-background text-gold focus:ring-gold"
+                />
+                <span class="text-muted">
+                    <span class="text-cream">Enviar como convite para novos seguidores</span>
+                    <span class="ml-1 text-gold">({{ invitesUsed }}/{{ inviteLimit }} convites hoje)</span>
+                    <br />
+                    <span
+                        title="Seguidores que ainda não conversaram com você verão este Story com destaque"
+                    >
+                        Seguidores que ainda não conversaram com você verão este Story com destaque.
+                    </span>
+                    <span v-if="inviteFull && !sendAsInvite" class="text-danger">
+                        Espere um convite ativo expirar para enviar outro.
+                    </span>
+                </span>
+            </label>
+
             <p class="text-xs text-muted">
                 JPEG ou PNG, até 5 MB. Vídeo ainda não. Removemos a localização do arquivo na
                 publicação.

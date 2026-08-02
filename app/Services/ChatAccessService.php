@@ -276,6 +276,46 @@ class ChatAccessService
     }
 
     /**
+     * O membro JÁ tem algum vínculo de chat com esta performer? (Sprint 12)
+     *
+     * ── Por que NÃO é `canMemberSendTo()` ───────────────────────────────────
+     * `canMemberSendTo()` pergunta "pode ENVIAR agora numa conversa ativa" — e
+     * exige uma `Conversation` de pé. O convite via Stories precisa de outra
+     * pergunta: "este seguidor já está no funil de chat, ou é alvo legítimo da
+     * isca?". Um assinante de Círculo NÃO gera linha de `chat_access` e pode nem
+     * ter aberto conversa ainda, mas tem chat livre — mandar-lhe o CTA "compre 50
+     * tokens para conversar" seria vender o que ele já tem. Por isso a resposta é
+     * a UNIÃO de dois vínculos, e não a interseção que o envio exige:
+     *
+     *  1. Assinatura de Círculo ativa → chat livre e permanente (não é alvo).
+     *  2. QUALQUER linha de `chat_access` do par, em qualquer status → ele já
+     *     entrou no funil pago (comprou acesso algum dia). "sem ChatAccess" da
+     *     spec é a ausência da linha, então `exists()` sobre o par, sem filtrar
+     *     status: quem já comprou não é "novo seguidor que nunca conversou".
+     *
+     * Fica AQUI, e não no StoryVisibilityService, pela disciplina de dona única:
+     * "o membro tem vínculo de chat com esta performer" é conhecimento do domínio
+     * de chat (a tabela `chat_access` e a assinatura). Reescrevê-lo no serviço de
+     * story seria a segunda cópia que diverge — e divergiria mostrando o convite a
+     * quem não é alvo, ou escondendo-o de quem é.
+     *
+     * O convite é DELA sobre a própria publicação; esta leitura não expõe membro
+     * nenhum à performer — é consumida só no feed do próprio membro, para decidir
+     * se ELE vê o selo.
+     */
+    public function memberHasChatWith(User $member, PerformerProfile $performer): bool
+    {
+        if ($member->activeSubscription() !== null) {
+            return true;
+        }
+
+        return ChatAccess::query()
+            ->where('member_id', $member->getKey())
+            ->where('performer_profile_id', $performer->getKey())
+            ->exists();
+    }
+
+    /**
      * Job diário. Duas transições, sempre append-only/soft:
      *  1. active com expires_at vencido → status 'expired' (entra na carência).
      *  2. grace_ends_at vencido (e não 'deleted') → soft-delete das mensagens da
