@@ -7,17 +7,22 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 01/08/2026 — **`main` em `11354b4`**, tag
-> **`v1.0-sprint11`** (`11354b4`). **Sprint 11 FECHADO** — 4 entregas: PR #118
-> (Login OTP passwordless), PR #119 (badge "Disponível para conversa"), PR #120
-> (Notas privadas de membros), PR #121 (Boost pago). Suíte: **1429 testes, 7393
-> asserts** (1 falha só-local: a view 451 do GeoBlock não compila neste clone de
-> dev — verde no CI).
+> **Última atualização:** 02/08/2026 — **`main` em `f23368a`**, tag
+> **`v1.0-sprint12`** (`f23368a`). **Sprint 12 FECHADO** — 3 entregas: PR #122
+> (fix da ordem de posse no `deploy.sh` manual), PR #123 (Convite via Stories),
+> PR #124 (Salvar busca). Suíte: **1455 testes, 7476 asserts** (1 falha só-local:
+> a view 451 do GeoBlock não compila neste clone de dev — verde no CI).
 >
-> **A tag `v1.0-sprint11` (`11354b4`) marca o fecho do Sprint 11, e é marco de
-> CÓDIGO, não de go-live.** Deploy de staging pendente: **só o PR #118 (OTP) foi
-> deployado; #119, #120 e #121 ainda NÃO subiram para staging.** O snapshot do §1
-> reflete `main` HEAD = a própria tag (mais esta atualização de doc por cima).
+> **A tag `v1.0-sprint12` (`f23368a`) marca o fecho do Sprint 12, e é marco de
+> CÓDIGO, não de go-live.** Deploy de staging pendente: **os PRs #123 e #124 ainda
+> NÃO subiram para staging** (#122 é script manual, não muda o que roda). O
+> snapshot do §1 reflete `main` HEAD = a própria tag (mais esta atualização de doc
+> por cima).
+>
+> **Histórico recente:** 01/08/2026 — `main` em `11354b4`, tag `v1.0-sprint11`,
+> **Sprint 11 FECHADO** (4 entregas: PR #118 Login OTP passwordless, PR #119 badge
+> "Disponível para conversa", PR #120 Notas privadas de membros, PR #121 Boost
+> pago). Só o PR #118 (OTP) chegou a staging; #119–#121 seguem pendentes.
 >
 > **Histórico:** 30/07/2026 — `main` em `49ef728`, tag `v1.0-sprint9.1`, o PR #110
 > fechou os 4 bloqueadores da Foto Efêmera (9B); antes, `57aab21` / tag
@@ -78,26 +83,26 @@
 
 ## 1. Snapshot do estado atual
 
-> **Snapshot de `main` HEAD (`11354b4`) = tag `v1.0-sprint11` — Sprint 11
-> fechado (PRs #118–#121).** Os números abaixo refletem esse estado.
+> **Snapshot de `main` HEAD (`f23368a`) = tag `v1.0-sprint12` — Sprint 12
+> fechado (PRs #122–#124).** Os números abaixo refletem esse estado.
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1429 testes, 7393 asserts** (1 falha só-local: view 451 do GeoBlock, verde no CI) | `php artisan test` (~155 s) |
-| Migrations | **88** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **166** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 130 | `grep` |
-| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto, story, notas e boost continuam só web**) | `grep` |
-| Services | 35 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
-| Models | 38 | `ls app/Models/` |
-| Controllers Web | 52 | `find app/Http/Controllers/Web` |
+| Suíte de testes | **1455 testes, 7476 asserts** (1 falha só-local: view 451 do GeoBlock, verde no CI) | `php artisan test` (~150 s) |
+| Migrations | **90** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **169** | `php artisan route:list` (rodapé *Showing*) |
+| `Route::` em `routes/web.php` | 133 | `grep` |
+| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto, story, notas, boost, convite e buscas salvas continuam só web**) | `grep` |
+| Services | 36 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
+| Models | 39 | `ls app/Models/` |
+| Controllers Web | 53 | `find app/Http/Controllers/Web` |
 | Controllers API | 22 | `find app/Http/Controllers/Api` |
 | Middleware | 11 | `ls app/Http/Middleware/` |
 | Commands (agendáveis) | 12 | `ls app/Console/Commands/` |
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 27 | `ls config/` |
-| Tag Git | **`v1.0-sprint11` (`11354b4`, fecho do Sprint 11)**, `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Tag Git | **`v1.0-sprint12` (`f23368a`, fecho do Sprint 12)**, `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -924,6 +929,60 @@ caso "Patrono único" (uma faixa com um só membro) pode ser correlacionável.
 sai em FAIXA (`ActivitySlot`), nunca em relógio, e **Ghost Mode suprime a ESCRITA**
 — quem tem o perk não atualiza a coluna, então a ausência de atualização É o
 produto, como a ausência de linha em `profile_visits` (item 9 do `CLAUDE.md`).
+
+---
+
+## Sprint 12 — Fechado
+
+> **FECHADO — tag `v1.0-sprint12` (`f23368a`).** Três entregas mergeadas:
+> **PR #122** (fix da ordem de posse no `deploy.sh` manual), **PR #123** (Convite
+> via Stories), **PR #124** (Salvar busca). Suíte no fecho: **1455 testes, 7476
+> asserts**.
+>
+> **Deploy de staging PENDENTE:** os **PRs #123 e #124 ainda NÃO subiram**; o
+> **#122** é o script de deploy manual (fallback do CI), não muda o que roda em
+> staging/prod. A tag é marco de código, não de go-live.
+
+**PR #122 — Fix da ordem de posse no `deploy.sh` manual.** O `deploy.sh`
+(fallback manual do CI) nunca recebeu a hardening de ownership que o workflow de
+CI acumulou, então quebrava do segundo deploy em diante: passou a fazer
+`chown -R deploy:deploy storage/` **antes** do `git pull` (os 10 `.gitignore`
+versionados sob `storage/` pertencem ao `www-data` depois do deploy anterior, e o
+pull não consegue desatá-los) e `mkdir -p`+`chown` de `public/build/` **antes** do
+`npm run build` (EACCES se algum arquivo ali for de root). Reusa as MESMAS strings
+de `sudo chown` que o workflow já roda, então não amplia a superfície de sudo
+(casamento por string exata). Doc-only para o que roda: só toca `deploy.sh`.
+
+**PR #123 — Convite via Stories** (Caminho 2 do Interesse Expandido). A performer
+marca um Story como convite (`is_invite`); o feed o destaca (selo "💌 Convite")
+para os seguidores que ainda **não têm chat** com ela, como isca para o funil
+pago. Invariantes: **não há lista de "quem recebeu"** — o alvo é derivado na
+leitura (seguidor sem chat), nunca materializado; o selo é POR ESPECTADOR
+(`is_invite:false` para quem já conversa); a pergunta "já tem chat?" é do
+`ChatAccessService::memberHasChatWith()` (dona única: assinatura ativa OU qualquer
+linha de `chat_access`), **não** `canMemberSendTo`; teto de **2 convites ativos**
+por performer, liberado na leitura ao expirar, imposto antes do Store → 422;
+`is_invite` fora do `$fillable`, entra no audit `story.published`. **Ressalva:** o
+selo no feed **só aparece quando existir uma tela Vue consumindo `stories.feed`**
+(o endpoint é testado desde o 9C, mas não tem consumidor — Sprint 13); o contrato
+`is_invite` por item já está no payload. Detalhe no **CLAUDE.md** (§ "Convite via
+Stories — Sprint 12").
+
+**PR #124 — Salvar busca.** O membro guarda combinações de filtros do catálogo
+("Fitness SP") para reaplicar. **Decisão do PO (R3 do Sprint 9): quem salva
+filtros é o MEMBRO, nunca a performer.** Privado do membro (sem rota irmã, sem
+relação inversa, nada em `audit_logs` — mesma assimetria de `Favorite`). Regra na
+dona única `SavedSearchService`: **cap de 10 DURO sob lock** (trava a linha do
+`users` e reconta → 422); **allowlist de filtros** derivado de
+`PerformerCatalogService::filterRules()` + `Arr::only`, então chave desconhecida é
+descartada antes de gravar (JSON nunca vira blob); o Form Request valida o tipo
+das facetas conhecidas (`filters.*`). Busca de outro membro → **404** (escopo por
+`user_id`, não vira oráculo). **Hard Delete varre `saved_searches`**
+(`purgeSavedSearches`, DELETE real — a FK `cascadeOnDelete` não dispara, item 11).
+Endpoints sob `auth`+`2fa`+`role:consumer`+`member.verified`; três rotas em
+`config/ziggy.php`. UI: `FilterPanel` do catálogo do membro ganha "💾 Salvar
+busca" + modal e o dropdown "Buscas salvas" (aplica/apaga). Detalhe no
+**CLAUDE.md** (§ "Buscas salvas do membro — Sprint 12").
 
 ---
 
@@ -2160,6 +2219,35 @@ CHAT_FILTER_ENABLED=true · CHAT_FILTER_AUDIT_DEDUP_MINUTES=10
 ---
 
 ## Apêndice A — Backlog e próximos passos
+
+### A.0 Sprint 13 — registrado, não iniciado
+
+Ordem não é prioridade; o **refactor de roles** é o que mais destrava.
+
+- [ ] **Refactor de roles** — separar `moderador` de `admin`. Hoje
+      **moderador = admin, e admin vê tudo**; a fila humana é `/admin/reports` sob
+      `role:admin`. Pré-requisito da fila de moderação de verdade (Stories e Foto
+      Efêmera já geram conteúdo esperando revisão) e do **Curador das FC Sessions**.
+- [ ] **Visualizador da prova retida no admin** — a denúncia congela os bytes
+      (Story e Foto Efêmera), mas **a fila do admin não tem como VER a prova
+      retida** (achado da revisão de 30/07, junto com "não há prazo máximo de
+      retenção").
+- [ ] **Verificação de documento como produto** (R$ 9,90) — selo de verificação
+      pago para o membro. **Depende da Didit** (a mesma integração do KYC da
+      performer).
+- [ ] **Múltiplas localizações** por performer (hoje é UF única opt-in).
+- [ ] **Permissões de fotos/vídeos** — controle de acesso por peça de mídia.
+- [ ] **Videochamada (LiveKit)** — planejado desde a fundação, nada implementado;
+      esbarra na estratégia de serving sem cifra em memória (§ 2.5) que já travou
+      as FC Sessions. (É o mesmo item que aparece no backlog do Sprint 11 abaixo.)
+- [ ] **Feed UI consumindo `stories.feed`** — o endpoint existe e é testado desde
+      o Sprint 9C, mas não há tela Vue que o consuma; **o selo do Convite via
+      Stories (Sprint 12) só aparece quando essa tela existir** (o contrato
+      `is_invite` por item já está no payload).
+- [ ] **Pin PHP 8.5→8.4 no `deploy.yml`** — o job de teste do CI fixa
+      `php-version: '8.5'`, mas o alvo de produção é 8.4.22. Alinhar. É mudança em
+      `.github/workflows/`, que exige token com escopo `workflow` (o servidor de
+      dev não tem) — vai pela UI do GitHub ou por um push com esse escopo.
 
 ### A.1 Go-live (pré-produção)
 

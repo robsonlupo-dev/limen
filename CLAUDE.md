@@ -84,18 +84,27 @@ um erro na main derruba o site em produção.
 
 ## Estado atual
 
-> **Estado atual** (`main`, `11354b4`, Sprint 11 FECHADO): **1429 testes, 7393
+> **Estado atual** (`main`, `f23368a`, Sprint 12 FECHADO): **1455 testes, 7476
 > asserts** (1 falha só-local: a view 451 do GeoBlock não compila neste clone de
 > dev — verde no CI). **Base original** (PR #69, `229d852`): 556 testes, 2614. O
 > detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler
 > antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo
 > só situa.
 
-**Sprints 6, 7, 8, 9A, 9C, 10 e 11 fechados** (tags `v1.0-sprint6` a
+**Sprints 6, 7, 8, 9A, 9C, 10, 11 e 12 fechados** (tags `v1.0-sprint6` a
 `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
 dos bloqueadores da Foto Efêmera, **`v1.0-sprint10`** (`402d29e`) no fecho do
-Sprint 10, e **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11). **O Sprint 9B
+Sprint 10, **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11, e
+**`v1.0-sprint12`** (`f23368a`) no fecho do Sprint 12). **O Sprint 9B
 não tem tag própria** e não está fechado.
+
+> **Sprint 12 fechou com 3 entregas** (tag `v1.0-sprint12`, `f23368a`): PR #122
+> (fix da ordem de posse no `deploy.sh` manual), PR #123 (**Convite via Stories** —
+> `is_invite`, teto de 2 convites ativos, selo no feed do membro sem chat — §
+> abaixo), PR #124 (**Salvar busca** — combinações de filtros do catálogo, cap 10,
+> § abaixo). **Deploy de staging pendente:** os PRs #123 e #124 **ainda NÃO foram
+> para staging** (o #122 é script manual, não muda o que roda). A tag é marco de
+> código, não de go-live (ver abaixo).
 
 > **Sprint 11 fechou com 4 entregas** (tag `v1.0-sprint11`, `11354b4`): PR #118
 > (Login OTP passwordless), PR #119 (badge "Disponível para conversa"), PR #120
@@ -170,10 +179,36 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 9C** — **Stories da Performer** (§ abaixo), tag `v1.0-sprint9`: publicação com TTL fixo de 24h e 3 níveis de visibilidade, feed e serving autenticados, ponto dourado no catálogo, e a moderação junto (denúncia, quarentena, `content_hash`, `DeletionService` nos dois sentidos).
 - **Sprint 10** — descoberta e perfil, tag `v1.0-sprint10` (PRs #111–#117, deploy de staging): **Estilos de Vida** (6 faixas opt-in, sem filtro, Modo Discreto suprime, fora do painel de visitantes), **Favoritos** (bookmark privado — § abaixo), "Sobre mim" no perfil público, "visto por último" em faixa (Ghost Mode suprime a escrita), barra de progresso do perfil, **galeria de fotos** (carrossel 6, EXIF strip, pública).
 - **Sprint 11** — FECHADO, tag `v1.0-sprint11` (`11354b4`), 4 entregas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h com auto-expiração na leitura); **Notas privadas da performer sobre membros** (§ abaixo, PR #120: nota por FanAlias, cifrada, o membro nunca vê); **Boost pago** (§ abaixo, PR #121: 50 tokens, 6h, ledger append-only `spend_boost`, destaca o perfil no topo do catálogo). **Deploy de staging: só o PR #118 subiu; #119–#121 pendentes.** O resto do backlog do Sprint 11 (convite via Stories, videochamada LiveKit) **não foi iniciado**.
+- **Sprint 12** — FECHADO, tag `v1.0-sprint12` (`f23368a`), 3 entregas: **fix da ordem de posse no `deploy.sh` manual** (PR #122: chown de `storage/` antes do `git pull` e de `public/build/` antes do `npm run build`, espelhando a hardening que o workflow de CI já tinha); **Convite via Stories** (§ abaixo, PR #123: `is_invite` no story, teto de 2 convites ativos por performer sob leitura, selo "💌 Convite" no feed só para o seguidor SEM chat — `ChatAccessService::memberHasChatWith` como dona; sem lista de "quem recebeu"); **Salvar busca** (§ abaixo, PR #124: o membro guarda combinações de filtros do catálogo, cap 10 sob lock, allowlist derivado de `filterRules()`, privado do membro, varrido no Hard Delete). **Deploy de staging: #123 e #124 pendentes** (#122 é script manual). Não iniciados do backlog: refactor de roles, videochamada LiveKit, e a **tela de feed que consome `stories.feed`** (o endpoint existe e é testado, mas sem consumidor Vue — o selo do convite depende dela).
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
 > Não é lacuna de documentação a preencher — é como o histórico ficou.
+
+### Backlog — Sprint 13 (registrado, não iniciado)
+Ordem não é prioridade; o refactor de roles é o pré-requisito que mais destrava.
+- **Refactor de roles** — separar `moderador` de `admin`. Hoje **moderador = admin,
+  e admin vê tudo**; a fila humana é `/admin/reports` sob `role:admin`. É
+  pré-requisito da fila de moderação de verdade (Stories e Foto Efêmera já geram
+  conteúdo esperando revisão) e do Curador das FC Sessions.
+- **Visualizador da prova retida no admin** — hoje a denúncia congela os bytes
+  (Story e Foto Efêmera), mas **a fila do admin não tem como VER a prova retida**
+  (achado da revisão de 30/07, junto com "não há prazo máximo de retenção").
+- **Verificação de documento como produto** (R$ 9,90) — selo de verificação pago
+  para o membro. **Depende da Didit** (a mesma integração do KYC da performer).
+- **Múltiplas localizações** por performer (hoje é UF única opt-in).
+- **Permissões de fotos/vídeos** — controle de acesso por peça de mídia.
+- **Videochamada (LiveKit)** — planejado desde a fundação, nada implementado;
+  esbarra na estratégia de serving sem cifra em memória (§ 2.5) que já travou as
+  FC Sessions.
+- **Feed UI consumindo `stories.feed`** — o endpoint existe e é testado desde o
+  Sprint 9C, mas não há tela Vue que o consuma; **o selo do Convite via Stories
+  (Sprint 12) só aparece quando essa tela existir** (o contrato `is_invite` por
+  item já está entregue no payload).
+- **Pin PHP 8.5→8.4 no `deploy.yml`** — o job de teste do CI fixa `php-version:
+  '8.5'`, mas o alvo de produção é 8.4.22. Alinhar (é mudança em
+  `.github/workflows/`, que exige token com escopo `workflow` — o servidor de dev
+  não tem, então vai pela UI do GitHub ou por um push com escopo).
 
 ## Privacidade do membro — decisões locked (não rediscutir sem o PO)
 Regra central do produto, não detalhe de implementação. Fonte única:
