@@ -14,6 +14,10 @@ const page = usePage()
 
 const isPerformer = computed(() => page.props.auth.user?.role === 'performer')
 const isConsumer = computed(() => page.props.auth.user?.role === 'consumer')
+// Moderação (Sprint 13). Moderador e admin veem "Moderação"; só o admin vê
+// "Admin" (o back-office /admin/* é Blade — link é <a>, não <Link> Inertia).
+const isAdmin = computed(() => page.props.auth.user?.role === 'admin')
+const canModerate = computed(() => isAdmin.value || page.props.auth.user?.role === 'moderator')
 // Espelha o gate 'performer-active' (AppServiceProvider): performer ainda em
 // onboarding não vê links que o gate recusaria com 403.
 const isActivePerformer = computed(() => isPerformer.value && page.props.auth.user?.status === 'active')
@@ -140,6 +144,24 @@ function logout() {
                             Círculos
                         </Link>
                     </template>
+                    <!-- Moderação: moderador E admin. Link Inertia — a fila é
+                         uma tela Vue (/moderacao/*). -->
+                    <Link
+                        v-if="canModerate"
+                        :href="route('moderacao.reports.index')"
+                        class="text-gold/80 hover:text-gold transition-colors no-underline"
+                    >
+                        Moderação
+                    </Link>
+                    <!-- Admin: só admin. <a> e não <Link> — o back-office /admin/*
+                         é Blade puro, fora do Inertia. -->
+                    <a
+                        v-if="isAdmin"
+                        href="/admin/kyc"
+                        class="text-gold/80 hover:text-gold transition-colors no-underline"
+                    >
+                        Admin
+                    </a>
                     <span class="text-cream">{{ page.props.auth.user?.name }}</span>
                     <button
                         class="hover:text-cream transition-colors"

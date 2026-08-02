@@ -4,6 +4,7 @@ use App\Http\Middleware\BlockBannedUsers;
 use App\Http\Middleware\DocumentsAccepted;
 use App\Http\Middleware\EnsureActiveCircle;
 use App\Http\Middleware\EnsureMemberVerified;
+use App\Http\Middleware\EnsureModeratorOrAdmin;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\GeoBlock;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -65,6 +66,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
+            // Área de moderação (Sprint 13): deixa passar moderator OU admin.
+            // Não é `role:...` porque a regra "quem pode moderar" merece um dono
+            // único (ver EnsureModeratorOrAdmin).
+            'moderator.access' => EnsureModeratorOrAdmin::class,
             'circle' => EnsureActiveCircle::class,
             'documents.accepted' => DocumentsAccepted::class,
             'member.verified' => EnsureMemberVerified::class,
