@@ -19,6 +19,7 @@ use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardCo
 use App\Http\Controllers\Web\Consumer\FavoriteController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\MemberPhotoController;
+use App\Http\Controllers\Web\Consumer\PhotoAccessController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileController;
 use App\Http\Controllers\Web\Consumer\ReportController;
@@ -617,6 +618,40 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->middleware('throttle:30,1')
                 ->name('performer.gallery.reorder')
                 ->can('performer-active');
+
+            // Permissões por foto (Sprint 13). Mesmos gates da gestão acima —
+            // já sob auth+2fa+documents.accepted, mais role:performer (grupo) e
+            // performer-active. `solicitacoes` (GET, literal) vem ANTES das rotas
+            // com {photo} para não ser capturada por elas; e o serving público
+            // continua sendo o `performer.gallery.image` lá em cima, fora daqui.
+            //
+            // O `member_handle` é o handle opaco do FanAlias (16 hex), resolvido
+            // no PhotoAccessService contra os solicitantes/concedidos DESTA foto —
+            // nunca o id do membro. Todo modo de falha é 404 uniforme.
+            Route::get('/performer/fotos/solicitacoes', [PerformerPhotoController::class, 'requests'])
+                ->middleware('throttle:60,1')
+                ->name('performer.gallery.requests')
+                ->can('performer-active');
+
+            Route::patch('/performer/fotos/{photo}/visibilidade', [PerformerPhotoController::class, 'visibility'])
+                ->middleware('throttle:30,1')
+                ->whereNumber('photo')
+                ->name('performer.gallery.visibility')
+                ->can('performer-active');
+
+            Route::post('/performer/fotos/{photo}/conceder/{member_handle}', [PerformerPhotoController::class, 'grant'])
+                ->middleware('throttle:30,1')
+                ->whereNumber('photo')
+                ->whereAlphaNumeric('member_handle')
+                ->name('performer.gallery.grant')
+                ->can('performer-active');
+
+            Route::delete('/performer/fotos/{photo}/revogar/{member_handle}', [PerformerPhotoController::class, 'revoke'])
+                ->middleware('throttle:30,1')
+                ->whereNumber('photo')
+                ->whereAlphaNumeric('member_handle')
+                ->name('performer.gallery.revoke')
+                ->can('performer-active');
         });
 
         // Histórico dos envios desta performer (para quem, quem revelou, cota do dia).
@@ -721,6 +756,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/favoritos/{slug}', [FavoriteController::class, 'toggle'])
             ->middleware('throttle:30,1')
             ->name('favorites.toggle');
+
+        // Solicitar acesso a uma foto PRIVADA da galeria (Sprint 13). Área do
+        // membro (role:consumer + member.verified, já sob auth+2fa), como seguir
+        // e favoritar: é um ato deliberado do membro, que expõe o FanAlias dele à
+        // performer mas NÃO cria Follow. Idempotente; foto pública ou perfil fora
+        // do ar → 404 uniforme (PhotoAccessService). `{photo}` numérico.
+        Route::post('/fotos/{photo}/solicitar-acesso', [PhotoAccessController::class, 'request'])
+            ->middleware('throttle:20,1')
+            ->whereNumber('photo')
+            ->name('photos.access.request');
 
         // Buscas salvas (Sprint 12) — o membro guarda combinações de filtros do
         // catálogo para reaplicar. Área de membro: a performer não tem rota irmã

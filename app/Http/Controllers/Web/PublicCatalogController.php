@@ -118,7 +118,9 @@ class PublicCatalogController extends Controller
             // cada item traz a URL do serving público direto, sem paywall e sem
             // depender de login (o visitante deslogado vê as fotos, é vitrine).
             // Avatar/cover NÃO entram aqui: são separados.
-            'photos' => PhotoGalleryPresenter::forProfile($profile),
+            // Viewer passado: foto privada sem grant vem `locked` e sem URL
+            // (Sprint 13). Visitante deslogado (`null`) vê toda privada bloqueada.
+            'photos' => PhotoGalleryPresenter::forProfile($profile, $request->user()),
             // Estado do chat para ESTE espectador. Chat é interest-gated: só há
             // conversa se a performer mandou Interesse e o membro desbloqueou —
             // não dá para iniciar chat frio daqui. Null (guest, performer/admin,

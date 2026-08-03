@@ -297,7 +297,7 @@ const lockedTiles = 6
 
                 <!-- Galeria de fotos (Sprint 10). Pública — o visitante deslogado
                      também vê. Separada do avatar/capa e dos stories. -->
-                <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" />
+                <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" :can-request="canTip" />
 
                 <!-- Work modes -->
                 <div v-if="performer.work_modes?.length" class="mt-8 space-y-3">

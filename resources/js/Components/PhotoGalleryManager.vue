@@ -53,6 +53,27 @@ async function remove(id) {
     }
 }
 
+// Público ↔ privado por foto (Sprint 13). Manda o estado DESEJADO (não inverte
+// às cegas), então duplo clique é inofensivo. O servidor devolve a lista com o
+// `is_private` atualizado — ele é a fonte da verdade.
+const togglingId = ref(null)
+
+async function toggleVisibility(photo) {
+    if (togglingId.value !== null) return
+    togglingId.value = photo.id
+    error.value = null
+    try {
+        const res = await patchJson(route('performer.gallery.visibility', photo.id), {
+            is_private: !photo.is_private,
+        })
+        photos.value = res.photos
+    } catch (e) {
+        error.value = e?.data?.message ?? 'Não foi possível alterar a visibilidade.'
+    } finally {
+        togglingId.value = null
+    }
+}
+
 // ── Reordenação por arrastar ────────────────────────────────────────────────
 // DnD nativo do HTML5, sem dependência. A reordenação é otimista: move local
 // primeiro (a tela responde na hora) e persiste depois; se o servidor recusar,
@@ -121,6 +142,21 @@ async function persistOrder() {
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
                     </svg>
+                </button>
+                <!-- Toggle público/privado (Sprint 13). Marca a foto como privada
+                     (só quem tiver acesso aprovado vê no perfil público). O rótulo
+                     mostra o estado ATUAL. -->
+                <button
+                    type="button"
+                    :disabled="togglingId === photo.id"
+                    :aria-pressed="photo.is_private"
+                    :title="photo.is_private ? 'Privada — toque para tornar pública' : 'Pública — toque para tornar privada'"
+                    class="absolute bottom-1 left-1 right-1 flex items-center justify-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50"
+                    :class="photo.is_private ? 'bg-gold/90 text-background' : 'bg-black/60 text-cream opacity-0 group-hover:opacity-100 focus:opacity-100'"
+                    @click="toggleVisibility(photo)"
+                >
+                    <span aria-hidden="true">{{ photo.is_private ? '🔒' : '🌐' }}</span>
+                    {{ photo.is_private ? 'Privada' : 'Pública' }}
                 </button>
             </div>
         </div>

@@ -78,7 +78,9 @@ class ProfileController extends Controller
             // e o teto para a tela desenhar "N/6". As mutações (upload, delete,
             // reordenar) vão por endpoints JSON próprios que devolvem a lista
             // atualizada — esta prop é só o estado inicial.
-            'photos' => PhotoGalleryPresenter::forProfile($profile),
+            // Viewer é a própria dona: vê todas as fotos com o estado do cadeado
+            // (`is_private`) por foto, para o toggle do grid (Sprint 13).
+            'photos' => PhotoGalleryPresenter::forProfile($profile, $request->user()),
             'maxPhotos' => PerformerProfile::MAX_PHOTOS,
         ]);
     }

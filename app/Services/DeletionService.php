@@ -303,6 +303,11 @@ class DeletionService
             $summary['saved_searches'] = $this->purgeSavedSearches($user);
             $summary['member_notes'] = $this->purgeMemberNotes($user);
             $summary['member_notes_written'] = $this->purgeMemberNotesByPerformer($user);
+            // Pedidos/concessões de acesso a fotos privadas FEITOS pelo membro
+            // (Sprint 13). O lado da PERFORMER (grants apontando para as fotos
+            // dela) sai por cascade quando `purgePerformerPhotos` faz DELETE real
+            // das fotos — ver lá.
+            $summary['photo_grants'] = $this->purgePhotoGrants($user);
             $summary['tips_scrubbed'] = $this->scrubTips($user);
             $summary['member_interests'] = $this->purgeMemberInterests($user);
             $summary['profile_visits'] = $this->purgeProfileVisits($user);
@@ -771,6 +776,24 @@ class DeletionService
         return DB::table('saved_searches')->where('user_id', $user->id)->delete();
     }
 
+    /**
+     * Pedidos e concessões de acesso a fotos privadas FEITOS por este membro
+     * (Sprint 13) — pendentes e aprovados, os dois estados vivem na mesma tabela.
+     * DELETE de verdade por `user_id`: a FK `cascadeOnDelete` sobre `users` NÃO
+     * dispara porque `anonymizeUser()` só soft-deleta a linha (item 11), então sem
+     * esta varredura o mapa "este membro pediu foto de fulana" sobreviveria à
+     * conta. Mesma família de `favorites`/`saved_searches`/`otp_codes`.
+     *
+     * O outro sentido (grants apontando para as fotos DELA quando a PERFORMER
+     * encerra) NÃO precisa de varredura própria: `purgePerformerPhotos` faz DELETE
+     * real das `performer_photos`, e aí o cascade de `photo_grants.performer_photo_id`
+     * dispara de fato — ao contrário do caso soft-delete do item 11.
+     */
+    private function purgePhotoGrants(User $user): int
+    {
+        return DB::table('photo_grants')->where('user_id', $user->id)->delete();
+    }
+
     /** A PK de password_reset_tokens É o e-mail: sem este passo, ele sobrevive. */
     private function purgePasswordResets(User $user): int
     {
@@ -1083,6 +1106,12 @@ class DeletionService
             return 0;
         }
 
+        // DELETE real (não soft): por ser real, o cascade de
+        // `photo_grants.performer_photo_id → performer_photos` DISPARA aqui e leva
+        // junto todos os pedidos/concessões apontados para estas fotos (Sprint 13).
+        // É a exceção do item 11 — o cascade só falha quando o PAI é soft-deletado,
+        // e aqui a foto some de verdade. Os grants FEITOS pelo membro (outro lado)
+        // saem por `purgePhotoGrants`, por `user_id`.
         return DB::table('performer_photos')->where('performer_profile_id', $profileId)->delete();
     }
 

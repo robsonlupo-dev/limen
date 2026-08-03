@@ -225,7 +225,7 @@ function onTipSent(data) {
 
                 <!-- Galeria de fotos (Sprint 10). Público, sem paywall — separada
                      do avatar/capa e dos stories. Some por inteiro sem foto. -->
-                <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" />
+                <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" :can-request="canFavorite" />
 
                 <!-- Work modes -->
                 <div v-if="performer.work_modes?.length" class="mt-8 space-y-3">
