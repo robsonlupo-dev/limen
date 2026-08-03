@@ -93,49 +93,49 @@ ou `docs/CIRCLES_SYSTEM_V4.md` (a divergência do §19.2 do handoff), ESTE model
 vence** — e os slugs de tier são os do `Circle::TIER_ORDER`
 (`explorador / insider / prestige / black / founders_circle`).
 
-- **Moeda única: TOKENS.** Tudo (chat, conteúdo, live, gorjeta, presente) passa
+- **[M.1] Moeda única: TOKENS.** Tudo (chat, conteúdo, live, gorjeta, presente) passa
   por tokens. Tokens **NUNCA expiram**. Teto de acúmulo **5.000**: no teto, o
   assinante continua pagando a assinatura mas os tokens **não creditam** até
   gastar (vale inclusive para a franquia mensal do tier). A performer vê o **R$
   equivalente** ao lado do preço em tokens.
-- **Pacotes (compra via PIX), preço cheio:** Starter R$49,90=50 · Popular
+- **[M.2] Pacotes (compra via PIX), preço cheio:** Starter R$49,90=50 · Popular
   R$99,90=110 · Premium R$199,90=240 · VIP R$499,90=650. **Desconto por tier**
   (aplica sobre a compra): Explorador/Insider 10% · Prestige 20% · Black 30% ·
   FC 40%.
-- **Chat:** abrir custa 2 tokens (não-assinante), 1 token (Explorador/Insider/
+- **[M.3] Chat:** abrir custa 2 tokens (não-assinante), 1 token (Explorador/Insider/
   Prestige), **grátis** (Black/FC — a Limen subsidia e paga 1 token à performer).
   Aberto → mensagens ilimitadas por **30 dias**. Performer recebe **75%** do custo
   de abertura.
-- **Conteúdo (fotos/vídeos PERMANENTES):** a performer define nível
+- **[M.4] Conteúdo (fotos/vídeos PERMANENTES):** a performer define nível
   (**Aberto / Premium / Exclusivo / FC Only**) + preço em tokens. Aberto é grátis
   para todo assinante; Premium exige Prestige+; Exclusivo exige Black+; FC Only só
   FC. Explorador/Insider só veem o Aberto (incentiva upgrade). Desbloqueado é
   **permanente**. Split **80% performer / 20% Limen**.
-- **Live pública:** performer define X tokens por bloco de **10 min**; **todos
+- **[M.5] Live pública:** performer define X tokens por bloco de **10 min**; **todos
   pagam** (inclusive FC, com inclusos ou comprados); não-assinante assiste pagando
   cheio. Split **70/30**. Gorjeta/presente durante a live: **80/20**.
-- **Chamada privada (1:1 vídeo):** performer define X tokens/minuto; **todos
+- **[M.6] Chamada privada (1:1 vídeo):** performer define X tokens/minuto; **todos
   pagam**. Split **70/30**.
-- **Assinaturas dos Círculos** (100% Limen, sem split): Explorador R$89,90 (chat
+- **[M.7] Assinaturas dos Círculos** (100% Limen, sem split): Explorador R$89,90 (chat
   1 tk, 50 inclusos, −10%) · Insider R$189,90 (chat 1 tk, 120 inclusos, −10%) ·
   Prestige R$389,90 (chat 1 tk, +Premium, 250 inclusos, read receipts, −20%) ·
   Black R$749,90 (chat GRÁTIS, +Exclusivo, 500 inclusos, Ghost Mode + Modo
   Discreto, −30%, cap 500) · FC R$1.490,00 (chat GRÁTIS, TUDO, 1.200 inclusos,
   número permanente + milestones, −40%, cap 100).
-- **Tokens inclusos:** creditados no 1º dia do ciclo, **não expiram** (entram no
+- **[M.8] Tokens inclusos:** creditados no 1º dia do ciclo, **não expiram** (entram no
   saldo normal, `subscription_grant` no ledger), sujeitos ao teto de 5.000 (no
   teto, não credita até gastar).
-- **Split por tipo de evento:** conteúdo 80/20 · chat (abertura) 75/25 · live
+- **[M.9] Split por tipo de evento:** conteúdo 80/20 · chat (abertura) 75/25 · live
   70/30 · chamada 70/30 · gorjeta 80/20 · presente 75/25 · **boost 100% Limen** ·
   **interesse revelado 100% Limen** · **assinatura 100% Limen**.
-- **Payout da performer:** ciclo **mensal** (não a qualquer momento), mínimo
+- **[M.10] Payout da performer:** ciclo **mensal** (não a qualquer momento), mínimo
   **100 tokens** acumulados, processado **no dia 1** referente ao mês anterior,
   via PIX (Asaas). R$ equivalente visível no dashboard.
-- **LiveKit (infra de live/chamada):** Fase 1 lançamento = LiveKit Cloud Build
+- **[M.11] LiveKit (infra de live/chamada):** Fase 1 lançamento = LiveKit Cloud Build
   (grátis, 5.000 min/mês); Fase 2 crescimento = Cloud Ship ($50/mês); Fase 3
   escala = self-hosted Hetzner (~R$230/mês fixo). Custo real ~R$0,01/min por
   participante (margem 98%+).
-- **Presentes virtuais (BACKLOG, não implementado):** catálogo fixo da Limen,
+- **[M.12] Presentes virtuais (BACKLOG, não implementado):** catálogo fixo da Limen,
   preços fixos (ex.: Rosa 5 tk, Champagne 50 tk), split **75/25**, animação na
   tela durante a live.
 
@@ -231,7 +231,7 @@ Nenhuma transação pode resultar em margem bruta abaixo de 25%. Piso de custo e
 
 ### M.13.12 — Estado de implementação
 
-Nada de M.13 está implementado até o PR #130. O texto das linhas 60–72 do CLAUDE.md (pacotes, chat, descontos, inclusos) fica superado por M.13 — ambos presentes, M.13 tem precedência.
+Nada de M.13 está implementado até o PR #130. O bloco de monetização acima (seção "Modelo de monetização — DECISÕES FECHADAS", antes desta emenda) (pacotes, chat, descontos, inclusos) fica superado por M.13 — ambos presentes, M.13 tem precedência.
 
 ## Estado atual
 
