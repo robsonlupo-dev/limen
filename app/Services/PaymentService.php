@@ -33,7 +33,11 @@ class PaymentService
 
         // Desconto do Círculo ativo incide sobre o PREÇO do pacote, nunca sobre a
         // quantidade de tokens creditada (o cliente paga menos pelos mesmos tokens).
-        $discountPct = $user->activeCircle()?->discount_pct ?? 0;
+        // A taxa vem da config (M.13.3) via policy — a fonte canônica —, não de
+        // `circles.discount_pct` (que virou espelho de exibição, sincronizado por
+        // migração + teste). Rewiring do Sprint 14: o código vivo respeita a
+        // invariante em vez de reimplementá-la.
+        $discountPct = $this->creditPolicy->purchaseDiscountPct($user);
         $amountCents = (int) round($package->price_cents * (100 - $discountPct) / 100);
 
         $payload = [
