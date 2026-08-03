@@ -19,6 +19,7 @@ class SubscriptionService
     public function __construct(
         private AsaasClientInterface $asaas,
         private TokenService $tokenService,
+        private TokenCreditPolicy $creditPolicy,
     ) {}
 
     /**
@@ -455,7 +456,10 @@ class SubscriptionService
 
             $tokens = $subscription->circle->monthly_tokens;
 
-            $this->tokenService->credit(
+            // Fila de pendência (M.13.8): a policy credita o que couber sob o teto
+            // e pendura o excedente (não empilha, não expira, liberado no gasto).
+            // Dentro do teto — o caso normal — credita cheio, igual a antes.
+            $this->creditPolicy->credit(
                 $subscription->user,
                 $tokens,
                 'subscription_grant',
