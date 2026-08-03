@@ -7,17 +7,26 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 02/08/2026 — **`main` em `f23368a`**, tag
-> **`v1.0-sprint12`** (`f23368a`). **Sprint 12 FECHADO** — 3 entregas: PR #122
-> (fix da ordem de posse no `deploy.sh` manual), PR #123 (Convite via Stories),
-> PR #124 (Salvar busca). Suíte: **1455 testes, 7476 asserts** (1 falha só-local:
-> a view 451 do GeoBlock não compila neste clone de dev — verde no CI).
+> **Última atualização:** 03/08/2026 — **`main` em `1d63371`**, tag
+> **`v1.0-sprint13`** (`1d63371`). **Sprint 13 FECHADO** — 5 entregas: PR #125
+> (Refactor de roles — `moderador` separado de `admin`, fila `/moderacao/*`),
+> PR #126 (Evidence viewer da prova retida), PR #127 (Múltiplas localizações, até
+> 3, com migração), PR #128 (Photo permissions — pública/privada + grant), PR #129
+> (Stories feed carousel no catálogo). Suíte: **1524 testes, 7799 asserts** (verde
+> local e no CI; a antiga falha só-local da view 451 do GeoBlock não recorre
+> depois do `npm run build`). Nesta janela o **modelo de monetização** foi fechado
+> e documentado como referência canônica (commit `f6aa9a3` — ver CLAUDE.md).
 >
-> **A tag `v1.0-sprint12` (`f23368a`) marca o fecho do Sprint 12, e é marco de
-> CÓDIGO, não de go-live.** Deploy de staging pendente: **os PRs #123 e #124 ainda
-> NÃO subiram para staging** (#122 é script manual, não muda o que roda). O
-> snapshot do §1 reflete `main` HEAD = a própria tag (mais esta atualização de doc
-> por cima).
+> **A tag `v1.0-sprint13` (`1d63371`) marca o fecho do Sprint 13, e é marco de
+> CÓDIGO, não de go-live.** Deploy de staging pendente: **as 5 entregas ainda NÃO
+> subiram para staging.** O snapshot do §1 reflete `main` HEAD = a própria tag
+> (mais esta atualização de doc por cima).
+>
+> **Histórico recente:** 02/08/2026 — `main` em `f23368a`, tag `v1.0-sprint12`,
+> **Sprint 12 FECHADO** (3 entregas: PR #122 fix da ordem de posse no `deploy.sh`
+> manual, PR #123 Convite via Stories, PR #124 Salvar busca). Suíte era
+> 1455/7476. Só o #122 (script manual) não muda staging; #123 e #124 seguem
+> pendentes de staging.
 >
 > **Histórico recente:** 01/08/2026 — `main` em `11354b4`, tag `v1.0-sprint11`,
 > **Sprint 11 FECHADO** (4 entregas: PR #118 Login OTP passwordless, PR #119 badge
@@ -84,26 +93,26 @@
 
 ## 1. Snapshot do estado atual
 
-> **Snapshot de `main` HEAD (`f23368a`) = tag `v1.0-sprint12` — Sprint 12
-> fechado (PRs #122–#124).** Os números abaixo refletem esse estado.
+> **Snapshot de `main` HEAD (`1d63371`) = tag `v1.0-sprint13` — Sprint 13
+> fechado (PRs #125–#129).** Os números abaixo refletem esse estado.
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1455 testes, 7476 asserts** (1 falha só-local: view 451 do GeoBlock, verde no CI) | `php artisan test` (~150 s) |
-| Migrations | **90** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **169** | `php artisan route:list` (rodapé *Showing*) |
-| `Route::` em `routes/web.php` | 133 | `grep` |
-| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto, story, notas, boost, convite e buscas salvas continuam só web**) | `grep` |
-| Services | 36 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
-| Models | 39 | `ls app/Models/` |
-| Controllers Web | 53 | `find app/Http/Controllers/Web` |
+| Suíte de testes | **1524 testes, 7799 asserts** (verde local e no CI; a antiga falha só-local da view 451 do GeoBlock não recorre após `npm run build`) | `php artisan test` (~160 s) |
+| Migrations | **96** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **181** | `php artisan route:list` |
+| `Route::` em `routes/web.php` | 147 | `grep` |
+| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto, story, notas, boost, convite, buscas salvas, photo permissions e feed de stories continuam só web**) | `grep` |
+| Services | 38 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
+| Models | 41 | `ls app/Models/` |
+| Controllers Web | 57 | `find app/Http/Controllers/Web` |
 | Controllers API | 22 | `find app/Http/Controllers/Api` |
-| Middleware | 11 | `ls app/Http/Middleware/` |
+| Middleware | 12 | `ls app/Http/Middleware/` |
 | Commands (agendáveis) | 12 | `ls app/Console/Commands/` |
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
 | Configs | 27 | `ls config/` |
-| Tag Git | **`v1.0-sprint12` (`f23368a`, fecho do Sprint 12)**, `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Tag Git | **`v1.0-sprint13` (`1d63371`, fecho do Sprint 13)**, `v1.0-sprint12` (`f23368a`), `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -984,6 +993,66 @@ Endpoints sob `auth`+`2fa`+`role:consumer`+`member.verified`; três rotas em
 `config/ziggy.php`. UI: `FilterPanel` do catálogo do membro ganha "💾 Salvar
 busca" + modal e o dropdown "Buscas salvas" (aplica/apaga). Detalhe no
 **CLAUDE.md** (§ "Buscas salvas do membro — Sprint 12").
+
+---
+
+## Sprint 13 — Fechado
+
+> **FECHADO — tag `v1.0-sprint13` (`1d63371`).** Cinco entregas mergeadas:
+> **PR #125** (Refactor de roles), **PR #126** (Evidence viewer), **PR #127**
+> (Múltiplas localizações), **PR #128** (Photo permissions), **PR #129** (Stories
+> feed carousel). Suíte no fecho: **1524 testes, 7799 asserts**. Nesta janela o
+> **modelo de monetização** foi fechado e documentado como referência canônica
+> (commit `f6aa9a3` — ver a § "MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS").
+>
+> **Deploy de staging PENDENTE:** as **5 entregas ainda NÃO subiram** para
+> staging. A tag é marco de código, não de go-live.
+
+**PR #125 — Refactor de roles.** `moderador` foi separado de `admin`: a fila
+humana de moderação saiu de `/admin/reports` (sob `role:admin`, onde moderador
+era admin e via tudo) para uma **fila dedicada `/moderacao/*` sob
+`role:moderador`**. Era a dependência dura registrada desde o Sprint 9C —
+pré-requisito da fila de moderação de verdade (Stories e Foto Efêmera geram
+conteúdo esperando revisão) e do Curador das FC Sessions. **Ressalva de doc:**
+trechos mais antigos deste handoff e do CLAUDE.md ainda descrevem
+"moderador = admin, `/admin/reports`" — são históricos e valem até o Sprint 12.
+
+**PR #126 — Evidence viewer.** A denúncia já congelava os BYTES da prova (Story e
+Foto Efêmera — `Report::OPEN_STATUSES`), mas a fila não tinha como VER a prova
+retida (achado da revisão de 30/07, ao lado de "não há prazo máximo de
+retenção"). O viewer fecha o primeiro: a fila de moderação passa a exibir a prova
+congelada. O prazo máximo de retenção segue como item aberto.
+
+**PR #127 — Múltiplas localizações.** A performer passa a declarar **até 3**
+localizações (antes: UF única opt-in), com **migração** das linhas existentes para
+o novo formato. Mantém a regra de privacidade da localização (Sprint 9A): só a
+**UF** é pública; `city` continua interno e não sai em resource nenhum.
+
+**PR #128 — Photo permissions.** Cada foto da galeria (Sprint 10) pode ser
+**pública ou privada**. Foto privada aparece **borrada** no perfil público e só é
+servida a quem tem `photo_grant` **aprovado** — ou à própria dona; sem grant é
+**404** (não 403: o serving não confirma a existência de conteúdo privado). O
+membro **solicita** acesso (ato deliberado, como uma gorjeta — expõe o FanAlias,
+**não cria Follow**); a performer **aprova/revoga pelo `member_handle` do
+FanAlias**, nunca pelo `user_id` (que é `$hidden`). `PhotoAccessService` é a dona
+única lida pelo serving E pelo presenter (tile bloqueado ⇔ 404, sem oráculo, § 2.3).
+**Hard Delete nos dois sentidos** (grants do membro por `user_id`; fotos da
+performer por DELETE real, e aí o cascade dispara). Detalhe no **CLAUDE.md**
+(§ "Permissões por foto da galeria — Sprint 13"), se registrado ali, e no código
+(`PhotoAccessService`, `PhotoGrant`).
+
+**PR #129 — Stories feed carousel.** A UI que faltava para o endpoint
+`stories.feed` (existe e é testado desde o 9C, sem consumidor Vue até aqui):
+carrossel tipo Instagram no **topo do catálogo** (`StoriesFeed.vue`) + visualizador
+fullscreen (`StoryViewer.vue`) com progresso por segmento, timer de 5 s, pausa,
+tap/swipe e o serving que **registra a view** ao carregar a imagem. Buscado por
+**fetch no mount**, NÃO como prop do catálogo, de propósito: `feedFor` roda
+`canView` por story (O(stories) em queries) e servi-lo inline quebraria a garantia
+de N+1 do pontinho (`StoryCatalogTest`). `feedFor` ganhou `avatar_url` (rota de
+mídia assinada por `profile_id`, nunca `user_id`) para os círculos. Com a tela, o
+**selo do Convite via Stories (Sprint 12)** finalmente aparece. O anel
+dourado→cinza reflete o `seen` do SERVIDOR — para Ghost Mode nada é gravado e o
+anel fica dourado (o perk). Detalhe no **CLAUDE.md** (§ "Stories da Performer").
 
 ---
 
@@ -2402,30 +2471,55 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 
 ## Apêndice A — Backlog e próximos passos
 
-### A.0 Sprint 13 — registrado, não iniciado
+### A.0 Sprint 13 — ENTREGUE
 
-Ordem não é prioridade; o **refactor de roles** é o que mais destrava.
+O backlog do Sprint 13 foi implementado (PRs #125–#129, ver "Sprint 13 —
+Fechado"). Marcado aqui para não ser relido como pendente:
 
-- [ ] **Refactor de roles** — separar `moderador` de `admin`. Hoje
-      **moderador = admin, e admin vê tudo**; a fila humana é `/admin/reports` sob
-      `role:admin`. Pré-requisito da fila de moderação de verdade (Stories e Foto
-      Efêmera já geram conteúdo esperando revisão) e do **Curador das FC Sessions**.
-- [ ] **Visualizador da prova retida no admin** — a denúncia congela os bytes
-      (Story e Foto Efêmera), mas **a fila do admin não tem como VER a prova
-      retida** (achado da revisão de 30/07, junto com "não há prazo máximo de
-      retenção").
-- [ ] **Verificação de documento como produto** (R$ 9,90) — selo de verificação
-      pago para o membro. **Depende da Didit** (a mesma integração do KYC da
-      performer).
-- [ ] **Múltiplas localizações** por performer (hoje é UF única opt-in).
-- [ ] **Permissões de fotos/vídeos** — controle de acesso por peça de mídia.
-- [ ] **Videochamada (LiveKit)** — planejado desde a fundação, nada implementado;
-      esbarra na estratégia de serving sem cifra em memória (§ 2.5) que já travou
-      as FC Sessions. (É o mesmo item que aparece no backlog do Sprint 11 abaixo.)
-- [ ] **Feed UI consumindo `stories.feed`** — o endpoint existe e é testado desde
-      o Sprint 9C, mas não há tela Vue que o consuma; **o selo do Convite via
-      Stories (Sprint 12) só aparece quando essa tela existir** (o contrato
-      `is_invite` por item já está no payload).
+- [x] **Refactor de roles** — `moderador` separado de `admin`, fila dedicada
+      `/moderacao/*` sob `role:moderador` (PR #125). Destrava o Curador das FC
+      Sessions.
+- [x] **Visualizador da prova retida** — evidence viewer na fila de moderação
+      (PR #126). **Segue aberto** o "prazo máximo de retenção" (era o outro metade
+      daquele achado da revisão de 30/07) — carregado para o Sprint 14 abaixo.
+- [x] **Múltiplas localizações** — até 3 por performer, com migração (PR #127).
+- [x] **Permissões de fotos** — pública/privada + grant por FanAlias (PR #128).
+- [x] **Feed UI consumindo `stories.feed`** — carrossel no catálogo (PR #129).
+
+### A.0.1 Sprint 14 — registrado, não iniciado
+
+Ordem não é prioridade. O grosso deste bloco é **implementar o modelo de
+monetização fechado** (§ "MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS",
+commit `f6aa9a3`). Regra dura: cada tipo novo de gasto/crédito é **migration no
+enum de `entry_type`** do ledger append-only (princípio nº 2), **nunca `UPDATE`
+de saldo**. Live/chamada dependem de LiveKit, que ainda esbarra no serving sem
+cifra em memória do § 2.5.
+
+- [ ] **Conteúdo permanente** (fotos/vídeos com níveis de acesso — Aberto /
+      Premium / Exclusivo / FC Only + preço em tokens; desbloqueio PERMANENTE;
+      split 80/20). Reaproveita o paywall por peça do Photo Permissions (Sprint 13)
+      e do Story (§ 2.3).
+- [ ] **Live pública (LiveKit)** — X tokens por bloco de 10 min; todos pagam;
+      split 70/30; gorjeta/presente na live 80/20.
+- [ ] **Chamada privada 1:1 / videochamada (LiveKit)** — X tokens/minuto; todos
+      pagam; split 70/30. Mesmo track de infra da live pública.
+- [ ] **Presentes virtuais** — catálogo fixo da Limen, preços fixos, split 75/25,
+      animação na tela durante a live (já no modelo como BACKLOG).
+- [ ] **Desconto de tokens por tier** — sobre a COMPRA de pacotes (Explorador/
+      Insider 10% · Prestige 20% · Black 30% · FC 40%).
+- [ ] **Tokens inclusos nas assinaturas** — creditados no 1º dia do ciclo, não
+      expiram, `subscription_grant` no ledger, sujeitos ao teto de 5.000.
+- [ ] **Payout mensal (ciclo dia 1)** — processar no dia 1 referente ao mês
+      anterior, mínimo 100 tokens, via PIX (Asaas). O payout existe mas não é
+      amarrado ao ciclo mensal do modelo.
+
+Carregados de backlogs anteriores (ainda abertos):
+
+- [ ] **Verificação de documento como produto** (R$ 9,90) — selo pago para o
+      membro. **Depende da Didit** (a mesma integração do KYC da performer).
+- [ ] **Prazo máximo de retenção da prova** — o evidence viewer (Sprint 13) deixa
+      a moderação VER a prova retida, mas nada expira a retenção. (Metade restante
+      do achado da revisão de 30/07.)
 - [ ] **Pin PHP 8.5→8.4 no `deploy.yml`** — o job de teste do CI fixa
       `php-version: '8.5'`, mas o alvo de produção é 8.4.22. Alinhar. É mudança em
       `.github/workflows/`, que exige token com escopo `workflow` (o servidor de

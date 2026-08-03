@@ -148,19 +148,32 @@ vence** — e os slugs de tier são os do `Circle::TIER_ORDER`
 
 ## Estado atual
 
-> **Estado atual** (`main`, `f23368a`, Sprint 12 FECHADO): **1455 testes, 7476
-> asserts** (1 falha só-local: a view 451 do GeoBlock não compila neste clone de
-> dev — verde no CI). **Base original** (PR #69, `229d852`): 556 testes, 2614. O
-> detalhe completo vive em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler
-> antes de pegar tarefa (o `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo
-> só situa.
+> **Estado atual** (`main`, `1d63371`, Sprint 13 FECHADO): **1524 testes, 7799
+> asserts** (verde local e no CI; a antiga falha só-local da view 451 do GeoBlock
+> não recorre depois do `npm run build`, que compila a view). **Base original**
+> (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
+> **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
+> `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
 
-**Sprints 6, 7, 8, 9A, 9C, 10, 11 e 12 fechados** (tags `v1.0-sprint6` a
+**Sprints 6, 7, 8, 9A, 9C, 10, 11, 12 e 13 fechados** (tags `v1.0-sprint6` a
 `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
 dos bloqueadores da Foto Efêmera, **`v1.0-sprint10`** (`402d29e`) no fecho do
-Sprint 10, **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11, e
-**`v1.0-sprint12`** (`f23368a`) no fecho do Sprint 12). **O Sprint 9B
-não tem tag própria** e não está fechado.
+Sprint 10, **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11,
+**`v1.0-sprint12`** (`f23368a`) no fecho do Sprint 12, e **`v1.0-sprint13`**
+(`1d63371`) no fecho do Sprint 13). **O Sprint 9B não tem tag própria** e não
+está fechado.
+
+> **Sprint 13 fechou com 5 entregas** (tag `v1.0-sprint13`, `1d63371`): PR #125
+> (**Refactor de roles** — `moderador` separado de `admin`, fila dedicada
+> `/moderacao/*`), PR #126 (**Evidence viewer** — visualizador da prova retida na
+> fila de moderação), PR #127 (**Múltiplas localizações** — até 3 por performer,
+> com migração das linhas existentes), PR #128 (**Photo permissions** — foto da
+> galeria pública/privada + sistema de grant por FanAlias — § abaixo), PR #129
+> (**Stories feed carousel** — a UI que consome `stories.feed` no topo do catálogo
+> — § abaixo). **Também nesta janela:** o **modelo de monetização** foi fechado e
+> documentado como referência canônica (commit `f6aa9a3`, § acima). **Deploy de
+> staging pendente** para as 5 entregas. A tag é marco de código, não de go-live
+> (ver abaixo).
 
 > **Sprint 12 fechou com 3 entregas** (tag `v1.0-sprint12`, `f23368a`): PR #122
 > (fix da ordem de posse no `deploy.sh` manual), PR #123 (**Convite via Stories** —
@@ -200,11 +213,13 @@ pelos 🔴, como mandava a regra: os **7 bloqueadores** da pré-análise
 (`SECURITY_ISSUES.md`, § 2.1–2.7) foram endereçados, e o **pipeline de moderação
 subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 
-**O que continua travado, e é o topo do Sprint 10:**
-1. **O refactor de `role` NÃO foi feito.** Era a outra dependência dura do 9C.
-   Hoje **moderador = admin, e admin vê tudo**; a fila é `/admin/reports` sob
-   `role:admin`. Agora há conteúdo publicado esperando revisão, não só backlog.
-   Destrava junto o **Curador das FC Sessions** — duas features, um pré-requisito.
+**Histórico do que estava travado desde o Sprint 10 (hoje resolvido):**
+1. ~~**O refactor de `role` NÃO foi feito**~~ — **feito no Sprint 13 (PR #125):**
+   `moderador` foi separado de `admin` e a fila humana passou a ser `/moderacao/*`
+   (dedicada), com o **evidence viewer** da prova retida no PR #126. Destrava o
+   **Curador das FC Sessions**. **Ressalva:** trechos mais antigos deste arquivo
+   ainda descrevem "moderador = admin, fila `/admin/reports`" — são históricos e
+   valem até o Sprint 13; a fila viva é `/moderacao/*`.
 2. ~~**Os 4 🔴 da Foto Efêmera**~~ — **fechados** no
    **PR #110** (denúncia, quarentena, audit e a extração de
    `canMemberSendTo`), reusando o caminho que o PR #108 abriu para o story. A
@@ -244,31 +259,47 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 10** — descoberta e perfil, tag `v1.0-sprint10` (PRs #111–#117, deploy de staging): **Estilos de Vida** (6 faixas opt-in, sem filtro, Modo Discreto suprime, fora do painel de visitantes), **Favoritos** (bookmark privado — § abaixo), "Sobre mim" no perfil público, "visto por último" em faixa (Ghost Mode suprime a escrita), barra de progresso do perfil, **galeria de fotos** (carrossel 6, EXIF strip, pública).
 - **Sprint 11** — FECHADO, tag `v1.0-sprint11` (`11354b4`), 4 entregas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h com auto-expiração na leitura); **Notas privadas da performer sobre membros** (§ abaixo, PR #120: nota por FanAlias, cifrada, o membro nunca vê); **Boost pago** (§ abaixo, PR #121: 50 tokens, 6h, ledger append-only `spend_boost`, destaca o perfil no topo do catálogo). **Deploy de staging: só o PR #118 subiu; #119–#121 pendentes.** O resto do backlog do Sprint 11 (convite via Stories, videochamada LiveKit) **não foi iniciado**.
 - **Sprint 12** — FECHADO, tag `v1.0-sprint12` (`f23368a`), 3 entregas: **fix da ordem de posse no `deploy.sh` manual** (PR #122: chown de `storage/` antes do `git pull` e de `public/build/` antes do `npm run build`, espelhando a hardening que o workflow de CI já tinha); **Convite via Stories** (§ abaixo, PR #123: `is_invite` no story, teto de 2 convites ativos por performer sob leitura, selo "💌 Convite" no feed só para o seguidor SEM chat — `ChatAccessService::memberHasChatWith` como dona; sem lista de "quem recebeu"); **Salvar busca** (§ abaixo, PR #124: o membro guarda combinações de filtros do catálogo, cap 10 sob lock, allowlist derivado de `filterRules()`, privado do membro, varrido no Hard Delete). **Deploy de staging: #123 e #124 pendentes** (#122 é script manual). Não iniciados do backlog: refactor de roles, videochamada LiveKit, e a **tela de feed que consome `stories.feed`** (o endpoint existe e é testado, mas sem consumidor Vue — o selo do convite depende dela).
+- **Sprint 13** — FECHADO, tag `v1.0-sprint13` (`1d63371`), 5 entregas: **Refactor de roles** (PR #125: `moderador` separado de `admin`, fila humana dedicada `/moderacao/*` sob `role:moderador`, em vez do antigo `/admin/reports` sob `role:admin` — pré-requisito da fila de moderação de verdade e do Curador das FC Sessions); **Evidence viewer** (PR #126: a fila de moderação passou a exibir a PROVA retida — bytes congelados de Story/Foto Efêmera denunciados —, fechando o achado da revisão de 30/07 "a fila não tem como VER a prova"); **Múltiplas localizações** (PR #127: até 3 por performer, com migração das linhas de UF única existentes; só UF é público, `city` segue interno — mesma regra da localização opt-in do Sprint 9A); **Photo permissions** (§ abaixo, PR #128: cada foto da galeria pode ser pública ou privada; foto privada aparece borrada no perfil e só é servida a quem tem `photo_grant` aprovado — ou à dona; o membro solicita, a performer aprova/revoga pelo FanAlias, `member_id` nunca vaza; Hard Delete nos dois sentidos); **Stories feed carousel** (§ abaixo, PR #129: a UI que consome `stories.feed` — carrossel tipo Instagram no topo do catálogo, buscado por fetch para não pagar o `canView` por story no caminho crítico; o selo do Convite via Stories do Sprint 12 finalmente tem tela). **Deploy de staging: as 5 pendentes.** Fora das PRs, nesta janela o **modelo de monetização** foi fechado e documentado (§ "Modelo de monetização — DECISÕES FECHADAS", commit `f6aa9a3`).
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
 > Não é lacuna de documentação a preencher — é como o histórico ficou.
 
-### Backlog — Sprint 13 (registrado, não iniciado)
-Ordem não é prioridade; o refactor de roles é o pré-requisito que mais destrava.
-- **Refactor de roles** — separar `moderador` de `admin`. Hoje **moderador = admin,
-  e admin vê tudo**; a fila humana é `/admin/reports` sob `role:admin`. É
-  pré-requisito da fila de moderação de verdade (Stories e Foto Efêmera já geram
-  conteúdo esperando revisão) e do Curador das FC Sessions.
-- **Visualizador da prova retida no admin** — hoje a denúncia congela os bytes
-  (Story e Foto Efêmera), mas **a fila do admin não tem como VER a prova retida**
-  (achado da revisão de 30/07, junto com "não há prazo máximo de retenção").
+> **Sprint 13 (registrado como backlog) foi ENTREGUE** — o refactor de roles, o
+> evidence viewer, as múltiplas localizações, as permissões de foto e o feed UI
+> viraram os PRs #125–#129 (ver a lista de Sprints acima). O que ficou de fora
+> daquele backlog e ainda vale carregou para o Sprint 14 abaixo.
+
+### Backlog — Sprint 14 (registrado, não iniciado)
+Ordem não é prioridade. O grosso deste bloco é a **implementação do modelo de
+monetização fechado** (§ "Modelo de monetização — DECISÕES FECHADAS") — cada tipo
+novo de gasto/crédito é **migration no enum de `entry_type`** do ledger
+append-only (princípio nº 2), NUNCA `UPDATE` de saldo. LiveKit segue sendo o
+gargalo dos itens de vídeo (§ 2.5: serving sem cifra em memória travou as FC
+Sessions).
+
+- **Conteúdo permanente** (fotos/vídeos com níveis de acesso) — a performer define
+  nível (Aberto / Premium / Exclusivo / FC Only) + preço em tokens; desbloqueio é
+  PERMANENTE; split 80/20. Reaproveita a disciplina de paywall por peça já provada
+  no Photo Permissions (Sprint 13) e no Story (§ 2.3).
+- **Live pública (LiveKit)** — X tokens por bloco de 10 min; todos pagam; split
+  70/30; gorjeta/presente na live 80/20.
+- **Chamada privada 1:1 / Videochamada (LiveKit)** — X tokens/minuto; todos pagam;
+  split 70/30. (São o MESMO track de infra LiveKit da live pública — planejado
+  desde a fundação, nada implementado, esbarra no serving sem cifra do § 2.5.)
+- **Presentes virtuais** — catálogo fixo da Limen com preços fixos, split 75/25,
+  animação na tela durante a live. Já no modelo como BACKLOG.
+- **Desconto de tokens por tier de assinatura** — aplica sobre a COMPRA de pacotes
+  (Explorador/Insider 10% · Prestige 20% · Black 30% · FC 40%).
+- **Tokens inclusos nas assinaturas** — creditados no 1º dia do ciclo, não
+  expiram, `subscription_grant` no ledger, sujeitos ao teto de acúmulo de 5.000.
+- **Payout mensal (ciclo dia 1)** — processar no dia 1 referente ao mês anterior,
+  mínimo 100 tokens acumulados, via PIX (Asaas). Hoje o payout existe mas não é
+  amarrado ao ciclo mensal do modelo.
+
+Carregados do backlog do Sprint 13 (ainda não feitos):
 - **Verificação de documento como produto** (R$ 9,90) — selo de verificação pago
   para o membro. **Depende da Didit** (a mesma integração do KYC da performer).
-- **Múltiplas localizações** por performer (hoje é UF única opt-in).
-- **Permissões de fotos/vídeos** — controle de acesso por peça de mídia.
-- **Videochamada (LiveKit)** — planejado desde a fundação, nada implementado;
-  esbarra na estratégia de serving sem cifra em memória (§ 2.5) que já travou as
-  FC Sessions.
-- **Feed UI consumindo `stories.feed`** — o endpoint existe e é testado desde o
-  Sprint 9C, mas não há tela Vue que o consuma; **o selo do Convite via Stories
-  (Sprint 12) só aparece quando essa tela existir** (o contrato `is_invite` por
-  item já está entregue no payload).
 - **Pin PHP 8.5→8.4 no `deploy.yml`** — o job de teste do CI fixa `php-version:
   '8.5'`, mas o alvo de produção é 8.4.22. Alinhar (é mudança em
   `.github/workflows/`, que exige token com escopo `workflow` — o servidor de dev
@@ -815,9 +846,12 @@ Imagem só (v1), TTL **fixo** de 24h, três níveis (`public` / `subscribers` /
 > não entra em contador nenhum e o feed marca todo story como não visto, para
 > sempre. **Quem for "consertar" isso está desligando o Ghost Mode.**
 
-> **Ainda travado:** a fila humana é `/admin/reports` sob `role:admin` — o
-> **refactor de `role` não aconteceu**, moderador segue sendo admin, e admin vê
-> tudo. Vídeo é Sprint 10 e esbarra no bloqueio das FC Sessions.
+> **Atualização (Sprint 13):** o **refactor de `role` FOI feito** (PR #125) — a
+> fila humana agora é `/moderacao/*` sob `role:moderador`, com o evidence viewer
+> da prova retida (PR #126). O texto acima (e outros trechos que dizem
+> "moderador = admin, `/admin/reports`") descreve o estado ATÉ o Sprint 12 e fica
+> como histórico. Vídeo (live/chamada) segue no backlog do Sprint 14 e ainda
+> esbarra no serving sem cifra do § 2.5 que travou as FC Sessions.
 
 ## 2FA da performer — TOTP (Sprint 6)
 A conta da performer guarda o KYC (documento + selfie) e é a identidade
