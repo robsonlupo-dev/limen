@@ -12,9 +12,12 @@ return [
     |   - Membro sem assinatura: paga um acesso por performer (janela de dias).
     */
 
-    // Custo, em tokens, de um acesso ao chat de uma performer (membro sem
-    // Círculo). Debitado via token_ledger append-only; a performer é creditada
-    // pelo split_pct dela (como a gorjeta). Renovar cobra o mesmo valor.
+    // ⚠️ SUPERADO por M.13.1 (Sprint 14, PR #132) — NÃO é mais a fonte do custo.
+    // O custo de abrir chat agora é por TIER e vem de
+    // `config/monetization.php` → `chat.cost_by_tier` (2 ou 1 token), lido pela
+    // TokenCreditPolicy::chatCost. A performer recebe 1 token FIXO
+    // (chat.performer_credit), não split. Esta chave fica só para não quebrar
+    // env/leituras legadas; o código de chat não a consome mais.
     'access_cost' => (int) env('CHAT_ACCESS_COST', 50),
 
     // Dias de acesso total (envio + leitura) a partir do desbloqueio/renovação.

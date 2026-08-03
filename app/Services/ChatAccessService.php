@@ -12,25 +12,32 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Acesso pago ao chat (membro sem assinatura). Ver config/chat.php e
- * docs/COMMUNICATION_ECONOMY.md §2.
+ * Acesso pago ao chat. Ver docs/COMMUNICATION_ECONOMY.md §2.
  *
- * - Assinante de qualquer Círculo ativo tem chat livre e permanente — não passa
- *   por aqui (accessState devolve 'subscriber').
- * - Membro sem assinatura paga access_cost tokens por performer por janela de
- *   access_days; depois há grace_days de carência (leitura bloqueada, sem
- *   envio); passada a carência o job soft-deleta as mensagens.
- * - Débito via token_ledger append-only; a performer é creditada pelo split_pct
- *   (como a gorjeta).
+ * ── M.13.1 (Sprint 14, PR #132): NÃO existe mais chat grátis ────────────────
+ * TODO tier paga para ABRIR o chat — NA/Explorador/Insider/Prestige = 2 tokens,
+ * Black/FC = 1 token (TokenCreditPolicy::chatCost, a dona única). A performer
+ * recebe 1 token FIXO por abertura, em todos os casos, FORA do split percentual
+ * (chatOpenPerformerCredit). O subsídio da plataforma foi eliminado.
+ *
+ * Consequência que ANTES não valia e agora vale (não reintroduzir o atalho de
+ * assinante): **assinante TAMBÉM gera linha de `chat_access`** e a janela dele
+ * vence como a de qualquer um (access_days + grace_days, depois o GC soft-deleta
+ * as mensagens). Assinatura ativa NÃO garante mais chat livre nem histórico
+ * permanente.
+ *
+ * - Membro paga chatCost tokens por performer por janela de access_days; depois
+ *   há grace_days de carência (leitura bloqueada, sem envio); passada a carência
+ *   o job soft-deleta as mensagens.
+ * - Débito via token_ledger append-only; a performer é creditada 1 token fixo
+ *   (chat_access_credit), nunca por split.
  */
 class ChatAccessService
 {
-    public function __construct(private TokenService $tokenService) {}
-
-    private function accessCost(): int
-    {
-        return (int) config('chat.access_cost');
-    }
+    public function __construct(
+        private TokenService $tokenService,
+        private TokenCreditPolicy $creditPolicy,
+    ) {}
 
     private function accessDays(): int
     {
@@ -43,14 +50,14 @@ class ChatAccessService
     }
 
     /**
-     * Compra ou renova o acesso do membro à conversa (debita access_cost, credita
-     * o split à performer, cria/estende a janela). Idempotente por
+     * Compra ou renova o acesso do membro à conversa (debita o custo por tier,
+     * credita 1 token fixo à performer, cria/estende a janela). Idempotente por
      * idempotency_key: um double-submit com a mesma chave não cobra de novo.
      *
      * Estende a partir do fim da janela vigente se ainda ativa (renovação
      * antecipada empilha), senão a partir de agora.
      *
-     * @throws \InvalidArgumentException assinante (não deveria pagar) ou performer
+     * @throws \InvalidArgumentException quem chama não é o membro da conversa
      * @throws InsufficientBalanceException saldo insuficiente
      */
     public function openOrRenew(Conversation $conversation, User $member, string $idempotencyKey): ChatAccess
@@ -62,10 +69,7 @@ class ChatAccessService
             throw new \InvalidArgumentException('Only the conversation member can buy chat access.');
         }
 
-        // Assinante tem chat livre — nunca compra acesso avulso.
-        if ($member->activeSubscription() !== null) {
-            throw new \InvalidArgumentException('Active subscribers already have free chat.');
-        }
+        // M.13.1: assinante também paga e gera linha — sem atalho de chat grátis.
 
         return DB::transaction(function () use ($member, $performerProfile, $idempotencyKey) {
             // Serializa opens/renovações concorrentes do mesmo par.
@@ -80,7 +84,8 @@ class ChatAccessService
             }
 
             $performerUser = $performerProfile->user;
-            $cost = $this->accessCost();
+            // Custo por tier (M.13.1): 2 (NA/Expl/Ins/Pres) ou 1 (Black/FC).
+            $cost = $this->creditPolicy->chatCost($member);
 
             $spendEntry = $this->tokenService->debit(
                 $member,
@@ -91,18 +96,16 @@ class ChatAccessService
                 "Acesso ao chat de {$performerProfile->stage_name}",
             );
 
-            // Split como a gorjeta; só credita se sobrar ao menos 1 token.
-            $performerAmount = (int) floor($cost * $performerProfile->split_pct / 100);
-            $creditEntry = $performerAmount > 0
-                ? $this->tokenService->credit(
-                    $performerUser,
-                    $performerAmount,
-                    'chat_access_credit',
-                    ChatAccess::class,
-                    $access?->id,
-                    'Acesso ao chat recebido',
-                )
-                : null;
+            // Crédito FIXO de 1 token à performer (M.13.1), fora do split, sempre
+            // (nunca zero). Via policy: chat_access_credit nunca respeita teto.
+            $creditEntry = $this->creditPolicy->credit(
+                $performerUser,
+                $this->creditPolicy->chatOpenPerformerCredit(),
+                'chat_access_credit',
+                ChatAccess::class,
+                $access?->id,
+                'Acesso ao chat recebido',
+            );
 
             // Base da nova janela: empilha sobre a atual se ainda ativa, senão agora.
             $now = now();
@@ -175,18 +178,8 @@ class ChatAccessService
      */
     public function accessState(Conversation $conversation, User $member): array
     {
-        // Assinante: chat livre e permanente.
-        if ($member->activeSubscription() !== null) {
-            return [
-                'state' => 'subscriber',
-                'can_send' => true,
-                'can_read' => true,
-                'locked' => false,
-                'days_remaining' => null,
-                'expires_at' => null,
-            ];
-        }
-
+        // M.13.1: sem atalho de assinante. TODO membro passa pela linha de
+        // `chat_access` — assinante sem janela paga cai em 'none' como qualquer um.
         $access = $this->accessFor($conversation, $member);
 
         if ($access && $access->hasFullAccess()) {
@@ -239,11 +232,13 @@ class ChatAccessService
      *     bloqueio pelo membro, Panic Button, ação de moderação — é exatamente o
      *     dia em que o canal de mensagem fecha e o de ROSTO não pode continuar
      *     aberto. Conversa é arquivada justamente no conflito.
-     *  2. `accessState()['can_send']`, e não uma consulta crua a `chat_access`:
-     *     assinante de Círculo tem chat livre e **não gera linha** naquela
-     *     tabela — a leitura literal recusaria justamente quem paga mais.
-     *     Carência (`grace`) NÃO passa: quem não pode nem responder não deve
-     *     receber rosto novo.
+     *  2. `accessState()['can_send']`, a fonte única do gate — NÃO uma segunda
+     *     consulta crua a `chat_access`. Desde M.13.1 (PR #132) TODO membro,
+     *     assinante ou não, precisa de janela paga para enviar; `accessState` já
+     *     resolve isso. **Não reintroduza um atalho de assinante aqui** — era o
+     *     modelo antigo (chat livre sem linha), e um `if activeSubscription`
+     *     recriaria um bypass do gate da Foto Efêmera. Carência (`grace`) NÃO
+     *     passa: quem não pode nem responder não deve receber rosto novo.
      *
      * Conversa inexistente é `false`, e não uma exceção: para a foto isso é o
      * caso comum (membro que nunca conversou com aquela performer), e para o
@@ -276,39 +271,32 @@ class ChatAccessService
     }
 
     /**
-     * O membro JÁ tem algum vínculo de chat com esta performer? (Sprint 12)
+     * O membro JÁ tem algum vínculo de chat com esta performer? (Sprint 12,
+     * revisado no PR #132.)
      *
      * ── Por que NÃO é `canMemberSendTo()` ───────────────────────────────────
      * `canMemberSendTo()` pergunta "pode ENVIAR agora numa conversa ativa" — e
      * exige uma `Conversation` de pé. O convite via Stories precisa de outra
-     * pergunta: "este seguidor já está no funil de chat, ou é alvo legítimo da
-     * isca?". Um assinante de Círculo NÃO gera linha de `chat_access` e pode nem
-     * ter aberto conversa ainda, mas tem chat livre — mandar-lhe o CTA "compre 50
-     * tokens para conversar" seria vender o que ele já tem. Por isso a resposta é
-     * a UNIÃO de dois vínculos, e não a interseção que o envio exige:
+     * pergunta: "este seguidor já entrou no funil de chat pago, ou é alvo
+     * legítimo da isca?". A resposta é a existência de QUALQUER linha de
+     * `chat_access` do par (em qualquer status): quem já comprou acesso algum dia
+     * não é "novo seguidor que nunca conversou".
      *
-     *  1. Assinatura de Círculo ativa → chat livre e permanente (não é alvo).
-     *  2. QUALQUER linha de `chat_access` do par, em qualquer status → ele já
-     *     entrou no funil pago (comprou acesso algum dia). "sem ChatAccess" da
-     *     spec é a ausência da linha, então `exists()` sobre o par, sem filtrar
-     *     status: quem já comprou não é "novo seguidor que nunca conversou".
+     * ── M.13.1 (PR #132): a assinatura NÃO conta mais aqui ──────────────────
+     * No modelo antigo, assinante tinha chat livre sem linha, então a resposta
+     * era a UNIÃO (assinatura OU linha). Com o fim do chat grátis, a assinatura
+     * não abre chat com performer nenhuma por si só — o assinante paga para abrir,
+     * como todos, e aí ganha a linha. Logo o vínculo é SÓ a linha de `chat_access`.
+     * Um assinante que ainda não abriu chat com esta performer é alvo legítimo do
+     * convite (ele pagaria 1-2 tokens para abrir) — e isso é correto.
      *
-     * Fica AQUI, e não no StoryVisibilityService, pela disciplina de dona única:
-     * "o membro tem vínculo de chat com esta performer" é conhecimento do domínio
-     * de chat (a tabela `chat_access` e a assinatura). Reescrevê-lo no serviço de
-     * story seria a segunda cópia que diverge — e divergiria mostrando o convite a
-     * quem não é alvo, ou escondendo-o de quem é.
-     *
+     * Fica AQUI, e não no StoryVisibilityService, pela disciplina de dona única.
      * O convite é DELA sobre a própria publicação; esta leitura não expõe membro
      * nenhum à performer — é consumida só no feed do próprio membro, para decidir
      * se ELE vê o selo.
      */
     public function memberHasChatWith(User $member, PerformerProfile $performer): bool
     {
-        if ($member->activeSubscription() !== null) {
-            return true;
-        }
-
         return ChatAccess::query()
             ->where('member_id', $member->getKey())
             ->where('performer_profile_id', $performer->getKey())
