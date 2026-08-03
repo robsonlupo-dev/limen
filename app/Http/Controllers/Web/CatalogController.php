@@ -118,6 +118,12 @@ class CatalogController extends Controller
             // salvar/apagar. `user_id` nunca sai (o service já mapeia campo a campo).
             'savedSearches' => $this->savedSearches->listFor($request->user()),
         ]);
+        // NOTA: o carrossel de Stories (Sprint 13) NÃO vem como prop daqui de
+        // propósito. `StoryVisibilityService::feedFor()` roda `canView` por story
+        // (é O(stories) em queries), e servi-lo junto do catálogo quebraria a
+        // garantia de "uma query para o pontinho, não uma por card"
+        // (StoryCatalogTest). O carrossel busca `stories.feed` por fetch no
+        // mount — um round-trip separado, fora do caminho crítico do catálogo.
     }
 
     public function show(Request $request, string $slug): Response

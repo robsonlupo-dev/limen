@@ -7,6 +7,9 @@ import PerformerCard from '@/Components/PerformerCard.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
 import OnboardingTutorial from '@/Components/OnboardingTutorial.vue'
+import StoriesFeed from '@/Components/StoriesFeed.vue'
+import StoryViewer from '@/Components/StoryViewer.vue'
+import { getJson } from '@/lib/http'
 
 const props = defineProps({
     performers: { type: Object, required: true },
@@ -16,6 +19,41 @@ const props = defineProps({
     // Buscas salvas do membro (Sprint 12). Só o catálogo autenticado as recebe.
     savedSearches: { type: Array, default: () => [] },
 })
+
+// Feed de Stories (Sprint 13). Buscado por FETCH no mount, não como prop: o
+// feedFor roda canView por story (O(stories) em queries) e servi-lo junto do
+// catálogo quebraria a garantia de N+1 do pontinho. O round-trip separado o
+// mantém fora do caminho crítico; o carrossel some até chegar (v-if no feed).
+// Só para membro — a rota `stories.feed` é role:consumer, e performer/admin que
+// navegam o catálogo receberiam 403.
+const page = usePage()
+const isConsumer = page.props.auth?.user?.role === 'consumer'
+const feed = ref([])
+const viewerOpen = ref(false)
+const viewerStart = ref(0)
+
+async function loadFeed() {
+    if (!isConsumer) return
+    try {
+        const data = await getJson(route('stories.feed'))
+        feed.value = data.performers ?? []
+    } catch {
+        // Sem rede / sessão: mantém o estado atual, o próximo load reconcilia.
+    }
+}
+
+function openViewer(index) {
+    viewerStart.value = index
+    viewerOpen.value = true
+}
+
+// Ao fechar o viewer, recarrega para o anel dourado→cinza acompanhar as views
+// recém-gravadas (para Ghost Mode nada é gravado e o anel continua dourado — é
+// o perk, ver § dos Stories no CLAUDE.md).
+function closeViewer() {
+    viewerOpen.value = false
+    loadFeed()
+}
 
 const worlds = [
     { value: 'mulheres', label: 'Mulheres' },
@@ -33,13 +71,13 @@ let removeStart, removeFinish
 // First-run tutorial. Read once into local state (not a computed over the prop)
 // so dismissing it closes the overlay immediately — the cookie the component
 // writes is client-side, and the shared `tutorialSeen` prop only catches up on
-// the next server response.
-const page = usePage()
+// the next server response. (`page` já declarado acima, para o feed de Stories.)
 const showTutorial = ref(
     !page.props.tutorialSeen && page.props.auth?.user?.role === 'consumer'
 )
 
 onMounted(() => {
+    loadFeed()
     removeStart = router.on('start', () => (loading.value = true))
     removeFinish = router.on('finish', () => (loading.value = false))
 })
@@ -76,6 +114,10 @@ function selectWorld(value) {
                     🌐 Mudar Mundo
                 </button>
             </div>
+
+            <!-- Carrossel de Stories (Sprint 13): topo do catálogo, antes dos
+                 filtros e dos cards. Some inteiro quando não há feed. -->
+            <StoriesFeed :feed="feed" @open="openViewer" />
 
             <FilterPanel :filters="filters" :saved-searches="savedSearches" :can-save="true" />
 
@@ -154,5 +196,14 @@ function selectWorld(value) {
                 </button>
             </div>
         </Modal>
+
+        <!-- Visualizador fullscreen dos Stories (Sprint 13). Recarrega o feed ao
+             fechar para o anel refletir as views recém-registradas. -->
+        <StoryViewer
+            v-if="viewerOpen"
+            :groups="feed"
+            :start-group-index="viewerStart"
+            @close="closeViewer"
+        />
     </AppLayout>
 </template>

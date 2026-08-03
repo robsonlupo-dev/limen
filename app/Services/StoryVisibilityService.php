@@ -10,6 +10,7 @@ use App\Models\PerformerStory;
 use App\Models\StoryView;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\URL;
 
 /**
  * Quem pode ver qual Story, resolvido AGORA. Ver docs/SECURITY_ISSUES.md § 2.3.
@@ -306,6 +307,20 @@ class StoryVisibilityService
                     'performer' => [
                         'stage_name' => $profile->stage_name,
                         'slug' => $profile->slug,
+                        // Avatar para o círculo do carrossel (Sprint 13, feed UI).
+                        // URL assinada da mídia pública, pelo `profile_id` (nunca
+                        // o `user_id` — mesma escolha do PerformerPublicResource),
+                        // ou null para a tela cair no monograma. É a foto PÚBLICA
+                        // da performer indo para o feed do próprio membro; não abre
+                        // superfície nova de exposição do membro (a direção é
+                        // performer→membro, como todo este feed).
+                        'avatar_url' => $profile->avatar_path
+                            ? URL::temporarySignedRoute(
+                                'performer.media',
+                                now()->addMinutes(60),
+                                ['profile_id' => $profile->id, 'type' => 'avatar'],
+                            )
+                            : null,
                     ],
                     'stories' => $items,
                     'has_unseen' => collect($items)->contains(fn (array $item) => ! $item['seen']),
