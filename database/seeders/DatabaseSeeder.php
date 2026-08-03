@@ -27,18 +27,25 @@ class DatabaseSeeder extends Seeder
 
     private function seedTokenPackages(): void
     {
+        // Pacotes achatados da emenda M.13.2 (Sprint 14). `tokens` já inclui o
+        // valor cheio do pacote; sem `bonus` no modelo novo (a âncora é
+        // R$1,00/token no Starter). Preço em centavos.
         $packages = [
-            ['slug' => 'bronze',   'name' => 'Bronze',   'tokens' => 100,  'bonus' => 0,    'price_cents' => 990,   'sort_order' => 1],
-            ['slug' => 'prata',    'name' => 'Prata',    'tokens' => 250,  'bonus' => 25,   'price_cents' => 2490,  'sort_order' => 2],
-            ['slug' => 'ouro',     'name' => 'Ouro',     'tokens' => 500,  'bonus' => 75,   'price_cents' => 4990,  'sort_order' => 3],
-            ['slug' => 'platina',  'name' => 'Platina',  'tokens' => 1000, 'bonus' => 200,  'price_cents' => 9990,  'sort_order' => 4],
-            ['slug' => 'diamante', 'name' => 'Diamante', 'tokens' => 2500, 'bonus' => 600,  'price_cents' => 24990, 'sort_order' => 5],
-            ['slug' => 'black',    'name' => 'Black',    'tokens' => 5000, 'bonus' => 1500, 'price_cents' => 49990, 'sort_order' => 6],
+            ['slug' => 'starter', 'name' => 'Starter', 'tokens' => 50,  'bonus' => 0, 'price_cents' => 4990,  'sort_order' => 1],
+            ['slug' => 'popular', 'name' => 'Popular', 'tokens' => 105, 'bonus' => 0, 'price_cents' => 9990,  'sort_order' => 2],
+            ['slug' => 'premium', 'name' => 'Premium', 'tokens' => 220, 'bonus' => 0, 'price_cents' => 19990, 'sort_order' => 3],
+            ['slug' => 'vip',     'name' => 'VIP',     'tokens' => 580, 'bonus' => 0, 'price_cents' => 49990, 'sort_order' => 4],
         ];
 
         foreach ($packages as $pkg) {
-            TokenPackage::updateOrCreate(['slug' => $pkg['slug']], $pkg);
+            TokenPackage::updateOrCreate(['slug' => $pkg['slug']], $pkg + ['active' => true]);
         }
+
+        // Desativa (NUNCA apaga — a FK de `payments` guarda o histórico) qualquer
+        // pacote pré-M.13 que exista neste ambiente, para o catálogo de compra só
+        // oferecer os pacotes M.13.2.
+        TokenPackage::whereNotIn('slug', array_column($packages, 'slug'))
+            ->update(['active' => false]);
     }
 
     private function seedUsers(): void

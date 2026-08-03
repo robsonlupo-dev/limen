@@ -70,7 +70,7 @@ it('subscribes with a valid card, grants tokens and redirects to the dashboard',
         ->and($sub->status)->toBe('active')
         ->and($sub->card_last4)->toBe('8829');
 
-    expect(TokenWallet::where('user_id', $user->id)->value('balance'))->toBe(500);
+    expect(TokenWallet::where('user_id', $user->id)->value('balance'))->toBe(490); // prestige M.13.4
 });
 
 it('validates card fields and never flashes the card number or cvv', function () {

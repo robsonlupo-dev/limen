@@ -129,6 +129,17 @@ class PayoutService
         return $payout->fresh();
     }
 
+    /**
+     * ⚠️ DIVERGÊNCIA CONHECIDA E DIFERIDA (Sprint 14, PR #131) — NÃO é a M.13.5.
+     * Este cálculo ainda deriva reais de `split_pct` (modelo pré-M.13). A gorjeta
+     * já migrou para o split por evento (80% em tokens), mas o PAYOUT segue no
+     * modelo antigo até o item "Payout mensal (ciclo dia 1)" do backlog do Sprint
+     * 14, que troca isto por `payout_rate_per_token` FIXO (R$0,60/token — M.13.5, já
+     * constante em config/monetization.php). Registrado explicitamente (achado da
+     * revisão de segurança do #131) para não ser lido como M.13.5 já implementado,
+     * nem confundido com a taxa de crédito da gorjeta. Chat (crédito por split_pct)
+     * segue o mesmo destino no PR #132.
+     */
     public function calculatePayoutCentavos(int $tokens, int $splitPct): int
     {
         return (int) round(($tokens * 99 * $splitPct) / 1000);

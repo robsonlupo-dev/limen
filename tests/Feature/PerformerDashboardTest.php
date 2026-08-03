@@ -135,8 +135,9 @@ it('gorjetas aparecem ordenadas por data desc', function () {
     $this->actingAs($performer)
         ->get('/performer/dashboard')
         ->assertInertia(fn (Assert $page) => $page
-            ->where('tips.0.amount', fn ($amount) => $amount === (int) floor(30 * $profile->split_pct / 100))
-            ->where('tips.2.amount', fn ($amount) => $amount === (int) floor(10 * $profile->split_pct / 100))
+            // M.13.6: gorjeta 80% por evento (intdiv(v*80+50,100)), não split_pct.
+            ->where('tips.0.amount', fn ($amount) => $amount === intdiv(30 * 80 + 50, 100))
+            ->where('tips.2.amount', fn ($amount) => $amount === intdiv(10 * 80 + 50, 100))
         );
 });
 

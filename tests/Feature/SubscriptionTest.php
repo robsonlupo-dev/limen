@@ -48,17 +48,18 @@ function balanceOf(User $user): int
 it('seeds the five circles with the locked values', function () {
     expect(Circle::count())->toBe(5);
 
+    // Valores M.13 (franquia M.13.4, desconto M.13.3) após o rewiring do Sprint 14.
     $explorador = Circle::where('slug', 'explorador')->first();
     expect($explorador->price_cents)->toBe(8990)
-        ->and($explorador->monthly_tokens)->toBe(75)
+        ->and($explorador->monthly_tokens)->toBe(105)
         ->and($explorador->discount_pct)->toBe(10)
         ->and($explorador->seat_limit)->toBeNull()
         ->and($explorador->invite_only)->toBeFalse();
 
     $fc = Circle::where('slug', 'founders_circle')->first();
     expect($fc->price_cents)->toBe(149000)
-        ->and($fc->monthly_tokens)->toBe(2500)
-        ->and($fc->discount_pct)->toBe(50)
+        ->and($fc->monthly_tokens)->toBe(2100)
+        ->and($fc->discount_pct)->toBe(25)
         ->and($fc->seat_limit)->toBe(100)
         ->and($fc->invite_only)->toBeTrue();
 });
@@ -74,11 +75,12 @@ it('subscribes a user, grants the first month and records one charge', function 
         ->and($sub->asaas_subscription_id)->not->toBeNull();
 
     // Monthly tokens granted via the append-only ledger, entry_type subscription_grant.
-    expect(balanceOf($user))->toBe(500);
+    // Prestige = 490 tokens/mês (franquia M.13.4).
+    expect(balanceOf($user))->toBe(490);
     $entry = TokenLedger::where('entry_type', 'subscription_grant')->latest('id')->first();
     expect($entry)->not->toBeNull()
-        ->and($entry->amount)->toBe(500)
-        ->and($entry->balance_after)->toBe(500);
+        ->and($entry->amount)->toBe(490)
+        ->and($entry->balance_after)->toBe(490);
 
     expect(SubscriptionCharge::where('subscription_id', $sub->id)->count())->toBe(1);
 });
@@ -125,18 +127,18 @@ it('grants again on a renewal webhook and never double-grants a replayed event',
     $prestige = Circle::where('slug', 'prestige')->firstOrFail();
     $sub = subService()->subscribe($user, $prestige, fakeCard());
 
-    expect(balanceOf($user))->toBe(500);
+    expect(balanceOf($user))->toBe(490);
 
     /** @var FakeAsaasClient $fake */
     $fake = app(AsaasClientInterface::class);
     $payload = $fake->simulateSubscriptionCharged($sub->asaas_subscription_id);
 
     subService()->handleWebhook($payload);
-    expect(balanceOf($user))->toBe(1000); // second month granted
+    expect(balanceOf($user))->toBe(980); // second month granted
 
     // Replaying the exact same webhook must not grant a third time.
     subService()->handleWebhook($payload);
-    expect(balanceOf($user))->toBe(1000)
+    expect(balanceOf($user))->toBe(980)
         ->and(SubscriptionCharge::where('subscription_id', $sub->id)->count())->toBe(2);
 });
 
@@ -145,7 +147,7 @@ it('does not double-grant month 1 when the first charge webhook arrives (product
     $prestige = Circle::where('slug', 'prestige')->firstOrFail();
     $sub = subService()->subscribe($user, $prestige, fakeCard());
 
-    expect(balanceOf($user))->toBe(500);
+    expect(balanceOf($user))->toBe(490);
 
     /** @var FakeAsaasClient $fake */
     $fake = app(AsaasClientInterface::class);
@@ -159,7 +161,7 @@ it('does not double-grant month 1 when the first charge webhook arrives (product
         'payment' => ['id' => $firstChargeId, 'subscription' => $sub->asaas_subscription_id, 'value' => 389.90],
     ]);
 
-    expect(balanceOf($user))->toBe(500)
+    expect(balanceOf($user))->toBe(490)
         ->and(SubscriptionCharge::where('subscription_id', $sub->id)->count())->toBe(1);
 });
 
@@ -176,7 +178,7 @@ it('does not grant when the gateway does not confirm the charge (forged/unverifi
         'payment' => ['id' => 'pay_unknown_999', 'subscription' => $sub->asaas_subscription_id, 'value' => 389.90],
     ]);
 
-    expect(balanceOf($user))->toBe(500)
+    expect(balanceOf($user))->toBe(490)
         ->and(SubscriptionCharge::where('provider_event_id', 'pay_unknown_999')->exists())->toBeFalse();
 });
 
@@ -215,7 +217,7 @@ it('marks the subscription past_due on an overdue webhook', function () {
 
     expect($sub->refresh()->status)->toBe('past_due');
     // No tokens granted on an overdue event.
-    expect(balanceOf($user))->toBe(500);
+    expect(balanceOf($user))->toBe(490);
 });
 
 it('cancels the subscription on a subscription-deleted webhook', function () {
@@ -247,7 +249,7 @@ it('cancel() flags cancel_at_period_end without wiping the current period', func
 
 it('applies the active circle discount to token package price, not the token amount', function () {
     $user = User::factory()->create();
-    Subscription::factory()->for($user)->circle('prestige')->create(); // 30% off
+    Subscription::factory()->for($user)->circle('prestige')->create(); // 15% off (M.13.3)
 
     $package = TokenPackage::create([
         'slug' => 'test-pack', 'name' => 'Test', 'tokens' => 300,
@@ -256,7 +258,7 @@ it('applies the active circle discount to token package price, not the token amo
 
     $payment = app(PaymentService::class)->createPayment($user, $package);
 
-    expect($payment->amount_cents)->toBe(700) // 1000 - 30%
+    expect($payment->amount_cents)->toBe(850) // 1000 - 15% (desconto da config M.13.3)
         ->and($payment->tokens)->toBe(300);   // tokens unchanged
 });
 

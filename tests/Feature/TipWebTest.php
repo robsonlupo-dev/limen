@@ -56,7 +56,7 @@ it('sends a tip through the web route with session auth', function () {
 
     $response->assertCreated()->assertJsonFragment([
         'amount' => 50,
-        'performer_amount' => 32, // floor(50 * 65 / 100)
+        'performer_amount' => 40, // M.13.6: gorjeta 80%, intdiv(50*80+50,100)
         'new_balance' => 50,
         'tips_count' => 1,
     ]);

@@ -72,6 +72,19 @@ class TokenCreditPolicy
         return $this->capFor($user) - $this->tokenService->balance($user);
     }
 
+    /**
+     * Desconto (%) do tier ativo sobre a COMPRA de pacote avulso (M.13.3), da
+     * config — a fonte canônica e a AUTORIDADE de cobrança. 0 se não assina.
+     * `circles.discount_pct` no banco é espelho de exibição, mantido em sincronia
+     * por migração + teste; quem cobra lê daqui, não do banco.
+     */
+    public function purchaseDiscountPct(User $user): int
+    {
+        $slug = $user->activeCircle()?->slug;
+
+        return (int) config("monetization.discounts_by_tier.{$slug}", 0);
+    }
+
     // ── Entrada única de crédito ──────────────────────────────────────────────
 
     /**
