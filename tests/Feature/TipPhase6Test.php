@@ -65,35 +65,37 @@ it('sends a valid tip and applies correct split', function () {
 
     $response->assertCreated()->assertJsonFragment([
         'amount' => 50,
-        'performer_amount' => 32, // floor(50 * 65 / 100)
-        'platform_amount' => 18,
+        'performer_amount' => 40, // M.13.6: gorjeta 80%, intdiv(50*80+50,100)
+        'platform_amount' => 10,
         'new_balance' => 50,
     ]);
 
     expect(TokenWallet::where('user_id', $consumer->id)->value('balance'))->toBe(50);
-    expect(TokenWallet::where('user_id', $profile->user_id)->value('balance'))->toBe(32);
+    expect(TokenWallet::where('user_id', $profile->user_id)->value('balance'))->toBe(40);
     expect(Tip::count())->toBe(1);
 });
 
 // ─── 2. Split by level ───────────────────────────────────────────────────────
 
-it('applies correct split for each performer level', function (string $level, int $splitPct, int $amount, int $expectedPerformer) {
+it('applies the fixed event-type tip split (80%) regardless of performer level', function (string $level, int $splitPct) {
+    // M.13.6: gorjeta é 80/20 POR TIPO DE EVENTO, não pelo split_pct da performer.
+    // O nível varia, o crédito não: intdiv(100*80+50,100) = 80 em todos.
     [$consumer, $consumerToken] = makeConsumerWithBalance(1000);
     [, $profile] = makeVerifiedPerformerWithLevel($level, $splitPct);
 
-    $response = $this->postJson('/api/v1/tips', tipPayload($profile->slug, $amount), [
+    $response = $this->postJson('/api/v1/tips', tipPayload($profile->slug, 100), [
         'Authorization' => "Bearer $consumerToken",
     ]);
 
     $response->assertCreated()->assertJsonFragment([
-        'performer_amount' => $expectedPerformer,
-        'platform_amount' => $amount - $expectedPerformer,
+        'performer_amount' => 80,
+        'platform_amount' => 20,
     ]);
 })->with([
-    'iniciante 65%' => ['iniciante', 65, 100, 65],
-    'estrela 70%' => ['estrela',   70, 100, 70],
-    'premium 75%' => ['premium',   75, 100, 75],
-    'vip 80%' => ['vip',       80, 100, 80],
+    'iniciante 65%' => ['iniciante', 65],
+    'estrela 70%' => ['estrela',   70],
+    'premium 75%' => ['premium',   75],
+    'vip 80%' => ['vip',       80],
 ]);
 
 // ─── 3. Insufficient balance returns 422, nothing debited ────────────────────
@@ -269,7 +271,7 @@ it('returns performer received tip history', function () {
     $data = $response->json('data');
     expect($data)->toHaveCount(1);
     expect($data[0]['amount'])->toBe(40);
-    expect($data[0]['performer_amount'])->toBe(30); // floor(40 * 75 / 100)
+    expect($data[0]['performer_amount'])->toBe(32); // M.13.6: intdiv(40*80+50,100)
 });
 
 // ─── 11. Transaction atomic: credit failure reverts debit ────────────────────
@@ -286,7 +288,7 @@ it('rolls back consumer debit when performer credit fails', function () {
     $mock = Mockery::mock(TokenService::class)->makePartial();
     $mock->shouldReceive('credit')->once()->andThrow(new RuntimeException('Simulated credit failure'));
     app()->instance(TokenService::class, $mock);
-    app()->instance(TipService::class, new TipService($mock));
+    app()->instance(TipService::class, new TipService($mock, app(\App\Services\TokenCreditPolicy::class)));
 
     try {
         $this->postJson('/api/v1/tips', tipPayload($profile->slug, 50), [

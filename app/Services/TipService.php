@@ -8,11 +8,15 @@ use App\Models\PerformerProfile;
 use App\Models\Tip;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Support\FanAlias;
 use Illuminate\Support\Facades\DB;
 
 class TipService
 {
-    public function __construct(private TokenService $tokenService) {}
+    public function __construct(
+        private TokenService $tokenService,
+        private TokenCreditPolicy $creditPolicy,
+    ) {}
 
     public function send(
         User $consumer,
@@ -33,10 +37,6 @@ class TipService
             // Guard against self-tipping at service layer
             if ($consumer->id === $performerUser->id) {
                 throw new \InvalidArgumentException('Cannot tip yourself.');
-            }
-
-            if ($performerProfile->split_pct > 100) {
-                throw new \RuntimeException('Invalid split configuration.');
             }
 
             // Ensure wallets exist before locking
@@ -62,8 +62,13 @@ class TipService
                 throw new InsufficientBalanceException($amount, $consumerWallet?->balance ?? 0);
             }
 
-            $performerAmount = (int) floor($amount * $performerProfile->split_pct / 100);
-            $platformAmount = $amount - $performerAmount;
+            // Split por TIPO DE EVENTO (M.13.6): gorjeta é 80/20, round-half-up,
+            // independente do `split_pct` da performer (que era o modelo antigo).
+            // A policy é a dona única do cálculo e congela a taxa (applied_rate=80)
+            // na linha do ledger. `split_pct` NÃO é mais lido aqui.
+            $split = $this->creditPolicy->applyRate($amount, 'tip');
+            $performerAmount = $split['credited'];
+            $platformAmount = $split['retained'];
 
             $consumerEntry = $this->tokenService->debit(
                 $consumer,
@@ -74,13 +79,17 @@ class TipService
                 "Gorjeta para {$performerProfile->stage_name}",
             );
 
-            $performerEntry = $this->tokenService->credit(
+            // Crédito da performer pela policy (never-cap tip_credit + applied_rate).
+            // Descrição por FanAlias, nunca o id cru do membro (disciplina do
+            // FanAlias; achado da revisão do PR #130 sobre descrições de crédito).
+            $performerEntry = $this->creditPolicy->creditWithSplit(
                 $performerUser,
-                $performerAmount,
+                $amount,
+                'tip',
                 'tip_credit',
                 Tip::class,
                 null,
-                "Gorjeta recebida de consumer #{$consumer->id}",
+                'Gorjeta recebida de '.FanAlias::label($performerProfile->id, $consumer->id),
             );
 
             $tip = Tip::create([
