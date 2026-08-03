@@ -14,6 +14,7 @@ class TokenWallet extends Model
     {
         return [
             'balance' => 'integer',
+            'pending_grant_tokens' => 'integer',
         ];
     }
 

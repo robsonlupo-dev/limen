@@ -17,10 +17,18 @@ class PaymentService
     public function __construct(
         private AsaasClientInterface $asaas,
         private TokenService $tokenService,
+        private TokenCreditPolicy $creditPolicy,
     ) {}
 
     public function createPayment(User $user, TokenPackage $package, ?string $cpf = null): Payment
     {
+        // Gate de teto (M.13.9): barra a compra que estouraria o teto ANTES de
+        // criar a cobrança PIX — não se cobra por tokens que não serão creditados
+        // sem o membro gastar antes. É best-effort (duas compras concorrentes
+        // podem passar juntas; o webhook então credita cheio e loga — estado
+        // legítimo). O teto duro é só do grant, nunca da compra paga.
+        $this->creditPolicy->assertCanPurchase($user, $package->tokens);
+
         $this->ensureAsaasCustomer($user, $cpf);
 
         // Desconto do Círculo ativo incide sobre o PREÇO do pacote, nunca sobre a
@@ -141,10 +149,13 @@ class PaymentService
                 ->exists();
 
             if (! $alreadyCredited) {
-                $this->tokenService->credit(
+                // Webhook = dinheiro pago: credita SEMPRE, mesmo acima do teto
+                // (M.13.9). A idempotência por (reference_type,reference_id) acima
+                // é o que impede duplicar; a policy só decide "credita cheio + loga
+                // se passou do teto". A dedup fica FORA e ANTES da policy.
+                $this->creditPolicy->creditPaidPurchase(
                     $payment->user,
                     $payment->tokens,
-                    'purchase',
                     'payment',
                     $payment->id,
                     "Purchase: {$payment->tokens} tokens",
