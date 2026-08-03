@@ -118,7 +118,8 @@ vence** — e os slugs de tier são os do `Circle::TIER_ORDER`
   pagam**. Split **70/30**.
 - **[M.7] Assinaturas dos Círculos** (100% Limen, sem split): Explorador R$89,90 (chat
   1 tk, 50 inclusos, −10%) · Insider R$189,90 (chat 1 tk, 120 inclusos, −10%) ·
-  Prestige R$389,90 (chat 1 tk, +Premium, 250 inclusos, read receipts, −20%) ·
+  Prestige R$389,90 (chat 1 tk, +Premium, 250 inclusos, read receipts (atualizado
+  por M.13.13: read receipts para todos os assinantes), −20%) ·
   Black R$749,90 (chat GRÁTIS, +Exclusivo, 500 inclusos, Ghost Mode + Modo
   Discreto, −30%, cap 500) · FC R$1.490,00 (chat GRÁTIS, TUDO, 1.200 inclusos,
   número permanente + milestones, −40%, cap 100).
@@ -146,7 +147,7 @@ vence** — e os slugs de tier são os do `Circle::TIER_ORDER`
 > tipo de gasto/crédito é **migration no enum de `entry_type`** (princípio nº 2,
 > ledger append-only) — nunca `UPDATE` de saldo.
 
-## M.13 — Emenda de 03/08/2026: invariantes da economia de tokens (SUBSTITUI M.1–M.9 onde conflitar)
+## M.13 — Emenda de 03/08/2026: invariantes da economia de tokens (SUBSTITUI M.1–M.9 onde conflitar). M.10 (Payout), M.11 (LiveKit) e M.12 (Presentes) seguem vigentes — M.13.5 e M.13.6 os complementam sem substituir.
 
 Fechado pelo PO após benchmark de mercado e simulação de margem. Cada item é invariante — mudar exige decisão de PO registrada.
 
@@ -228,6 +229,39 @@ Performer não vê tier nem bit "assinante". Exceção única: FC Only revela FC
 ### M.13.11 — Margem mínima de 25%
 
 Nenhuma transação pode resultar em margem bruta abaixo de 25%. Piso de custo efetivo: R$0,625/token. Se mudar payout, split ou desconto, recalcular antes de implementar.
+
+### M.13.13 — Tabela consolidada de benefícios por Círculo
+
+Regra geral: o tier dá a chave de acesso; o conteúdo é pago com tokens (preço definido pela performer). "Paga tokens" = tem acesso, paga para desbloquear. "Grátis" = acesso sem custo. "❌" = sem acesso ao nível.
+
+Tipos de conteúdo (foto, álbum ou vídeo — mesma estrutura, mesmos níveis):
+- Aberto: vitrine da performer; grátis para assinantes, pago para não-assinante (degustação que incentiva assinatura).
+- Premium: primeiro nível pago; acesso a partir de Prestige.
+- Exclusivo: acesso a partir de Black; conteúdo mais íntimo, preço mais alto.
+- FC Only: só FC pode desbloquear; é o perk que justifica R$1.490/mês e a única situação onde a performer sabe que o membro é FC (M.13.10).
+
+| Benefício | Não-assinante | Explorador | Insider | Prestige | Black | FC |
+|---|---|---|---|---|---|---|
+| Chat (abertura) | 2 tk | 2 tk | 2 tk | 2 tk | 1 tk | 1 tk |
+| Conteúdo Aberto | Paga tokens | Grátis | Grátis | Grátis | Grátis | Grátis |
+| Conteúdo Premium | ❌ | ❌ | ❌ | Paga tokens | Paga tokens | Paga tokens |
+| Conteúdo Exclusivo | ❌ | ❌ | ❌ | ❌ | Paga tokens | Paga tokens |
+| Conteúdo FC Only | ❌ | ❌ | ❌ | ❌ | ❌ | Paga tokens |
+| Live pública | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
+| Chamada privada | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
+| Gorjeta | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
+| Presentes | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
+| Read receipts | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tokens inclusos/mês | — | 105 | 230 | 490 | 1.000 | 2.100 |
+| Desconto pacote avulso | — | 10% | 10% | 15% | 20% | 25% |
+| Ghost Mode | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Modo Discreto | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Número FC permanente | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Milestones físicos | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Teto de acúmulo | 5.000 | 5.000 | 5.000 | 5.000 | 5.000 | 8.000 |
+| Cap de vagas | ∞ | ∞ | ∞ | ∞ | 500 | 100 |
+
+Read receipts atualizado: todos os assinantes (Explorador a FC), não apenas Prestige+ como no M.7 original. Não-assinante não tem (chat dele já é limitado a 2 tk + 30 dias).
 
 ### M.13.12 — Estado de implementação
 
