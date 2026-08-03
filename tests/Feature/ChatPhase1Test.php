@@ -156,9 +156,10 @@ it('blocks a non-subscriber without access from sending', function () {
     expect(Message::where('sender_id', $member->id)->count())->toBe(0);
 });
 
-it('charges 50 tokens for chat access and credits the performer split, unlocking send', function () {
-    $performer = chatPerformer(splitPct: 60);
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+it('charges the tier cost for chat access and credits the performer 1 fixed token, unlocking send', function () {
+    // M.13.1: não-assinante paga 2; a performer recebe 1 FIXO (sem split).
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 2);
 
     $this->actingAs($member)
         ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
@@ -171,9 +172,9 @@ it('charges 50 tokens for chat access and credits the performer split, unlocking
     $spend = TokenLedger::find($access->spend_ledger_id);
     $credit = TokenLedger::find($access->credit_ledger_id);
     expect($spend->entry_type)->toBe('spend_chat_access')
-        ->and($spend->amount)->toBe(-50)
+        ->and($spend->amount)->toBe(-2)
         ->and($credit->entry_type)->toBe('chat_access_credit')
-        ->and($credit->amount)->toBe(30); // floor(50 * 60/100)
+        ->and($credit->amount)->toBe(1); // M.13.1: fixo 1, fora do split
 
     // Agora consegue enviar.
     $this->actingAs($member)
@@ -184,7 +185,7 @@ it('charges 50 tokens for chat access and credits the performer split, unlocking
 
 it('does not double-charge on a replayed idempotency key', function () {
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 2);
     $key = (string) Str::uuid();
 
     $this->actingAs($member)->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => $key])->assertStatus(201);
@@ -211,7 +212,7 @@ it('renews access with a new key, charging again and extending the window', func
 
 it('rejects opening access with insufficient balance without persisting it', function () {
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 10); // < 50
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 1); // < 2 (custo M.13.1)
 
     $this->actingAs($member)
         ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
@@ -222,34 +223,46 @@ it('rejects opening access with insufficient balance without persisting it', fun
     expect(TokenLedger::where('entry_type', 'spend_chat_access')->count())->toBe(0);
 });
 
-// --- Assinante: chat livre, sem linha de acesso, sem débito -------------------
+// --- M.13.1: assinante TAMBÉM paga e gera linha — fim do chat grátis ----------
 
-it('lets a member with an active Circle send for free without any access row', function () {
+it('makes a subscriber pay to open chat too, with no free-chat shortcut', function () {
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
-    Subscription::factory()->create(['user_id' => $member->id]);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 2);
+    Subscription::factory()->create(['user_id' => $member->id]); // prestige → custo 2
 
-    $ledgerBefore = TokenLedger::count();
+    // Sem abrir acesso, o assinante NÃO envia (sem atalho de chat grátis).
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'nope'])
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'access_required');
+    expect(Message::where('sender_id', $member->id)->count())->toBe(0);
+
+    // Abre acesso pagando 2 → gera linha, credita 1 à performer, e então envia.
+    $this->actingAs($member)
+        ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
+        ->assertStatus(201)
+        ->assertJsonPath('access.can_send', true)
+        ->assertJsonPath('new_balance', 0);
+    expect(ChatAccess::count())->toBe(1);
 
     $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'livre'])
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'agora sim'])
         ->assertStatus(201);
-
-    expect(ChatAccess::count())->toBe(0)
-        ->and(TokenLedger::count())->toBe($ledgerBefore)
-        ->and(Message::where('sender_id', $member->id)->count())->toBe(1);
 });
 
-it('refuses to sell access to an active subscriber', function () {
+it('charges Black/FC only 1 token to open chat (M.13.1 tier cost)', function () {
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer, balance: 50);
-    Subscription::factory()->create(['user_id' => $member->id]);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 1);
+    Subscription::factory()->circle('black')->create(['user_id' => $member->id]);
 
     $this->actingAs($member)
         ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
-        ->assertStatus(422)
-        ->assertJsonPath('reason', 'not_applicable');
-    expect(ChatAccess::count())->toBe(0);
+        ->assertStatus(201)
+        ->assertJsonPath('new_balance', 0);
+
+    $access = ChatAccess::sole();
+    expect(TokenLedger::find($access->spend_ledger_id)->amount)->toBe(-1)   // Black paga 1
+        ->and(TokenLedger::find($access->credit_ledger_id)->amount)->toBe(1); // performer +1 fixo
 });
 
 // --- Grace period: leitura bloqueada, corpo retido, sem envio ------------------
@@ -481,7 +494,7 @@ it('exposes chat state to a member who already has a conversation and access', f
             ->component('Performers/Show')
             ->where('chat.conversation_id', $conversation->id)
             ->where('chat.can_access', true)
-            ->where('chat.cost', 50));
+            ->where('chat.cost', 2)); // M.13.1: custo por tier (não-assinante = 2)
 });
 
 it('flags chat as needing access when a conversation exists without an active window', function () {

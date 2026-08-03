@@ -204,7 +204,7 @@ it('mostra o selo de convite ao seguidor sem chat', function () {
         ->and(invFeedItem($feed, $story->id)['is_invite'])->toBeTrue();
 });
 
-it('esconde o selo de quem já assina um Círculo — ele já tem chat livre', function () {
+it('mostra o selo a um assinante sem linha de chat — M.13.1: assinatura não é mais chat grátis', function () {
     $performer = chatPerformer();
     $story = invPublish($performer);
 
@@ -221,10 +221,11 @@ it('esconde o selo de quem já assina um Círculo — ele já tem chat livre', f
         ->assertOk()
         ->json('performers');
 
-    // Assinante vê o Story (é seguidor), mas SEM selo: mandar-lhe "compre chat"
-    // seria vender o que ele já tem.
+    // Sem chat grátis (M.13.1), o assinante que ainda NÃO abriu chat com ela é
+    // alvo legítimo do convite — ele pagaria 1-2 tokens para abrir. O selo só
+    // some para quem tem linha de chat_access (próximo teste).
     expect(invFeedItem($feed, $story->id))->not->toBeNull()
-        ->and(invFeedItem($feed, $story->id)['is_invite'])->toBeFalse();
+        ->and(invFeedItem($feed, $story->id)['is_invite'])->toBeTrue();
 });
 
 it('esconde o selo de quem já comprou acesso ao chat', function () {

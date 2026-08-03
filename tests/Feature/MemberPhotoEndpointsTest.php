@@ -234,14 +234,13 @@ it('recusa o compartilhamento sem chat ativo com aquela performer', function () 
     expect(MemberPhotoAccess::count())->toBe(0);
 });
 
-it('deixa o assinante de Círculo compartilhar sem linha em chat_access', function () {
-    // Este teste é a JUSTIFICATIVA do desenho do gate, e por isso ele existe:
-    // assinante tem chat livre e nunca gera linha em `chat_access`. Um gate
-    // escrito como "existe ChatAccess não expirada" recusaria exatamente quem
-    // paga mais — e passaria despercebido, porque o caminho do não-assinante
-    // continuaria verde.
+it('exige do assinante uma janela paga de chat para compartilhar (M.13.1)', function () {
+    // M.13.1 acabou com o chat grátis: o assinante agora gera linha em
+    // `chat_access` como todos, e o gate da foto (canMemberSendTo, fonte única)
+    // exige janela ATIVA. O assinante SEM linha não compartilha — o mesmo corte
+    // do não-assinante. A fonte única segue sendo canMemberSendTo (sem 2ª cópia).
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 2);
 
     Subscription::factory()->circle('explorador')->create([
         'user_id' => $member->id,
@@ -249,9 +248,15 @@ it('deixa o assinante de Círculo compartilhar sem linha em chat_access', functi
         'current_period_end' => now()->addMonth(),
     ]);
 
-    expect(ChatAccess::where('member_id', $member->id)->count())->toBe(0);
-
     $photo = epStorePhoto($member->fresh());
+
+    // Sem janela paga: recusa, mesmo sendo assinante.
+    $this->actingAs($member->fresh())
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertStatus(422);
+
+    // Abrindo o chat (paga 2, gera linha), o compartilhamento passa.
+    grantChatAccess($member->fresh(), $conversation);
 
     $this->actingAs($member->fresh())
         ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])

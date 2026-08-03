@@ -599,11 +599,12 @@ it('fecha as duas portas quando a conversa é arquivada', function () {
         ->assertJsonPath('reason', 'no_active_chat');
 });
 
-it('mantém o assinante de Círculo compartilhando sem linha em chat_access', function () {
-    // A leitura literal de `chat_access` recusaria justamente quem paga mais —
-    // e a extração não pode ter reintroduzido isso.
+it('exige janela paga de chat do assinante para compartilhar (M.13.1)', function () {
+    // M.13.1: sem chat grátis, o gate da foto (canMemberSendTo, fonte única)
+    // exige linha ATIVA de chat_access também do assinante. A extração continua
+    // com uma dona só — quem muda é o modelo de chat, não o gate da foto.
     $performer = chatPerformer();
-    [$member, $conversation] = chatUnlockedPair($performer);
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 2);
 
     expect(app(ChatAccessService::class)->accessFor($conversation, $member))->toBeNull();
 
@@ -618,6 +619,13 @@ it('mantém o assinante de Círculo compartilhando sem linha em chat_access', fu
         ->assertCreated();
 
     $photo = MemberPhoto::where('user_id', $member->id)->sole();
+
+    // Sem linha paga → recusa; abrindo o chat (paga 2, gera linha) → passa.
+    $this->actingAs($member->fresh())
+        ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])
+        ->assertStatus(422);
+
+    grantChatAccess($member->fresh(), $conversation);
 
     $this->actingAs($member->fresh())
         ->postJson(route('member.photos.share', $photo->id), ['performer_profile_id' => $performer->id])

@@ -129,10 +129,9 @@ function perkChatPair(PerformerProfile $performer, ?string $circleSlug = null): 
         ->where('performer_profile_id', $performer->id)
         ->sole();
 
-    // Assinante tem chat livre; sem Círculo é preciso comprar a janela.
-    if ($circleSlug === null) {
-        app(ChatAccessService::class)->openOrRenew($conversation, $member, (string) Str::uuid());
-    }
+    // M.13.1 (PR #132): NÃO há mais chat grátis — todo membro, assinante ou não,
+    // abre a janela paga (o membro tem saldo na linha acima para o custo por tier).
+    app(ChatAccessService::class)->openOrRenew($conversation, $member, (string) Str::uuid());
 
     return [$member->fresh(), $conversation];
 }
