@@ -13,6 +13,7 @@ use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\BoostService;
+use App\Services\PhotoAccessService;
 use App\Services\FollowerVisibilityService;
 use App\Services\InterestService;
 use App\Services\PerformerStoryService;
@@ -31,6 +32,7 @@ class DashboardController extends Controller
         private ProfileVisitService $visits,
         private PerformerStoryService $stories,
         private BoostService $boost,
+        private PhotoAccessService $photoAccess,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
@@ -128,6 +130,11 @@ class DashboardController extends Controller
             'anonymityFloor' => app(FollowerVisibilityService::class)->floor(),
             // Fotos efêmeras que membros compartilharam com ela (Sprint 9B).
             'receivedPhotos' => $this->receivedPhotos($profile),
+            // Pedidos de acesso às fotos PRIVADAS da galeria (Sprint 13). Já
+            // pseudonimizados (FanAlias label + handle) — o id do membro não
+            // chega aqui. A seção recarrega por `performer.gallery.requests`
+            // depois de aprovar/revogar. Ver PhotoAccessService.
+            'photoAccessRequests' => $this->photoAccess->pendingRequestsFor($profile),
             // Stories vivos dela (Sprint 9C). O payload vem do StoryPresenter, que
             // é a dona dele: a seção também recarrega por `performer.stories.index`
             // depois de publicar/apagar, e duas montagens do mesmo card

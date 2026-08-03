@@ -7,7 +7,7 @@ import KycPendingBanner from '@/Components/KycPendingBanner.vue'
 import ProfileProgress from '@/Components/ProfileProgress.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryPanel from '@/Components/StoryPanel.vue'
-import { patchJson, postJson } from '@/lib/http'
+import { deleteJson, patchJson, postJson } from '@/lib/http'
 
 const props = defineProps({
     wallet: { type: Number, required: true },
@@ -37,6 +37,10 @@ const props = defineProps({
     // Fotos que membros compartilharam com ela. Já chegam pseudonimizadas
     // (FanAlias) e com a faixa de tempo — nunca o id do membro nem relógio.
     receivedPhotos: { type: Array, default: () => [] },
+    // Pedidos de acesso às fotos privadas da galeria (Sprint 13). Cada item já
+    // vem pseudonimizado: { photo_id, photo_url, fan, member_handle } — nunca o
+    // id do membro. Ver PhotoAccessService::pendingRequestsFor.
+    photoAccessRequests: { type: Array, default: () => [] },
     // Stories vivos dela. `view_count` já vem em FAIXA (ou null no exclusivo) —
     // o número cru não trafega nas props, que é o caminho do DevTools.
     stories: { type: Array, default: () => [] },
@@ -193,6 +197,38 @@ async function activateBoost() {
         setTimeout(() => (toastMessage.value = ''), 5000)
     } finally {
         boosting.value = false
+    }
+}
+
+// Pedidos de acesso a fotos privadas (Sprint 13). Estado local; cada ação
+// devolve a fila atualizada do servidor (fonte da verdade). A performer só vê o
+// FanAlias — aprova/revoga pelo `member_handle`, nunca por id.
+const accessRequests = ref([...props.photoAccessRequests])
+const decidingKey = ref(null)
+
+function requestKey(req) {
+    return `${req.photo_id}:${req.member_handle}`
+}
+
+async function decideAccess(req, approve) {
+    const key = requestKey(req)
+    if (decidingKey.value !== null) return
+    decidingKey.value = key
+    try {
+        const data = approve
+            ? await postJson(route('performer.gallery.grant', [req.photo_id, req.member_handle]))
+            : await deleteJson(route('performer.gallery.revoke', [req.photo_id, req.member_handle]))
+        accessRequests.value = data.requests
+        toastMessage.value = approve ? 'Acesso concedido' : 'Pedido recusado'
+        setTimeout(() => (toastMessage.value = ''), 4000)
+    } catch (error) {
+        toastMessage.value =
+            error.status === 429
+                ? 'Muitas ações em pouco tempo. Aguarde um instante.'
+                : 'Não foi possível concluir. Tente novamente.'
+        setTimeout(() => (toastMessage.value = ''), 4000)
+    } finally {
+        decidingKey.value = null
     }
 }
 </script>
@@ -535,6 +571,56 @@ async function activateBoost() {
                     repassar o conteúdo é proibido pelas regras da plataforma e pode levar à
                     suspensão da conta.
                 </p>
+            </div>
+
+            <!-- Solicitações de acesso às fotos privadas (Sprint 13). Cada pedido
+                 é mostrado por FanAlias — a performer NUNCA vê o id nem o nome real
+                 de quem pediu. Aprovar concede acesso permanente àquela foto;
+                 recusar apaga o pedido. -->
+            <div class="space-y-4">
+                <div class="flex items-baseline justify-between">
+                    <h2 class="font-serif text-2xl text-cream">Solicitações de acesso</h2>
+                    <span class="text-xs text-muted">{{ accessRequests.length }} pendente(s)</span>
+                </div>
+
+                <p v-if="!accessRequests.length" class="text-sm text-muted">
+                    Nenhum pedido de acesso às suas fotos privadas no momento.
+                </p>
+
+                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div
+                        v-for="req in accessRequests"
+                        :key="requestKey(req)"
+                        class="flex items-center gap-3 rounded-xl border border-frame bg-surface p-4"
+                    >
+                        <img
+                            :src="req.photo_url"
+                            alt="Foto privada"
+                            class="h-14 w-14 shrink-0 rounded-lg border border-frame object-cover"
+                        />
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm text-cream">{{ req.fan }}</p>
+                            <div class="mt-1 flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    :disabled="decidingKey !== null"
+                                    class="rounded-md bg-gold px-3 py-1 text-xs text-background transition-colors hover:bg-gold-light disabled:opacity-50"
+                                    @click="decideAccess(req, true)"
+                                >
+                                    Aprovar
+                                </button>
+                                <button
+                                    type="button"
+                                    :disabled="decidingKey !== null"
+                                    class="rounded-md border border-frame px-3 py-1 text-xs text-muted transition-colors hover:text-cream hover:border-danger/50 disabled:opacity-50"
+                                    @click="decideAccess(req, false)"
+                                >
+                                    Recusar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

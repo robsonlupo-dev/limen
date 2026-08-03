@@ -153,7 +153,10 @@ class CatalogController extends Controller
             // então cada item traz a URL do serving público direto — sem paywall,
             // ao contrário dos stories. Avatar/cover NÃO entram aqui: são
             // separados (o resource os expõe em avatar_url/cover_url).
-            'photos' => PhotoGalleryPresenter::forProfile($profile),
+            // Viewer passado: foto privada sem grant vem `locked` e sem URL
+            // (Sprint 13). A performer que abrir o próprio perfil por aqui vê as
+            // dela (o service reconhece a dona).
+            'photos' => PhotoGalleryPresenter::forProfile($profile, $request->user()),
             // Alvo da denúncia (ver PublicCatalogController::show). Toda a rota
             // já está atrás de auth, então não há caso de visitante aqui.
             'report' => ['type' => 'performer', 'id' => $profile->id],

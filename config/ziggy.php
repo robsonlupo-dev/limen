@@ -103,6 +103,12 @@ return [
         'performer.gallery.destroy',
         'performer.gallery.reorder',
         'performer.gallery.image',
+        // Permissões por foto (Sprint 13): visibilidade + fila de pedidos +
+        // conceder/revogar por handle do FanAlias
+        'performer.gallery.visibility',
+        'performer.gallery.requests',
+        'performer.gallery.grant',
+        'performer.gallery.revoke',
 
         // 2FA TOTP da performer
         'performer.2fa.show',
@@ -130,6 +136,9 @@ return [
         // irmã aqui, e não é para ganhar uma).
         'favorites.index',
         'favorites.toggle',
+
+        // Solicitar acesso a foto privada da galeria (Sprint 13)
+        'photos.access.request',
 
         // Buscas salvas do membro (combinações de filtros do catálogo). Área de
         // membro, sem lado da performer — mesma disciplina dos favoritos.
