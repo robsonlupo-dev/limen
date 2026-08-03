@@ -146,6 +146,93 @@ vence** — e os slugs de tier são os do `Circle::TIER_ORDER`
 > tipo de gasto/crédito é **migration no enum de `entry_type`** (princípio nº 2,
 > ledger append-only) — nunca `UPDATE` de saldo.
 
+## M.13 — Emenda de 03/08/2026: invariantes da economia de tokens (SUBSTITUI M.1–M.9 onde conflitar)
+
+Fechado pelo PO após benchmark de mercado e simulação de margem. Cada item é invariante — mudar exige decisão de PO registrada.
+
+### M.13.1 — Chat: crédito fixo, sem percentual (SUBSTITUI M.3 e coluna "Chat" de M.7)
+
+Split percentual superado para chat. Não existe arredondamento que preserve 75/25 sobre base de 1 ou 2 tokens.
+
+| Quem abre                          | Membro paga | Performer recebe | Resultado Limen |
+|------------------------------------|-------------|------------------|-----------------|
+| Não-assinante                      | 2 tk        | 1 tk (fixo)      | +1 tk           |
+| Explorador / Insider / Prestige    | 2 tk        | 1 tk (fixo)      | +1 tk           |
+| Black                              | 1 tk        | 1 tk (fixo)      | 0               |
+| FC                                 | 1 tk        | 1 tk (fixo)      | 0               |
+
+Black passou de grátis para 1 token (mudança pré-lançamento). Explorador/Insider/Prestige passaram de 1 para 2 tokens (benefício real desses tiers é franquia e conteúdo, não chat). Subsídio eliminado — nenhum tier gera custo para a Limen no chat. entry_type continua chat_access_credit; NÃO criar tipo separado. Chat é canal, não receita.
+
+### M.13.2 — Pacotes achatados (SUBSTITUI tabela de M.1)
+
+| Pacote  | Preço     | Tokens | R$/token |
+|---------|-----------|--------|----------|
+| Starter | R$ 49,90  | 50     | R$ 1,00  |
+| Popular | R$ 99,90  | 105    | R$ 0,95  |
+| Premium | R$ 199,90 | 220    | R$ 0,91  |
+| VIP     | R$ 499,90 | 580    | R$ 0,86  |
+
+Âncora de R$1,00/token no Starter é inviolável.
+
+### M.13.3 — Desconto por tier (SUBSTITUI M.2)
+
+Explorador 10% · Insider 10% · Prestige 15% · Black 20% · FC 25%. Invariante: nenhuma combinação de pacote + desconto pode levar custo efetivo abaixo de R$0,625/token (margem mínima 25%).
+
+### M.13.4 — Franquia mensal dos Círculos (SUBSTITUI inclusos de M.7)
+
+| Tier        | Assinatura    | Inclusos/mês | R$/token implícito |
+|-------------|---------------|--------------|---------------------|
+| Explorador  | R$ 89,90      | 105          | R$ 0,86             |
+| Insider     | R$ 189,90     | 230          | R$ 0,83             |
+| Prestige    | R$ 389,90     | 490          | R$ 0,80             |
+| Black       | R$ 749,90     | 1.000        | R$ 0,75             |
+| FC          | R$ 1.490,00   | 2.100        | R$ 0,71             |
+
+Tokens inclusos: subscription_grant, não expiram, sujeitos ao teto (M.13.8).
+
+### M.13.5 — Payout: R$0,60/token fixo (NOVO)
+
+Cada token vale R$0,60 no saque, sempre, independente da origem. Redação obrigatória na interface da performer: "Você recebe 80% dos tokens da transação. Cada token vale R$0,60 no saque." NUNCA escrever porcentagem sobre valor em reais.
+
+### M.13.6 — Split: do tipo de evento, nunca do lugar (SUBSTITUI M.5; CONFIRMA M.9)
+
+| Tipo de evento              | Split (performer / Limen) |
+|-----------------------------|---------------------------|
+| Conteúdo permanente         | 80 / 20                   |
+| Gorjeta                     | 80 / 20                   |
+| Chat (abertura)             | fixo 1 tk (fora do %)     |
+| Presente virtual            | 75 / 25                   |
+| Live pública (por bloco)    | 70 / 30                   |
+| Chamada privada (por min)   | 70 / 30                   |
+| Boost / Interesse revelado  | 100% Limen                |
+| Assinatura de Círculo       | 100% Limen                |
+
+Catálogo de presentes em múltiplos de 4 tokens (invariante validada): Rosa 4 · Chocolate 12 · Champagne 40 · Joia 100 · Coroa 200 · Diamante 400.
+
+### M.13.7 — Arredondamento: regra única para split percentual
+
+1. Taxa gravada na linha do ledger em inteiro (70, 75, 80). 2. Congelada na transação, nunca recalculada. 3. credito = intdiv(valor * taxa + 50, 100); retencao = valor - credito. 4. Round-half-up, inteiros, nunca float. 5. Piso de 5 tokens em conteúdo/live/chamada. 6. Tabela em config/monetization.php por entry_type com data de vigência.
+
+### M.13.8 — Teto de acúmulo: escalonado + fila de pendência (SUBSTITUI teto fixo de M.1)
+
+Teto = max(5.000, 4 × franquia), com FC fixado em 8.000 pelo PO. Sem assinatura até Black = 5.000; FC = 8.000. O teto é incentivo a gastar, não confisco. Fila de grant pendente: credita o que couber, pendura o resto; pendência máxima = 1 franquia (ciclo novo substitui, não empilha); não expira; consumo automático parcial a cada gasto. Aviso quando espaço_restante ≤ 2 × franquia_do_tier (4.500 fixo para não-assinante).
+
+### M.13.9 — O teto é propriedade do MOVIMENTO, não da pessoa
+
+saldo > teto é estado legítimo. NÃO criar constraint. Invariante real: purchase, bonus e subscription_grant não creditam acima do teto. Chave é entry_type, nunca role (performer pode assinar Círculo). Respeitam teto: purchase, bonus, subscription_grant. Nunca respeitam: tip_credit, chat_access_credit, refund, payout_reversal, adjustment, todo *_credit. Compra acima do teto: barrada no checkout; webhook que chegar mesmo assim credita e loga.
+
+### M.13.10 — Tier do membro NÃO é visível para a performer
+
+Performer não vê tier nem bit "assinante". Exceção única: FC Only revela FC no desbloqueio. Mostrar depois é fácil, esconder depois é impossível.
+
+### M.13.11 — Margem mínima de 25%
+
+Nenhuma transação pode resultar em margem bruta abaixo de 25%. Piso de custo efetivo: R$0,625/token. Se mudar payout, split ou desconto, recalcular antes de implementar.
+
+### M.13.12 — Estado de implementação
+
+Nada de M.13 está implementado até o PR #130. O texto das linhas 60–72 do CLAUDE.md (pacotes, chat, descontos, inclusos) fica superado por M.13 — ambos presentes, M.13 tem precedência.
+
 ## Estado atual
 
 > **Estado atual** (`main`, `1d63371`, Sprint 13 FECHADO): **1524 testes, 7799
