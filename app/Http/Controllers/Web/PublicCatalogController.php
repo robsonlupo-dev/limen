@@ -11,6 +11,7 @@ use App\Services\FavoriteService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
 use App\Services\StoryVisibilityService;
+use App\Services\TokenCreditPolicy;
 use App\Support\PhotoGalleryPresenter;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,6 +33,7 @@ class PublicCatalogController extends Controller
         private ProfileVisitService $profileVisits,
         private StoryVisibilityService $storyVisibility,
         private FavoriteService $favorites,
+        private TokenCreditPolicy $creditPolicy,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -185,7 +187,8 @@ class PublicCatalogController extends Controller
             'conversation_id' => $conversation->id,
             'state' => $state['state'],
             'can_access' => $state['can_send'],
-            'cost' => (int) config('chat.access_cost'),
+            // Custo por tier do próprio membro (M.13.1): 2 ou 1 token.
+            'cost' => $this->creditPolicy->chatCost($user),
         ];
     }
 }

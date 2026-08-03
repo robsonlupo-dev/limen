@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
 use App\Services\MemberPhotoService;
+use App\Services\TokenCreditPolicy;
 use App\Services\TokenService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -28,8 +29,9 @@ use Inertia\Response;
  * ConversationPolicy garante que só participantes entrem. NÃO há endpoint de
  * abertura de conversa pelo membro — o canal nasce no desbloqueio.
  *
- * Cobrança é por ACESSO (ChatAccessService): assinante tem chat livre; membro
- * sem assinatura paga uma janela por performer.
+ * Cobrança é por ACESSO (ChatAccessService). M.13.1 (PR #132): NÃO há mais chat
+ * grátis — todo membro (assinante ou não) paga uma janela por performer, e o
+ * custo por tier vem da TokenCreditPolicy (2 ou 1 token).
  */
 class ChatController extends Controller
 {
@@ -38,6 +40,7 @@ class ChatController extends Controller
         private ChatAccessService $chatAccessService,
         private TokenService $tokenService,
         private MemberPhotoService $memberPhotos,
+        private TokenCreditPolicy $creditPolicy,
     ) {}
 
     public function index(Request $request): Response
@@ -59,12 +62,16 @@ class ChatController extends Controller
         $page = $query->paginate(20);
 
         // Preview da última mensagem respeita o MESMO paywall do show(): a
-        // performer sempre lê; o membro só com Círculo ativo (global) ou janela
-        // paga vigente para AQUELE par. Sem isso, preview vem null (a UI mostra
-        // "bloqueado") — nunca vazamos o corpo na listagem.
-        $isSubscriber = ! $viewerIsPerformer && $user->activeSubscription() !== null;
+        // performer sempre lê; o membro só com janela paga vigente para AQUELE
+        // par. Sem isso, preview vem null (a UI mostra "bloqueado") — nunca
+        // vazamos o corpo na listagem.
+        //
+        // M.13.1 (PR #132): NÃO há mais atalho de assinante aqui. Este era um
+        // segundo paywall (cópia do accessState) e um `|| $isSubscriber` vazaria
+        // preview/contagem para assinante sem janela paga — bypass de leitura. A
+        // leitura é uniforme: performer sempre, senão linha de `chat_access` ativa.
         $activePerformerIds = [];
-        if (! $viewerIsPerformer && ! $isSubscriber) {
+        if (! $viewerIsPerformer) {
             $performerIds = collect($page->items())->pluck('performer_profile_id');
             $activePerformerIds = ChatAccess::where('member_id', $user->id)
                 ->whereIn('performer_profile_id', $performerIds)
@@ -74,9 +81,8 @@ class ChatController extends Controller
                 ->all();
         }
 
-        $conversations = $page->through(function (Conversation $c) use ($user, $viewerIsPerformer, $isSubscriber, $activePerformerIds) {
+        $conversations = $page->through(function (Conversation $c) use ($user, $viewerIsPerformer, $activePerformerIds) {
             $canRead = $viewerIsPerformer
-                || $isSubscriber
                 || in_array($c->performer_profile_id, $activePerformerIds, true);
 
             $last = $c->messages()->latest('id')->first();
@@ -109,7 +115,7 @@ class ChatController extends Controller
 
         return Inertia::render('Chat/Index', [
             'conversations' => $conversations,
-            'accessCost' => (int) config('chat.access_cost'),
+            'accessCost' => $this->creditPolicy->chatCost($request->user()),
         ]);
     }
 
@@ -193,7 +199,7 @@ class ChatController extends Controller
             'messages' => $messages,
             'access' => $state,
             'photoSharing' => $this->photoSharingProps($request, $conversation, $state),
-            'accessCost' => (int) config('chat.access_cost'),
+            'accessCost' => $this->creditPolicy->chatCost($request->user()),
             'balance' => $this->tokenService->balance($request->user()),
         ]);
     }
@@ -219,7 +225,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Compra ou renova o acesso ao chat desta conversa (membro sem assinatura).
+     * Compra ou renova o acesso ao chat desta conversa (M.13.1: todo membro paga).
      * Idempotente por idempotency_key.
      */
     public function openAccess(OpenChatAccessRequest $request, Conversation $conversation): JsonResponse
@@ -247,7 +253,10 @@ class ChatController extends Controller
             // retorno de sucesso abaixo com o estado vigente — open é idempotente
             // por par: o membro fica com acesso, cobrado 1x.
         } catch (\InvalidArgumentException $e) {
-            // Assinante (já tem chat livre) ou caso inválido.
+            // Rede de segurança: o único InvalidArgumentException que resta em
+            // openOrRenew é "não é o membro da conversa", já coberto pelo abort_if
+            // 404 acima (M.13.1 removeu o caso "assinante tem chat livre"). Mantido
+            // defensivamente para caminho de dinheiro nunca cair em 500.
             return response()->json(['reason' => 'not_applicable', 'message' => $e->getMessage()], 422);
         }
 
