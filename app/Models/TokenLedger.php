@@ -12,7 +12,7 @@ class TokenLedger extends Model
     protected $table = 'token_ledger';
 
     protected $fillable = [
-        'wallet_id', 'entry_type', 'amount', 'balance_after',
+        'wallet_id', 'entry_type', 'amount', 'applied_rate', 'balance_after',
         'reference_type', 'reference_id', 'description',
     ];
 
@@ -20,6 +20,7 @@ class TokenLedger extends Model
     {
         return [
             'amount' => 'integer',
+            'applied_rate' => 'integer',
             'balance_after' => 'integer',
             'reference_id' => 'integer',
         ];
