@@ -74,6 +74,7 @@
 23. [Aceite de documentos da performer](#23-aceite-de-documentos-da-performer)
 24. [LGPD — Hard Delete e sistema de Report](#24-lgpd--hard-delete-e-sistema-de-report)
 25. [Rotas, CI/CD, deploy e ambiente](#25-rotas-cicd-deploy-e-ambiente)
+- [**MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS**](#modelo-de-monetização-limen--decisões-fechadas)
 - [Apêndice A — Backlog e próximos passos](#apêndice-a--backlog-e-próximos-passos)
 - [Apêndice B — Limitações conhecidas (não redescobrir)](#apêndice-b--limitações-conhecidas-não-redescobrir)
 - [Apêndice C — Glossário](#apêndice-c--glossário)
@@ -2215,6 +2216,187 @@ CHAT_FILTER_ENABLED=true · CHAT_FILTER_AUDIT_DEDUP_MINUTES=10
 
 > **`ASAAS_API_KEY` começa com `$`** → aspas simples no `.env` (senão vira
 > variável do shell → 401).
+
+---
+
+## MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS
+
+> **Fechado pelo Product Owner (Robson) em 03/08/2026.** É a **referência
+> canônica para toda implementação futura de monetização** do Limen — pacotes de
+> tokens, chat, conteúdo, live, chamada privada, assinaturas dos Círculos, splits
+> e payout. Nenhuma dessas peças é "opinião de sprint": ao construir qualquer uma,
+> parte-se **daqui**.
+>
+> **Precedência.** Onde este modelo conflita com `docs/SUBSCRIPTION_TIERS.md` ou
+> `docs/CIRCLES_SYSTEM_V4.md` (a divergência registrada no §19.2), **este modelo
+> vence** e aqueles docs são históricos. Os **slugs de tier** continuam sendo os
+> do código — `Circle::TIER_ORDER` = `explorador / insider / prestige / black /
+> founders_circle` (§19.1) — e "Insider" é o nome de produto do segundo degrau.
+>
+> **Alvo, não inventário.** Esta seção descreve o **estado-alvo fechado**, não o
+> que já roda. Ver "Estado de implementação" ao final: hoje só existem o ledger da
+> fundação, gorjeta, desbloqueio de interesse, boost e a mecânica de assinatura;
+> **live, chamada, conteúdo permanente e presentes não estão implementados**.
+
+### M.1 — Moeda única: TOKENS
+
+- **Tudo passa por tokens.** Chat, conteúdo, live, gorjeta, presente — não há
+  segunda moeda interna. Dinheiro (PIX) entra só para **comprar** tokens ou pagar
+  **assinatura**.
+- **Tokens NUNCA expiram.** Nem os comprados, nem a franquia mensal do tier.
+- **Teto de acúmulo: 5.000 tokens.** No teto, o assinante **continua pagando a
+  assinatura**, mas os tokens (inclusive a franquia mensal) **não creditam até
+  ele gastar** e abrir espaço. É teto de SALDO, não de gasto.
+- **A performer vê o R$ equivalente** ao lado de todo preço em tokens (no
+  dashboard, no editor de preço de conteúdo/live/chamada). Preço para o membro é
+  em tokens; leitura para a performer é bilíngue.
+- Como sempre: tokens são **inteiros**, nunca float; saldo é a **soma do ledger
+  append-only** (princípio nº 2), nunca `UPDATE`.
+
+### M.2 — Pacotes de tokens (compra via PIX)
+
+Preço **cheio** (não-assinante):
+
+| Pacote | Preço | Tokens | R$/token |
+|---|---|---|---|
+| Starter | R$ 49,90 | 50 | 1,00 |
+| Popular | R$ 99,90 | 110 | 0,91 |
+| Premium | R$ 199,90 | 240 | 0,83 |
+| VIP | R$ 499,90 | 650 | 0,77 |
+
+**Desconto por tier de assinatura** (aplica sobre a compra do pacote):
+Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
+
+### M.3 — Chat
+
+- **Custo de abrir** (por par membro↔performer): não-assinante **2 tokens** ·
+  Explorador/Insider/Prestige **1 token** · Black/FC **grátis** (a Limen
+  **subsidia** e paga **1 token** à performer mesmo assim).
+- Depois de aberto: **mensagens ilimitadas por 30 dias** (a janela de acesso já
+  existente do §17).
+- **Split:** performer recebe **75%** do custo de abertura. No caso Black/FC
+  (grátis para o membro), a performer recebe 1 token da Limen — o subsídio.
+
+### M.4 — Conteúdo (fotos e vídeos PERMANENTES)
+
+> **Não implementado.** É o "post permanente / mídia paga" que o §1 registra como
+> inexistente hoje. Stories (§9C) são efêmeros e não são isto.
+
+- A performer define, por peça: **nível de acesso** + **preço em tokens**.
+- Níveis: **Aberto / Premium / Exclusivo / FC Only**.
+- Acesso por tier:
+  - **Aberto** — grátis para **todos os assinantes**.
+  - **Premium** — **Prestige+** pode comprar com tokens.
+  - **Exclusivo** — **Black+** pode comprar com tokens.
+  - **FC Only** — **só FC** pode comprar com tokens.
+  - **Explorador/Insider** — veem só o Aberto (grátis); **sem acesso** aos demais
+    níveis (incentiva upgrade).
+- **Desbloqueio é permanente** — não expira (ao contrário do chat e da foto
+  efêmera).
+- **Split: 80% performer / 20% Limen.**
+
+### M.5 — Live pública
+
+> **Não implementado** (depende do LiveKit — M.11).
+
+- A performer define o preço: **X tokens por bloco de 10 min**.
+- **Todo mundo paga** (inclusive FC) — com tokens inclusos ou comprados.
+  Não-assinante pode assistir pagando **preço cheio**.
+- **Split: 70% performer / 30% Limen.**
+- **Gorjetas e presentes durante a live: 80/20.**
+
+### M.6 — Chamada privada (1:1 vídeo)
+
+> **Não implementado** (depende do LiveKit — M.11; esbarra também no bloqueio de
+> serving sem cifra em memória que travou as FC Sessions, §2.5 do 9C).
+
+- A performer define o preço: **X tokens por minuto**.
+- **Todo mundo paga** — com tokens inclusos ou comprados.
+- **Split: 70% performer / 30% Limen.**
+
+### M.7 — Assinaturas dos Círculos
+
+100% Limen (sem split). Slugs em `Circle::TIER_ORDER` (§19.1).
+
+| Tier | Preço/mês | Chat | Conteúdo | Inclusos/mês | Perks | Desc. tokens |
+|---|---|---|---|---|---|---|
+| **Explorador** | R$ 89,90 | 1 token | Aberto grátis | 50 | Badge | 10% |
+| **Insider** | R$ 189,90 | 1 token | Aberto grátis | 120 | Badge | 10% |
+| **Prestige** | R$ 389,90 | 1 token | Aberto + **Premium** (paga tokens) | 250 | Read receipts | 20% |
+| **Black** | R$ 749,90 | **GRÁTIS** | + **Exclusivo** (paga tokens) | 500 | Ghost Mode, Modo Discreto · cap **500** simultâneos | 30% |
+| **FC** | R$ 1.490,00 | **GRÁTIS** | **TUDO** (paga dos inclusos) | 1.200 | Número permanente, milestones · cap **100** simultâneos | 40% |
+
+- "Paga tokens" nos níveis pagos de conteúdo: o tier **dá acesso ao nível**, o
+  desbloqueio da peça ainda **debita tokens** (M.4). Só o **Aberto** é grátis.
+- Os caps de 500 (Black) e 100 (FC) são de **vagas simultâneas** do tier —
+  escassez de produto, coerente com o `EnsureActiveCircle`/seeder.
+
+### M.8 — Tokens inclusos
+
+- Creditados no **1º dia do ciclo** (`subscription_grant` no ledger — §6.2).
+- **NÃO expiram** — entram no **saldo normal**, indistinguíveis dos comprados.
+- Sujeitos ao **teto de 5.000** (M.1): **se no teto, não credita até gastar**.
+
+### M.9 — Split dinâmico (tabela canônica)
+
+| Evento | Performer | Limen |
+|---|---|---|
+| Conteúdo (fotos/vídeos) | 80% | 20% |
+| Chat (abertura) | 75% | 25% |
+| Live pública | 70% | 30% |
+| Chamada privada | 70% | 30% |
+| Gorjeta | 80% | 20% |
+| Presente virtual | 75% | 25% |
+| **Boost** | — | **100% Limen** (performer gasta) |
+| **Interesse revelado** | — | **100% Limen** |
+| **Assinatura** | — | **100% Limen** |
+
+### M.10 — Payout da performer
+
+- Ciclo **mensal** (não "a qualquer momento").
+- **Mínimo: 100 tokens** acumulados.
+- Processamento **no dia 1**, referente ao **mês anterior**.
+- Via **PIX (Asaas)**; **R$ equivalente visível no dashboard**.
+- Convive com a mecânica já existente do §21 (`PayoutService`, `payout_reserve`,
+  porta `needs_review`) — este item fixa **cadência e mínimo**, que são política
+  de produto.
+
+### M.11 — LiveKit (infraestrutura de live/chamada)
+
+- **Fase 1 (lançamento):** LiveKit **Cloud Build** — grátis, 5.000 min/mês.
+- **Fase 2 (crescimento):** LiveKit **Cloud Ship** — ~US$ 50/mês.
+- **Fase 3 (escala):** **self-hosted no Hetzner** — ~R$ 230/mês fixo.
+- **Custo real ~R$ 0,01/min por participante** (margem 98%+ contra os preços de
+  live/chamada de M.5/M.6).
+- Nada implementado hoje — LiveKit segue "planejado, nada no projeto" (§Stack).
+
+### M.12 — Presentes virtuais (BACKLOG, não implementado)
+
+- **Catálogo fixo definido pela Limen** (não a performer).
+- **Preços fixos** (ex.: Rosa 5 tokens, Champagne 50 tokens).
+- **Split: 75/25.**
+- **Animação na tela** durante a live.
+
+### Estado de implementação (alvo × hoje)
+
+| Peça | Estado hoje |
+|---|---|
+| Compra de pacote via PIX + ledger | ✅ fundação (preços/descontos de M.2 são alvo de produto) |
+| Gorjeta 80/20 | ✅ §18 |
+| Chat interest-gated + janela de acesso | ✅ §17 (custo/subsídio por tier de M.3 é alvo) |
+| Desbloqueio de interesse 100% Limen | ✅ Sprint 3 |
+| Boost 100% Limen | ✅ Sprint 11 |
+| Assinaturas/Círculos + `subscription_grant` | ✅ §19 (preços/inclusos/descontos de M.7 são alvo) |
+| Payout mensal via Asaas | ✅ §21 (cadência/mínimo de M.10 é política a fixar) |
+| **Conteúdo permanente pago (M.4)** | 🔴 não existe |
+| **Live pública (M.5)** | 🔴 não existe (depende de LiveKit) |
+| **Chamada privada (M.6)** | 🔴 não existe (depende de LiveKit) |
+| **Presentes virtuais (M.12)** | 🔴 backlog |
+| **Teto de 5.000 / não-expiração explícitos (M.1)** | 🟡 a fixar como invariante do ledger |
+
+> **Cada novo gasto/crédito é migration no enum de `entry_type`** (§6.2, princípio
+> nº 2) — não há `spend_content`, `spend_live`, `spend_call` nem `gift_*` hoje.
+> Saldo é sempre a soma do ledger append-only; **nunca `UPDATE ... balance`**.
 
 ---
 
