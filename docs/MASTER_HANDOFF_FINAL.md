@@ -7,20 +7,29 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 03/08/2026 — **`main` em `1d63371`**, tag
-> **`v1.0-sprint13`** (`1d63371`). **Sprint 13 FECHADO** — 5 entregas: PR #125
-> (Refactor de roles — `moderador` separado de `admin`, fila `/moderacao/*`),
-> PR #126 (Evidence viewer da prova retida), PR #127 (Múltiplas localizações, até
-> 3, com migração), PR #128 (Photo permissions — pública/privada + grant), PR #129
-> (Stories feed carousel no catálogo). Suíte: **1524 testes, 7799 asserts** (verde
-> local e no CI; a antiga falha só-local da view 451 do GeoBlock não recorre
-> depois do `npm run build`). Nesta janela o **modelo de monetização** foi fechado
-> e documentado como referência canônica (commit `f6aa9a3` — ver CLAUDE.md).
+> **Última atualização:** 04/08/2026 — **`main` em `0f6aefb`**, tag
+> **`v1.0-sprint14`** (`0f6aefb`). **Sprint 14 FECHADO** — 8 entregas, a
+> **implementação do modelo de monetização M.13**: PR #130 (invariantes M.13 —
+> `TokenCreditPolicy` + `config/monetization.php`), PR #131 (rewire de gorjeta/
+> pacotes/desconto), PR #132 (chat M.13.1 — fim do chat grátis de assinante),
+> PR #133 (subscription grant com fila de pendência M.13.4/M.13.8), PR #134
+> (payout mensal R$0,60/token M.13.5/M.10), PR #135 (conteúdo permanente com
+> acesso por tier M.13.13/M.4), PR #136 (fix de copy dos founding members), PR #137
+> (catálogo de presentes virtuais 75/25 M.13.6). Suíte: **1627 testes, 14226
+> asserts** (verde local e no CI; a única falha local é a antiga da view 451 do
+> GeoBlock, que não recorre depois do `npm run build` e é verde no CI).
 >
-> **A tag `v1.0-sprint13` (`1d63371`) marca o fecho do Sprint 13, e é marco de
-> CÓDIGO, não de go-live.** Deploy de staging pendente: **as 5 entregas ainda NÃO
+> **A tag `v1.0-sprint14` (`0f6aefb`) marca o fecho do Sprint 14, e é marco de
+> CÓDIGO, não de go-live.** Deploy de staging pendente: **as 8 entregas ainda NÃO
 > subiram para staging.** O snapshot do §1 reflete `main` HEAD = a própria tag
 > (mais esta atualização de doc por cima).
+>
+> **Histórico recente:** 03/08/2026 — `main` em `1d63371`, tag `v1.0-sprint13`,
+> **Sprint 13 FECHADO** (5 entregas: PR #125 Refactor de roles, PR #126 Evidence
+> viewer, PR #127 Múltiplas localizações, PR #128 Photo permissions, PR #129
+> Stories feed carousel). Suíte era 1524/7799. Nesta janela o **modelo de
+> monetização** foi fechado e documentado (commit `f6aa9a3`), virando o alvo do
+> Sprint 14. As 5 entregas seguem pendentes de staging.
 >
 > **Histórico recente:** 02/08/2026 — `main` em `f23368a`, tag `v1.0-sprint12`,
 > **Sprint 12 FECHADO** (3 entregas: PR #122 fix da ordem de posse no `deploy.sh`
@@ -93,26 +102,26 @@
 
 ## 1. Snapshot do estado atual
 
-> **Snapshot de `main` HEAD (`1d63371`) = tag `v1.0-sprint13` — Sprint 13
-> fechado (PRs #125–#129).** Os números abaixo refletem esse estado.
+> **Snapshot de `main` HEAD (`0f6aefb`) = tag `v1.0-sprint14` — Sprint 14
+> fechado (PRs #130–#137).** Os números abaixo refletem esse estado.
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1524 testes, 7799 asserts** (verde local e no CI; a antiga falha só-local da view 451 do GeoBlock não recorre após `npm run build`) | `php artisan test` (~160 s) |
-| Migrations | **96** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **181** | `php artisan route:list` |
-| `Route::` em `routes/web.php` | 147 | `grep` |
-| Rotas HTTP em `routes/api.php` | 41 (o OTP tem porta de API; **foto, story, notas, boost, convite, buscas salvas, photo permissions e feed de stories continuam só web**) | `grep` |
-| Services | 38 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
-| Models | 41 | `ls app/Models/` |
-| Controllers Web | 57 | `find app/Http/Controllers/Web` |
-| Controllers API | 22 | `find app/Http/Controllers/Api` |
+| Suíte de testes | **1627 testes, 14226 asserts** (verde local e no CI; a única falha local é a antiga da view 451 do GeoBlock, que não recorre após `npm run build` e é verde no CI) | `php artisan test` (~175 s) |
+| Migrations | **107** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **192** | `php artisan route:list` |
+| `Route::` em `routes/web.php` | 144 | `grep` |
+| Rotas HTTP em `routes/api.php` | 42 (o OTP e o **catálogo de presentes** têm porta de API; **foto, story, notas, boost, convite, buscas salvas, photo permissions, feed de stories e o ENVIO de presente continuam só web**) | `grep` |
+| Services | 44 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
+| Models | 45 | `ls app/Models/` |
+| Controllers Web | 60 | `find app/Http/Controllers/Web` |
+| Controllers API | 23 | `find app/Http/Controllers/Api` |
 | Middleware | 12 | `ls app/Http/Middleware/` |
-| Commands (agendáveis) | 12 | `ls app/Console/Commands/` |
+| Commands (agendáveis) | 15 | `ls app/Console/Commands/` |
 | Jobs | 3 | `ls app/Jobs/` |
 | Policies | 4 | `ls app/Policies/` |
-| Configs | 27 | `ls config/` |
-| Tag Git | **`v1.0-sprint13` (`1d63371`, fecho do Sprint 13)**, `v1.0-sprint12` (`f23368a`), `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Configs | 28 | `ls config/` |
+| Tag Git | **`v1.0-sprint14` (`0f6aefb`, fecho do Sprint 14)**, `v1.0-sprint13` (`1d63371`), `v1.0-sprint12` (`f23368a`), `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -993,6 +1002,102 @@ Endpoints sob `auth`+`2fa`+`role:consumer`+`member.verified`; três rotas em
 `config/ziggy.php`. UI: `FilterPanel` do catálogo do membro ganha "💾 Salvar
 busca" + modal e o dropdown "Buscas salvas" (aplica/apaga). Detalhe no
 **CLAUDE.md** (§ "Buscas salvas do membro — Sprint 12").
+
+---
+
+## Sprint 14 — Fechado
+
+> **FECHADO — tag `v1.0-sprint14` (`0f6aefb`).** Oito entregas mergeadas
+> (PRs #130–#137), a **implementação do modelo de monetização M.13** fechado no
+> Sprint 13. Suíte no fecho: **1627 testes, 14226 asserts**. Disciplina que o PO
+> endossou e manteve o sprint inteiro: **primeiro as regras existem e estão
+> testadas (invariantes), depois o código vivo passa a respeitá-las** — por isso o
+> PR #130 (invariantes) veio antes de qualquer rewire de comportamento. Cada tipo
+> novo de gasto/crédito é **migration no enum de `entry_type`** do ledger
+> append-only (princípio nº 2), NUNCA `UPDATE` de saldo.
+>
+> **Deploy de staging PENDENTE:** as **8 entregas ainda NÃO subiram** para
+> staging. A tag é marco de código, não de go-live.
+
+**PR #130 — Invariantes M.13.** `config/monetization.php` virou a **fonte canônica**
+dos números do modelo (pacotes, franquias, descontos, split_rates, teto, payout) e
+`TokenCreditPolicy` a **dona única** que os aplica: teto por `entry_type` e nunca
+por role (M.13.9), fila de pendência com teto escalonado (M.13.8), split
+round-half-up com `applied_rate` **congelado na linha** (M.13.7), gate de checkout
+vs. webhook, e os sinais de chat/gift/payout/aviso. Migrations de
+`token_ledger.applied_rate` e `token_wallets.pending_grant_tokens`. Só religou os
+caminhos cap-críticos (purchase, subscription_grant) e o hook de liberação de
+pendência no `TokenService::debit`. **Não misturou rewire de comportamento vivo.**
+
+**PR #131 — Rewire de gorjeta/pacotes/desconto.** `TipService` passou a usar
+`policy.applyRate/creditWithSplit` (gorjeta **80/20 por evento**, `applied_rate=80`,
+FanAlias na descrição do crédito) e **dropou `split_pct`** do profile (modelo
+antigo). O desconto de compra passou a vir da config via `policy.purchaseDiscountPct`
+(a config M.13.3 é a AUTORIDADE de cobrança; `circles.discount_pct` virou espelho
+sincronizado por migração + teste). `DatabaseSeeder` com os 4 pacotes achatados
+M.13.2 (desativa os antigos, nunca deleta por FK de `payments`).
+
+**PR #132 — Chat M.13.1.** Fim do chat grátis de assinante: **todo tier paga a
+abertura** (2 tokens, ou 1 em Black/FC, via `policy.chatCost`), e a performer
+recebe **+1 token FIXO** (`policy.chatOpenPerformerCredit`, `chat_access_credit`
+never-cap). `ChatAccessService` perdeu o bypass de assinante em `openOrRenew`/
+`accessState`; `memberHasChatWith` virou só `ChatAccess::exists` (assinante sem
+linha agora é alvo de convite). `ChatController::index()` perdeu o `$isSubscriber`
+(era 2º paywall que vazaria preview — achado ALTO da revisão). O gate só
+ENDURECEU; `canMemberSendTo` segue fonte única (Foto Efêmera intacta).
+
+**PR #133 — Subscription grant com fila de pendência (M.13.4/M.13.8).** A franquia
+mensal JÁ era concedida no webhook de cobrança do Asaas (idempotente por
+`provider_event_id`). O novo `subscriptions:grant-monthly` é **rede de
+reconciliação, não 2º caminho** — o webhook segue PRIMÁRIO. Os dois compartilham a
+marca por-ciclo `subscriptions.last_grant_period_start` (nova coluna, fora do
+`$fillable`) sob `lockForUpdate` com re-check, o que fecha o double-grant
+command×webhook e faz o command **não conceder o 1º ciclo** (marca NULL = grant
+antecipado do webhook). Valor ancorado no Círculo DA ASSINATURA via
+`policy.franchiseForSlug`, com teste travando `circle.monthly_tokens == config`.
+
+**PR #134 — Payout mensal R$0,60/token (M.13.5/M.10).** `calculatePayoutCentavos`
+deixou de derivar reais de `split_pct` e virou **`tokens × 60` centavos** (inteiro
+puro). **amount = ganhos devidos, não saldo bruto:** `payable = min(owed, balance)`,
+somando SÓ o allowlist estrito `config('monetization.payout.earning_entry_types')`
+(nunca por sinal do amount — senão bonus/refund/purchase/subscription_grant vazam a
+R$0,60). Mantém os DOIS caminhos: sweep `payouts:process-monthly` (dia 1,
+idempotente por índice único (performer, ano, mês)) + on-demand, mínimo 100 nos
+dois. A revisão do plano achou que o sweep pagava conta **banida** (só checava
+`is_verified`) — passou a filtrar `status=active`; e o teto de ganhos foi aplicado
+aos DOIS caminhos.
+
+**PR #135 — Conteúdo permanente com acesso por tier (M.13.13/M.4).** Primeira
+monetização de CONTEÚDO: **photo-only v1** (vídeo é upload não-higienizável — GD
+não processa vídeo — fica p/ PR próprio) e **1 arquivo por peça**. `PerformerContent`
+(níveis Aberto/Premium/Exclusivo/FC Only + preço) + `ContentUnlock` (UNIQUE
+(peça,membro), desbloqueio **permanente**). `ContentVisibilityService` é a **dona
+única** de "quem alcança" (espelha `StoryVisibilityService`, fail-closed por tier).
+`ContentUnlockService` espelha o TipService (2 wallets locked ascending, re-check
+sob lock, `spend_content` + `creditWithSplit` `content_credit` `applied_rate=80`,
+UNIQUE backstop). Serving sob `storage/app/private` (**entra no backup**, oposto de
+story/foto efêmera), sem URL assinada, blur≠paywall. Reportável, denúncia congela
+remoção, Hard Delete nos dois sentidos. Detalhe no **CLAUDE.md** (§ abaixo do
+Sprint 14 no arquivo, "Conteúdo permanente").
+
+**PR #136 — Fix de copy dos founding members.** Removeu o contador de posição e
+tornou a copy gênero-neutra (`PerformerTier`, `WaitlistEntry`, e-mails de nurture e
+a view do fundador). Fora da trilha de monetização.
+
+**PR #137 — Catálogo de presentes virtuais (M.13.6).** Catálogo **fixo da Limen**
+(6 presentes múltiplos de 4: rosa 4 · chocolate 12 · champagne 40 · joia 100 ·
+coroa 200 · diamante 400), gerido por `GiftSeeder` (reference-data pura, roda em
+produção), não pela performer. `GiftService` espelha Tip/ContentUnlock (2 wallets
+locked ascending, re-check sob lock, self-gift antes do débito, saldo insuf.
+reverte sem linha). Split **75/25** via `creditWithSplit('gift','gift_credit')`,
+`applied_rate=75` congelado; `spend_gift`/`gift_credit` novos no enum, fora do
+cap-respecting (never-cap). **Idempotência ESCOPADA POR REMETENTE** via UNIQUE
+composto `(sender_id, idempotency_key)` — mais forte que o UNIQUE global do Tip. A
+performer só vê **FanAlias**; **um único** audit `gift.sent` (ator=membro, sem
+`sender_id`) evita o cross-JOIN membro↔performer em `audit_logs`. `gift_credit`
+entrou no allowlist de ganho do payout. Rotas: web member POST `/presentes` +
+catálogo público (web e API `v1/gifts`). Detalhe no **CLAUDE.md** (§ "Presentes
+virtuais — Sprint 14").
 
 ---
 
@@ -2486,37 +2591,63 @@ Fechado"). Marcado aqui para não ser relido como pendente:
 - [x] **Permissões de fotos** — pública/privada + grant por FanAlias (PR #128).
 - [x] **Feed UI consumindo `stories.feed`** — carrossel no catálogo (PR #129).
 
-### A.0.1 Sprint 14 — registrado, não iniciado
+### A.0.1 Sprint 14 — ENTREGUE
 
-Ordem não é prioridade. O grosso deste bloco é **implementar o modelo de
-monetização fechado** (§ "MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS",
-commit `f6aa9a3`). Regra dura: cada tipo novo de gasto/crédito é **migration no
-enum de `entry_type`** do ledger append-only (princípio nº 2), **nunca `UPDATE`
-de saldo**. Live/chamada dependem de LiveKit, que ainda esbarra no serving sem
-cifra em memória do § 2.5.
+O backlog do Sprint 14 — a **implementação do modelo de monetização M.13** — foi
+implementado (PRs #130–#137, ver "Sprint 14 — Fechado"). Cada tipo novo de gasto/
+crédito virou **migration no enum de `entry_type`** do ledger append-only
+(princípio nº 2), **nunca `UPDATE` de saldo**. Marcado aqui para não ser relido
+como pendente:
 
-- [ ] **Conteúdo permanente** (fotos/vídeos com níveis de acesso — Aberto /
-      Premium / Exclusivo / FC Only + preço em tokens; desbloqueio PERMANENTE;
-      split 80/20). Reaproveita o paywall por peça do Photo Permissions (Sprint 13)
-      e do Story (§ 2.3).
-- [ ] **Live pública (LiveKit)** — X tokens por bloco de 10 min; todos pagam;
-      split 70/30; gorjeta/presente na live 80/20.
-- [ ] **Chamada privada 1:1 / videochamada (LiveKit)** — X tokens/minuto; todos
-      pagam; split 70/30. Mesmo track de infra da live pública.
-- [ ] **Presentes virtuais** — catálogo fixo da Limen, preços fixos, split 75/25,
-      animação na tela durante a live (já no modelo como BACKLOG).
-- [ ] **Desconto de tokens por tier** — sobre a COMPRA de pacotes (Explorador/
-      Insider 10% · Prestige 20% · Black 30% · FC 40%).
-- [ ] **Tokens inclusos nas assinaturas** — creditados no 1º dia do ciclo, não
-      expiram, `subscription_grant` no ledger, sujeitos ao teto de 5.000.
-- [ ] **Payout mensal (ciclo dia 1)** — processar no dia 1 referente ao mês
-      anterior, mínimo 100 tokens, via PIX (Asaas). O payout existe mas não é
-      amarrado ao ciclo mensal do modelo.
+- [x] **Invariantes M.13** — `config/monetization.php` (fonte canônica) +
+      `TokenCreditPolicy` (dona única: teto/split/pendência/chat/payout), com
+      `applied_rate` e `pending_grant_tokens` (PR #130).
+- [x] **Rewire de gorjeta/pacotes/desconto** para M.13 — gorjeta 80/20 por evento,
+      desconto pela config, pacotes achatados M.13.2 (PR #131).
+- [x] **Chat M.13.1** — fim do chat grátis de assinante; todo tier paga abertura,
+      performer +1 token fixo (PR #132).
+- [x] **Tokens inclusos + fila de pendência** (M.13.4/M.13.8) — franquia mensal com
+      teto escalonado, webhook primário + command de reconciliação (PR #133).
+- [x] **Payout mensal R$0,60/token** (M.13.5/M.10) — sweep dia 1 idempotente +
+      on-demand, só ganhos sacáveis, não paga banida (PR #134).
+- [x] **Conteúdo permanente** com acesso por tier (M.13.13/M.4) — foto v1, níveis,
+      desbloqueio permanente, split 80/20 (PR #135).
+- [x] **Presentes virtuais** — catálogo fixo da Limen múltiplos de 4, split 75/25,
+      idempotência por remetente (PR #137). **Fora deste PR: animação na live.**
+- [x] **Desconto de tokens por tier** sobre a compra de pacotes — entregue no
+      PR #131 (a config M.13.3 é a autoridade de cobrança).
+
+### A.0.2 Sprint 15 — registrado, não iniciado
+
+Ordem não é prioridade. O bloco central é **vídeo em tempo real (LiveKit)**,
+planejado desde a fundação e **nunca implementado** (não há dependência no projeto
+— não presuma que existe). O gargalo conhecido é o serving sem cifra em memória do
+§ 2.5, que travou as FC Sessions. Os `entry_type` `live_credit`/`call_credit`
+**ainda não existem** — entram como migration no enum quando as features shiparem
+(princípio nº 2; ver a nota em `config/monetization.php`,
+`payout.earning_entry_types`).
+
+- [ ] **Live pública (LiveKit)** — a performer define X tokens por bloco de 10 min;
+      **todos pagam** (inclusive FC); split **70/30** (M.13.6). Esbarra no serving
+      sem cifra do § 2.5.
+- [ ] **Chamada privada 1:1 / videochamada (LiveKit)** — X tokens/minuto; **todos
+      pagam**; split **70/30**. Mesmo track de infra da live pública.
+- [ ] **Gorjeta e presentes durante a live** — gorjeta na live **80/20**, presente
+      **75/25** (M.13.6); UI + **animação na tela**. O catálogo de presentes e o
+      split já existem (PR #137); falta a superfície de live e a animação.
+- [ ] **Feed/timeline de conteúdo permanente** — a UI que consome os dados do
+      PR #135. O backend (`PerformerContent`, `ContentUnlock`,
+      `ContentVisibilityService`, serving) está entregue e testado; falta o
+      consumidor Vue — mesma situação do `stories.feed` antes do Sprint 13.
 
 Carregados de backlogs anteriores (ainda abertos):
 
 - [ ] **Verificação de documento como produto** (R$ 9,90) — selo pago para o
       membro. **Depende da Didit** (a mesma integração do KYC da performer).
+- [ ] **Sanitização de upload de vídeo** — pipeline ffmpeg para `PerformerContent`
+      `kind=video`. O PR #135 é photo-only de propósito (GD não processa vídeo, e
+      sem higienização o upload é superfície não-confiável). Destrava vídeo no
+      conteúdo permanente.
 - [ ] **Prazo máximo de retenção da prova** — o evidence viewer (Sprint 13) deixa
       a moderação VER a prova retida, mas nada expira a retenção. (Metade restante
       do achado da revisão de 30/07.)

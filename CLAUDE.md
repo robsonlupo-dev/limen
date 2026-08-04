@@ -274,20 +274,44 @@ Nada de M.13 está implementado até o PR #130. O bloco de monetização acima (
 
 ## Estado atual
 
-> **Estado atual** (`main`, `1d63371`, Sprint 13 FECHADO): **1524 testes, 7799
-> asserts** (verde local e no CI; a antiga falha só-local da view 451 do GeoBlock
-> não recorre depois do `npm run build`, que compila a view). **Base original**
+> **Estado atual** (`main`, `0f6aefb`, Sprint 14 FECHADO): **1627 testes, 14226
+> asserts** (verde local e no CI; a única falha local é a antiga da view 451 do
+> GeoBlock, que não recorre depois do `npm run build`, que compila a view — é
+> verde no CI). **107 migrations, 144 rotas web + 42 rotas API.** **Base original**
 > (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
 
-**Sprints 6, 7, 8, 9A, 9C, 10, 11, 12 e 13 fechados** (tags `v1.0-sprint6` a
+**Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13 e 14 fechados** (tags `v1.0-sprint6` a
 `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
 dos bloqueadores da Foto Efêmera, **`v1.0-sprint10`** (`402d29e`) no fecho do
 Sprint 10, **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11,
-**`v1.0-sprint12`** (`f23368a`) no fecho do Sprint 12, e **`v1.0-sprint13`**
-(`1d63371`) no fecho do Sprint 13). **O Sprint 9B não tem tag própria** e não
-está fechado.
+**`v1.0-sprint12`** (`f23368a`) no fecho do Sprint 12, **`v1.0-sprint13`**
+(`1d63371`) no fecho do Sprint 13, e **`v1.0-sprint14`** (`0f6aefb`) no fecho do
+Sprint 14). **O Sprint 9B não tem tag própria** e não está fechado.
+
+> **Sprint 14 fechou com 8 entregas** (tag `v1.0-sprint14`, `0f6aefb`) — a
+> **implementação do modelo de monetização fechado** (§ "Modelo de monetização —
+> DECISÕES FECHADAS" + emenda M.13). Cada tipo novo de gasto/crédito virou
+> migration no enum de `entry_type` do ledger append-only (princípio nº 2), nunca
+> `UPDATE` de saldo. PR #130 (**invariantes M.13** — `config/monetization.php`
+> como fonte canônica + `TokenCreditPolicy` dona única de teto/split/pendência/
+> chat/payout, `applied_rate` congelado), PR #131 (**rewire tip/pacotes/desconto**
+> para M.13 — gorjeta 80/20 por evento, desconto de compra pela config, pacotes
+> achatados M.13.2), PR #132 (**chat M.13.1** — fim do chat grátis de assinante:
+> todo tier paga abertura, performer +1 token fixo), PR #133 (**subscription
+> grant com fila de pendência** M.13.4/M.13.8 — franquia mensal com teto
+> escalonado, webhook primário + command de reconciliação), PR #134 (**payout
+> mensal R$0,60/token** M.13.5/M.10 — sweep dia 1 idempotente + on-demand, só
+> ganhos sacáveis), PR #135 (**conteúdo permanente com acesso por tier**
+> M.13.13/M.4 — foto v1, níveis Aberto/Premium/Exclusivo/FC Only, desbloqueio
+> permanente, split 80/20), PR #136 (**fix de copy dos founding members** —
+> gênero-neutro, position counter removido), PR #137 (**catálogo de presentes
+> virtuais** M.13.6 — 6 presentes fixos da Limen múltiplos de 4, split 75/25,
+> idempotência por remetente). **Deploy de staging pendente** para as entregas. A
+> tag é marco de código, não de go-live (ver abaixo). **Ainda no backlog de
+> monetização (foi para Sprint 15):** live pública e chamada privada (LiveKit),
+> gorjeta/presente durante a live com animação.
 
 > **Sprint 13 fechou com 5 entregas** (tag `v1.0-sprint13`, `1d63371`): PR #125
 > (**Refactor de roles** — `moderador` separado de `admin`, fila dedicada
@@ -386,6 +410,7 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 11** — FECHADO, tag `v1.0-sprint11` (`11354b4`), 4 entregas: **Login OTP passwordless** (§ abaixo, PR #118: código de 6 dígitos por e-mail, 5 min, uso único, 5 palpites, 3/hora; web + API, convive com o login por senha; 2FA da performer se aplica depois; `otp:purge` GC horário); **badge "Disponível para conversa"** (PR #119, `available_for_chat_at` no perfil, janela de 4h com auto-expiração na leitura); **Notas privadas da performer sobre membros** (§ abaixo, PR #120: nota por FanAlias, cifrada, o membro nunca vê); **Boost pago** (§ abaixo, PR #121: 50 tokens, 6h, ledger append-only `spend_boost`, destaca o perfil no topo do catálogo). **Deploy de staging: só o PR #118 subiu; #119–#121 pendentes.** O resto do backlog do Sprint 11 (convite via Stories, videochamada LiveKit) **não foi iniciado**.
 - **Sprint 12** — FECHADO, tag `v1.0-sprint12` (`f23368a`), 3 entregas: **fix da ordem de posse no `deploy.sh` manual** (PR #122: chown de `storage/` antes do `git pull` e de `public/build/` antes do `npm run build`, espelhando a hardening que o workflow de CI já tinha); **Convite via Stories** (§ abaixo, PR #123: `is_invite` no story, teto de 2 convites ativos por performer sob leitura, selo "💌 Convite" no feed só para o seguidor SEM chat — `ChatAccessService::memberHasChatWith` como dona; sem lista de "quem recebeu"); **Salvar busca** (§ abaixo, PR #124: o membro guarda combinações de filtros do catálogo, cap 10 sob lock, allowlist derivado de `filterRules()`, privado do membro, varrido no Hard Delete). **Deploy de staging: #123 e #124 pendentes** (#122 é script manual). Não iniciados do backlog: refactor de roles, videochamada LiveKit, e a **tela de feed que consome `stories.feed`** (o endpoint existe e é testado, mas sem consumidor Vue — o selo do convite depende dela).
 - **Sprint 13** — FECHADO, tag `v1.0-sprint13` (`1d63371`), 5 entregas: **Refactor de roles** (PR #125: `moderador` separado de `admin`, fila humana dedicada `/moderacao/*` sob `role:moderador`, em vez do antigo `/admin/reports` sob `role:admin` — pré-requisito da fila de moderação de verdade e do Curador das FC Sessions); **Evidence viewer** (PR #126: a fila de moderação passou a exibir a PROVA retida — bytes congelados de Story/Foto Efêmera denunciados —, fechando o achado da revisão de 30/07 "a fila não tem como VER a prova"); **Múltiplas localizações** (PR #127: até 3 por performer, com migração das linhas de UF única existentes; só UF é público, `city` segue interno — mesma regra da localização opt-in do Sprint 9A); **Photo permissions** (§ abaixo, PR #128: cada foto da galeria pode ser pública ou privada; foto privada aparece borrada no perfil e só é servida a quem tem `photo_grant` aprovado — ou à dona; o membro solicita, a performer aprova/revoga pelo FanAlias, `member_id` nunca vaza; Hard Delete nos dois sentidos); **Stories feed carousel** (§ abaixo, PR #129: a UI que consome `stories.feed` — carrossel tipo Instagram no topo do catálogo, buscado por fetch para não pagar o `canView` por story no caminho crítico; o selo do Convite via Stories do Sprint 12 finalmente tem tela). **Deploy de staging: as 5 pendentes.** Fora das PRs, nesta janela o **modelo de monetização** foi fechado e documentado (§ "Modelo de monetização — DECISÕES FECHADAS", commit `f6aa9a3`).
+- **Sprint 14** — FECHADO, tag `v1.0-sprint14` (`0f6aefb`), 8 entregas — a **implementação do modelo de monetização M.13**: **PR #130** (invariantes M.13: `config/monetization.php` como fonte canônica dos números + `TokenCreditPolicy` dona única de teto por entry_type/M.13.9, fila de pendência/M.13.8, split round-half-up com `applied_rate` congelado/M.13.7, sinais de chat/gift/payout; migrations de `token_ledger.applied_rate` e `token_wallets.pending_grant_tokens`); **PR #131** (rewire de gorjeta/pacotes/desconto para M.13: `TipService` usa `policy.applyRate/creditWithSplit` 80/20 por evento e dropou `split_pct`, desconto de compra vem da config M.13.3, pacotes achatados M.13.2 no seeder); **PR #132** (chat M.13.1: fim do chat grátis de assinante — todo tier paga abertura via `policy.chatCost`, performer +1 token FIXO `chat_access_credit` never-cap, `memberHasChatWith` virou só `ChatAccess::exists`); **PR #133** (subscription grant com fila de pendência M.13.4/M.13.8: franquia mensal com teto escalonado, webhook de cobrança PRIMÁRIO + `subscriptions:grant-monthly` como rede de reconciliação, marca por-ciclo `last_grant_period_start` fecha o double-grant); **PR #134** (payout mensal R$0,60/token M.13.5/M.10: `calculatePayoutCentavos` = `tokens × 60`, sweep `payouts:process-monthly` dia 1 idempotente por (performer, ano, mês) + on-demand, **só ganhos sacáveis** via allowlist estrito, não paga banida); **PR #135** (conteúdo permanente com acesso por tier M.13.13/M.4 — § abaixo: foto v1, níveis Aberto/Premium/Exclusivo/FC Only, desbloqueio permanente via `ContentUnlock`, `ContentVisibilityService` dona única, split 80/20, denunciável, Hard Delete dois sentidos); **PR #136** (fix de copy dos founding members: gênero-neutro, position counter removido); **PR #137** (catálogo de presentes virtuais M.13.6 — § abaixo: 6 presentes fixos da Limen múltiplos de 4, `GiftService` espelha Tip/ContentUnlock, split 75/25 `applied_rate=75`, idempotência por remetente via UNIQUE composto, performer só vê FanAlias, `gift_credit` no allowlist de payout). **Deploy de staging: as 8 pendentes.** Não iniciado (foi para Sprint 15): live/chamada LiveKit, gorjeta/presente na live com animação, feed de conteúdo permanente, verificação de documento, sanitização de upload de vídeo.
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -394,38 +419,46 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 > **Sprint 13 (registrado como backlog) foi ENTREGUE** — o refactor de roles, o
 > evidence viewer, as múltiplas localizações, as permissões de foto e o feed UI
 > viraram os PRs #125–#129 (ver a lista de Sprints acima). O que ficou de fora
-> daquele backlog e ainda vale carregou para o Sprint 14 abaixo.
+> daquele backlog e ainda vale carregou para o Sprint 14.
 
-### Backlog — Sprint 14 (registrado, não iniciado)
-Ordem não é prioridade. O grosso deste bloco é a **implementação do modelo de
-monetização fechado** (§ "Modelo de monetização — DECISÕES FECHADAS") — cada tipo
-novo de gasto/crédito é **migration no enum de `entry_type`** do ledger
-append-only (princípio nº 2), NUNCA `UPDATE` de saldo. LiveKit segue sendo o
-gargalo dos itens de vídeo (§ 2.5: serving sem cifra em memória travou as FC
-Sessions).
+> **Sprint 14 (registrado como backlog) foi ENTREGUE** — a implementação do
+> modelo de monetização M.13 (invariantes, rewire de tip/pacotes/chat, grant com
+> pendência, payout mensal, conteúdo permanente, presentes) virou os PRs #130–#137
+> (ver a lista de Sprints acima). O que ficou de fora daquele backlog — tudo que
+> depende de LiveKit (live, chamada, gorjeta/presente na live) mais a verificação
+> de documento e a sanitização de vídeo — carregou para o Sprint 15 abaixo.
 
-- **Conteúdo permanente** (fotos/vídeos com níveis de acesso) — a performer define
-  nível (Aberto / Premium / Exclusivo / FC Only) + preço em tokens; desbloqueio é
-  PERMANENTE; split 80/20. Reaproveita a disciplina de paywall por peça já provada
-  no Photo Permissions (Sprint 13) e no Story (§ 2.3).
-- **Live pública (LiveKit)** — X tokens por bloco de 10 min; todos pagam; split
-  70/30; gorjeta/presente na live 80/20.
-- **Chamada privada 1:1 / Videochamada (LiveKit)** — X tokens/minuto; todos pagam;
-  split 70/30. (São o MESMO track de infra LiveKit da live pública — planejado
-  desde a fundação, nada implementado, esbarra no serving sem cifra do § 2.5.)
-- **Presentes virtuais** — catálogo fixo da Limen com preços fixos, split 75/25,
-  animação na tela durante a live. Já no modelo como BACKLOG.
-- **Desconto de tokens por tier de assinatura** — aplica sobre a COMPRA de pacotes
-  (Explorador/Insider 10% · Prestige 20% · Black 30% · FC 40%).
-- **Tokens inclusos nas assinaturas** — creditados no 1º dia do ciclo, não
-  expiram, `subscription_grant` no ledger, sujeitos ao teto de acúmulo de 5.000.
-- **Payout mensal (ciclo dia 1)** — processar no dia 1 referente ao mês anterior,
-  mínimo 100 tokens acumulados, via PIX (Asaas). Hoje o payout existe mas não é
-  amarrado ao ciclo mensal do modelo.
+### Backlog — Sprint 15 (registrado, não iniciado)
+Ordem não é prioridade. O bloco central é **vídeo em tempo real (LiveKit)**,
+planejado desde a fundação e nunca implementado — **não presuma que existe**
+(não há dependência no projeto — § "Stack"). O gargalo conhecido é o serving sem
+cifra em memória do § 2.5, que travou as FC Sessions. Cada gasto/crédito novo de
+live/chamada é **migration no enum de `entry_type`** do ledger append-only
+(princípio nº 2), NUNCA `UPDATE` de saldo — os `entry_type` `live_credit`/
+`call_credit` ainda não existem, entram quando essas features shiparem (ver a
+nota em `config/monetization.php`, `payout.earning_entry_types`).
 
-Carregados do backlog do Sprint 13 (ainda não feitos):
+- **Live pública (LiveKit)** — a performer define X tokens por bloco de 10 min;
+  **todos pagam** (inclusive FC); split **70/30** (M.13.6). Não-assinante assiste
+  pagando cheio. Esbarra no serving sem cifra do § 2.5.
+- **Chamada privada 1:1 / Videochamada (LiveKit)** — X tokens/minuto; **todos
+  pagam**; split **70/30**. MESMO track de infra LiveKit da live pública.
+- **Gorjeta e presentes durante a live** — a gorjeta na live é **80/20** e o
+  presente **75/25** (M.13.6); a UI + **animação na tela** durante a live. O
+  catálogo de presentes e o split já existem (PR #137); falta a superfície de live
+  e a animação.
+- **Feed/timeline de conteúdo permanente** — a UI que consome os dados do PR #135
+  (peças por nível de acesso). O backend (`PerformerContent`, `ContentUnlock`,
+  `ContentVisibilityService`, serving) está entregue e testado; falta o consumidor
+  Vue — mesma situação do `stories.feed` antes do Sprint 13.
+
+Carregados do backlog do Sprint 14 (ainda não feitos):
 - **Verificação de documento como produto** (R$ 9,90) — selo de verificação pago
   para o membro. **Depende da Didit** (a mesma integração do KYC da performer).
+- **Sanitização de upload de vídeo** — pipeline ffmpeg para `PerformerContent`
+  `kind=video` (o PR #135 é photo-only de propósito: GD não processa vídeo, e sem
+  higienização o upload é superfície não-confiável). Destrava vídeo no conteúdo
+  permanente.
 - **Pin PHP 8.5→8.4 no `deploy.yml`** — o job de teste do CI fixa `php-version:
   '8.5'`, mas o alvo de produção é 8.4.22. Alinhar (é mudança em
   `.github/workflows/`, que exige token com escopo `workflow` — o servidor de dev
