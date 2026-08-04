@@ -23,6 +23,7 @@ use App\Http\Controllers\Web\Consumer\PhotoAccessController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileController;
 use App\Http\Controllers\Web\Consumer\ReportController;
+use App\Http\Controllers\Web\Content\ContentController;
 use App\Http\Controllers\Web\Consumer\SavedSearchController;
 use App\Http\Controllers\Web\Consumer\StoryController as ConsumerStoryController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestCo
 use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
+use App\Http\Controllers\Web\Performer\PerformerContentController;
 use App\Http\Controllers\Web\Performer\PhotoController as PerformerPhotoController;
 use App\Http\Controllers\Web\Performer\PerformerLocationController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
@@ -594,6 +596,39 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->name('performer.stories.image')
                 ->can('performer-active');
 
+            // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Gestão pela
+            // performer: já sob auth+2fa+documents.accepted, mais role:performer
+            // (grupo) e performer-active. O `desbloqueios` (GET, literal) e o POST
+            // vêm antes das rotas com {content}. Serving da própria peça (preview de
+            // gestão) é rota SEPARADA da do membro, onde vive o paywall.
+            Route::get('/performer/conteudo', [PerformerContentController::class, 'index'])
+                ->middleware('throttle:60,1')
+                ->name('performer.content.index')
+                ->can('performer-active');
+
+            Route::post('/performer/conteudo', [PerformerContentController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->name('performer.content.store')
+                ->can('performer-active');
+
+            Route::get('/performer/conteudo/{content}/desbloqueios', [PerformerContentController::class, 'unlockers'])
+                ->middleware('throttle:60,1')
+                ->whereNumber('content')
+                ->name('performer.content.unlockers')
+                ->can('performer-active');
+
+            Route::get('/performer/conteudo/{content}/imagem', [PerformerContentController::class, 'image'])
+                ->middleware('throttle:60,1')
+                ->whereNumber('content')
+                ->name('performer.content.image')
+                ->can('performer-active');
+
+            Route::delete('/performer/conteudo/{content}', [PerformerContentController::class, 'destroy'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('content')
+                ->name('performer.content.destroy')
+                ->can('performer-active');
+
             // Galeria de fotos do perfil (Sprint 10). Mesmos gates da edição de
             // perfil e dos stories: já sob `auth`+`2fa`+`documents.accepted`, mais
             // `role:performer` (grupo) e `can('performer-active')` — publicar
@@ -859,6 +894,25 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:120,1')
             ->whereNumber('story')
             ->name('stories.image');
+
+        // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Lado do MEMBRO, no
+        // grupo role:consumer + member.verified sob auth+2fa. Serving AUTENTICADO
+        // por sessão, tier resolvido a cada request — sem URL assinada, pela mesma
+        // razão do Story: assinatura não amarra viewer, viraria bearer token.
+        Route::get('/conteudo/{content}', [ContentController::class, 'show'])
+            ->middleware('throttle:60,1')
+            ->whereNumber('content')
+            ->name('content.show');
+
+        Route::get('/conteudo/{content}/imagem', [ContentController::class, 'image'])
+            ->middleware('throttle:120,1')
+            ->whereNumber('content')
+            ->name('content.image');
+
+        Route::post('/conteudo/{content}/desbloquear', [ContentController::class, 'unlock'])
+            ->middleware('throttle:20,1')
+            ->whereNumber('content')
+            ->name('content.unlock');
 
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');

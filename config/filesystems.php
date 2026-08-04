@@ -145,6 +145,21 @@ return [
             'report' => false,
         ],
 
+        // Conteúdo permanente pago da performer (M.4/M.13.13). Mesma disciplina do
+        // performer_photos: imagem EM CLARO (sem Crypt — 1:N como o Story), bytes
+        // só pelo ContentStore com re-sniff de Content-Type no servidor, nunca URL
+        // de disco. E, como a galeria, é PERMANENTE (o membro pagou pelo acesso
+        // permanente): fica sob `storage/app/private`, que o `docs/backup.sh`
+        // (allowlist) tarballa — o OPOSTO de story/foto efêmera, cujo backup seria
+        // o bug. `serve => false` + `throw => false` como os demais privados.
+        'performer_content' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/performer-content'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

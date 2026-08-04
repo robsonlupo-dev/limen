@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ContentVisibilityService;
 use App\Services\MemberPhotoService;
 use App\Services\StoryVisibilityService;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,6 +53,13 @@ class Report extends Model
         // correlacionável entre perfis, que é exatamente o que o FanAlias existe
         // para impedir. Quem traduz handle → alvo é resolveFromHandle().
         'member_photo' => MemberPhoto::class,
+        // Conteúdo permanente pago (Sprint 14, M.4). É a peça mais DURADOURA do
+        // produto (sem TTL) e des-anonimizada por pagamento — se for ilegal, fica
+        // servível para sempre. Por isso é denunciável desde o dia 1 (princípio nº
+        // 1), pela mesma porta dos outros. "Quem viu" = "quem pode denunciar", como
+        // o story: a resposta vem do ContentVisibilityService::canView (visibleTo).
+        // Denúncia em aberto congela a remoção manual (PerformerContentService).
+        'performer_content' => PerformerContent::class,
     ];
 
     /**
@@ -189,6 +197,12 @@ class Report extends Model
             // `user_id` é `$hidden` (não sai em serialização), mas continua
             // legível aqui: $hidden esconde do JSON, não do código.
             $reportable instanceof MemberPhoto => (int) $reportable->user_id,
+            // A peça de conteúdo é da PERFORMER, pelo perfil (como o story).
+            // `withTrashed()` pela mesma razão: perfil encerrado entre a publicação
+            // e a denúncia não pode zerar a checagem de autodenúncia.
+            $reportable instanceof PerformerContent => (int) PerformerProfile::withTrashed()
+                ->whereKey($reportable->performer_profile_id)
+                ->value('user_id'),
             // Fail-closed: devolver null aqui faria a comparação com o reporter
             // dar false e DESLIGARIA silenciosamente a checagem de autodenúncia
             // no dia em que alguém adicionar um tipo em REPORTABLE_TYPES e
@@ -252,6 +266,14 @@ class Report extends Model
             // como descuido.
             $reportable instanceof MemberPhoto => app(MemberPhotoService::class)
                 ->performerCanView($user, $reportable),
+            // Conteúdo permanente: "viu" é a mesma pergunta do serving, então a
+            // resposta vem da dona única (ContentVisibilityService::canView) — não
+            // reimplementar. Um `true` largo demais deixaria o POST de denúncia
+            // virar oráculo de existência para peças que o membro não alcança.
+            // Consequência assumida (como story): quem NÃO desbloqueou/não alcança
+            // não denuncia — mas quem viu o conteúdo (pagou/grátis) pode.
+            $reportable instanceof PerformerContent => app(ContentVisibilityService::class)
+                ->canView($user, $reportable),
             default => false,
         };
     }
