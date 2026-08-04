@@ -21,7 +21,9 @@ uses(RefreshDatabase::class);
 
 function fundPerformerWallet(User $performer, int $tokens): void
 {
-    app(TokenService::class)->credit($performer, $tokens, 'purchase');
+    // Ganho sacável (tip_credit), não 'purchase': só ganhos são sacáveis (M.13.5),
+    // então o saldo do saque tem que vir de um crédito de ganho.
+    app(TokenService::class)->credit($performer, $tokens, 'tip_credit');
 }
 
 function payoutPayload(array $overrides = []): array
@@ -86,15 +88,26 @@ it('visitante e redirecionado para login', function () {
 
 // ─── Validação ──────────────────────────────────────────────────────────────
 
-it('saque abaixo de 500 tokens e rejeitado', function () {
+it('saque abaixo de 100 tokens e rejeitado', function () {
+    [$performer] = makeWebPerformer();
+    fundPerformerWallet($performer, 2000);
+
+    $this->actingAs($performer)
+        ->post('/performer/payouts', payoutPayload(['tokens' => 50]))
+        ->assertSessionHasErrors('tokens');
+
+    expect(Payout::count())->toBe(0);
+});
+
+it('saque de exatamente 100 tokens e aceito (novo minimo M.10)', function () {
     [$performer] = makeWebPerformer();
     fundPerformerWallet($performer, 2000);
 
     $this->actingAs($performer)
         ->post('/performer/payouts', payoutPayload(['tokens' => 100]))
-        ->assertSessionHasErrors('tokens');
+        ->assertSessionDoesntHaveErrors();
 
-    expect(Payout::count())->toBe(0);
+    expect(Payout::where('performer_id', $performer->id)->count())->toBe(1);
 });
 
 it('saque acima de 50000 tokens e rejeitado', function () {
@@ -131,25 +144,29 @@ it('valor brl e calculado pelo servidor nao pelo request', function () {
         ->assertSessionDoesntHaveErrors();
 
     $payout = Payout::where('performer_id', $performer->id)->firstOrFail();
-    $expected = round((1000 * 99 * 65) / 1000 / 100, 2);
 
-    expect((float) $payout->amount_brl)->toBe($expected);
+    // R$0,60/token FIXO (M.13.5): 1000 × 0,60 = R$600,00.
+    expect((float) $payout->amount_brl)->toBe(600.00);
 });
 
-it('split_pct e lido do performer_profile nao do request', function () {
-    [$performer, $profile] = makeWebPerformer([], ['split_pct' => 70]);
-    fundPerformerWallet($performer, 2000);
+it('valor usa R$0,60 fixo, nunca split_pct do profile (M.13.5)', function () {
+    // Duas performers com split_pct diferentes recebem o MESMO R$ pelo mesmo
+    // número de tokens — a taxa não depende mais do split.
+    [$a] = makeWebPerformer([], ['split_pct' => 70]);
+    [$b] = makeWebPerformer([], ['split_pct' => 40]);
+    fundPerformerWallet($a, 2000);
+    fundPerformerWallet($b, 2000);
 
-    $this->actingAs($performer)
-        ->post('/performer/payouts', payoutPayload(['tokens' => 1000, 'split_pct' => 10]))
+    $this->actingAs($a)->post('/performer/payouts', payoutPayload(['tokens' => 1000, 'split_pct' => 10]))
+        ->assertSessionDoesntHaveErrors();
+    $this->actingAs($b)->post('/performer/payouts', payoutPayload(['tokens' => 1000]))
         ->assertSessionDoesntHaveErrors();
 
-    $payout = Payout::where('performer_id', $performer->id)->firstOrFail();
-    $expectedAt70 = round((1000 * 99 * 70) / 1000 / 100, 2);
-    $expectedAt10 = round((1000 * 99 * 10) / 1000 / 100, 2);
+    $payoutA = Payout::where('performer_id', $a->id)->firstOrFail();
+    $payoutB = Payout::where('performer_id', $b->id)->firstOrFail();
 
-    expect((float) $payout->amount_brl)->toBe($expectedAt70);
-    expect((float) $payout->amount_brl)->not->toBe($expectedAt10);
+    expect((float) $payoutA->amount_brl)->toBe(600.00)
+        ->and((float) $payoutB->amount_brl)->toBe(600.00);
 });
 
 // ─── Ledger ─────────────────────────────────────────────────────────────────

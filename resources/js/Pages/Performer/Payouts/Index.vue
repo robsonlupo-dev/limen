@@ -7,7 +7,10 @@ import Button from '@/Components/Button.vue'
 
 const props = defineProps({
     balance: { type: Number, required: true },
-    splitPct: { type: Number, required: true },
+    payoutRatePerToken: { type: Number, required: true },
+    minTokens: { type: Number, required: true },
+    maxTokens: { type: Number, required: true },
+    withdrawableTokens: { type: Number, required: true },
     kycOk: { type: Boolean, required: true },
     recent: { type: Array, required: true },
 })
@@ -45,12 +48,16 @@ function statusClass(status) {
     return statusClasses[status] ?? 'bg-muted/10 text-muted border-frame'
 }
 
+// R$0,60/token FIXO (M.13.5) — nunca porcentagem sobre reais.
 function estimateBrl(tokens) {
-    const value = (Number(tokens) || 0) * 0.099 * (props.splitPct / 100)
+    const value = (Number(tokens) || 0) * props.payoutRatePerToken
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-const balanceEstimate = computed(() => estimateBrl(props.balance))
+const rateLabel = computed(() =>
+    `Cada token vale ${props.payoutRatePerToken.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} no saque`,
+)
+const withdrawableEstimate = computed(() => estimateBrl(props.withdrawableTokens))
 
 const form = useForm({
     tokens: '',
@@ -75,10 +82,11 @@ function submit() {
                 <div class="space-y-1">
                     <h1 class="font-serif text-4xl text-cream">Saques</h1>
                     <p class="text-muted text-sm">
-                        Saldo disponível:
-                        <span class="text-gold font-medium">{{ balance }}</span> tokens
-                        <span class="text-muted">(~{{ balanceEstimate }})</span>
+                        Disponível para saque:
+                        <span class="text-gold font-medium">{{ withdrawableTokens }}</span> tokens
+                        <span class="text-muted">(~{{ withdrawableEstimate }})</span>
                     </p>
+                    <p class="text-muted text-xs">{{ rateLabel }}</p>
                 </div>
                 <Link :href="route('performer.payouts.history')" class="text-sm text-gold hover:text-gold-light transition-colors">
                     Ver histórico
@@ -97,7 +105,7 @@ function submit() {
                     v-model="form.tokens"
                     type="number"
                     label="Quantidade de tokens"
-                    placeholder="Mínimo 500, máximo 50.000"
+                    :placeholder="`Mínimo ${minTokens}, máximo ${maxTokens.toLocaleString('pt-BR')}`"
                     required
                     :error="form.errors.tokens"
                 />

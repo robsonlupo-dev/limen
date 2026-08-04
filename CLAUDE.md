@@ -129,9 +129,14 @@ vence** — e os slugs de tier são os do `Circle::TIER_ORDER`
 - **[M.9] Split por tipo de evento:** conteúdo 80/20 · chat (abertura) 75/25 · live
   70/30 · chamada 70/30 · gorjeta 80/20 · presente 75/25 · **boost 100% Limen** ·
   **interesse revelado 100% Limen** · **assinatura 100% Limen**.
-- **[M.10] Payout da performer:** ciclo **mensal** (não a qualquer momento), mínimo
-  **100 tokens** acumulados, processado **no dia 1** referente ao mês anterior,
-  via PIX (Asaas). R$ equivalente visível no dashboard.
+- **[M.10] Payout da performer:** **sweep automático mensal no dia 1** referente ao
+  mês anterior (`payouts:process-monthly`, idempotente por (performer, ano, mês)),
+  **mais** saque **on-demand** disponível a qualquer momento (os dois convivem —
+  decisão do PO 04/08/2026, PR #134). Mínimo **100 tokens** em ambos, via PIX
+  (Asaas). **Só ganhos são sacáveis** (M.13.5): `payable = min(ganhos_devidos,
+  saldo)`, somando só o allowlist de `*_credit` de ganho (tip_credit,
+  chat_access_credit, …) — NUNCA purchase/bonus/subscription_grant/refund (sacá-los
+  a R$0,60 seria leak). R$ equivalente (R$0,60/token fixo) visível no dashboard.
 - **[M.11] LiveKit (infra de live/chamada):** Fase 1 lançamento = LiveKit Cloud Build
   (grátis, 5.000 min/mês); Fase 2 crescimento = Cloud Ship ($50/mês); Fase 3
   escala = self-hosted Hetzner (~R$230/mês fixo). Custo real ~R$0,01/min por

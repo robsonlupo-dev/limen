@@ -109,6 +109,24 @@ return [
     'payout_rate_per_token' => 0.60,
 
     /*
+    | Payout mensal (M.10 + M.13.5). Mínimo/máximo de tokens por saque (vale para
+    | o sweep automático do dia 1 E o saque on-demand). `earning_entry_types` é o
+    | allowlist ESTRITO do que conta como ganho sacável: NUNCA por sinal do amount
+    | (senão bonus/refund/subscription_grant/purchase vazariam a R$0,60 — leak).
+    | Tipos futuros (content_credit, gift_credit, live_credit, call_credit) entram
+    | aqui quando as features shiparem. payout_reserve/payout_reversal NÃO entram:
+    | são o controle do próprio saque, não ganho.
+    */
+    'payout' => [
+        'min_tokens' => 100,
+        'max_tokens' => 50000,
+        'earning_entry_types' => [
+            'tip_credit',
+            'chat_access_credit',
+        ],
+    ],
+
+    /*
     | Chat (M.13.1): crédito FIXO de 1 token à performer em toda abertura, qualquer
     | tier, fora do split. Custo do membro por tier. ⚠️ Black e Expl/Ins/Pres
     | MUDARAM vs. o modelo antigo — M.13.1 é a referência. Neste PR isto é SINAL
