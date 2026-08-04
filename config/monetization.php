@@ -137,6 +137,12 @@ return [
             // Presentes virtuais (PR #137, M.13.6): a fatia da performer (75%) é
             // ganho sacável, então entra no payout como o content_credit.
             'gift_credit',
+            // Live pública e chamada privada (Sprint 15, M.13.6): a fatia da
+            // performer (70%) é ganho sacável — mesma disciplina de content/gift.
+            // Os entry_types entram no enum via migration; NENHUM crédito é
+            // emitido até o PR de serving (cobrança por bloco/minuto).
+            'live_credit',
+            'call_credit',
         ],
     ],
 
@@ -175,5 +181,23 @@ return [
         'bonus',
         'subscription_grant',
     ],
+
+    /*
+    | Live pública e chamada privada (Sprint 15, M.13.6). Piso e passo do preço da
+    | CHAMADA (tokens/minuto, inteiro): distintos do content_floor/step porque são
+    | outra unidade (por minuto, não por peça). Validados na criação da chamada
+    | (PR de serving); a constante e o teste do piso entram já.
+    */
+    'call_min_price_per_minute' => 5,
+    'call_price_step' => 5,
+
+    /*
+    | Split da live/chamada (70/30, M.13.6). Este é ESPELHO de exibição/cobrança;
+    | a AUTORIDADE do split gravado no ledger é `split_rates.live`/`split_rates.call`
+    | (lidos por TokenCreditPolicy::rateFor, applied_rate congelado). Mantido em
+    | sincronia por teste (mesma disciplina do espelho circles.discount_pct) — não
+    | edite um sem o outro.
+    */
+    'live_split_rate' => 70,
 
 ];
