@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\Api\V1\Consumer\PreferencesController;
 use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\V1\GiftController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\KycWebhookController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -72,6 +73,9 @@ Route::prefix('v1/auth')->group(function () {
 Route::prefix('v1')->middleware('throttle:30,1')->group(function () {
     Route::get('performers', [PerformerCatalogController::class, 'index'])->name('performers.index');
     Route::get('performers/{slug}', [PerformerCatalogController::class, 'show'])->name('performers.show');
+
+    // Catálogo de presentes da Limen (público, cacheável) — só presentes ativos.
+    Route::get('gifts', [GiftController::class, 'index'])->name('gifts.index');
 });
 
 // Private media serving (signed URL, no session auth)

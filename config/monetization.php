@@ -131,9 +131,12 @@ return [
             'tip_credit',
             'chat_access_credit',
             // Conteúdo permanente (PR #135): a receita de desbloqueio é ganho
-            // sacável da performer, então entra no payout (M.13.5). gift_credit/
-            // live_credit/call_credit entram quando essas features shiparem.
+            // sacável da performer, então entra no payout (M.13.5). live_credit/
+            // call_credit entram quando essas features shiparem.
             'content_credit',
+            // Presentes virtuais (PR #137, M.13.6): a fatia da performer (75%) é
+            // ganho sacável, então entra no payout como o content_credit.
+            'gift_credit',
         ],
     ],
 

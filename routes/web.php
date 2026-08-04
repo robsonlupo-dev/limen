@@ -17,6 +17,7 @@ use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\FavoriteController;
+use App\Http\Controllers\Web\Consumer\GiftController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\MemberPhotoController;
 use App\Http\Controllers\Web\Consumer\PhotoAccessController;
@@ -128,6 +129,12 @@ Route::get('/performers/{slug}', [PublicCatalogController::class, 'show'])
     ->middleware('throttle:60,1')
     ->where('slug', '[a-z0-9\-]+')
     ->name('performers.public.show');
+
+// Catálogo de presentes da Limen — público e cacheável (só presentes ativos,
+// preços fixos da plataforma). Sem PII; o mesmo shape é servido pela API.
+Route::get('/presentes/catalogo', [GiftController::class, 'catalog'])
+    ->middleware('throttle:60,1')
+    ->name('gifts.catalog');
 
 // Serving público das fotos da galeria do perfil (Sprint 10). PÚBLICO de
 // propósito: a galeria é do perfil público, então qualquer visitante — logado ou
@@ -736,6 +743,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/gorjetas', [TipController::class, 'store'])
             ->middleware('throttle:10,1')
             ->name('tips.send');
+
+        // Presente virtual do catálogo da Limen para uma performer (M.13.6).
+        // Débito do membro + crédito split 75/25 da performer, idempotente.
+        Route::post('/presentes', [GiftController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('gifts.send');
 
         // Interesse Controlado — caixa do membro, desbloqueio e opt-out.
         Route::get('/interesses', [ConsumerInterestController::class, 'index'])

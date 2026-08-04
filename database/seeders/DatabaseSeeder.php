@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->seedTokenPackages();
+        $this->call(GiftSeeder::class);
         $this->seedUsers();
     }
 
