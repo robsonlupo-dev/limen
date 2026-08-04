@@ -392,4 +392,14 @@ class TokenCreditPolicy
     {
         return (float) config('monetization.payout_rate_per_token');
     }
+
+    /**
+     * Valor de cada token no saque em CENTAVOS inteiros (M.13.5). O caminho
+     * autoritativo (token→R$) é inteiro puro — nunca float — para o valor mandado
+     * ao Asaas: centavos = tokens × payoutCentavosPerToken.
+     */
+    public function payoutCentavosPerToken(): int
+    {
+        return (int) round($this->payoutRatePerToken() * 100);
+    }
 }

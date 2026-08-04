@@ -32,7 +32,13 @@ class PayoutController extends Controller
 
         return Inertia::render('Performer/Payouts/Index', [
             'balance' => $this->tokenService->balance($user),
-            'splitPct' => $profile->split_pct,
+            // R$0,60/token FIXO (M.13.5) — nunca porcentagem sobre reais. O front
+            // usa só como display; o valor autoritativo vem do servidor em centavos.
+            'payoutRatePerToken' => (float) config('monetization.payout_rate_per_token'),
+            'minTokens' => $this->payoutService->minTokens(),
+            'maxTokens' => $this->payoutService->maxTokens(),
+            // Ganhos sacáveis (M.13.5): só o que ela ganhou, não o saldo bruto.
+            'withdrawableTokens' => $this->payoutService->earningsOwed($user),
             'kycOk' => (bool) $profile->is_verified,
             'recent' => $this->recentPayouts($user, 5),
         ]);

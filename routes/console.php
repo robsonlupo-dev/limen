@@ -29,6 +29,13 @@ Schedule::command('payments:reconcile')->everyTenMinutes();
 // expiry só troca a corrida pelo deadlock que ele veio evitar.
 Schedule::command('payouts:reconcile')->everyTenMinutes()->withoutOverlapping(15);
 
+// Sweep mensal do payout (M.10/M.13.5): no dia 1, paga os ganhos devidos do mês
+// que fechou. É idempotente por (performer, ano, mês) — índice único + checagem —,
+// então rodar 2x no mesmo mês (agendado + manual) nunca duplica. Roda às 02:00,
+// depois do grant mensal, para o saldo do fechamento já estar consolidado.
+// withoutOverlapping por segurança; a idempotência real é do índice único.
+Schedule::command('payouts:process-monthly')->monthlyOn(1, '02:00')->withoutOverlapping(60);
+
 // Nurturing drip: hourly is fine — cadence is measured in days, and the sender
 // is idempotent, so a step goes out at most once regardless of how often it runs.
 Schedule::command('waitlist:send-nurture')->hourly();

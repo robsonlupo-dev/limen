@@ -2,26 +2,25 @@
 
 namespace App\Services;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\PayoutNotAllowedException;
 use App\Mail\PayoutNeedsReviewMail;
 use App\Models\PaymentEvent;
 use App\Models\Payout;
 use App\Models\TokenLedger;
+use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Services\Asaas\AsaasUnavailableException;
 use App\Support\Audit;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class PayoutService
 {
-    private const MIN_TOKENS = 500;
-
-    private const MAX_TOKENS = 50000;
-
     // Only reconcile payouts that have been in flight for a while, so a normal
     // in-progress transfer and its webhook have had time to arrive first.
     private const RECONCILE_MIN_AGE_MINUTES = 15;
@@ -40,8 +39,25 @@ class PayoutService
     public function __construct(
         private AsaasClientInterface $asaas,
         private TokenService $tokenService,
+        private TokenCreditPolicy $creditPolicy,
     ) {}
 
+    public function minTokens(): int
+    {
+        return (int) config('monetization.payout.min_tokens');
+    }
+
+    public function maxTokens(): int
+    {
+        return (int) config('monetization.payout.max_tokens');
+    }
+
+    /**
+     * Saque on-demand: a performer escolhe o valor. Valida KYC + faixa e delega o
+     * núcleo (reserva + transferência) ao createAndSendPayout, que também impõe o
+     * teto de GANHOS sacáveis (M.13.5): nunca deixa sacar mais do que ganhou, então
+     * subscription_grant/purchase/bonus/refund não viram dinheiro (leak).
+     */
     public function requestPayout(User $performer, int $tokens, string $pixKey, string $pixKeyType): Payout
     {
         $profile = $performer->performerProfile;
@@ -50,14 +66,88 @@ class PayoutService
             throw new PayoutNotAllowedException('Complete a verificação de identidade para sacar.');
         }
 
-        if ($tokens < self::MIN_TOKENS || $tokens > self::MAX_TOKENS) {
+        if ($tokens < $this->minTokens() || $tokens > $this->maxTokens()) {
             throw new \InvalidArgumentException('Token amount out of allowed range.');
         }
 
-        $centavos = $this->calculatePayoutCentavos($tokens, $profile->split_pct);
+        return $this->createAndSendPayout($performer, $tokens, $pixKey, $pixKeyType);
+    }
+
+    /**
+     * Valor do saque em CENTAVOS (M.13.5): R$0,60/token FIXO, inteiro puro (nunca
+     * float no caminho autoritativo). Substitui o cálculo antigo por split_pct
+     * (divergência diferida dos PRs #131/#132, agora fechada).
+     */
+    public function calculatePayoutCentavos(int $tokens): int
+    {
+        return $tokens * $this->creditPolicy->payoutCentavosPerToken();
+    }
+
+    /**
+     * Tokens de GANHO ainda devidos à performer (M.13.5, decisão do PO 04/08):
+     *   owed = SUM(créditos de ganho) − SUM(reservados) + SUM(estornados)
+     * Somando SÓ o allowlist de entry_types de ganho da config (tip_credit,
+     * chat_access_credit, …), NUNCA por sinal do amount — senão bonus/refund/
+     * purchase/subscription_grant vazariam a R$0,60. `payout_reserve` (negativo) e
+     * `payout_reversal` (positivo) se cancelam num saque falho (volta a ser devido)
+     * e permanecem como débito permanente num saque PAGO (nunca re-paga). Nunca
+     * negativo.
+     */
+    public function earningsOwed(User $performer): int
+    {
+        $walletId = TokenWallet::where('user_id', $performer->id)->value('id');
+
+        if (! $walletId) {
+            return 0;
+        }
+
+        $earned = (int) TokenLedger::where('wallet_id', $walletId)
+            ->whereIn('entry_type', config('monetization.payout.earning_entry_types'))
+            ->sum('amount');
+
+        // reserved: amounts de payout_reserve são negativos; a soma é ≤ 0.
+        // reversed: payout_reversal são positivos. earned + reserved(≤0) + reversed.
+        $reserved = (int) TokenLedger::where('wallet_id', $walletId)
+            ->where('entry_type', 'payout_reserve')
+            ->sum('amount');
+
+        $reversed = (int) TokenLedger::where('wallet_id', $walletId)
+            ->where('entry_type', 'payout_reversal')
+            ->sum('amount');
+
+        return max(0, $earned + $reserved + $reversed);
+    }
+
+    /**
+     * Núcleo compartilhado por on-demand e sweep: cria a linha do payout, reserva os
+     * tokens e dispara a transferência PIX. Impõe o teto de ganhos e mantém INTACTA
+     * a disciplina de resultado ambíguo (timeout/5xx NUNCA estorna — poderia pagar
+     * em dobro um PIX que saiu).
+     *
+     * A linha do Payout + o débito da reserva nascem juntos numa transação; o
+     * createTransfer fica FORA dela. Assim, sob corrida, o índice único
+     * (performer, período) aborta o run perdedor ANTES de qualquer débito ou
+     * transferência (o QueryException sobe do create).
+     */
+    public function createAndSendPayout(
+        User $performer,
+        int $tokens,
+        string $pixKey,
+        string $pixKeyType,
+        ?int $periodYear = null,
+        ?int $periodMonth = null,
+    ): Payout {
+        // Teto de ganhos sacáveis (M.13.5): nunca saca mais do que ganhou. Best-
+        // effort fora do lock (o débito é o guard duro do saldo); fecha o leak de
+        // sacar tokens não-ganhos (subscription_grant/purchase/bonus) a R$0,60.
+        if ($tokens > $this->earningsOwed($performer)) {
+            throw new InsufficientBalanceException($tokens, $this->earningsOwed($performer));
+        }
+
+        $centavos = $this->calculatePayoutCentavos($tokens);
         $amountBrl = sprintf('%d.%02d', intdiv($centavos, 100), $centavos % 100);
 
-        $payout = DB::transaction(function () use ($performer, $tokens, $pixKey, $pixKeyType, $amountBrl) {
+        $payout = DB::transaction(function () use ($performer, $tokens, $pixKey, $pixKeyType, $amountBrl, $periodYear, $periodMonth) {
             $payout = Payout::create([
                 'performer_id' => $performer->id,
                 'tokens' => $tokens,
@@ -65,6 +155,8 @@ class PayoutService
                 'pix_key' => $pixKey,
                 'pix_key_type' => $pixKeyType,
                 'status' => 'pending',
+                'period_year' => $periodYear,
+                'period_month' => $periodMonth,
                 'requested_at' => now(),
             ]);
 
@@ -130,19 +222,120 @@ class PayoutService
     }
 
     /**
-     * ⚠️ DIVERGÊNCIA CONHECIDA E DIFERIDA (Sprint 14, PR #131) — NÃO é a M.13.5.
-     * Este cálculo ainda deriva reais de `split_pct` (modelo pré-M.13). A gorjeta
-     * já migrou para o split por evento (80% em tokens), mas o PAYOUT segue no
-     * modelo antigo até o item "Payout mensal (ciclo dia 1)" do backlog do Sprint
-     * 14, que troca isto por `payout_rate_per_token` FIXO (R$0,60/token — M.13.5, já
-     * constante em config/monetization.php). Registrado explicitamente (achado da
-     * revisão de segurança do #131) para não ser lido como M.13.5 já implementado,
-     * nem confundido com a taxa de crédito da gorjeta. Chat (crédito por split_pct)
-     * segue o mesmo destino no PR #132.
+     * Sweep mensal do dia 1 (M.10): paga automaticamente os ganhos devidos do mês
+     * que fechou. Idempotente por (performer, ano, mês) — índice único + checagem.
+     * Reusa a chave PIX do último saque bem-sucedido; performer sem saque anterior
+     * é pulada (faz o primeiro on-demand). Só paga conta ATIVA e verificada.
+     *
+     * @return array{created:int, tokens:int, skipped_no_key:int, skipped_below_min:int, skipped_ineligible:int, skipped_duplicate:int, failed:int}
      */
-    public function calculatePayoutCentavos(int $tokens, int $splitPct): int
+    public function sweepMonthlyPayouts(): array
     {
-        return (int) round(($tokens * 99 * $splitPct) / 1000);
+        $target = now()->subMonthNoOverflow();
+        $year = (int) $target->year;
+        $month = (int) $target->month;
+
+        $stats = ['created' => 0, 'tokens' => 0, 'skipped_no_key' => 0, 'skipped_below_min' => 0, 'skipped_ineligible' => 0, 'skipped_duplicate' => 0, 'failed' => 0];
+
+        // Candidatas: quem tem QUALQUER crédito de ganho no ledger. Consumer não
+        // recebe tip_credit/chat_access_credit, então na prática só performers
+        // aparecem; a elegibilidade real (ativa + verificada) é reconferida abaixo.
+        $performerIds = TokenLedger::query()
+            ->join('token_wallets', 'token_wallets.id', '=', 'token_ledger.wallet_id')
+            ->whereIn('token_ledger.entry_type', config('monetization.payout.earning_entry_types'))
+            ->distinct()
+            ->pluck('token_wallets.user_id');
+
+        foreach ($performerIds as $performerId) {
+            try {
+                $result = $this->sweepOne((int) $performerId, $year, $month);
+                if ($result === null) {
+                    continue;
+                }
+                $stats[$result['bucket']]++;
+                if ($result['bucket'] === 'created') {
+                    $stats['tokens'] += $result['tokens'];
+                }
+            } catch (UniqueConstraintViolationException) {
+                // Run concorrente criou o payout do mês primeiro: idempotência OK.
+                // Bucket próprio (não 'ineligible') para não mascarar um agendamento
+                // duplicado real na telemetria de dinheiro — SF-1 da revisão.
+                $stats['skipped_duplicate']++;
+                Log::info('Monthly payout sweep hit unique index (concurrent run)', [
+                    'performer_id' => $performerId,
+                    'period_year' => $year,
+                    'period_month' => $month,
+                ]);
+            } catch (\Throwable $e) {
+                $stats['failed']++;
+                Log::error('Monthly payout sweep error', [
+                    'performer_id' => $performerId,
+                    'error_class' => get_class($e),
+                ]);
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
+     * @return array{bucket:string, tokens:int}|null null quando não é performer.
+     */
+    private function sweepOne(int $performerId, int $year, int $month): ?array
+    {
+        $performer = User::find($performerId);
+
+        if (! $performer || $performer->role !== 'performer') {
+            return null;
+        }
+
+        // Conta ATIVA + KYC. O sweep roda sem sessão, então o corte de banned/
+        // suspended que a sessão morta faz no on-demand precisa ser EXPLÍCITO aqui —
+        // senão pagaria PIX real a uma conta banida por conteúdo ilegal.
+        $profile = $performer->performerProfile;
+        if ($performer->status !== 'active' || ! $profile || ! $profile->is_verified) {
+            return ['bucket' => 'skipped_ineligible', 'tokens' => 0];
+        }
+
+        // Já pago este mês? (índice único é o backstop sob corrida.)
+        $already = Payout::where('performer_id', $performerId)
+            ->where('period_year', $year)
+            ->where('period_month', $month)
+            ->exists();
+        if ($already) {
+            return ['bucket' => 'skipped_duplicate', 'tokens' => 0];
+        }
+
+        $payable = min($this->earningsOwed($performer), $this->tokenService->balance($performer));
+        $payable = min($payable, $this->maxTokens());
+
+        if ($payable < $this->minTokens()) {
+            return ['bucket' => 'skipped_below_min', 'tokens' => 0];
+        }
+
+        // Chave PIX do último saque BEM-SUCEDIDO (paid/processing) — nunca de um
+        // failed/cancelled (chave que pode ter sido recusada). Sem saque anterior,
+        // não há chave: pula, a performer faz o primeiro on-demand.
+        $lastPayout = Payout::where('performer_id', $performerId)
+            ->whereIn('status', ['paid', 'processing'])
+            ->whereNotNull('pix_key')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $lastPayout) {
+            return ['bucket' => 'skipped_no_key', 'tokens' => 0];
+        }
+
+        $this->createAndSendPayout(
+            $performer,
+            $payable,
+            $lastPayout->pix_key,
+            $lastPayout->pix_key_type,
+            $year,
+            $month,
+        );
+
+        return ['bucket' => 'created', 'tokens' => $payable];
     }
 
     public function handleWebhook(array $payload): void
