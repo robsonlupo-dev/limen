@@ -342,6 +342,20 @@ class TokenCreditPolicy
         return (int) config('monetization.content_floor');
     }
 
+    /** Passo do preço de conteúdo permanente (M.4): múltiplo de N tokens. */
+    public function contentPriceStep(): int
+    {
+        return (int) config('monetization.content_price_step');
+    }
+
+    /** Preço de conteúdo válido: ≥ piso E múltiplo do passo (M.4). */
+    public function isValidContentPrice(int $price): bool
+    {
+        $step = $this->contentPriceStep();
+
+        return $price >= $this->contentFloor() && $step > 0 && $price % $step === 0;
+    }
+
     // ── Chat (M.13.1) — sinais; o rewire do ChatAccessService é o PR de chat ──
 
     /** Custo em tokens do membro para abrir chat, por tier (2, ou 1 em Black/FC). */

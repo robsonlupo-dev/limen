@@ -11,6 +11,7 @@ use App\Models\MemberPhoto;
 use App\Models\Message;
 use App\Models\Payment;
 use App\Models\Payout;
+use App\Models\PerformerContent;
 use App\Models\PerformerStory;
 use App\Models\User;
 use App\Support\Audit;
@@ -320,6 +321,13 @@ class DeletionService
             $summary['performer_stories'] = $this->purgePerformerStories($user);
             $summary['performer_stories_preserved'] = $this->preservedStoryCount($user);
             $summary['performer_photos'] = $this->purgePerformerPhotos($user);
+            // Conteúdo permanente pago (Sprint 14): desbloqueios FEITOS pelo membro
+            // (por user_id) e as PEÇAS da performer (por perfil). Bytes saem em
+            // deleteFiles(); peça com denúncia em aberto preserva a LINHA (hash =
+            // prova), como o story. Ledger (spend_content/content_credit) fica.
+            $summary['content_unlocks'] = $this->purgeContentUnlocks($user);
+            $summary['performer_content'] = $this->purgePerformerContent($user);
+            $summary['performer_content_preserved'] = $this->preservedContentCount($user);
             $summary['performer_locations'] = $this->purgePerformerLocations($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
@@ -440,6 +448,16 @@ class DeletionService
             foreach ($profile->photos as $photo) {
                 if ($path = $photo->path) {
                     $paths[] = ['disk' => PerformerPhotoStore::DISK, 'path' => $path];
+                }
+            }
+
+            // Conteúdo permanente pago (Sprint 14). Os BYTES saem de TODA peça,
+            // inclusive das que terão a LINHA preservada por denúncia: a evidência
+            // precisa do hash, não do arquivo — "preserva evidência SEM preservar
+            // conteúdo", como o story. Este é o último varredor que vê o caminho.
+            foreach (PerformerContent::where('performer_profile_id', $profile->id)->get() as $piece) {
+                if ($path = $piece->path) {
+                    $paths[] = ['disk' => ContentStore::DISK, 'path' => $path];
                 }
             }
         }
@@ -1113,6 +1131,75 @@ class DeletionService
         // e aqui a foto some de verdade. Os grants FEITOS pelo membro (outro lado)
         // saem por `purgePhotoGrants`, por `user_id`.
         return DB::table('performer_photos')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Desbloqueios de conteúdo FEITOS pelo membro que encerra (Sprint 14), por
+     * user_id. O outro lado (desbloqueios apontados para as peças DELA) sai por
+     * cascade quando `purgePerformerContent` faz DELETE real das peças. O ledger
+     * (spend_content) permanece — append-only, lastro fiscal.
+     */
+    private function purgeContentUnlocks(User $user): int
+    {
+        return DB::table('content_unlocks')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * As PEÇAS de conteúdo permanente da performer que encerra (Sprint 14). Peça
+     * SEM denúncia em aberto: DELETE real (cascade leva content_unlocks). Peça COM
+     * denúncia: a LINHA é PRESERVADA (hash = prova), os bytes saem em deleteFiles()
+     * como todo mundo. Mesma disciplina do `purgePerformerStories`.
+     */
+    private function purgePerformerContent(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        $contentIds = DB::table('performer_content')->where('performer_profile_id', $profileId)->pluck('id')->all();
+
+        if ($contentIds === []) {
+            return 0;
+        }
+
+        $reportedIds = DB::table('reports')
+            ->where('reportable_type', (new PerformerContent)->getMorphClass())
+            ->whereIn('reportable_id', $contentIds)
+            ->pluck('reportable_id')
+            ->all();
+
+        $deletableIds = array_values(array_diff($contentIds, $reportedIds));
+
+        if ($deletableIds === []) {
+            return 0;
+        }
+
+        // DELETE real: o cascade de `content_unlocks.performer_content_id` DISPARA.
+        return DB::table('performer_content')->whereIn('id', $deletableIds)->delete();
+    }
+
+    /** Peças preservadas por denúncia em aberto — contadas para a prova. */
+    private function preservedContentCount(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        $contentIds = DB::table('performer_content')->where('performer_profile_id', $profileId)->pluck('id')->all();
+
+        if ($contentIds === []) {
+            return 0;
+        }
+
+        return DB::table('reports')
+            ->where('reportable_type', (new PerformerContent)->getMorphClass())
+            ->whereIn('reportable_id', $contentIds)
+            ->distinct()
+            ->count('reportable_id');
     }
 
     /**

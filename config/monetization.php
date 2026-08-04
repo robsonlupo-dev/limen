@@ -94,6 +94,13 @@ return [
     'content_floor' => 5,
 
     /*
+    | Conteúdo permanente (M.4): o preço definido pela performer deve ser múltiplo
+    | de `price_step` tokens (passo de 5), além do piso de `content_floor` (5).
+    | Validado na PUBLICAÇÃO (não no unlock, onde o preço já está gravado).
+    */
+    'content_price_step' => 5,
+
+    /*
     | Presentes (M.13.6): preço DEVE ser múltiplo de 4 tokens. Só a validação e a
     | constante entram neste PR; catálogo e animação são PR posterior.
     */
@@ -123,6 +130,10 @@ return [
         'earning_entry_types' => [
             'tip_credit',
             'chat_access_credit',
+            // Conteúdo permanente (PR #135): a receita de desbloqueio é ganho
+            // sacável da performer, então entra no payout (M.13.5). gift_credit/
+            // live_credit/call_credit entram quando essas features shiparem.
+            'content_credit',
         ],
     ],
 
