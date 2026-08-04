@@ -26,6 +26,11 @@ return [
     // "expiração vale na leitura" do ChatAccess/Story). Não é para renovar cego.
     'token_ttl' => (int) env('LIVEKIT_TOKEN_TTL', 300),
 
+    // Ocioso máximo de uma sala vazia antes do LiveKit removê-la (segundos). É a
+    // auto-limpeza de uma live abandonada (performer some sem /stop): passado
+    // isto, roomExists volta false e o join reconcilia a live_session para ended.
+    'empty_timeout' => (int) env('LIVEKIT_EMPTY_TIMEOUT', 300),
+
     // Tetos de participantes por tipo de sala. Aplicados na criação da sala
     // (LiveKitService::createRoom); o LiveKit recusa o join além do teto.
     'max_participants_live' => (int) env('LIVEKIT_MAX_PARTICIPANTS_LIVE', 50),

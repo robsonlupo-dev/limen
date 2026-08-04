@@ -68,7 +68,7 @@ it('gives a live performer canPublish and not canSubscribe', function () {
 
 it('gives a live member canSubscribe and not canPublish', function () {
     $svc = app(LiveKitService::class);
-    $jwt = $svc->generateToken($svc->liveParticipantIdentity(), LiveKitService::ROLE_MEMBER, $svc->liveRoomName(7), [
+    $jwt = $svc->generateToken($svc->liveParticipantIdentity(1, 1), LiveKitService::ROLE_MEMBER, $svc->liveRoomName(7), [
         'canPublish' => false, 'canSubscribe' => true,
     ]);
     $video = decodeLkToken($jwt)->video;
@@ -104,14 +104,20 @@ it('never puts the raw member id in the call identity — only the FanAlias hand
         ->and($identity)->not->toContain((string) $memberId);
 });
 
-it('uses an opaque, non-correlatable identity for live viewers', function () {
+it('derives an opaque live-viewer identity that is stable per live, distinct across lives, and hides the member id', function () {
     $svc = app(LiveKitService::class);
 
-    $a = $svc->liveParticipantIdentity();
-    $b = $svc->liveParticipantIdentity();
+    // Estável DENTRO da mesma live (session 10, member 777): o refresh reemite a
+    // MESMA identity — o membro não vira um participante novo a cada renovação.
+    $a1 = $svc->liveParticipantIdentity(10, 777);
+    $a2 = $svc->liveParticipantIdentity(10, 777);
+    // Distinta ENTRE lives (session 11): some a frequência de retorno do "fã".
+    $b = $svc->liveParticipantIdentity(11, 777);
 
-    expect($a)->toMatch('/^lp_[0-9a-f]{32}$/')
-        ->and($a)->not->toBe($b); // opaco por sessão: dois viewers nunca colidem
+    expect($a1)->toMatch('/^lv_[0-9a-f]{16}$/')
+        ->and($a1)->toBe($a2)                 // estável no refresh
+        ->and($a1)->not->toBe($b)             // não correlaciona entre lives
+        ->and($a1)->not->toContain('777');    // nunca o id cru do membro
 });
 
 // ── Room names imprevisíveis ─────────────────────────────────────────────────
@@ -146,7 +152,7 @@ it('refuses to emit a token when the feature is disabled (service backstop)', fu
     $room = $svc->liveRoomName(1);
     config(['features.live_enabled' => false]);
 
-    expect(fn () => $svc->generateToken($svc->liveParticipantIdentity(), LiveKitService::ROLE_MEMBER, $room, [
+    expect(fn () => $svc->generateToken($svc->liveParticipantIdentity(1, 1), LiveKitService::ROLE_MEMBER, $room, [
         'canSubscribe' => true,
     ]))->toThrow(FeatureDisabledException::class);
 });

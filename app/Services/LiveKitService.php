@@ -20,9 +20,13 @@ use App\Support\FanAlias;
  * `member:{id}` ali seria um id ESTÁVEL e GLOBAL, correlacionável entre as lives
  * de todas as performers — exatamente o que o FanAlias existe para impedir. Por
  * isso a identity do membro é derivada pelos helpers, nunca do userId cru:
- *   - Live pública 1:N → OPACO por sessão (liveParticipantIdentity), sem relação
- *     com o userId; o mapa identity→user vive server-side (PR de serving). Não
- *     correlaciona entre lives nem entre perfis.
+ *   - Live pública 1:N → OPACO por live (liveParticipantIdentity), derivado por
+ *     HMAC(APP_KEY, live_session_id + member_id): estável nas renovações de token
+ *     da MESMA live (o refresh não vira um participante novo), mas some entre
+ *     lives (o session_id muda a cada transmissão) — apaga até a frequência de
+ *     retorno do "fã de sempre". Não é reversível ao member_id pela performer, e
+ *     por ser DERIVÁVEL dispensa uma tabela de participantes (que seria a
+ *     watch-list "quem assistiu" que §2.7 recusa). Ver PR #139.
  *   - Chamada 1:1 → FanAlias handle por par (callMemberIdentity): a performer JÁ
  *     vê o "Fã #" dela (superfície legítima membro→performer, como no chat).
  *   - Performer → identidade pública (performerIdentity): é a identidade
@@ -68,10 +72,21 @@ class LiveKitService
 
     // ── Identity (nunca o id cru) ────────────────────────────────────────────
 
-    /** Live pública: opaco por sessão, mapeado server-side. Não deriva do userId. */
-    public function liveParticipantIdentity(): string
+    /**
+     * Live pública: identity OPACA por live, derivada por HMAC(APP_KEY, session +
+     * member). Estável dentro da mesma live (refresh não cria participante novo),
+     * distinta entre lives (session_id muda) e não reversível ao member_id — sem
+     * tabela de participantes (ver docblock da classe). Nunca o id cru.
+     */
+    public function liveParticipantIdentity(int $liveSessionId, int $memberId): string
     {
-        return 'lp_'.bin2hex(random_bytes(16));
+        $digest = hash_hmac(
+            'sha256',
+            "live_viewer:{$liveSessionId}:{$memberId}",
+            (string) config('app.key'),
+        );
+
+        return 'lv_'.substr($digest, 0, 16);
     }
 
     /** Chamada 1:1: FanAlias handle por par (a performer vê o "Fã #" dela). */
@@ -142,7 +157,13 @@ class LiveKitService
         $this->assertFeatureEnabledForRoom($name);
 
         $this->rooms()->createRoom(
-            (new RoomCreateOptions)->setName($name)->setMaxParticipants($maxParticipants),
+            (new RoomCreateOptions)
+                ->setName($name)
+                ->setMaxParticipants($maxParticipants)
+                // Sala abandonada (performer fecha o navegador sem /stop) morre
+                // sozinha após este ocioso — o LiveKit a remove, e o join passa a
+                // dar 404 na reconciliação-na-leitura (LiveSessionService::activeFor).
+                ->setEmptyTimeout((int) config('livekit.empty_timeout')),
         );
     }
 
