@@ -243,10 +243,13 @@ it('renders the role-specific performer email', function () {
 
     expect($html)
         ->toContain('Olá, Cris.')
-        ->toContain('Performer Fundadora')
+        ->toContain('Performer Fundador(a)') // neutro de gênero
         ->toContain('Sua reserva foi confirmada.')
         ->toContain('Confirmar minha identidade')
-        ->toContain('painel de fundadora');
+        ->toContain('painel de fundador(a)')
+        // Copy neutro: nada de termos só no feminino.
+        ->not->toContain('Fundadora')
+        ->not->toContain('criadoras convidadas');
 });
 
 it('never exposes the founder position or the invite/referral link in the email', function () {
@@ -423,10 +426,16 @@ it('renders the member founder panel with role title and tier', function () {
         ->assertSee($entry->invite_code);
 });
 
-it('renders the performer founder panel with the feminine title', function () {
+it('renders the performer founder panel with a gender-neutral title', function () {
     $entry = joinWaitlist(['name' => 'Lia', 'email' => 'lia@example.com', 'role' => 'performer']);
 
-    $this->get('/f/'.$entry->invite_code)->assertOk()->assertSee('Performer Fundadora');
+    $this->get('/f/'.$entry->invite_code)
+        ->assertOk()
+        ->assertSee('Performer Fundador(a)')
+        ->assertDontSee('Performer Fundadora')
+        // Problema 1: sem contador de posição no painel.
+        ->assertDontSee('Sua posição')
+        ->assertDontSee('performers na lista');
 });
 
 it('404s the founder panel for an unknown invite code', function () {

@@ -59,22 +59,19 @@
             Painel de {{ $firstName }}
         </h1>
         <p class="center gold" style="margin:6px 0 0;font-size:14px;letter-spacing:1px;">
-            {{ $founderTitle }} #{{ number_format($position, 0, ',', '.') }}
+            {{ $founderTitle }}
         </p>
-        @unless ($confirmed)
+
+        {{-- Lugar garantido: SEM número de posição nem total. Com poucos inscritos
+             o contador transmitia vazio; com muitos, fila. O que importa é que o
+             lugar está garantido — o resto é o nível/benefícios abaixo. --}}
+        @if ($confirmed)
+            <div class="flash">E-mail confirmado! Seu lugar está garantido.</div>
+        @else
             <p class="center muted" style="margin:8px 0 0;font-size:14px;">
                 Seu e-mail ainda não foi confirmado — confira sua caixa de entrada para garantir seu lugar.
             </p>
-        @endunless
-
-        {{-- Position (per role) --}}
-        <div class="card center">
-            <div class="muted" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;">Sua posição</div>
-            <div class="gold" style="font-size:52px;line-height:1.1;margin-top:4px;">#{{ number_format($position, 0, ',', '.') }}</div>
-            <div class="dim" style="font-size:14px;">
-                de {{ number_format($totalInRole, 0, ',', '.') }} {{ $isPerformer ? 'performers' : 'membros' }} na lista
-            </div>
-        </div>
+        @endif
 
         {{-- Tier + progress --}}
         <div class="card">

@@ -45,11 +45,14 @@ enum PerformerTier: string
     public function label(): string
     {
         return match ($this) {
-            self::Candidate => 'Candidata',
-            self::Pioneer => 'Pioneira',
-            self::Founder => 'Fundadora',
-            self::Ambassador => 'Embaixadora',
-            self::Patron => 'Patrona',
+            // Neutro de gênero: o copy de founding members serve aos quatro mundos
+            // (mulheres, homens, trans, casais). Sem campo de gênero na waitlist,
+            // a forma inclusiva "(a)" vale para todos.
+            self::Candidate => 'Candidato(a)',
+            self::Pioneer => 'Pioneiro(a)',
+            self::Founder => 'Fundador(a)',
+            self::Ambassador => 'Embaixador(a)',
+            self::Patron => 'Patrono(a)',
         };
     }
 
@@ -58,7 +61,7 @@ enum PerformerTier: string
         return match ($this) {
             self::Candidate => 'Onboarding VIP + suporte direto',
             self::Pioneer => 'Destaque 7 dias no catálogo no lançamento',
-            self::Founder => 'Selo Fundadora permanente + posição prioritária no catálogo',
+            self::Founder => 'Selo Fundador(a) permanente + posição prioritária no catálogo',
             self::Ambassador => 'Taxa 18% por 6 meses (vs 20% padrão)',
             self::Patron => 'Taxa 15% por 12 meses + destaque 30 dias no catálogo',
         };
