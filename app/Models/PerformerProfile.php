@@ -264,7 +264,15 @@ class PerformerProfile extends Model
             //
             // NULLs vão por último em DESC (MySQL e SQLite concordam nisso), então
             // "boostado primeiro" sai de graça, sem um CASE/booleano extra.
-            ->orderByRaw('CASE WHEN boosted_until > ? THEN boosted_until END DESC', [now()]);
+            ->orderByRaw('CASE WHEN boosted_until > ? THEN boosted_until END DESC', [now()])
+            // Live pública (Sprint 15): ao vivo ANTES de quem não está, logo
+            // depois do boost. É a 2ª cláusula, então os serviços de catálogo
+            // acrescentam followers/rating DEPOIS, como desempate DENTRO de cada
+            // grupo (boostado > ao vivo > o resto). Sem ninguém ao vivo, todos
+            // empatam em is_live=false e a ordem existente decide — não mexe em
+            // quem não está transmitindo. Compartilhado por toda vitrine que passa
+            // pelo escopo (catálogo, favoritos, "seguindo"), como o boost.
+            ->orderByDesc('is_live');
     }
 
     /**

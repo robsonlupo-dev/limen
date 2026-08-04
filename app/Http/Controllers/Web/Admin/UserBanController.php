@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\FraudBlacklist;
 use App\Models\User;
+use App\Services\LiveSessionService;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,6 +51,15 @@ class UserBanController extends Controller
             // tokens Sanctum continuariam válidos até expirar. As sessões web
             // ficam de fora aqui (driver de sessão) — follow-up registrado.
             $user->tokens()->delete();
+
+            // Live pública viva de performer banida = conta encerrada ainda
+            // servindo vídeo no LiveKit (risco do §2.5). Fecha a sala AGORA
+            // (deleteRoom ejeta todos) e marca a live_session ended + is_live
+            // false, na MESMA transação do ban. O deleteRoom é best-effort dentro
+            // do service — falha de rede não reverte o ban. No-op para não-performer.
+            if ($performerProfile = $user->performerProfile) {
+                app(LiveSessionService::class)->closeForPerformer($performerProfile);
+            }
 
             // Lista negra antifraude: grava o HMAC do CPF/documento (nunca a PII
             // crua) para sinalizar recadastro. Na MESMA transação — se o registro

@@ -19,26 +19,27 @@ use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardCo
 use App\Http\Controllers\Web\Consumer\FavoriteController;
 use App\Http\Controllers\Web\Consumer\GiftController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
+use App\Http\Controllers\Web\Consumer\LiveViewController;
 use App\Http\Controllers\Web\Consumer\MemberPhotoController;
 use App\Http\Controllers\Web\Consumer\PhotoAccessController;
 use App\Http\Controllers\Web\Consumer\PreferencesController as ConsumerPreferencesController;
 use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileController;
 use App\Http\Controllers\Web\Consumer\ReportController;
-use App\Http\Controllers\Web\Content\ContentController;
 use App\Http\Controllers\Web\Consumer\SavedSearchController;
 use App\Http\Controllers\Web\Consumer\StoryController as ConsumerStoryController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
+use App\Http\Controllers\Web\Content\ContentController;
 use App\Http\Controllers\Web\ConviteController;
-use App\Http\Controllers\Web\Moderation\EvidenceController;
-use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\EntradaController;
 use App\Http\Controllers\Web\FollowController;
 use App\Http\Controllers\Web\FounderPanelController;
 use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\LegalDocumentsController;
 use App\Http\Controllers\Web\LinksController;
+use App\Http\Controllers\Web\Moderation\EvidenceController;
+use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\BoostController;
 use App\Http\Controllers\Web\Performer\DashboardController;
@@ -49,8 +50,9 @@ use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
 use App\Http\Controllers\Web\Performer\PerformerContentController;
-use App\Http\Controllers\Web\Performer\PhotoController as PerformerPhotoController;
+use App\Http\Controllers\Web\Performer\PerformerLiveController;
 use App\Http\Controllers\Web\Performer\PerformerLocationController;
+use App\Http\Controllers\Web\Performer\PhotoController as PerformerPhotoController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
 use App\Http\Controllers\Web\Performer\ReceivedPhotoController;
 use App\Http\Controllers\Web\Performer\SentInterestsController;
@@ -460,6 +462,25 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware(['role:performer', 'throttle:5,1'])
             ->name('performer.boost');
 
+        // Live pública GRÁTIS (Sprint 15, PR #139). Já sob `auth`+`2fa`+
+        // `documents.accepted`; `feature:live` (dark launch) + `role:performer` +
+        // `can('performer-active')` (só a performer ATIVA no catálogo transmite —
+        // a pendente vê o botão travado, como o resto do dashboard). A live não
+        // move o ledger (grátis); a receita é gorjeta/presente pelas rotas delas.
+        Route::middleware(['role:performer', 'feature:live', 'throttle:30,1'])->group(function () {
+            Route::get('/performer/live', [PerformerLiveController::class, 'page'])
+                ->name('performer.live')
+                ->can('performer-active');
+
+            Route::post('/performer/live/start', [PerformerLiveController::class, 'start'])
+                ->name('performer.live.start')
+                ->can('performer-active');
+
+            Route::post('/performer/live/stop', [PerformerLiveController::class, 'stop'])
+                ->name('performer.live.stop')
+                ->can('performer-active');
+        });
+
         // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer
         // pendente (em KYC) já tem senha, e-mail e documento enviado — é
         // justamente a janela em que a conta guarda PII e ainda não tem
@@ -749,6 +770,22 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/presentes', [GiftController::class, 'store'])
             ->middleware('throttle:10,1')
             ->name('gifts.send');
+
+        // Assistir à live pública GRÁTIS (Sprint 15, PR #139). Já sob
+        // `auth`+`2fa`+`role:consumer`+`member.verified`; + `feature:live` (dark
+        // launch). Rota por SLUG da performer, não pelo room_name — o nome LiveKit
+        // fica server-side (invariante do #138), só dentro do JWT. Não cobra
+        // tokens; gorjeta/presente usam as rotas acima. O refresh reautoriza a
+        // cada renovação (410 quando a live encerrou) — "expiração na leitura".
+        Route::middleware('feature:live')->group(function () {
+            Route::get('/live/{slug}', [LiveViewController::class, 'show'])
+                ->middleware('throttle:60,1')
+                ->name('live.show');
+
+            Route::post('/live/{slug}/token-refresh', [LiveViewController::class, 'refresh'])
+                ->middleware('throttle:30,1')
+                ->name('live.refresh');
+        });
 
         // Interesse Controlado — caixa do membro, desbloqueio e opt-out.
         Route::get('/interesses', [ConsumerInterestController::class, 'index'])

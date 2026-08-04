@@ -79,6 +79,9 @@ return [
         'performer.availability.toggle',
         // Boost pago (Sprint 11): destaca o perfil no topo do catálogo
         'performer.boost',
+        // Live pública GRÁTIS (Sprint 15): estúdio da performer (LiveRoom.vue)
+        'performer.live.start',
+        'performer.live.stop',
         'performer.interests.send',
         'performer.interests.send-visitor',
         'performer.interests.index',
@@ -148,6 +151,12 @@ return [
 
         // Consumer tips
         'tips.send',
+
+        // Live pública GRÁTIS (Sprint 15): viewer do membro (LiveViewer.vue) —
+        // gorjeta/presente durante a live + renovação do token.
+        'live.refresh',
+        'gifts.send',
+        'gifts.catalog',
 
         // Consumer interests (Interesse Controlado)
         'interests.index',
