@@ -42,8 +42,16 @@ class TokenCreditPolicy
     /** Franquia mensal do tier ativo do usuário, ou 0 se não assina. */
     public function franchiseFor(User $user): int
     {
-        $slug = $user->activeCircle()?->slug;
+        return $this->franchiseForSlug($user->activeCircle()?->slug);
+    }
 
+    /**
+     * Franquia mensal de um tier por slug (M.13.4). A concessão do ciclo deve ser
+     * ancorada no Círculo da ASSINATURA sendo concedida — não em activeCircle(),
+     * que faz latest('id') e resolveria outra linha se o usuário tivesse duas.
+     */
+    public function franchiseForSlug(?string $slug): int
+    {
         return (int) config("monetization.franchises_by_tier.{$slug}", 0);
     }
 
@@ -105,7 +113,7 @@ class TokenCreditPolicy
         ?string $description = null,
     ): ?TokenLedger {
         if ($entryType === 'subscription_grant') {
-            return $this->grantWithPending($user, $amount, $referenceType, $referenceId, $description);
+            return $this->grantWithPending($user, $amount, $referenceType, $referenceId, $description)['ledger'];
         }
 
         if ($this->respectsCap($entryType)) {
@@ -128,9 +136,30 @@ class TokenCreditPolicy
     }
 
     /**
+     * Concede a franquia mensal de um ciclo, consciente do teto e da pendência
+     * (M.13.8). É o ponto de entrada do command de reconciliação e do webhook de
+     * cobrança; devolve credited/pended CAPTURADOS DENTRO da transação travada,
+     * para o chamador decidir o aviso de teto (M.13.8) sem um reload que corra com
+     * um releaseAfterDebit concorrente.
+     *
+     * @return array{ledger:?TokenLedger, credited:int, pended:int}
+     */
+    public function grantFranchise(
+        User $user,
+        int $amount,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?string $description = null,
+    ): array {
+        return $this->grantWithPending($user, $amount, $referenceType, $referenceId, $description);
+    }
+
+    /**
      * subscription_grant sob o teto escalonado, com fila de pendência (M.13.8).
      * Tudo sob o lock do wallet: lê saldo, credita o que couber, e SUBSTITUI a
      * pendência (não empilha) por min(excedente, 1 franquia).
+     *
+     * @return array{ledger:?TokenLedger, credited:int, pended:int}
      */
     private function grantWithPending(
         User $user,
@@ -138,7 +167,7 @@ class TokenCreditPolicy
         ?string $referenceType,
         ?int $referenceId,
         ?string $description,
-    ): ?TokenLedger {
+    ): array {
         return DB::transaction(function () use ($user, $amount, $referenceType, $referenceId, $description) {
             TokenWallet::firstOrCreate(['user_id' => $user->id], ['balance' => 0]);
             $wallet = TokenWallet::where('user_id', $user->id)->lockForUpdate()->first();
@@ -153,9 +182,11 @@ class TokenCreditPolicy
             $newPending = min($remainder, $this->franchiseFor($user));
             $wallet->forceFill(['pending_grant_tokens' => $newPending])->save();
 
-            return $credited > 0
+            $ledger = $credited > 0
                 ? $this->tokenService->credit($user, $credited, 'subscription_grant', $referenceType, $referenceId, $description)
                 : null;
+
+            return ['ledger' => $ledger, 'credited' => $credited, 'pended' => $newPending];
         });
     }
 
