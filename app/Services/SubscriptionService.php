@@ -8,6 +8,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionCharge;
 use App\Models\User;
 use App\Models\WaitlistEntry;
+use App\Events\SubscriptionGrantPended;
 use App\Services\Asaas\AsaasClientInterface;
 use App\Support\Audit;
 use Illuminate\Support\Carbon;
@@ -299,6 +300,136 @@ class SubscriptionService
     }
 
     /**
+     * Rede de segurança de reconciliação da franquia mensal (M.13.4/M.13.8). O
+     * caminho PRIMÁRIO da concessão é o webhook de cobrança (recordChargeAndGrant),
+     * que concede na hora do pagamento. Este command só concede um ciclo que ficou
+     * sem marca — e NUNCA o que o webhook já concedeu, porque os dois compartilham
+     * last_grant_period_start (o webhook o grava == current_period_start ao abrir o
+     * ciclo; este command só toca assinaturas cuja marca DIVERGE do ciclo corrente).
+     *
+     * Não concede o PRIMEIRO ciclo (marca NULL): esse é o grant antecipado do
+     * subscribe()/webhook, e concedê-lo aqui duplicaria com a cobrança que ainda
+     * vai chegar. Reconciliar o primeiro mês perdido exigiria consultar o Asaas
+     * (fora de escopo) — a ressalva está documentada.
+     */
+    public function grantDueFranchises(): array
+    {
+        $due = Subscription::query()
+            ->where('status', 'active')
+            ->where('current_period_end', '>', now())
+            ->whereNotNull('current_period_start')
+            ->whereNotNull('last_grant_period_start')
+            ->whereColumn('last_grant_period_start', '!=', 'current_period_start')
+            ->with('circle')
+            ->get();
+
+        $granted = 0;
+        $pended = 0;
+        $failed = 0;
+
+        foreach ($due as $subscription) {
+            try {
+                $grant = $this->grantFranchiseFor($subscription);
+                if ($grant !== null) {
+                    $granted++;
+                    if ($grant['pended'] > 0) {
+                        $pended++;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Uma linha que falha não contamina o lote (mesma disciplina de
+                // expireCanceled). O ciclo continua sem marca e a próxima rodada
+                // (ou o webhook) tenta de novo — nunca perde nem duplica.
+                $failed++;
+
+                Log::error('Failed to grant subscription franchise', [
+                    'subscription_id' => $subscription->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return ['granted' => $granted, 'pended' => $pended, 'failed' => $failed];
+    }
+
+    /**
+     * @return array{ledger:?\App\Models\TokenLedger, credited:int, pended:int}|null
+     *   o resultado da concessão, ou null se esta rodada não concedeu (marca já
+     *   casava, assinatura fora do ar, ou tier sem franquia).
+     */
+    private function grantFranchiseFor(Subscription $subscription): ?array
+    {
+        $result = DB::transaction(function () use ($subscription) {
+            $locked = Subscription::where('id', $subscription->id)->lockForUpdate()->first();
+
+            // Recheca sob lock: entre a query do lote e este ponto, o webhook pode
+            // ter concedido e avançado o ciclo (gravando a marca == period_start).
+            // Se a marca já casa (ou a assinatura saiu do ar), não há o que fazer —
+            // é o que fecha a corrida query↔lock contra o webhook.
+            if ($locked->status !== 'active'
+                || $locked->current_period_end === null
+                || ! $locked->current_period_end->isFuture()
+                || $locked->current_period_start === null
+                || $locked->last_grant_period_start === null
+                || $locked->last_grant_period_start->equalTo($locked->current_period_start)) {
+                return null;
+            }
+
+            // Valor da franquia ancorado no Círculo DESTA assinatura (não em
+            // activeCircle()), lido da config canônica (M.13.4) via a policy. Um
+            // teste trava circle->monthly_tokens == config para os dois caminhos
+            // nunca concederem valores diferentes.
+            $tokens = $this->creditPolicy->franchiseForSlug($locked->circle->slug);
+
+            // Tier sem franquia (0) não deve zerar a pendência existente: pular.
+            if ($tokens <= 0) {
+                return null;
+            }
+
+            $grant = $this->creditPolicy->grantFranchise(
+                $locked->user,
+                $tokens,
+                'subscription',
+                $locked->id,
+                "Círculo {$locked->circle->slug}: {$tokens} tokens/mês (ciclo)",
+            );
+
+            // Marca ESTE ciclo como concedido, com o mesmo valor que o webhook
+            // usaria — a rodada seguinte e o webhook passam a ver a marca casada.
+            $locked->last_grant_period_start = $locked->current_period_start;
+            $locked->save();
+
+            Audit::log('subscription.franchise_granted', $locked, [
+                'circle' => $locked->circle->slug,
+                'tokens' => $tokens,
+                'credited' => $grant['credited'],
+                'pended' => $grant['pended'],
+            ]);
+
+            return $grant;
+        });
+
+        if ($result === null) {
+            return null;
+        }
+
+        // Aviso de aproximação do teto (M.13.8): dispara só quando ESTE grant gerou
+        // pendência, com o valor capturado dentro da transação travada (não um
+        // reload que correria com um releaseAfterDebit concorrente). Sem PII —
+        // só o próprio usuário e números do seu wallet.
+        if ($result['pended'] > 0) {
+            SubscriptionGrantPended::dispatch(
+                $subscription->user_id,
+                $subscription->circle->slug,
+                $result['pended'],
+                $this->creditPolicy->capFor($subscription->user),
+            );
+        }
+
+        return $result;
+    }
+
+    /**
      * Handle an Asaas webhook for a subscription. Idempotent per charge via
      * subscription_charges.provider_event_id.
      */
@@ -412,7 +543,12 @@ class SubscriptionService
      */
     private function recordChargeAndGrant(Subscription $subscription, string $chargeKey, int $amountCents): void
     {
-        DB::transaction(function () use ($subscription, $chargeKey, $amountCents) {
+        // Pendência gerada por ESTE grant (M.13.8), capturada dentro da transação
+        // travada para disparar o aviso DEPOIS do commit — este é o caminho
+        // PRIMÁRIO da concessão (pagamento), onde a pendência mais acontece.
+        $pended = 0;
+
+        DB::transaction(function () use ($subscription, $chargeKey, $amountCents, &$pended) {
             $charge = SubscriptionCharge::firstOrCreate(
                 ['provider_event_id' => $chargeKey],
                 [
@@ -459,14 +595,15 @@ class SubscriptionService
             // Fila de pendência (M.13.8): a policy credita o que couber sob o teto
             // e pendura o excedente (não empilha, não expira, liberado no gasto).
             // Dentro do teto — o caso normal — credita cheio, igual a antes.
-            $this->creditPolicy->credit(
+            // grantFranchise devolve o `pended` para o aviso de teto pós-commit.
+            $grant = $this->creditPolicy->grantFranchise(
                 $subscription->user,
                 $tokens,
-                'subscription_grant',
                 'subscription_charge',
                 $charge->id,
                 "Círculo {$subscription->circle->slug}: {$tokens} tokens/mês",
             );
+            $pended = $grant['pended'];
 
             // Keep the paid window current and recover from past_due on renewal.
             // Durante o trial este grant é o do primeiro mês, concedido no dia 0
@@ -474,19 +611,40 @@ class SubscriptionService
             // now() a encerraria no dia 30 e deixaria o founder sem acesso até a
             // renovação do dia 37. O ciclo pago conta do fim do trial.
             $inTrial = $subscription->isInTrial();
-            $cycleStart = $inTrial ? $subscription->trial_ends_at->copy() : now();
+            $periodStart = now();
+            $cycleStart = $inTrial ? $subscription->trial_ends_at->copy() : $periodStart->copy();
 
-            $subscription->update([
+            $subscription->fill([
                 'status' => 'active',
-                'current_period_start' => now(),
+                'current_period_start' => $periodStart,
                 'current_period_end' => $cycleStart->copy()->addMonthNoOverflow(),
                 // No trial a próxima cobrança é o fim do trial (ainda não pagou);
                 // fora dele, a renovação do mês seguinte, como sempre foi.
                 'next_due_date' => ($inTrial ? $cycleStart : $cycleStart->copy()->addMonthNoOverflow())->toDateString(),
             ]);
 
+            // Marca o ciclo como concedido (M.13.8), com o MESMO valor de
+            // current_period_start: o webhook concede E abre o período no mesmo
+            // passo, então o command de reconciliação vê last_grant_period_start
+            // == current_period_start e nunca reconcede o que aqui já foi
+            // concedido. Fora do $fillable — atribuição direta, nunca mass-assign.
+            $subscription->last_grant_period_start = $periodStart;
+            $subscription->save();
+
             $charge->update(['processed_at' => now()]);
         });
+
+        // Aviso de aproximação do teto (M.13.8), fora da transação (só após commit):
+        // dispara quando a concessão do pagamento gerou pendência. Mesmo evento e
+        // mesma disciplina sem-PII do caminho de reconciliação.
+        if ($pended > 0) {
+            SubscriptionGrantPended::dispatch(
+                $subscription->user_id,
+                $subscription->circle->slug,
+                $pended,
+                $this->creditPolicy->capFor($subscription->user),
+            );
+        }
     }
 
     private function markCanceled(?string $asaasSubId): void

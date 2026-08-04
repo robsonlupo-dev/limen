@@ -40,6 +40,16 @@ Schedule::command('waitlist:send-nurture')->hourly();
 // empilhar com a próxima e mandar dois cancelamentos da mesma linha.
 Schedule::command('subscriptions:expire')->hourly()->withoutOverlapping(10);
 
+// Reconciliação da franquia mensal dos Círculos (M.13.4/M.13.8). O caminho
+// PRIMÁRIO é o webhook de cobrança, que concede na hora do pagamento; este
+// command é a rede de segurança para um ciclo que rodou sem o webhook conceder.
+// De hora em hora (não diário): o corte de ciclo é o datetime de cada assinante,
+// então um daily atrasaria a franquia de alguém em até um dia. Os dois caminhos
+// compartilham last_grant_period_start, então o command NUNCA reconcede o que o
+// webhook já concedeu — a serialização real é o lock por linha + a marca, não
+// este withoutOverlapping (que só impede duas rodadas DO COMMAND de empilharem).
+Schedule::command('subscriptions:grant-monthly')->hourly()->withoutOverlapping(15);
+
 // Expiração/retenção do chat: diário. Marca acessos vencidos e, passada a
 // carência, soft-deleta as mensagens (retidas no servidor). Prazos em dias, então
 // diário basta; withoutOverlapping evita duas varreduras concorrentes soft-

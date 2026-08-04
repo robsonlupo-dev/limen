@@ -25,6 +25,11 @@ class Subscription extends Model
         return [
             'current_period_start' => 'datetime',
             'current_period_end' => 'datetime',
+            // Marca por-ciclo da franquia concedida (M.13.8). Fora do $fillable de
+            // propósito: estado de controle derivado do servidor, nunca de request
+            // (mesma disciplina de active_lock/discrete_mode). Escrita por
+            // atribuição direta em recordChargeAndGrant e grantDueFranchises.
+            'last_grant_period_start' => 'datetime',
             'next_due_date' => 'date',
             'canceled_at' => 'datetime',
             'trial_ends_at' => 'datetime',
