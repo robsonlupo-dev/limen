@@ -2621,10 +2621,13 @@ como pendente:
 
 Ordem não é prioridade. O bloco central é **vídeo em tempo real (LiveKit)**,
 planejado desde a fundação e **nunca implementado** (não há dependência no projeto
-— não presuma que existe). O gargalo conhecido é o serving sem cifra em memória do
-§ 2.5, que travou as FC Sessions. Os `entry_type` `live_credit`/`call_credit`
-**ainda não existem** — entram como migration no enum quando as features shiparem
-(princípio nº 2; ver a nota em `config/monetization.php`,
+— sem SDK no `composer.json`, sem `config/livekit.php` — não presuma que existe).
+As **credenciais já estão no `.env`** do servidor (`LIVEKIT_API_KEY`,
+`LIVEKIT_API_SECRET`, `LIVEKIT_URL`, sem valor versionado — princípio nº 5), então
+o bloqueio é código/serving, não acesso. O gargalo conhecido é o serving sem cifra
+em memória do § 2.5, que travou as FC Sessions. Os `entry_type` `live_credit`/
+`call_credit` **ainda não existem** — entram como migration no enum quando as
+features shiparem (princípio nº 2; ver a nota em `config/monetization.php`,
 `payout.earning_entry_types`).
 
 - [ ] **Live pública (LiveKit)** — a performer define X tokens por bloco de 10 min;

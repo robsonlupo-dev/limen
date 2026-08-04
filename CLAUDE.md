@@ -12,8 +12,13 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 - Pagamento: Asaas / PIX (entregue na fundação)
 - Realtime: Laravel Reverb (chat). O servidor Reverb **ainda não roda** —
   dev/staging usam o driver `log`. Ver `config/broadcasting.php`.
-- Streaming de vídeo (LiveKit): **planejado, nada implementado.** Não há
-  dependência no projeto — não presuma que existe.
+- Streaming de vídeo (LiveKit): **planejado, nada implementado** (alvo do
+  Sprint 15 — live pública e chamada privada). **Não há dependência no projeto
+  (sem SDK no `composer.json`, sem `config/livekit.php`) — não presuma que
+  existe.** As credenciais **já estão no `.env`** do servidor
+  (`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`) — o bloqueio do
+  Sprint 15 é código/serving (§ 2.5), não credencial. Segredo fica no `.env`
+  (princípio nº 5); nunca versionar valor.
 
 ## Princípios de arquitetura (não negociáveis)
 1. **Segurança e idade primeiro.** PII sensível, KYC, 18+ dos dois lados, prevenção de conteúdo ilegal. É fundação, não feature.
@@ -431,12 +436,15 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 ### Backlog — Sprint 15 (registrado, não iniciado)
 Ordem não é prioridade. O bloco central é **vídeo em tempo real (LiveKit)**,
 planejado desde a fundação e nunca implementado — **não presuma que existe**
-(não há dependência no projeto — § "Stack"). O gargalo conhecido é o serving sem
-cifra em memória do § 2.5, que travou as FC Sessions. Cada gasto/crédito novo de
-live/chamada é **migration no enum de `entry_type`** do ledger append-only
-(princípio nº 2), NUNCA `UPDATE` de saldo — os `entry_type` `live_credit`/
-`call_credit` ainda não existem, entram quando essas features shiparem (ver a
-nota em `config/monetization.php`, `payout.earning_entry_types`).
+(não há dependência no projeto — § "Stack"). As **credenciais já estão no `.env`**
+(`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`), então o bloqueio é
+código, não acesso: falta o SDK/`config/livekit.php`, o serving e a integração. O
+gargalo conhecido é o serving sem cifra em memória do § 2.5, que travou as FC
+Sessions. Cada gasto/crédito novo de live/chamada é **migration no enum de
+`entry_type`** do ledger append-only (princípio nº 2), NUNCA `UPDATE` de saldo —
+os `entry_type` `live_credit`/`call_credit` ainda não existem, entram quando essas
+features shiparem (ver a nota em `config/monetization.php`,
+`payout.earning_entry_types`).
 
 - **Live pública (LiveKit)** — a performer define X tokens por bloco de 10 min;
   **todos pagam** (inclusive FC); split **70/30** (M.13.6). Não-assinante assiste
