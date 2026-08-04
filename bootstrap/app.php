@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureActiveCircle;
 use App\Http\Middleware\EnsureMemberVerified;
 use App\Http\Middleware\EnsureModeratorOrAdmin;
 use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\FeatureEnabled;
 use App\Http\Middleware\GeoBlock;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
@@ -73,6 +74,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'circle' => EnsureActiveCircle::class,
             'documents.accepted' => DocumentsAccepted::class,
             'member.verified' => EnsureMemberVerified::class,
+            // Dark launch de LiveKit: `feature:live` / `feature:call` fecham a
+            // porta HTTP quando a flag está off (config/features.php). Backstop
+            // interno vive no LiveKitService.
+            'feature' => FeatureEnabled::class,
             '2fa' => TwoFactorChallenge::class,
             'asaas.webhook_ip' => VerifyAsaasWebhookIp::class,
         ]);

@@ -1,0 +1,202 @@
+<?php
+
+namespace App\Services;
+
+use Agence104\LiveKit\AccessToken;
+use Agence104\LiveKit\AccessTokenOptions;
+use Agence104\LiveKit\RoomCreateOptions;
+use Agence104\LiveKit\RoomServiceClient;
+use Agence104\LiveKit\VideoGrant;
+use App\Exceptions\FeatureDisabledException;
+use App\Support\FanAlias;
+
+/**
+ * Dona ÚNICA de rooms e tokens LiveKit (Sprint 15). Lê tudo de config/livekit.php
+ * e config/features.php. Nenhuma outra classe fala com o LiveKit.
+ *
+ * ── Identity: NUNCA o id cru do membro (achado 🔴 da revisão de segurança) ──
+ * O JWT leva a identity em `sub`, e participantes de uma sala VEEM a identity uns
+ * dos outros (participant list) + ela vai para o terceiro (LiveKit). Pôr
+ * `member:{id}` ali seria um id ESTÁVEL e GLOBAL, correlacionável entre as lives
+ * de todas as performers — exatamente o que o FanAlias existe para impedir. Por
+ * isso a identity do membro é derivada pelos helpers, nunca do userId cru:
+ *   - Live pública 1:N → OPACO por sessão (liveParticipantIdentity), sem relação
+ *     com o userId; o mapa identity→user vive server-side (PR de serving). Não
+ *     correlaciona entre lives nem entre perfis.
+ *   - Chamada 1:1 → FanAlias handle por par (callMemberIdentity): a performer JÁ
+ *     vê o "Fã #" dela (superfície legítima membro→performer, como no chat).
+ *   - Performer → identidade pública (performerIdentity): é a identidade
+ *     verificada, não há assimetria a proteger.
+ *
+ * O segredo (api_secret) assina o JWT LOCALMENTE (HS256) e nunca sai daqui —
+ * nunca logar/serializar o config em exceção.
+ */
+class LiveKitService
+{
+    public const ROLE_PERFORMER = 'performer';
+
+    public const ROLE_MEMBER = 'member';
+
+    public const ROOM_PREFIX_LIVE = 'live';
+
+    public const ROOM_PREFIX_CALL = 'call';
+
+    public const ROOM_PREFIX_GROUP = 'group';
+
+    private ?RoomServiceClient $roomClient = null;
+
+    // ── Nomes de sala (imprevisíveis, CSPRNG) ────────────────────────────────
+    // O nome nunca é o único gate: a autorização mora na emissão do token (o PR
+    // de serving só emite para quem tem tier/pagamento/não-ban) e o token confina
+    // à sala. O hex aleatório é defesa-em-profundidade contra ENUMERAÇÃO, não
+    // autorização — por isso o roomName nunca pode aparecer em log/URL/resposta.
+
+    public function liveRoomName(int $performerId): string
+    {
+        return self::ROOM_PREFIX_LIVE."-{$performerId}-".bin2hex(random_bytes(4));
+    }
+
+    public function callRoomName(): string
+    {
+        return self::ROOM_PREFIX_CALL.'-'.bin2hex(random_bytes(6));
+    }
+
+    public function groupRoomName(int $performerId): string
+    {
+        return self::ROOM_PREFIX_GROUP."-{$performerId}-".bin2hex(random_bytes(4));
+    }
+
+    // ── Identity (nunca o id cru) ────────────────────────────────────────────
+
+    /** Live pública: opaco por sessão, mapeado server-side. Não deriva do userId. */
+    public function liveParticipantIdentity(): string
+    {
+        return 'lp_'.bin2hex(random_bytes(16));
+    }
+
+    /** Chamada 1:1: FanAlias handle por par (a performer vê o "Fã #" dela). */
+    public function callMemberIdentity(int $performerProfileId, int $memberId): string
+    {
+        return self::ROLE_MEMBER.':'.FanAlias::handle($performerProfileId, $memberId);
+    }
+
+    /** Performer: identidade pública verificada (sem assimetria a proteger). */
+    public function performerIdentity(int $performerProfileId): string
+    {
+        return self::ROLE_PERFORMER.':'.$performerProfileId;
+    }
+
+    // ── Token ────────────────────────────────────────────────────────────────
+
+    /**
+     * Emite o JWT de acesso a UMA sala. `$identity` já vem DERIVADO pelos helpers
+     * acima (nunca o id cru — ver docblock da classe). `$grants` =
+     * ['canPublish'=>bool, 'canSubscribe'=>bool, 'canPublishData'=>bool].
+     *
+     * O VideoGrant é amarrado a `$roomName` (roomJoin + room): um token de uma
+     * sala NÃO entra em outra. TTL = config('livekit.token_ttl').
+     */
+    public function generateToken(string $identity, string $role, string $roomName, array $grants): string
+    {
+        // Backstop de dark launch: a fonte de credencial não emite com a feature
+        // desligada, mesmo fora de rota gateada (defesa em profundidade).
+        $this->assertFeatureEnabledForRoom($roomName);
+
+        $options = (new AccessTokenOptions)
+            ->setIdentity($identity)
+            ->setName($role)
+            ->setTtl($this->tokenTtl());
+
+        $token = new AccessToken(
+            config('livekit.api_key'),
+            config('livekit.api_secret'),
+            $options,
+        );
+
+        $video = (new VideoGrant)
+            ->setRoomJoin(true)
+            ->setRoomName($roomName)
+            ->setCanPublish((bool) ($grants['canPublish'] ?? false))
+            ->setCanSubscribe((bool) ($grants['canSubscribe'] ?? false))
+            ->setCanPublishData((bool) ($grants['canPublishData'] ?? false));
+
+        $token->setGrant($video);
+
+        return $token->toJwt();
+    }
+
+    public function tokenTtl(): int
+    {
+        return (int) config('livekit.token_ttl');
+    }
+
+    // ── Rooms (CRUD contra o LiveKit) ────────────────────────────────────────
+
+    /**
+     * Cria a sala. Gateada pela feature (mesma disciplina do generateToken). Os
+     * tetos vêm de config/livekit.php via o chamador (o PR de serving passa o
+     * max do tipo da sala).
+     */
+    public function createRoom(string $name, int $maxParticipants): void
+    {
+        $this->assertFeatureEnabledForRoom($name);
+
+        $this->rooms()->createRoom(
+            (new RoomCreateOptions)->setName($name)->setMaxParticipants($maxParticipants),
+        );
+    }
+
+    /**
+     * Apaga a sala. NÃO checa a flag de propósito: é teardown/kill-switch — tem
+     * que rodar DEPOIS de desligar a feature para esvaziar salas vivas.
+     */
+    public function deleteRoom(string $name): void
+    {
+        $this->rooms()->deleteRoom($name);
+    }
+
+    /**
+     * Expulsa um participante (revogação ATIVA). NÃO checa a flag: é a resposta a
+     * ban/perda-de-tier e não pode depender da expiração passiva do token (o
+     * token vale até token_ttl mesmo com o direito já perdido).
+     */
+    public function revokeParticipant(string $roomName, string $identity): void
+    {
+        $this->rooms()->removeParticipant($roomName, $identity);
+    }
+
+    public function listParticipants(string $roomName): array
+    {
+        return iterator_to_array($this->rooms()->listParticipants($roomName)->getParticipants());
+    }
+
+    public function roomExists(string $roomName): bool
+    {
+        return count($this->rooms()->listRooms([$roomName])->getRooms()) > 0;
+    }
+
+    // ── Internos ─────────────────────────────────────────────────────────────
+
+    /** Cliente HTTP do LiveKit, lazy: token/identity não tocam a rede. */
+    private function rooms(): RoomServiceClient
+    {
+        return $this->roomClient ??= new RoomServiceClient(
+            config('livekit.url'),
+            config('livekit.api_key'),
+            config('livekit.api_secret'),
+        );
+    }
+
+    /**
+     * Deriva a feature do PREFIXO do nome da sala e barra se desligada. `live-` →
+     * live; `call-`/`group-` → call (group show ganha flag própria no PR dele).
+     */
+    private function assertFeatureEnabledForRoom(string $roomName): void
+    {
+        $feature = str_starts_with($roomName, self::ROOM_PREFIX_LIVE.'-') ? 'live' : 'call';
+
+        if (! config("features.{$feature}_enabled", false)) {
+            throw new FeatureDisabledException($feature);
+        }
+    }
+}
