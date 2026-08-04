@@ -175,12 +175,15 @@ it('renders member-specific copy and subject for a member entry', function () {
         ->and($rendered)->toContain('Seu lugar está reservado'); // member dia1 body
 });
 
-// The feminine founder label appears only in the performer copy (dia 14/45).
-it('uses the feminine founder label only for performers', function () {
+// O CTA de painel de fundador(a) aparece só na copy de performer (dia 14/45),
+// e em forma NEUTRA de gênero — sem termos só no feminino.
+it('uses the gender-neutral founder CTA only for performers', function () {
     $perf = confirmedEntry('performer', 'pf@example.com', daysAgo: 1);
     $memb = confirmedEntry('member', 'mb@example.com', daysAgo: 1);
 
-    expect((new WaitlistNurtureMail($perf, 'nurture_4'))->render())->toContain('painel de fundadora');
+    $perfHtml = (new WaitlistNurtureMail($perf, 'nurture_4'))->render();
+    expect($perfHtml)->toContain('painel de fundador(a)')
+        ->not->toContain('fundadora');
     expect((new WaitlistNurtureMail($memb, 'nurture_4'))->render())->not->toContain('fundadora');
 });
 

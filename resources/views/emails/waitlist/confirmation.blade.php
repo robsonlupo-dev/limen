@@ -61,7 +61,7 @@
                         <td align="center" style="padding:26px 44px 0 44px;">
                             <p style="margin:0; font-size:16px; line-height:1.65; color:#F5F0E8;">
                                 @if ($isPerformer)
-                                    O Limen é uma plataforma verificada e exclusiva. Você está entre as primeiras criadoras convidadas. Seu espaço está guardado até a abertura.
+                                    O Limen é uma plataforma verificada e exclusiva. Você faz parte do grupo fundador do Limen. Seu espaço está guardado até a abertura.
                                 @else
                                     Você está entre os primeiros. Quando abrirmos as portas, você entra antes de todos.
                                 @endif
@@ -89,7 +89,7 @@
                         <td style="padding:34px 44px 0 44px;">
                             <div style="border-top:1px solid #262626; padding-top:24px; text-align:center;">
                                 <a href="{{ $panelUrl }}" style="font-size:14px; color:#9a938a; text-decoration:underline;">
-                                    {{ $isPerformer ? 'Acessar meu painel de fundadora' : 'Acessar meu painel de fundador' }}
+                                    {{ $isPerformer ? 'Acessar meu painel de fundador(a)' : 'Acessar meu painel de fundador' }}
                                 </a>
                             </div>
                         </td>

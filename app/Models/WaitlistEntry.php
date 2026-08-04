@@ -79,10 +79,15 @@ class WaitlistEntry extends Model
         return $this->activeTier()->label();
     }
 
-    /** "Membro Fundador" / "Performer Fundadora" — the founder title by role. */
+    /**
+     * "Membro Fundador" / "Performer Fundador(a)" — the founder title by role.
+     * Neutro de gênero: o Limen tem quatro mundos (mulheres, homens, trans,
+     * casais) e não há campo de gênero na waitlist, então a forma inclusiva
+     * "Fundador(a)" vale para todo mundo.
+     */
     public function founderTitle(): string
     {
-        return $this->isPerformer() ? 'Performer Fundadora' : 'Membro Fundador';
+        return $this->isPerformer() ? 'Performer Fundador(a)' : 'Membro Fundador';
     }
 
     /**

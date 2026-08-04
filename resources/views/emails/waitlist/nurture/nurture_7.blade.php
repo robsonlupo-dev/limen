@@ -3,7 +3,7 @@
     :title="$subject"
     :preheader="$isPerformer ? 'Você vai ser das primeiras.' : 'Algumas coisas não se explicam — se experimentam.'"
     :firstName="$firstName"
-    :ctaLabel="$isPerformer ? 'Ver meu painel de fundadora' : 'Acessar meu painel'"
+    :ctaLabel="$isPerformer ? 'Ver meu painel de fundador(a)' : 'Acessar meu painel'"
     :ctaUrl="$ctaUrl"
     :unsubscribeUrl="$unsubscribeUrl">
     @if ($isPerformer)
