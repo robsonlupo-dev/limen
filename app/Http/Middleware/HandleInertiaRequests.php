@@ -90,6 +90,15 @@ class HandleInertiaRequests extends Middleware
                 'enabled' => (bool) config('hcaptcha.enabled'),
                 'sitekey' => config('hcaptcha.enabled') ? config('hcaptcha.sitekey') : null,
             ],
+            // Feature flags de dark launch (Sprint 15). Compartilhadas para o front
+            // decidir entre renderizar a feature (live/chamada) ou o placeholder "Em
+            // breve" (PR #144). É só o BOOLEANO — a autoridade real continua sendo o
+            // middleware `feature:*` (403) + o backstop do LiveKitService; um front
+            // adulterado não liga nada, só muda o que a tela desenha.
+            'features' => [
+                'live_enabled' => (bool) config('features.live_enabled'),
+                'call_enabled' => (bool) config('features.call_enabled'),
+            ],
         ]);
     }
 }

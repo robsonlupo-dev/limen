@@ -14,6 +14,7 @@ import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
+import ComingSoon from '@/Components/ComingSoon.vue'
 import { stateLabel } from '@/lib/performerAttributes'
 
 const props = defineProps({
@@ -58,6 +59,8 @@ const workModeLabels = {
 // /favoritos/{slug} exige), então o botão só aparece para ele.
 const page = usePage()
 const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
+// Feature flags (Sprint 15). Off em produção → placeholders "Em breve".
+const features = computed(() => page.props.features ?? {})
 
 const showTipModal = ref(false)
 const showReportModal = ref(false)
@@ -82,7 +85,9 @@ function onTipSent(data) {
                 <div v-else class="h-full w-full bg-gradient-to-br from-gold/25 via-surface-2 to-background" />
                 <div class="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
 
-                <div v-if="performer.is_live" class="absolute top-4 right-4">
+                <!-- O badge "AO VIVO" só existe com a feature ligada: com a flag
+                     off ninguém pode estar ao vivo (Sprint 15). -->
+                <div v-if="performer.is_live && features.live_enabled" class="absolute top-4 right-4">
                     <LiveBadge />
                 </div>
             </div>
@@ -150,6 +155,15 @@ function onTipSent(data) {
                     <div>
                         <span class="text-cream font-medium">{{ tipsCount }}</span> gorjetas recebidas
                     </div>
+                </div>
+
+                <!-- Live / Chamada privada (Sprint 15). Em produção as flags estão
+                     OFF: mostra o placeholder "Em breve" onde a ação apareceria.
+                     Quando o advogado liberar (.env), o placeholder some e a UI real
+                     da feature — já implementada — assume, sem deploy de código. -->
+                <div v-if="!features.live_enabled || !features.call_enabled" class="mt-4 flex flex-wrap gap-3">
+                    <ComingSoon v-if="!features.live_enabled" icon="camera" label="Assistir live" />
+                    <ComingSoon v-if="!features.call_enabled" icon="phone" label="Chamada privada" />
                 </div>
 
                 <!-- "Disponível para conversa" (Sprint 11), com destaque. Some
