@@ -12,13 +12,15 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 - Pagamento: Asaas / PIX (entregue na fundação)
 - Realtime: Laravel Reverb (chat). O servidor Reverb **ainda não roda** —
   dev/staging usam o driver `log`. Ver `config/broadcasting.php`.
-- Streaming de vídeo (LiveKit): **planejado, nada implementado** (alvo do
-  Sprint 15 — live pública e chamada privada). **Não há dependência no projeto
-  (sem SDK no `composer.json`, sem `config/livekit.php`) — não presuma que
-  existe.** As credenciais **já estão no `.env`** do servidor
-  (`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`) — o bloqueio do
-  Sprint 15 é código/serving (§ 2.5), não credencial. Segredo fica no `.env`
-  (princípio nº 5); nunca versionar valor.
+- Streaming de vídeo (LiveKit): **IMPLEMENTADO no Sprint 15** (PRs #138–#145 —
+  live pública, chamada 1:1, group show). SDK `agence104/livekit-server-sdk` no
+  `composer.json`, `config/livekit.php`, `LiveKitService` como dona única de rooms
+  e JWTs. Credenciais no `.env` (`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/
+  `LIVEKIT_URL`; segredo fora do Git — princípio nº 5). **Sobe DESLIGADO em
+  produção**: `FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED` off (dark launch — a
+  liberação é jurídica, muda só o `.env`, zero deploy). O § 2.5 (serving sem cifra)
+  está resolvido por arquitetura: não há serving HTTP de bytes de vídeo — o SFU faz
+  o relay via WebRTC (DTLS-SRTP) e o backend só emite tokens.
 
 ## Princípios de arquitetura (não negociáveis)
 1. **Segurança e idade primeiro.** PII sensível, KYC, 18+ dos dois lados, prevenção de conteúdo ilegal. É fundação, não feature.
@@ -279,21 +281,57 @@ Nada de M.13 está implementado até o PR #130. O bloco de monetização acima (
 
 ## Estado atual
 
-> **Estado atual** (`main`, `0f6aefb`, Sprint 14 FECHADO): **1627 testes, 14226
-> asserts** (verde local e no CI; a única falha local é a antiga da view 451 do
-> GeoBlock, que não recorre depois do `npm run build`, que compila a view — é
-> verde no CI). **107 migrations, 144 rotas web + 42 rotas API.** **Base original**
-> (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
+> **Estado atual** (`main`, `bf1c3dd`, Sprint 15 FECHADO): **1743 testes, 14627
+> asserts** (verde no CI; local passam 1742 — a única falha é a antiga da view 451
+> do GeoBlock, que não recorre depois do `npm run build`, que compila a view — ver
+> § "Ambiente de dev"). **115 migrations, 167 rotas web + 42 rotas API.** **Base
+> original** (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
 
-**Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13 e 14 fechados** (tags `v1.0-sprint6` a
-`v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
+**Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14 e 15 fechados** (tags `v1.0-sprint6`
+a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
 dos bloqueadores da Foto Efêmera, **`v1.0-sprint10`** (`402d29e`) no fecho do
 Sprint 10, **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11,
 **`v1.0-sprint12`** (`f23368a`) no fecho do Sprint 12, **`v1.0-sprint13`**
-(`1d63371`) no fecho do Sprint 13, e **`v1.0-sprint14`** (`0f6aefb`) no fecho do
-Sprint 14). **O Sprint 9B não tem tag própria** e não está fechado.
+(`1d63371`) no fecho do Sprint 13, **`v1.0-sprint14`** (`0f6aefb`) no fecho do
+Sprint 14, e **`v1.0-sprint15`** (`bf1c3dd`) no fecho do Sprint 15). **O Sprint 9B
+não tem tag própria** e não está fechado.
+
+> **Sprint 15 fechou com 8 entregas** (tag `v1.0-sprint15`, `bf1c3dd`) — **vídeo
+> em tempo real (LiveKit)**, planejado desde a fundação e nunca implementado até
+> aqui. Cada gasto/crédito novo virou migration no enum de `entry_type` do ledger
+> append-only (princípio nº 2, `spend_live`/`live_credit`/`spend_call`/`call_credit`),
+> nunca `UPDATE` de saldo; a cobrança por minuto/bloco é pré-paga, saldo nunca
+> negativo, split por evento congelado (`applied_rate`). PR #138 (**infra LiveKit +
+> token service** — `LiveKitService` dona única de rooms/JWTs, `config/livekit.php`,
+> feature flags de dark launch, identity opaca/FanAlias por par, room_name nunca em
+> URL/log), PR #139 (**live pública grátis** com gorjeta/presente — serving por
+> sessão, sem URL assinada, badge no catálogo, gorjeta 80/20 e presente 75/25 pelas
+> rotas existentes), PR #140 (**chamada privada 1:1** com cobrança por minuto — split
+> 70/30, request/accept/decline, heartbeat pré-pago idempotente por minuto,
+> `MinuteBiller` como motor único, exclusividade sob lock, ban/kill-switch,
+> `calls:reap-stale`), PR #141 (**group show 1:X** com upgrade para 1:1 — 1 sessão
+> `type=group` + N `call_session_participants` com cobrança independente, upgrade
+> com revoke de 10s por job, exclusividade bidirecional), PR #142 (**animação de
+> gorjeta/presente na live** — evento broadcast `LiveReaction` no canal `live.{slug}`,
+> `<LiveOverlay>` com fila, payload não-sensível FanAlias-only), PR #143 (**preview
+> animado no catálogo** — frame JPEG por sessão capturado do canvas a cada 10s,
+> disco privado `live_previews`, ServesPhotoBytes, `live-previews:purge`), PR #144
+> (**toast global de mensagem** estilo Seeking — `<MessageToast>` no AppLayout,
+> `NewMessage` com sender mascarado por destinatário, nunca o corpo), PR #145
+> (**"Em breve"** em produção — flags compartilhadas como props Inertia,
+> `<ComingSoon>`, todas as rotas de live/call/group gateadas por `feature:*`).
+> **Resolução do § 2.5** (serving sem cifra em memória, que travou as FC Sessions):
+> **não há serving HTTP de bytes de vídeo** — o LiveKit SFU faz o relay do vídeo
+> via WebRTC (DTLS-SRTP fim-a-fim); o backend só emite tokens JWT curtos e controla
+> permissão (quem entra na sala, por quanto tempo). O gargalo histórico deixou de
+> existir por arquitetura, não por cifra em memória. **Deploy de staging pendente**;
+> as features sobem com `FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED` **off** (dark
+> launch — liberação é decisão jurídica, muda só o `.env`). A tag é marco de código,
+> não de go-live (ver abaixo). **Não iniciado (foi para Sprint 16):** feed de
+> conteúdo permanente, sanitização de upload de vídeo, verificação de documento,
+> animações elaboradas de presente, preview via WebRTC real, som de notificação.
 
 > **Sprint 14 fechou com 8 entregas** (tag `v1.0-sprint14`, `0f6aefb`) — a
 > **implementação do modelo de monetização fechado** (§ "Modelo de monetização —
@@ -416,6 +454,7 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 12** — FECHADO, tag `v1.0-sprint12` (`f23368a`), 3 entregas: **fix da ordem de posse no `deploy.sh` manual** (PR #122: chown de `storage/` antes do `git pull` e de `public/build/` antes do `npm run build`, espelhando a hardening que o workflow de CI já tinha); **Convite via Stories** (§ abaixo, PR #123: `is_invite` no story, teto de 2 convites ativos por performer sob leitura, selo "💌 Convite" no feed só para o seguidor SEM chat — `ChatAccessService::memberHasChatWith` como dona; sem lista de "quem recebeu"); **Salvar busca** (§ abaixo, PR #124: o membro guarda combinações de filtros do catálogo, cap 10 sob lock, allowlist derivado de `filterRules()`, privado do membro, varrido no Hard Delete). **Deploy de staging: #123 e #124 pendentes** (#122 é script manual). Não iniciados do backlog: refactor de roles, videochamada LiveKit, e a **tela de feed que consome `stories.feed`** (o endpoint existe e é testado, mas sem consumidor Vue — o selo do convite depende dela).
 - **Sprint 13** — FECHADO, tag `v1.0-sprint13` (`1d63371`), 5 entregas: **Refactor de roles** (PR #125: `moderador` separado de `admin`, fila humana dedicada `/moderacao/*` sob `role:moderador`, em vez do antigo `/admin/reports` sob `role:admin` — pré-requisito da fila de moderação de verdade e do Curador das FC Sessions); **Evidence viewer** (PR #126: a fila de moderação passou a exibir a PROVA retida — bytes congelados de Story/Foto Efêmera denunciados —, fechando o achado da revisão de 30/07 "a fila não tem como VER a prova"); **Múltiplas localizações** (PR #127: até 3 por performer, com migração das linhas de UF única existentes; só UF é público, `city` segue interno — mesma regra da localização opt-in do Sprint 9A); **Photo permissions** (§ abaixo, PR #128: cada foto da galeria pode ser pública ou privada; foto privada aparece borrada no perfil e só é servida a quem tem `photo_grant` aprovado — ou à dona; o membro solicita, a performer aprova/revoga pelo FanAlias, `member_id` nunca vaza; Hard Delete nos dois sentidos); **Stories feed carousel** (§ abaixo, PR #129: a UI que consome `stories.feed` — carrossel tipo Instagram no topo do catálogo, buscado por fetch para não pagar o `canView` por story no caminho crítico; o selo do Convite via Stories do Sprint 12 finalmente tem tela). **Deploy de staging: as 5 pendentes.** Fora das PRs, nesta janela o **modelo de monetização** foi fechado e documentado (§ "Modelo de monetização — DECISÕES FECHADAS", commit `f6aa9a3`).
 - **Sprint 14** — FECHADO, tag `v1.0-sprint14` (`0f6aefb`), 8 entregas — a **implementação do modelo de monetização M.13**: **PR #130** (invariantes M.13: `config/monetization.php` como fonte canônica dos números + `TokenCreditPolicy` dona única de teto por entry_type/M.13.9, fila de pendência/M.13.8, split round-half-up com `applied_rate` congelado/M.13.7, sinais de chat/gift/payout; migrations de `token_ledger.applied_rate` e `token_wallets.pending_grant_tokens`); **PR #131** (rewire de gorjeta/pacotes/desconto para M.13: `TipService` usa `policy.applyRate/creditWithSplit` 80/20 por evento e dropou `split_pct`, desconto de compra vem da config M.13.3, pacotes achatados M.13.2 no seeder); **PR #132** (chat M.13.1: fim do chat grátis de assinante — todo tier paga abertura via `policy.chatCost`, performer +1 token FIXO `chat_access_credit` never-cap, `memberHasChatWith` virou só `ChatAccess::exists`); **PR #133** (subscription grant com fila de pendência M.13.4/M.13.8: franquia mensal com teto escalonado, webhook de cobrança PRIMÁRIO + `subscriptions:grant-monthly` como rede de reconciliação, marca por-ciclo `last_grant_period_start` fecha o double-grant); **PR #134** (payout mensal R$0,60/token M.13.5/M.10: `calculatePayoutCentavos` = `tokens × 60`, sweep `payouts:process-monthly` dia 1 idempotente por (performer, ano, mês) + on-demand, **só ganhos sacáveis** via allowlist estrito, não paga banida); **PR #135** (conteúdo permanente com acesso por tier M.13.13/M.4 — § abaixo: foto v1, níveis Aberto/Premium/Exclusivo/FC Only, desbloqueio permanente via `ContentUnlock`, `ContentVisibilityService` dona única, split 80/20, denunciável, Hard Delete dois sentidos); **PR #136** (fix de copy dos founding members: gênero-neutro, position counter removido); **PR #137** (catálogo de presentes virtuais M.13.6 — § abaixo: 6 presentes fixos da Limen múltiplos de 4, `GiftService` espelha Tip/ContentUnlock, split 75/25 `applied_rate=75`, idempotência por remetente via UNIQUE composto, performer só vê FanAlias, `gift_credit` no allowlist de payout). **Deploy de staging: as 8 pendentes.** Não iniciado (foi para Sprint 15): live/chamada LiveKit, gorjeta/presente na live com animação, feed de conteúdo permanente, verificação de documento, sanitização de upload de vídeo.
+- **Sprint 15** — FECHADO, tag `v1.0-sprint15` (`bf1c3dd`), 8 entregas — **vídeo em tempo real (LiveKit)**, planejado desde a fundação e finalmente implementado: **PR #138** (infra LiveKit + token service: `LiveKitService` dona única de rooms/JWTs HS256 assinados localmente, `config/livekit.php`, `config/features.php` com flags de dark launch, `feature:*` middleware, identity OPACA por live e FanAlias handle por par na chamada, room_name imprevisível nunca em URL/log/resposta, backstop interno da flag no createRoom/generateToken); **PR #139** (live pública GRÁTIS com gorjeta/presente: `LiveSession`/`LiveSessionService`, serving autorizado por sessão sem URL assinada, reconciliação na leitura da live abandonada, badge "AO VIVO" + ordenação no catálogo, gorjeta 80/20 e presente 75/25 pelas rotas existentes; sem `Crypt` de propósito — 1:N); **PR #140** (chamada privada 1:1 com cobrança por minuto: split 70/30 `applied_rate=70`, request→accept→active, heartbeat pré-pago idempotente por minuto via `minutes_billed`, `MinuteBiller` como motor único, saldo nunca negativo, exclusividade do membro sob lock-âncora, ban/kill-switch, `calls:expire-pending` + `calls:reap-stale`); **PR #141** (group show 1:X + upgrade para 1:1: 1 `call_sessions` `type=group` com `member_id` nullable + N `call_session_participants` de cobrança independente, `MinuteBiller` compartilhado com o 1:1, upgrade que vira `type=private` + revoke dos outros por job de 10s, exclusividade bidirecional 1:1↔group, `closeForMember`); **PR #142** (animação de gorjeta/presente na live: evento broadcast `LiveReaction` no canal privado `live.{slug}` disparado pós-commit pelo Tip/GiftService só durante live ativa, `<LiveOverlay>` com fila sequencial, payload não-sensível — FanAlias label, valor, tipo, nunca member_id/saldo); **PR #143** (preview animado no catálogo: frame JPEG por sessão capturado do canvas do `<LiveRoom>` a cada 10s, validação sem decode server-side, disco privado `live_previews` fora do backup, serving por ServesPhotoBytes autenticado, delete no fim da live + `live-previews:purge`); **PR #144** (toast global estilo Seeking: `<MessageToast>` no AppLayout escuta `user.{id}`, `NewMessage` ganhou `sender_name`/`sender_avatar_url` mascarados por destinatário — FanAlias à performer, stage_name+avatar ao membro —, nunca o corpo, máx. 3 empilhados, auto-dismiss 8s); **PR #145** (**"Em breve"** em produção: flags `features.live_enabled`/`features.call_enabled` compartilhadas como props Inertia globais, `<ComingSoon>`, badge/hover do card gateados na flag, varredura de teste garantindo que TODA rota de live/call/group carrega `feature:*`). **Resolução do § 2.5:** o serving sem cifra em memória que travou as FC Sessions **deixou de existir por arquitetura** — não há serving HTTP de bytes de vídeo; o LiveKit SFU faz o relay via WebRTC (DTLS-SRTP), o backend só emite tokens JWT e controla permissão. **Deploy de staging pendente**; sobe com as flags **off** (liberação é jurídica, muda só o `.env`). Não iniciado (foi para Sprint 16): feed de conteúdo permanente, sanitização de upload de vídeo, verificação de documento, animações elaboradas de presente, preview via WebRTC real, som de notificação.
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -433,44 +472,45 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 > depende de LiveKit (live, chamada, gorjeta/presente na live) mais a verificação
 > de documento e a sanitização de vídeo — carregou para o Sprint 15 abaixo.
 
-### Backlog — Sprint 15 (registrado, não iniciado)
-Ordem não é prioridade. O bloco central é **vídeo em tempo real (LiveKit)**,
-planejado desde a fundação e nunca implementado — **não presuma que existe**
-(não há dependência no projeto — § "Stack"). As **credenciais já estão no `.env`**
-(`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`), então o bloqueio é
-código, não acesso: falta o SDK/`config/livekit.php`, o serving e a integração. O
-gargalo conhecido é o serving sem cifra em memória do § 2.5, que travou as FC
-Sessions. Cada gasto/crédito novo de live/chamada é **migration no enum de
-`entry_type`** do ledger append-only (princípio nº 2), NUNCA `UPDATE` de saldo —
-os `entry_type` `live_credit`/`call_credit` ainda não existem, entram quando essas
-features shiparem (ver a nota em `config/monetization.php`,
-`payout.earning_entry_types`).
+### Sprint 15 — FECHADO
+Todo o bloco de **vídeo em tempo real (LiveKit)** — live pública, chamada 1:1,
+group show 1:X, gorjeta/presente na live com animação — foi entregue nos PRs
+#138–#145 (ver "Entregue — Sprints" acima e o § "Estado atual"). O **§ 2.5 está
+resolvido** (não há serving HTTP de bytes de vídeo; o LiveKit SFU faz o relay via
+WebRTC/DTLS-SRTP e o backend só emite tokens JWT + controla permissão). O que ficou
+de fora daquele backlog carregou para o Sprint 16 abaixo.
 
-- **Live pública (LiveKit)** — a performer define X tokens por bloco de 10 min;
-  **todos pagam** (inclusive FC); split **70/30** (M.13.6). Não-assinante assiste
-  pagando cheio. Esbarra no serving sem cifra do § 2.5.
-- **Chamada privada 1:1 / Videochamada (LiveKit)** — X tokens/minuto; **todos
-  pagam**; split **70/30**. MESMO track de infra LiveKit da live pública.
-- **Gorjeta e presentes durante a live** — a gorjeta na live é **80/20** e o
-  presente **75/25** (M.13.6); a UI + **animação na tela** durante a live. O
-  catálogo de presentes e o split já existem (PR #137); falta a superfície de live
-  e a animação.
+### Backlog — Sprint 16 (registrado, não iniciado)
+Ordem não é prioridade. Nada aqui foi começado.
+
 - **Feed/timeline de conteúdo permanente** — a UI que consome os dados do PR #135
   (peças por nível de acesso). O backend (`PerformerContent`, `ContentUnlock`,
-  `ContentVisibilityService`, serving) está entregue e testado; falta o consumidor
-  Vue — mesma situação do `stories.feed` antes do Sprint 13.
-
-Carregados do backlog do Sprint 14 (ainda não feitos):
-- **Verificação de documento como produto** (R$ 9,90) — selo de verificação pago
-  para o membro. **Depende da Didit** (a mesma integração do KYC da performer).
+  `ContentVisibilityService`, serving) está entregue e testado desde o Sprint 14;
+  falta o consumidor Vue — mesma situação do `stories.feed` antes do Sprint 13.
 - **Sanitização de upload de vídeo** — pipeline ffmpeg para `PerformerContent`
   `kind=video` (o PR #135 é photo-only de propósito: GD não processa vídeo, e sem
   higienização o upload é superfície não-confiável). Destrava vídeo no conteúdo
-  permanente.
+  permanente. (NÃO se aplica ao vídeo ao vivo do LiveKit, que é relay WebRTC, não
+  upload — § 2.5.)
+- **Verificação de documento como produto** (R$ 9,90) — selo de verificação pago
+  para o membro. **Depende da Didit** (a mesma integração do KYC da performer).
+- **Animações elaboradas de presente** — sprites/partículas no `<LiveOverlay>`; a
+  v1 do PR #142 é CSS animation simples de propósito. Upgrade visual.
+- **Preview via WebRTC real** — v2 do hover do catálogo (PR #143 é snapshot JPEG a
+  cada 10s para economizar conexões no free tier); trocar por um stream real quando
+  houver tráfego que justifique.
+- **Som de notificação + preferências** — o toast do PR #144 é silencioso e sem
+  toggle de propósito (v2); adicionar som discreto opcional + preferências de
+  notificação.
+- **hCaptcha habilitado em produção** — hoje `HCAPTCHA_ENABLED` fica off no dev;
+  ligar em produção (a infra do widget e do gate já existe desde o Sprint 9A).
 - **Pin PHP 8.5→8.4 no `deploy.yml`** — o job de teste do CI fixa `php-version:
   '8.5'`, mas o alvo de produção é 8.4.22. Alinhar (é mudança em
   `.github/workflows/`, que exige token com escopo `workflow` — o servidor de dev
   não tem, então vai pela UI do GitHub ou por um push com escopo).
+
+> **O "Toast notification estilo Seeking" já foi entregue** (PR #144, Sprint 15) —
+> se aparecer em lista antiga de backlog, está feito.
 
 ## Privacidade do membro — decisões locked (não rediscutir sem o PO)
 Regra central do produto, não detalhe de implementação. Fonte única:
@@ -1017,8 +1057,11 @@ Imagem só (v1), TTL **fixo** de 24h, três níveis (`public` / `subscribers` /
 > fila humana agora é `/moderacao/*` sob `role:moderador`, com o evidence viewer
 > da prova retida (PR #126). O texto acima (e outros trechos que dizem
 > "moderador = admin, `/admin/reports`") descreve o estado ATÉ o Sprint 12 e fica
-> como histórico. Vídeo (live/chamada) segue no backlog do Sprint 14 e ainda
-> esbarra no serving sem cifra do § 2.5 que travou as FC Sessions.
+> como histórico. **Atualização (Sprint 15):** vídeo (live/chamada/group) FOI
+> implementado (PRs #138–#145) e o § 2.5 está RESOLVIDO — não há serving HTTP de
+> bytes de vídeo, o LiveKit SFU faz o relay via WebRTC (DTLS-SRTP) e o backend só
+> emite tokens. O "serving sem cifra que travou as FC Sessions" deixou de existir
+> por arquitetura.
 
 ## 2FA da performer — TOTP (Sprint 6)
 A conta da performer guarda o KYC (documento + selfie) e é a identidade

@@ -7,22 +7,30 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 04/08/2026 — **`main` em `0f6aefb`**, tag
-> **`v1.0-sprint14`** (`0f6aefb`). **Sprint 14 FECHADO** — 8 entregas, a
-> **implementação do modelo de monetização M.13**: PR #130 (invariantes M.13 —
-> `TokenCreditPolicy` + `config/monetization.php`), PR #131 (rewire de gorjeta/
-> pacotes/desconto), PR #132 (chat M.13.1 — fim do chat grátis de assinante),
-> PR #133 (subscription grant com fila de pendência M.13.4/M.13.8), PR #134
-> (payout mensal R$0,60/token M.13.5/M.10), PR #135 (conteúdo permanente com
-> acesso por tier M.13.13/M.4), PR #136 (fix de copy dos founding members), PR #137
-> (catálogo de presentes virtuais 75/25 M.13.6). Suíte: **1627 testes, 14226
-> asserts** (verde local e no CI; a única falha local é a antiga da view 451 do
-> GeoBlock, que não recorre depois do `npm run build` e é verde no CI).
+> **Última atualização:** 05/08/2026 — **`main` em `bf1c3dd`**, tag
+> **`v1.0-sprint15`** (`bf1c3dd`). **Sprint 15 FECHADO** — 8 entregas, o **vídeo
+> em tempo real (LiveKit)** planejado desde a fundação: PR #138 (infra LiveKit +
+> token service), PR #139 (live pública grátis com gorjeta/presente), PR #140
+> (chamada privada 1:1 com cobrança por minuto), PR #141 (group show 1:X com
+> upgrade para 1:1), PR #142 (animação de gorjeta/presente na live), PR #143
+> (preview animado no catálogo), PR #144 (toast global de mensagem), PR #145
+> ("Em breve" em produção via feature flag). **§ 2.5 RESOLVIDO** — não há serving
+> HTTP de bytes de vídeo; o LiveKit SFU faz o relay via WebRTC (DTLS-SRTP) e o
+> backend só emite tokens JWT. Suíte: **1743 testes, 14627 asserts** (verde no CI;
+> local 1742 passam — a única falha é a antiga view 451 do GeoBlock, que compila no
+> `npm run build`/CI).
 >
-> **A tag `v1.0-sprint14` (`0f6aefb`) marca o fecho do Sprint 14, e é marco de
+> **A tag `v1.0-sprint15` (`bf1c3dd`) marca o fecho do Sprint 15, e é marco de
 > CÓDIGO, não de go-live.** Deploy de staging pendente: **as 8 entregas ainda NÃO
-> subiram para staging.** O snapshot do §1 reflete `main` HEAD = a própria tag
+> subiram para staging.** As features de live/chamada sobem com
+> `FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED` **off** (dark launch — liberação é
+> jurídica, muda só o `.env`). O snapshot do §1 reflete `main` HEAD = a própria tag
 > (mais esta atualização de doc por cima).
+>
+> **Histórico recente:** 04/08/2026 — `main` em `0f6aefb`, tag `v1.0-sprint14`,
+> **Sprint 14 FECHADO** — 8 entregas, a **implementação do modelo de monetização
+> M.13** (PRs #130–#137). Suíte era **1627 testes, 14226 asserts**. As 8 entregas
+> seguem pendentes de staging.
 >
 > **Histórico recente:** 03/08/2026 — `main` em `1d63371`, tag `v1.0-sprint13`,
 > **Sprint 13 FECHADO** (5 entregas: PR #125 Refactor de roles, PR #126 Evidence
@@ -102,26 +110,27 @@
 
 ## 1. Snapshot do estado atual
 
-> **Snapshot de `main` HEAD (`0f6aefb`) = tag `v1.0-sprint14` — Sprint 14
-> fechado (PRs #130–#137).** Os números abaixo refletem esse estado.
+> **Snapshot de `main` HEAD (`bf1c3dd`) = tag `v1.0-sprint15` — Sprint 15
+> fechado (PRs #138–#145).** Os números abaixo refletem esse estado.
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1627 testes, 14226 asserts** (verde local e no CI; a única falha local é a antiga da view 451 do GeoBlock, que não recorre após `npm run build` e é verde no CI) | `php artisan test` (~175 s) |
-| Migrations | **107** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **192** | `php artisan route:list` |
-| `Route::` em `routes/web.php` | 144 | `grep` |
-| Rotas HTTP em `routes/api.php` | 42 (o OTP e o **catálogo de presentes** têm porta de API; **foto, story, notas, boost, convite, buscas salvas, photo permissions, feed de stories e o ENVIO de presente continuam só web**) | `grep` |
-| Services | 44 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
-| Models | 45 | `ls app/Models/` |
-| Controllers Web | 60 | `find app/Http/Controllers/Web` |
+| Suíte de testes | **1743 testes, 14627 asserts** (verde no CI; local 1742 passam — a única falha é a antiga view 451 do GeoBlock, que compila no `npm run build`/CI) | `php artisan test` (~190 s) |
+| Migrations | **115** | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **215** | `php artisan route:list` |
+| `Route::` nomeadas em `routes/web.php` | 167 | `grep` |
+| Rotas HTTP em `routes/api.php` | 42 (o OTP e o **catálogo de presentes** têm porta de API; **foto, story, notas, boost, convite, buscas salvas, photo permissions, feed de stories, ENVIO de presente e TODA a superfície de live/chamada/group continuam só web**) | `grep` |
+| Services | 50 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
+| Models | 48 | `ls app/Models/` |
+| Controllers Web | 66 | `find app/Http/Controllers/Web` |
 | Controllers API | 23 | `find app/Http/Controllers/Api` |
-| Middleware | 12 | `ls app/Http/Middleware/` |
-| Commands (agendáveis) | 15 | `ls app/Console/Commands/` |
-| Jobs | 3 | `ls app/Jobs/` |
+| Middleware | 13 | `ls app/Http/Middleware/` |
+| Commands (agendáveis) | 18 | `ls app/Console/Commands/` |
+| Jobs | 4 | `ls app/Jobs/` |
+| Events | 12 | `ls app/Events/` |
 | Policies | 4 | `ls app/Policies/` |
-| Configs | 28 | `ls config/` |
-| Tag Git | **`v1.0-sprint14` (`0f6aefb`, fecho do Sprint 14)**, `v1.0-sprint13` (`1d63371`), `v1.0-sprint12` (`f23368a`), `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Configs | 30 (`livekit`, `features` novos no Sprint 15) | `ls config/` |
+| Tag Git | **`v1.0-sprint15` (`bf1c3dd`, fecho do Sprint 15)**, `v1.0-sprint14` (`0f6aefb`), `v1.0-sprint13` (`1d63371`), `v1.0-sprint12` (`f23368a`), `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -1002,6 +1011,100 @@ Endpoints sob `auth`+`2fa`+`role:consumer`+`member.verified`; três rotas em
 `config/ziggy.php`. UI: `FilterPanel` do catálogo do membro ganha "💾 Salvar
 busca" + modal e o dropdown "Buscas salvas" (aplica/apaga). Detalhe no
 **CLAUDE.md** (§ "Buscas salvas do membro — Sprint 12").
+
+---
+
+## Sprint 15 — Fechado
+
+> **FECHADO — tag `v1.0-sprint15` (`bf1c3dd`).** Oito entregas mergeadas
+> (PRs #138–#145), o **vídeo em tempo real (LiveKit)** — planejado desde a
+> fundação e nunca implementado até aqui. Suíte no fecho: **1743 testes, 14627
+> asserts**. Cada gasto/crédito novo de live/chamada é **migration no enum de
+> `entry_type`** do ledger append-only (princípio nº 2): `spend_live`,
+> `live_credit`, `spend_call`, `call_credit` — NUNCA `UPDATE` de saldo. A cobrança
+> por minuto/bloco é **pré-paga, saldo nunca negativo, split por evento congelado**
+> (`applied_rate`); `MinuteBiller` é o motor único do 1:1 e do group.
+
+### ENTREGUE
+
+- **PR #138 — Infra LiveKit + token service.** `LiveKitService` dona única de
+  rooms e JWTs (assinados localmente em HS256 — o `api_secret` nunca vai ao
+  cliente), `config/livekit.php`, `config/features.php` com as flags de dark
+  launch, middleware `feature:live`/`feature:call` (403) + backstop interno no
+  `createRoom`/`generateToken`. Identity NUNCA é o id cru do membro: OPACA por live
+  (HMAC por sessão) na live 1:N, FanAlias handle por par na chamada 1:1; a da
+  performer é a identidade verificada. `room_name` imprevisível (CSPRNG) e **nunca
+  em URL/log/resposta** — só dentro do JWT curto.
+- **PR #139 — Live pública GRÁTIS** com gorjeta/presente. `LiveSession`/
+  `LiveSessionService`, serving autorizado **por sessão a cada request** (sem URL
+  assinada — assinatura viraria bearer token), reconciliação na leitura da live
+  abandonada, badge "AO VIVO" + ordenação no catálogo, `viewer_count` agregado.
+  Sem `Crypt` de propósito (1:N — o `Crypt` carregaria o arquivo por espectador);
+  a autorização por request num disco não-servido faz o papel.
+- **PR #140 — Chamada privada 1:1** com cobrança por minuto contínuo. Split 70/30
+  `applied_rate=70`; request→accept→active; heartbeat **pré-pago idempotente por
+  minuto** via `minutes_billed` sob lock; `MinuteBiller` como motor único; saldo
+  nunca negativo (o `debit` re-checa sob lock do wallet); exclusividade do membro
+  sob lock-âncora no `users`; ban/kill-switch; `calls:expire-pending` +
+  `calls:reap-stale` para pendings/sessões abandonadas. Ressalva registrada:
+  carona ≤ TTL do token (cobrança é pull; token-refresh reconcilia).
+- **PR #141 — Group show 1:X + upgrade para 1:1.** Uma `call_sessions` `type=group`
+  (com `member_id` nullable) dona da sala + N `call_session_participants` de
+  cobrança **independente**; `MinuteBiller` compartilhado com o 1:1 (uma
+  implementação, dois chamadores); upgrade que vira `type=private`, reconcilia o
+  sobrevivente ao preço-grupo ANTES de trocar para o 1:1 e revoga os outros por um
+  **job com atraso de 10s**; exclusividade **bidirecional** 1:1↔group; `closeForMember`
+  no ban de qualquer usuário.
+- **PR #142 — Animação de gorjeta/presente na live.** Evento broadcast
+  `LiveReaction` no canal privado `live.{slug}` (Reverb, não o data channel do
+  LiveKit), disparado **pós-commit** pelo Tip/GiftService **só durante uma live
+  ativa** e só para transação NOVA (não idempotente). `<LiveOverlay>` com **fila
+  sequencial** (nunca sobreposição). Payload **não-sensível**: FanAlias label,
+  valor, tipo — nunca member_id/saldo/tier, nunca o corpo.
+- **PR #143 — Preview animado no catálogo.** Frame JPEG por sessão capturado do
+  canvas do `<LiveRoom>` a cada 10s; validação **sem decode server-side** (tamanho
+  ≤50KB + sniff JPEG — sem bomba de descompressão); disco privado `live_previews`
+  **fora do backup**; serving por `ServesPhotoBytes` autenticado; delete no fim da
+  live (stop/ban/reconciliação) + `live-previews:purge`.
+- **PR #144 — Toast global de mensagem** (estilo Seeking). `<MessageToast>` no
+  `AppLayout` escuta `user.{id}`; `NewMessage` ganhou `sender_name`/`sender_avatar_url`
+  **mascarados por destinatário** (FanAlias label à performer — avatar null;
+  stage_name + avatar assinado ao membro), **nunca o corpo**; máx. 3 empilhados,
+  auto-dismiss 8s, suprime na conversa aberta; compartilha o canal com a lista sem
+  derrubá-la (`stopListening`, nunca `Echo.leave`).
+- **PR #145 — "Em breve" em produção.** Flags `features.live_enabled`/
+  `features.call_enabled` compartilhadas como **props Inertia globais**
+  (`HandleInertiaRequests`) — só o booleano de pintura; a autoridade é o middleware.
+  `<ComingSoon>` (ícone câmera/telefone + "Em breve", borda gold/30, not-allowed).
+  Badge "AO VIVO" e hover-preview do card gateados na flag. **Teste que varre o
+  router e garante que TODA rota de live/call/group carrega `feature:*`.**
+
+### Resolução do § 2.5 (serving sem cifra em memória)
+
+O gargalo histórico que travou as FC Sessions — "serving de bytes de vídeo sem
+cifra em memória" — **deixou de existir por ARQUITETURA, não por cifra**. No
+desenho LiveKit **não há serving HTTP de bytes de vídeo pelo backend**: o vídeo
+trafega pelo **SFU do LiveKit via WebRTC** (transporte cifrado fim-a-fim,
+DTLS-SRTP). O backend só (a) **emite tokens JWT curtos** (TTL 5 min) que confinam o
+portador a UMA sala com grants específicos, e (b) **controla permissão** — quem
+entra, por quanto tempo, com que capacidade (publish/subscribe) — reautorizada na
+re-emissão do token. Nenhum byte de vídeo passa pela app Laravel nem por disco.
+O único serving de bytes é o **preview** do catálogo (PR #143), que é uma imagem
+estática JPEG de baixa qualidade servida por `ServesPhotoBytes` (re-sniff +
+nosniff + no-store) atrás de rota autenticada — não é vídeo.
+
+### O que NÃO subiu / ficou de fora
+
+- **Deploy de staging pendente** para as 8 entregas. As features de live/chamada
+  sobem com `FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED` **off** — a liberação é
+  decisão jurídica e muda só o `.env` (zero deploy de código).
+- Carregado para o **Sprint 16** (ver Apêndice A): feed de conteúdo permanente,
+  sanitização de upload de vídeo (não se aplica ao vídeo LiveKit, que é relay),
+  verificação de documento (Didit), animações elaboradas de presente, preview via
+  WebRTC real, som de notificação + preferências, hCaptcha em produção.
+
+Detalhe completo por feature no **CLAUDE.md** (§§ da chamada privada, group show,
+overlay, preview e "Em breve").
 
 ---
 
@@ -2617,40 +2720,59 @@ como pendente:
 - [x] **Desconto de tokens por tier** sobre a compra de pacotes — entregue no
       PR #131 (a config M.13.3 é a autoridade de cobrança).
 
-### A.0.2 Sprint 15 — registrado, não iniciado
+### A.0.2 Sprint 15 — ENTREGUE
 
-Ordem não é prioridade. O bloco central é **vídeo em tempo real (LiveKit)**,
-planejado desde a fundação e **nunca implementado** (não há dependência no projeto
-— sem SDK no `composer.json`, sem `config/livekit.php` — não presuma que existe).
-As **credenciais já estão no `.env`** do servidor (`LIVEKIT_API_KEY`,
-`LIVEKIT_API_SECRET`, `LIVEKIT_URL`, sem valor versionado — princípio nº 5), então
-o bloqueio é código/serving, não acesso. O gargalo conhecido é o serving sem cifra
-em memória do § 2.5, que travou as FC Sessions. Os `entry_type` `live_credit`/
-`call_credit` **ainda não existem** — entram como migration no enum quando as
-features shiparem (princípio nº 2; ver a nota em `config/monetization.php`,
-`payout.earning_entry_types`).
+O backlog do Sprint 15 — o **vídeo em tempo real (LiveKit)** — foi implementado
+(PRs #138–#145, ver "Sprint 15 — Fechado"). Os `entry_type` `spend_live`/
+`live_credit`/`spend_call`/`call_credit` entraram como **migration no enum** do
+ledger append-only (princípio nº 2). Marcado aqui para não ser relido como
+pendente:
 
-- [ ] **Live pública (LiveKit)** — a performer define X tokens por bloco de 10 min;
-      **todos pagam** (inclusive FC); split **70/30** (M.13.6). Esbarra no serving
-      sem cifra do § 2.5.
-- [ ] **Chamada privada 1:1 / videochamada (LiveKit)** — X tokens/minuto; **todos
-      pagam**; split **70/30**. Mesmo track de infra da live pública.
-- [ ] **Gorjeta e presentes durante a live** — gorjeta na live **80/20**, presente
-      **75/25** (M.13.6); UI + **animação na tela**. O catálogo de presentes e o
-      split já existem (PR #137); falta a superfície de live e a animação.
+- [x] **Infra LiveKit + token service** — `LiveKitService` (rooms/JWTs),
+      `config/livekit.php`, feature flags de dark launch, identity opaca/FanAlias
+      (PR #138).
+- [x] **Live pública (LiveKit)** — grátis, gorjeta 80/20 + presente 75/25 pelas
+      rotas existentes, serving por sessão sem URL assinada (PR #139).
+- [x] **Chamada privada 1:1** — X tokens/min, split 70/30, heartbeat pré-pago
+      idempotente, `MinuteBiller`, saldo nunca negativo (PR #140).
+- [x] **Group show 1:X + upgrade para 1:1** — cobrança independente por
+      participante, upgrade com revoke de 10s, exclusividade bidirecional (PR #141).
+- [x] **Gorjeta e presentes durante a live com animação** — `LiveReaction` +
+      `<LiveOverlay>` com fila, payload FanAlias-only (PR #142).
+- [x] **Preview animado no catálogo** — snapshot JPEG por sessão a cada 10s, disco
+      privado, ServesPhotoBytes, purge de órfãos (PR #143).
+- [x] **Toast global de mensagem** (estilo Seeking) — `<MessageToast>`, sender
+      mascarado por destinatário, nunca o corpo (PR #144).
+- [x] **"Em breve" em produção** — flags como props Inertia, `<ComingSoon>`, toda
+      rota de live/call/group gateada por `feature:*` (PR #145).
+- [x] **§ 2.5 RESOLVIDO** — sem serving HTTP de bytes de vídeo; relay pelo SFU
+      LiveKit via WebRTC/DTLS-SRTP, backend só emite tokens (ver "Sprint 15 —
+      Fechado").
+
+### A.0.3 Sprint 16 — registrado, não iniciado
+
+Ordem não é prioridade. Nada aqui foi começado.
+
 - [ ] **Feed/timeline de conteúdo permanente** — a UI que consome os dados do
       PR #135. O backend (`PerformerContent`, `ContentUnlock`,
-      `ContentVisibilityService`, serving) está entregue e testado; falta o
-      consumidor Vue — mesma situação do `stories.feed` antes do Sprint 13.
-
-Carregados de backlogs anteriores (ainda abertos):
-
-- [ ] **Verificação de documento como produto** (R$ 9,90) — selo pago para o
-      membro. **Depende da Didit** (a mesma integração do KYC da performer).
+      `ContentVisibilityService`, serving) está entregue e testado desde o
+      Sprint 14; falta o consumidor Vue — mesma situação do `stories.feed` antes do
+      Sprint 13.
 - [ ] **Sanitização de upload de vídeo** — pipeline ffmpeg para `PerformerContent`
       `kind=video`. O PR #135 é photo-only de propósito (GD não processa vídeo, e
       sem higienização o upload é superfície não-confiável). Destrava vídeo no
-      conteúdo permanente.
+      conteúdo permanente. **Não se aplica ao vídeo ao vivo do LiveKit** (relay
+      WebRTC, não upload — § 2.5).
+- [ ] **Verificação de documento como produto** (R$ 9,90) — selo pago para o
+      membro. **Depende da Didit** (a mesma integração do KYC da performer).
+- [ ] **Animações elaboradas de presente** — sprites/partículas no `<LiveOverlay>`
+      (a v1 do PR #142 é CSS animation simples de propósito).
+- [ ] **Preview via WebRTC real** — v2 do hover do catálogo (o PR #143 é snapshot
+      JPEG a cada 10s para economizar conexões no free tier).
+- [ ] **Som de notificação + preferências** — o toast do PR #144 é silencioso e
+      sem toggle de propósito (v2).
+- [ ] **hCaptcha habilitado em produção** — hoje off no dev; a infra do widget e do
+      gate existe desde o Sprint 9A.
 - [ ] **Prazo máximo de retenção da prova** — o evidence viewer (Sprint 13) deixa
       a moderação VER a prova retida, mas nada expira a retenção. (Metade restante
       do achado da revisão de 30/07.)
@@ -2658,6 +2780,9 @@ Carregados de backlogs anteriores (ainda abertos):
       `php-version: '8.5'`, mas o alvo de produção é 8.4.22. Alinhar. É mudança em
       `.github/workflows/`, que exige token com escopo `workflow` (o servidor de
       dev não tem) — vai pela UI do GitHub ou por um push com esse escopo.
+
+> **O "Toast notification estilo Seeking" já foi entregue** (PR #144). Se aparecer
+> em lista antiga de backlog, está feito.
 
 ### A.1 Go-live (pré-produção)
 
