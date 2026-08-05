@@ -14,6 +14,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\CallController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\GroupShowController;
 use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
@@ -45,6 +46,7 @@ use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\BoostController;
 use App\Http\Controllers\Web\Performer\CallSettingsController;
 use App\Http\Controllers\Web\Performer\DashboardController;
+use App\Http\Controllers\Web\Performer\GroupShowController as PerformerGroupShowController;
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
@@ -1037,5 +1039,66 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:60,1')
             ->whereNumber('call')
             ->name('call.end');
+
+        // ── Group show 1:X (Sprint 15, PR #141) ──────────────────────────────
+        // Mesmo dark-launch (`feature:call`) e mesma disciplina do 1:1. `{group}`
+        // = call_sessions.id (NUNCA o room_name — invariante do #138). A
+        // autorização de PARTICIPANTE das rotas de membro é do GroupShowService
+        // (404 uniforme p/ participação de terceiro), não do route-binding.
+
+        // Performer: inicia/encerra o show e resolve o upgrade. start/stop resolvem
+        // "o group dela" pelo perfil (sem id); upgrade-accept/decline levam {group}.
+        Route::middleware(['role:performer', 'documents.accepted'])->group(function () {
+            Route::post('/performer/group/start', [PerformerGroupShowController::class, 'start'])
+                ->middleware('throttle:20,1')
+                ->name('group.start')
+                ->can('performer-active');
+
+            Route::post('/performer/group/stop', [PerformerGroupShowController::class, 'stop'])
+                ->middleware('throttle:20,1')
+                ->name('group.stop')
+                ->can('performer-active');
+
+            Route::post('/performer/group/{group}/upgrade-accept', [PerformerGroupShowController::class, 'upgradeAccept'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('group')
+                ->name('group.upgrade.accept')
+                ->can('performer-active');
+
+            Route::post('/performer/group/{group}/upgrade-decline', [PerformerGroupShowController::class, 'upgradeDecline'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('group')
+                ->name('group.upgrade.decline')
+                ->can('performer-active');
+        });
+
+        // Membro: entra, paga (heartbeat próprio), renova, sai, pede upgrade.
+        // role:consumer + member.verified (área de membro, como assistir à live).
+        Route::middleware(['role:consumer', 'member.verified'])->group(function () {
+            Route::post('/group/{group}/join', [GroupShowController::class, 'join'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('group')
+                ->name('group.join');
+
+            Route::post('/group/{group}/heartbeat', [GroupShowController::class, 'heartbeat'])
+                ->middleware('throttle:120,1')
+                ->whereNumber('group')
+                ->name('group.heartbeat');
+
+            Route::post('/group/{group}/token-refresh', [GroupShowController::class, 'tokenRefresh'])
+                ->middleware('throttle:30,1')
+                ->whereNumber('group')
+                ->name('group.token-refresh');
+
+            Route::post('/group/{group}/leave', [GroupShowController::class, 'leave'])
+                ->middleware('throttle:60,1')
+                ->whereNumber('group')
+                ->name('group.leave');
+
+            Route::post('/group/{group}/upgrade-request', [GroupShowController::class, 'upgradeRequest'])
+                ->middleware('throttle:10,1')
+                ->whereNumber('group')
+                ->name('group.upgrade.request');
+        });
     });
 });

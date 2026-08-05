@@ -56,6 +56,18 @@ class CallException extends DomainException
         return new self(self::CONFLICT, 409, 'Já existe uma chamada em andamento.');
     }
 
+    /** Já há uma solicitação de upgrade pendente (group show → 1:1). */
+    public static function upgradePending(): self
+    {
+        return new self(self::CONFLICT, 409, 'Já existe uma solicitação pendente.');
+    }
+
+    /** O group show atingiu o teto de participantes. */
+    public static function full(): self
+    {
+        return new self(self::CONFLICT, 409, 'O grupo está cheio.');
+    }
+
     /** A performer não aceita chamadas (sem preço configurado) ou está fora do ar. */
     public static function unavailable(): self
     {

@@ -311,6 +311,13 @@ class DeletionService
             // (append-only, lastro fiscal), só desvinculado, como o spend_boost.
             $summary['call_sessions'] = $this->purgeCallSessions($user);
             $summary['call_sessions_received'] = $this->purgeCallSessionsToOwnProfile($user);
+            // Group show (Sprint 15): a participação do MEMBRO em grupos de
+            // performers VIVAS NÃO sai pelo cascade (a sessão group da performer
+            // permanece) — varre por member_id explícito (item 11 do CLAUDE.md:
+            // cascade não dispara porque `users` é soft-delete/anonimização). O
+            // lado da performer sai por cascade quando a sessão group dela é
+            // apagada em `purgeCallSessionsToOwnProfile`.
+            $summary['call_session_participations'] = $this->purgeCallSessionParticipants($user);
             // Pedidos/concessões de acesso a fotos privadas FEITOS pelo membro
             // (Sprint 13). O lado da PERFORMER (grants apontando para as fotos
             // dela) sai por cascade quando `purgePerformerPhotos` faz DELETE real
@@ -639,6 +646,19 @@ class DeletionService
         }
 
         return DB::table('call_sessions')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Participações do MEMBRO em group shows (Sprint 15). DELETE real por
+     * `member_id`: a participação num group de uma performer VIVA não sai pelo
+     * cascade (a sessão group da performer permanece), então sem esta varredura o
+     * `member_id` sobreviveria numa linha de outra pessoa. A FK cascade só remove
+     * o lado da performer (quando a sessão group DELA é apagada acima). O ledger
+     * (spend_call/call_credit) fica (append-only).
+     */
+    private function purgeCallSessionParticipants(User $user): int
+    {
+        return DB::table('call_session_participants')->where('member_id', $user->id)->delete();
     }
 
     /**

@@ -9,9 +9,11 @@ use App\Events\CallRequested;
 use App\Exceptions\CallException;
 use App\Exceptions\InsufficientBalanceException;
 use App\Models\CallSession;
+use App\Models\CallSessionParticipant;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\FanAlias;
+use App\Support\MinuteBiller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -53,6 +55,7 @@ class CallService
         private TokenService $tokenService,
         private TokenCreditPolicy $creditPolicy,
         private LiveKitService $livekit,
+        private MinuteBiller $minuteBiller,
     ) {}
 
     // ── Request (membro) ──────────────────────────────────────────────────────
@@ -96,7 +99,10 @@ class CallService
             if (CallSession::where('performer_profile_id', $lockedProfile->id)->occupying()->exists()) {
                 throw CallException::conflict();
             }
-            if (CallSession::where('member_id', $member->id)->occupying()->exists()) {
+            // Exclusividade do membro: nem outra 1:1 pending/active NEM participação
+            // ativa em group show (PR #141 — o 1:1 não pode ser cego ao group, senão
+            // dois streams de vídeo cobrados em paralelo).
+            if (self::memberIsBusy($member->id)) {
                 throw CallException::conflict();
             }
 
@@ -170,7 +176,9 @@ class CallService
             $memberBusy = CallSession::where('member_id', $member->id)
                 ->active()
                 ->whereKeyNot($locked->id)
-                ->exists();
+                ->exists()
+                // Também barra quem já está num group show ativo (PR #141).
+                || CallSessionParticipant::where('member_id', $member->id)->active()->exists();
             if ($memberBusy) {
                 throw CallException::conflict();
             }
@@ -308,6 +316,13 @@ class CallService
             if ($locked === null) {
                 throw CallException::notFound();
             }
+            // Rota 1:1 só serve sessão 1:1 (member_id não-nulo). Uma sessão group ou
+            // group-upgradada-para-private tem member_id NULL e é servida SÓ pelo
+            // GroupShowService — servir aqui furaria o lifecycle dela (achado 🔴 da
+            // revisão de código: performer renovando a própria group pela porta 1:1).
+            if ($locked->member_id === null) {
+                throw CallException::notFound();
+            }
             $isMember = $locked->member_id === $actor->id;
             $isPerformer = $locked->performerProfile?->user_id === $actor->id;
             if (! $isMember && ! $isPerformer) {
@@ -368,6 +383,13 @@ class CallService
             if ($locked === null) {
                 throw CallException::notFound();
             }
+            // Rota 1:1 só encerra sessão 1:1 (member_id não-nulo). Group (member_id
+            // NULL) é encerrado só pelo GroupShowService::stop — sem isso, a performer
+            // encerraria a própria group pela porta 1:1, deixando participantes
+            // órfãos `active` e disparando CallEnded p/ member_id=null (500). 🔴 revisão.
+            if ($locked->member_id === null) {
+                throw CallException::notFound();
+            }
             $isMember = $locked->member_id === $actor->id;
             $isPerformer = $locked->performerProfile?->user_id === $actor->id;
             if (! $isMember && ! $isPerformer) {
@@ -423,12 +445,69 @@ class CallService
 
         foreach ($sessions as $session) {
             $wasActive = $session->isActive();
+
+            // Group show: encerrar a sessão sozinha deixaria participantes `active`
+            // órfãos no banco (achado 🔴 C2). Marca TODOS os participantes ativos
+            // ended na MESMA transação do ban antes de derrubar a sala.
+            if ($session->isGroup()) {
+                CallSessionParticipant::where('call_session_id', $session->id)
+                    ->active()
+                    ->update(['status' => 'ended', 'ended_at' => now()]);
+            }
+
             $session->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
 
             if ($wasActive) {
                 $this->safeDeleteRoom($session->room_name);
             }
         }
+    }
+
+    /**
+     * Gancho de ban de QUALQUER usuário (não só performer): encerra o que o banido
+     * tem como MEMBRO — a participação ativa em group show (revoke da sala) e as
+     * sessões 1:1 ativas dele. Roda na transação do ban. No-op para quem não tem
+     * nada. Fecha o 🟢 do #140 (ban de membro no meio de uma chamada) e o requisito
+     * do #141 (membro banido em group → só ele sai).
+     */
+    public function closeForMember(User $member): void
+    {
+        // Participações ativas em groups: revoga do LiveKit (a sala segue viva para
+        // os demais) e marca ended. Identity = FanAlias handle por par.
+        $participations = CallSessionParticipant::where('member_id', $member->id)
+            ->active()
+            ->get();
+
+        foreach ($participations as $participation) {
+            $session = CallSession::find($participation->call_session_id);
+            $participation->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
+
+            if ($session !== null && $session->isActive()) {
+                $this->safeRevokeParticipant(
+                    $session->room_name,
+                    $this->livekit->callMemberIdentity($session->performer_profile_id, $member->id),
+                );
+            }
+        }
+
+        // Sessões 1:1 ativas onde ele é o membro: encerra + derruba a sala.
+        $sessions = CallSession::where('member_id', $member->id)->active()->get();
+
+        foreach ($sessions as $session) {
+            $session->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
+            $this->safeDeleteRoom($session->room_name);
+        }
+    }
+
+    /**
+     * O membro já está numa chamada — 1:1 pending/active OU participação ativa em
+     * group show? Fonte ÚNICA da exclusividade, lida pelo request/accept 1:1 e pelo
+     * join do group. `static` porque não toca estado da instância.
+     */
+    public static function memberIsBusy(int $memberId): bool
+    {
+        return CallSession::where('member_id', $memberId)->occupying()->exists()
+            || CallSessionParticipant::where('member_id', $memberId)->active()->exists();
     }
 
     // ── Configuração da performer ─────────────────────────────────────────────
@@ -465,6 +544,31 @@ class CallService
             ->update(['status' => 'expired']);
     }
 
+    /**
+     * Encerra chamadas 1:1 ABANDONADAS (o membro fechou a aba sem chamar `end`). A
+     * cobrança é PULL: sem heartbeat/refresh a sessão fica `active` para sempre e
+     * ambos os lados seguem `occupying()`, travados de iniciar nova chamada. Reaper:
+     * `active` (só 1:1 — member_id não-nulo; group é do GroupShowService) cujo tempo
+     * PAGO (`started_at + minutes_billed*60`) venceu há mais de `$graceSeconds` →
+     * cliente sumiu → encerra + deleteRoom. Cliente saudável renova `minutes_billed`
+     * e nunca é alcançado. Só faxina.
+     */
+    public function reapStaleSessions(int $graceSeconds = 120): int
+    {
+        $stale = CallSession::query()
+            ->active()
+            ->whereNotNull('member_id')
+            ->whereRaw('DATE_ADD(started_at, INTERVAL (minutes_billed * 60 + ?) SECOND) < ?', [$graceSeconds, now()])
+            ->get();
+
+        foreach ($stale as $session) {
+            $session->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
+            $this->safeDeleteRoom($session->room_name);
+        }
+
+        return $stale->count();
+    }
+
     // ── Internos ──────────────────────────────────────────────────────────────
 
     /**
@@ -479,11 +583,11 @@ class CallService
     private function reconcileBilling(CallSession $lockedSession, User $member): array
     {
         $price = (int) $lockedSession->price_per_minute;
-        $maxMinutes = $lockedSession->max_duration_minutes;
         $performer = $lockedSession->performerProfile?->user;
 
         // Performer sumiu mid-call (soft-delete/anonimização): não há para quem
         // creditar. Encerra limpo em vez de fatal no chargeMinute (🟢 da revisão).
+        // Pré-checado aqui (não no MinuteBiller) porque só o 1:1 tem esse caso.
         if ($performer === null) {
             if ($lockedSession->isActive()) {
                 $lockedSession->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
@@ -498,53 +602,29 @@ class CallService
             ];
         }
 
-        $elapsed = now()->getTimestamp() - $lockedSession->started_at->getTimestamp();
-        $required = intdiv(max(0, $elapsed), 60) + 1;
+        // Motor de cobrança ÚNICO (compartilhado com o group show). Idempotência
+        // por minuto, teto de duração e "saldo nunca negativo" vivem lá.
+        $result = $this->minuteBiller->reconcile(
+            $member,
+            $price,
+            (int) $lockedSession->minutes_billed,
+            $lockedSession->started_at->getTimestamp(),
+            $lockedSession->max_duration_minutes,
+            fn () => $this->chargeMinute($lockedSession, $member, $performer),
+        );
 
-        $endedReason = null;
-
-        while ($lockedSession->minutes_billed < $required) {
-            if ($maxMinutes !== null && $lockedSession->minutes_billed >= $maxMinutes) {
-                $endedReason = 'max_duration';
-                break;
-            }
-            if ($this->tokenService->balance($member) < $price) {
-                $endedReason = 'insufficient_balance';
-                break;
-            }
-            try {
-                $this->chargeMinute($lockedSession, $member, $performer);
-            } catch (InsufficientBalanceException) {
-                // Corrida com outro débito do mesmo wallet (tip/gift): o debit
-                // re-checou sob lock e recusou. Trata como "não cabe".
-                $endedReason = 'insufficient_balance';
-                break;
-            }
-            $lockedSession->minutes_billed++;
+        $lockedSession->minutes_billed = $result['minutes_billed'];
+        if (! $result['can_continue'] && $lockedSession->isActive()) {
+            $lockedSession->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
+        } else {
             $lockedSession->save();
         }
 
-        $balance = $this->tokenService->balance($member);
-        $caughtUp = $lockedSession->minutes_billed >= $required;
-
-        if (! $caughtUp || $endedReason !== null) {
-            if ($lockedSession->isActive()) {
-                $lockedSession->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
-            }
-
-            return [
-                'balance' => $balance,
-                'minutes_left' => intdiv($balance, $price),
-                'can_continue' => false,
-                'ended_reason' => $endedReason ?? 'insufficient_balance',
-            ];
-        }
-
         return [
-            'balance' => $balance,
-            'minutes_left' => intdiv($balance, $price),
-            'can_continue' => true,
-            'ended_reason' => null,
+            'balance' => $result['balance'],
+            'minutes_left' => $result['minutes_left'],
+            'can_continue' => $result['can_continue'],
+            'ended_reason' => $result['ended_reason'],
         ];
     }
 
@@ -626,6 +706,20 @@ class CallService
             // está ended (gate autoritativo: heartbeat/refresh dão 410) e os tokens
             // vivos expiram no token_ttl. Loga SEM o room_name (invariante).
             Log::warning('call.delete_room_failed');
+        }
+    }
+
+    /**
+     * Ejeta UM participante (revogação ativa) sem derrubar a sala — usado quando
+     * só um membro sai (ban de membro em group). Best-effort: a linha já está
+     * ended (gate autoritativo). Loga SEM room_name/identity (invariante).
+     */
+    private function safeRevokeParticipant(string $room, string $identity): void
+    {
+        try {
+            $this->livekit->revokeParticipant($room, $identity);
+        } catch (\Throwable) {
+            Log::warning('call.revoke_participant_failed');
         }
     }
 }
