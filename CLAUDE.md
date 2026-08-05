@@ -25,6 +25,7 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 ## Princípios de arquitetura (não negociáveis)
 1. **Segurança e idade primeiro.** PII sensível, KYC, 18+ dos dois lados, prevenção de conteúdo ilegal. É fundação, não feature.
 2. **Saldo de tokens é derivado de um ledger append-only.** NUNCA fazer `UPDATE ... saldo = saldo + x`. Todo movimento é uma linha nova em `token_ledger`; o saldo é a soma. (Erro recorrente no projeto anterior — não repetir.)
+   - **Ressalva de leitura (não é violação):** existe `token_wallets.balance` como **cache materializado**. `TokenService::credit/debit` escrevem esse campo por `UPDATE` de **valor absoluto** (`balance = <novo saldo calculado em PHP>`) **sob `lockForUpdate`**, na mesma transação da linha do ledger — nunca o padrão **aditivo** `balance = balance + x` que o princípio proíbe. O invariante `balance == SUM(token_ledger.amount)` vale por construção (crédito/débito/`releaseAfterDebit` sempre escrevem valor e linha juntos). Portanto um `UPDATE ... token_wallets ... balance` no log de queries é esperado; o que seria bug é o SQL aditivo ou o saldo divergindo da soma. (Achado do Pre-Flight Sweep, ago/2026.)
 3. **Idempotência em pagamento.** Crédito de tokens só via webhook idempotente por id de evento. Reprocessar nunca duplica saldo.
 4. **PII isolada e criptografada.** CPF, documentos e dados de verificação ficam em tabela separada, criptografados em repouso, em storage privado. Nunca em log, nunca em URL.
 5. **Nada de segredo no Git.** Tudo em `.env` (fora do versionamento). 
