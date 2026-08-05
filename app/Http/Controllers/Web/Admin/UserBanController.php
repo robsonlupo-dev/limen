@@ -66,6 +66,11 @@ class UserBanController extends Controller
                 app(CallService::class)->closeForPerformer($performerProfile);
             }
 
+            // Ban do MEMBRO (fora do if performerProfile — vale para qualquer user):
+            // remove a participação ativa dele em group show (revoke da sala, os
+            // demais ficam) e encerra suas 1:1 ativas. No-op para quem não tem nada.
+            app(CallService::class)->closeForMember($user);
+
             // Lista negra antifraude: grava o HMAC do CPF/documento (nunca a PII
             // crua) para sinalizar recadastro. Na MESMA transação — se o registro
             // falhar, o ban inteiro reverte, e a lista nunca fica dessincronizada

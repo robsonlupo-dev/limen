@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Chamada privada 1:1 (Sprint 15, PR #140). Tabela criada no #138. A chamada é
@@ -48,14 +49,24 @@ class CallSession extends Model
         'price_per_minute', 'max_duration_minutes',
     ];
 
+    /**
+     * `room_name` NUNCA sai serializado (invariante do #138 — só viaja dentro do
+     * JWT). Nenhum controller serializa a CallSession hoje; o $hidden é a blindagem
+     * para o dia em que um resource o fizer (agora 1:1 E group usam a coluna).
+     */
+    protected $hidden = ['room_name'];
+
     protected function casts(): array
     {
         return [
             'price_per_minute' => 'integer',
             'minutes_billed' => 'integer',
             'max_duration_minutes' => 'integer',
+            'max_participants' => 'integer',
+            'upgrade_price_per_minute' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
+            'upgrade_requested_at' => 'datetime',
         ];
     }
 
@@ -67,6 +78,28 @@ class CallSession extends Model
     public function member(): BelongsTo
     {
         return $this->belongsTo(User::class, 'member_id');
+    }
+
+    /** Participantes do group show (Sprint 15). Vazio para sessão 1:1 (type=private). */
+    public function participants(): HasMany
+    {
+        return $this->hasMany(CallSessionParticipant::class);
+    }
+
+    public function isGroup(): bool
+    {
+        return $this->type === self::TYPE_GROUP;
+    }
+
+    /**
+     * Há solicitação de upgrade para 1:1 pendente (dentro da janela de 60s)? Vence
+     * na leitura, como o pending 1:1 — um pedido velho não bloqueia um novo.
+     */
+    public function hasPendingUpgrade(): bool
+    {
+        return $this->upgrade_requested_by !== null
+            && $this->upgrade_requested_at !== null
+            && $this->upgrade_requested_at->getTimestamp() + self::PENDING_TTL_SECONDS >= now()->getTimestamp();
     }
 
     /** Chamadas que "ocupam" a performer/membro: pending OU active. */

@@ -210,11 +210,19 @@ class LiveKitService
 
     /**
      * Deriva a feature do PREFIXO do nome da sala e barra se desligada. `live-` →
-     * live; `call-`/`group-` → call (group show ganha flag própria no PR dele).
+     * live; `call-` E `group-` → `call` (DECISÃO do PR #141: o group show COMPARTILHA
+     * o kill-switch da chamada 1:1 — desligar `features.call_enabled` derruba a
+     * emissão de token/sala do group também, defesa em profundidade do §2.5). O
+     * branch `group-` é EXPLÍCITO de propósito: não deixar o dark-launch do group
+     * depender do fallthrough.
      */
     private function assertFeatureEnabledForRoom(string $roomName): void
     {
-        $feature = str_starts_with($roomName, self::ROOM_PREFIX_LIVE.'-') ? 'live' : 'call';
+        $feature = match (true) {
+            str_starts_with($roomName, self::ROOM_PREFIX_LIVE.'-') => 'live',
+            str_starts_with($roomName, self::ROOM_PREFIX_GROUP.'-') => 'call',
+            default => 'call',
+        };
 
         if (! config("features.{$feature}_enabled", false)) {
             throw new FeatureDisabledException($feature);

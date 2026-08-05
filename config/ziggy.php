@@ -168,6 +168,18 @@ return [
         'call.end',
         'performer.call.settings',
 
+        // Group show 1:X (Sprint 15): performer inicia/encerra + resolve upgrade;
+        // membro entra/heartbeat/renova/sai/pede upgrade. Consumidas por fetch.
+        'group.start',
+        'group.stop',
+        'group.upgrade.accept',
+        'group.upgrade.decline',
+        'group.join',
+        'group.heartbeat',
+        'group.token-refresh',
+        'group.leave',
+        'group.upgrade.request',
+
         // Consumer interests (Interesse Controlado)
         'interests.index',
         'interests.unlock',

@@ -119,3 +119,9 @@ Schedule::command('otp:purge')->hourly()->withoutOverlapping(10);
 // sem resposta não sobrar. TTL de 60s, mas de hora em hora basta — a leitura já
 // não deixa um pending vencido bloquear nem ser aceito.
 Schedule::command('calls:expire-pending')->hourly()->withoutOverlapping(10);
+
+// Chamadas 1:1 e participações de group show ABANDONADAS (Sprint 15, PR #141). A
+// cobrança é pull; sem heartbeat a linha fica `active` e trava o membro (occupying/
+// memberIsBusy) de iniciar nova chamada. A cada 5 min encerra o que passou da folga
+// (tempo pago vencido sem novo minuto). Só faxina — não cobra.
+Schedule::command('calls:reap-stale')->everyFiveMinutes()->withoutOverlapping(5);

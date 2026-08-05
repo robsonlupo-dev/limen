@@ -629,6 +629,20 @@ it('exclusividade 1:1 do membro: um 2º accept do mesmo membro em outra chamada 
         ->and(TokenLedger::where('entry_type', 'spend_call')->count())->toBe(0);
 });
 
+it('reaper encerra chamada 1:1 abandonada (sem heartbeat) e destrava os dois lados', function () {
+    $lk = fakeCallKit();
+    $lk->shouldReceive('deleteRoom')->once();
+    $performer = callPerformer(price: 10);
+    $member = callMember(balance: 1000);
+    $call = activeCall($performer, $member, price: 10, minutesBilled: 1); // pagou o minuto 1
+
+    $this->travel(5)->minutes(); // 5 min sem heartbeat/end
+    $this->artisan('calls:reap-stale')->assertSuccessful();
+
+    expect($call->fresh()->status)->toBe('ended')
+        ->and(\App\Services\CallService::memberIsBusy($member->id))->toBeFalse();
+});
+
 it('feature flag desligada: request e accept dão 403', function () {
     fakeCallKit();
     config(['features.call_enabled' => false]);
