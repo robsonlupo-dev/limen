@@ -304,6 +304,13 @@ class DeletionService
             $summary['saved_searches'] = $this->purgeSavedSearches($user);
             $summary['member_notes'] = $this->purgeMemberNotes($user);
             $summary['member_notes_written'] = $this->purgeMemberNotesByPerformer($user);
+            // Chamadas privadas 1:1 (Sprint 15): o histórico de sessões FEITAS pelo
+            // membro (por member_id) e RECEBIDAS pela performer (por perfil). Sem
+            // conteúdo/bytes — só metadados (preço, minutos, horário); nada a
+            // preservar como prova. O ledger (spend_call/call_credit) FICA
+            // (append-only, lastro fiscal), só desvinculado, como o spend_boost.
+            $summary['call_sessions'] = $this->purgeCallSessions($user);
+            $summary['call_sessions_received'] = $this->purgeCallSessionsToOwnProfile($user);
             // Pedidos/concessões de acesso a fotos privadas FEITOS pelo membro
             // (Sprint 13). O lado da PERFORMER (grants apontando para as fotos
             // dela) sai por cascade quando `purgePerformerPhotos` faz DELETE real
@@ -604,6 +611,34 @@ class DeletionService
         }
 
         return DB::table('member_notes')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Chamadas 1:1 que o MEMBRO fez (Sprint 15). DELETE real por `member_id`: a FK
+     * `cascadeOnDelete` de `call_sessions` NÃO dispara porque `anonymizeUser()` só
+     * soft-deleta o `users` (item 11 do CLAUDE.md). Só metadados de sessão — sem
+     * bytes/hash a preservar. O ledger (spend_call) permanece (append-only).
+     */
+    private function purgeCallSessions(User $user): int
+    {
+        return DB::table('call_sessions')->where('member_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro sentido: as chamadas RECEBIDAS pelo perfil da performer que encerra.
+     * Sai pelo `performer_profile_id` (a FK cascade também não dispara — perfil é
+     * soft-delete). Roda ANTES do `anonymizePerformerProfile`, enquanto o perfil
+     * ainda resolve. Mesma disciplina de `purgeMemberNotesByPerformer`.
+     */
+    private function purgeCallSessionsToOwnProfile(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('call_sessions')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**

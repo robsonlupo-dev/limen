@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\OtpLoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
+use App\Http\Controllers\Web\CallController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Web\Moderation\EvidenceController;
 use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\BoostController;
+use App\Http\Controllers\Web\Performer\CallSettingsController;
 use App\Http\Controllers\Web\Performer\DashboardController;
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
@@ -974,5 +976,66 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/wallet/pending', [WalletController::class, 'pending'])
             ->middleware('throttle:60,1')
             ->name('wallet.pending');
+    });
+
+    // Chamada privada 1:1 com cobrança por minuto (Sprint 15, PR #140). Dark
+    // launch: `feature:call`. Já sob `auth`+`2fa` (grupo-pai). A cobrança
+    // pré-paga por minuto (spend_call/call_credit 70/30) vive no CallService.
+    //
+    // A AUTORIZAÇÃO DE PARTICIPANTE das rotas `/call/{call}/*` é do CallService
+    // (404 uniforme p/ chamada de terceiro), NÃO do route-binding: `{call}` é
+    // resolvido por id, então o serviço confere `member_id`/`performer_profile_id
+    // == ator`. Armadilha do SubstituteBindings (CLAUDE.md): testar com id
+    // EXISTENTE de terceiro, não inexistente (esse 404 do binding não exercita o
+    // gate).
+    Route::middleware('feature:call')->group(function () {
+        // Membro pede a chamada. role:consumer + member.verified (área de membro,
+        // como assistir à live). `{profile}` = performer_profile_id.
+        Route::post('/performer/{profile}/call/request', [CallController::class, 'request'])
+            ->middleware(['role:consumer', 'member.verified', 'throttle:10,1'])
+            ->whereNumber('profile')
+            ->name('call.request');
+
+        // Performer aceita/recusa/configura. role:performer + documents.accepted
+        // (atender é publicar sob a Política de Conteúdo) + performer-active (só a
+        // performer no ar), mesmos gates da live.
+        Route::middleware(['role:performer', 'documents.accepted'])->group(function () {
+            Route::post('/performer/call/{call}/accept', [CallController::class, 'accept'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('call')
+                ->name('call.accept')
+                ->can('performer-active');
+
+            Route::post('/performer/call/{call}/decline', [CallController::class, 'decline'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('call')
+                ->name('call.decline')
+                ->can('performer-active');
+
+            // Preço/minuto (piso 5, passo 5) + teto de duração. Campos fora do
+            // $fillable; escrita só pelo CallService.
+            Route::patch('/performer/chamada/configuracoes', [CallSettingsController::class, 'update'])
+                ->middleware('throttle:30,1')
+                ->name('performer.call.settings')
+                ->can('performer-active');
+        });
+
+        // Rotas por sessão, compartilhadas pelos dois lados. SEM role middleware —
+        // o CallService resolve o participante (404 uniforme p/ terceiro). O
+        // heartbeat é do membro; token-refresh e end servem os dois.
+        Route::post('/call/{call}/heartbeat', [CallController::class, 'heartbeat'])
+            ->middleware('throttle:120,1')
+            ->whereNumber('call')
+            ->name('call.heartbeat');
+
+        Route::post('/call/{call}/token-refresh', [CallController::class, 'tokenRefresh'])
+            ->middleware('throttle:30,1')
+            ->whereNumber('call')
+            ->name('call.token-refresh');
+
+        Route::post('/call/{call}/end', [CallController::class, 'end'])
+            ->middleware('throttle:60,1')
+            ->whereNumber('call')
+            ->name('call.end');
     });
 });
