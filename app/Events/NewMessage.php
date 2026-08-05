@@ -18,6 +18,14 @@ use Illuminate\Queue\SerializesModels;
  * destinatário, então o preview já vem calculado RESPEITANDO o paywall dele: a
  * performer lê sempre; o membro só com Círculo ativo ou janela paga vigente. Sem
  * leitura, preview = null e a lista mostra o cadeado — nunca vaza o corpo.
+ *
+ * ── Remetente pela PERSPECTIVA do destinatário (toast, PR #144) ──────────────
+ * `senderName`/`senderAvatarUrl` descrevem a OUTRA parte, já mascarada para quem
+ * recebe: ao MEMBRO vai o stage_name + avatar da performer; à PERFORMER vai o
+ * FanAlias LABEL do membro e avatar NULL — ela NUNCA recebe nome/foto reais do
+ * membro (M.13.10 / disciplina do FanAlias). O corpo continua fora: o toast só
+ * mostra "enviou uma mensagem"; o `preview` (paywallado) é para a LISTA, não para
+ * o toast.
  */
 class NewMessage implements ShouldBroadcast
 {
@@ -29,6 +37,8 @@ class NewMessage implements ShouldBroadcast
         public string $occurredAt,
         public bool $incrementsUnread,
         public ?string $preview,
+        public string $senderName,
+        public ?string $senderAvatarUrl,
     ) {}
 
     /**
@@ -54,6 +64,10 @@ class NewMessage implements ShouldBroadcast
             'occurred_at' => $this->occurredAt,
             'increments_unread' => $this->incrementsUnread,
             'preview' => $this->preview,
+            // Para o toast (PR #144). Nunca o corpo; nunca o id/nome real do membro
+            // no lado da performer (senderName já vem como FanAlias label lá).
+            'sender_name' => $this->senderName,
+            'sender_avatar_url' => $this->senderAvatarUrl,
         ];
     }
 }

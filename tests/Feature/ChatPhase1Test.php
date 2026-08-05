@@ -91,6 +91,43 @@ it('broadcasts NewMessage to both participants with a paywalled preview', functi
         && $e->incrementsUnread === true);
 });
 
+it('NewMessage carries the sender MASKED per recipient (FanAlias to performer, real name to member)', function () {
+    Event::fake([MessageSent::class, NewMessage::class]);
+    $performer = chatPerformer();
+    [$member, , $interest] = chatUnlockedPair($performer);
+
+    app(ChatService::class)->performerMessageFromInterest($performer, $interest, 'Olá!');
+
+    // À PERFORMER: o remetente (membro) vem como FanAlias LABEL, avatar NULL —
+    // nunca o nome/e-mail reais do membro (M.13.10 / disciplina do FanAlias).
+    $alias = \App\Support\FanAlias::label($performer->id, $member->id);
+    Event::assertDispatched(NewMessage::class, function ($e) use ($performer, $member, $alias) {
+        if ($e->recipientUserId !== $performer->user_id) {
+            return false;
+        }
+        expect($e->senderName)->toBe($alias)
+            ->and($e->senderName)->not->toBe($member->name)
+            ->and($e->senderAvatarUrl)->toBeNull();
+        // O payload broadcast não leva o corpo nem a identidade real do membro.
+        $payload = $e->broadcastWith();
+        expect($payload)->toHaveKeys(['sender_name', 'sender_avatar_url'])
+            ->and(json_encode($payload))->not->toContain($member->name)
+            ->and(json_encode($payload))->not->toContain($member->email);
+
+        return true;
+    });
+
+    // AO MEMBRO: o remetente (performer) vem com o stage_name real.
+    Event::assertDispatched(NewMessage::class, function ($e) use ($performer, $member) {
+        if ($e->recipientUserId !== $member->id) {
+            return false;
+        }
+        expect($e->senderName)->toBe($performer->stage_name);
+
+        return true;
+    });
+});
+
 it('includes the body preview for a member with paid access', function () {
     Event::fake([MessageSent::class, NewMessage::class]);
     $performer = chatPerformer();
