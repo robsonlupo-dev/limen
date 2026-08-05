@@ -1,8 +1,9 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
+import ComingSoon from '@/Components/ComingSoon.vue'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
 import ProfileProgress from '@/Components/ProfileProgress.vue'
 import ReportModal from '@/Components/ReportModal.vue'
@@ -136,6 +137,12 @@ const kycBadge = computed(() => {
 
 const canGoLive = computed(() => props.kycStatus === 'active')
 
+// Feature flags (Sprint 15). Off em produção → placeholders "Em breve" no lugar
+// de "Ir ao vivo" e "Definir preço de chamada".
+const page = usePage()
+const liveEnabled = computed(() => !!page.props.features?.live_enabled)
+const callEnabled = computed(() => !!page.props.features?.call_enabled)
+
 // "Disponível para conversa" (Sprint 11). Estado local, otimista sobre a
 // resposta do toggle: o servidor devolve o booleano DERIVADO (janela de 4h) e a
 // faixa de tempo restante — nunca um relógio.
@@ -245,13 +252,40 @@ async function decideAccess(req, approve) {
                     <h1 class="font-serif text-4xl text-cream">Painel</h1>
                     <p class="text-muted text-sm">Visão geral dos seus ganhos e atividade.</p>
                 </div>
-                <Button
-                    variant="primary"
-                    :disabled="!canGoLive"
-                    :title="!canGoLive ? 'Disponível somente após verificação KYC aprovada' : undefined"
-                >
-                    Ir ao vivo
-                </Button>
+                <!-- Live (Sprint 15): flag off em produção → placeholder "Em breve".
+                     Ligada → link real para o estúdio de transmissão (zero deploy
+                     quando a flag virar). Antes do KYC aprovado o botão fica travado. -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <ComingSoon
+                        v-if="!liveEnabled"
+                        icon="camera"
+                        label="Ir ao vivo"
+                        hint="Live estará disponível em breve"
+                    />
+                    <Link
+                        v-else-if="canGoLive"
+                        :href="route('performer.live')"
+                        class="inline-flex items-center justify-center rounded-lg bg-gold px-6 py-3 text-sm font-medium tracking-wide text-background transition-all duration-200 hover:bg-gold-light no-underline"
+                    >
+                        Ir ao vivo
+                    </Link>
+                    <Button
+                        v-else
+                        variant="primary"
+                        :disabled="true"
+                        title="Disponível somente após verificação KYC aprovada"
+                    >
+                        Ir ao vivo
+                    </Button>
+
+                    <!-- Chamada privada (Sprint 15): sem página de configuração de
+                         preço hoje, então só o placeholder quando a flag está off. -->
+                    <ComingSoon
+                        v-if="!callEnabled"
+                        icon="phone"
+                        label="Definir preço de chamada"
+                    />
+                </div>
             </div>
 
             <!-- "Disponível para conversa" (Sprint 11): toggle on/off + a FAIXA

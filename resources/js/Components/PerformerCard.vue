@@ -25,7 +25,11 @@ const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
 // autenticado (a rota é gateada) e performer ao vivo. `previewActive` é o estado
 // de hover/tap; `previewBroken` esconde a <img> se o frame 404 (live sem quadro)
 // mas mantém o card interativo — cai no badge sozinho.
-const canPreview = computed(() => canFavorite.value && props.performer.is_live)
+// Feature flag (Sprint 15): com `live_enabled` off ninguém pode estar ao vivo —
+// nada de badge "AO VIVO" nem hover preview no card, mesmo que `is_live` venha
+// true por dado velho.
+const showLive = computed(() => props.performer.is_live && !!page.props.features?.live_enabled)
+const canPreview = computed(() => canFavorite.value && showLive.value)
 const previewActive = ref(false)
 const previewBroken = ref(false)
 const previewSrc = ref(null)
@@ -120,7 +124,7 @@ const categoryLabels = {
                      frame falha (404/erro), some e fica só o badge. -->
                 <transition name="live-preview">
                     <img
-                        v-if="previewActive && !previewBroken && performer.is_live"
+                        v-if="previewActive && !previewBroken && showLive"
                         :src="previewSrc"
                         alt=""
                         class="pointer-events-none absolute inset-0 h-full w-full object-cover rounded-[inherit] ring-2 ring-gold animate-pulse"
@@ -129,7 +133,7 @@ const categoryLabels = {
                 </transition>
 
                 <div
-                    v-if="performer.is_live"
+                    v-if="showLive"
                     role="img"
                     aria-label="Ao vivo"
                     class="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm"

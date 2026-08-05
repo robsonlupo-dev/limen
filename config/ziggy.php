@@ -79,7 +79,9 @@ return [
         'performer.availability.toggle',
         // Boost pago (Sprint 11): destaca o perfil no topo do catálogo
         'performer.boost',
-        // Live pública GRÁTIS (Sprint 15): estúdio da performer (LiveRoom.vue)
+        // Live pública GRÁTIS (Sprint 15): estúdio da performer (LiveRoom.vue) +
+        // o link "Ir ao vivo" do dashboard (quando a flag está on).
+        'performer.live',
         'performer.live.start',
         'performer.live.stop',
         // Preview do catálogo (Sprint 15): o LiveRoom envia o frame periódico
