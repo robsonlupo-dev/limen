@@ -483,6 +483,15 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::post('/performer/live/stop', [PerformerLiveController::class, 'stop'])
                 ->name('performer.live.stop')
                 ->can('performer-active');
+
+            // Frame de preview do catálogo (PR #143): o <LiveRoom> captura um quadro
+            // do vídeo local (canvas) a cada ~10s (6/min << 30/min do grupo) e envia
+            // aqui; grava só se houver live ativa. Throttle próprio um pouco mais
+            // largo para absorver jitter de rede sem competir com start/stop.
+            Route::post('/performer/live/preview-frame', [PerformerLiveController::class, 'previewFrame'])
+                ->middleware('throttle:20,1')
+                ->name('performer.live.preview')
+                ->can('performer-active');
         });
 
         // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer
@@ -789,6 +798,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::post('/live/{slug}/token-refresh', [LiveViewController::class, 'refresh'])
                 ->middleware('throttle:30,1')
                 ->name('live.refresh');
+
+            // Preview animado da live no catálogo (PR #143). Por SLUG (o card tem o
+            // slug; o resource não expõe o id). Só membro autenticado (o grupo já é
+            // role:consumer + member.verified). 404 quando não há live/frame — o
+            // hover cai no badge sozinho. Throttle largo: o hover pode repuxar o
+            // frame a cada ~10s enquanto o card está sob o cursor.
+            Route::get('/live-preview/{slug}', [LiveViewController::class, 'preview'])
+                ->middleware('throttle:120,1')
+                ->where('slug', '[a-z0-9\-]+')
+                ->name('live.preview');
         });
 
         // Interesse Controlado — caixa do membro, desbloqueio e opt-out.

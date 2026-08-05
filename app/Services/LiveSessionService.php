@@ -24,7 +24,10 @@ use Illuminate\Support\Facades\Log;
  */
 class LiveSessionService
 {
-    public function __construct(private LiveKitService $livekit) {}
+    public function __construct(
+        private LiveKitService $livekit,
+        private LivePreviewService $previews,
+    ) {}
 
     /**
      * Inicia (ou retoma) a live da performer. Idempotente sob o lock do profile:
@@ -142,6 +145,11 @@ class LiveSessionService
             }
         });
 
+        // Live abandonada (sala morreu no LiveKit) reconciliada na leitura: o frame
+        // não passa por endSession, então apaga aqui. O `live-previews:purge` é a
+        // rede de segurança para o que escapar.
+        $this->previews->delete($session->id);
+
         return null;
     }
 
@@ -194,6 +202,12 @@ class LiveSessionService
         $profile->forceFill(['is_live' => false])->save();
 
         $this->safeDeleteRoom($session->room_name);
+
+        // Frame de preview do catálogo morre com a live (PR #143). Roda no
+        // stop E no ban (ambos passam por aqui). O órfão que escapar — live
+        // reconciliada na leitura sem passar por endSession — é varrido pelo
+        // command `live-previews:purge` (1h por mtime).
+        $this->previews->delete($session->id);
     }
 
     private function safeDeleteRoom(string $room): void

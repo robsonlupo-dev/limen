@@ -125,3 +125,9 @@ Schedule::command('calls:expire-pending')->hourly()->withoutOverlapping(10);
 // memberIsBusy) de iniciar nova chamada. A cada 5 min encerra o que passou da folga
 // (tempo pago vencido sem novo minuto). Só faxina — não cobra.
 Schedule::command('calls:reap-stale')->everyFiveMinutes()->withoutOverlapping(5);
+
+// Frames de preview de live ÓRFÃOS (Sprint 15, PR #143). O frame morre no fim da
+// live (stop/ban/reconciliação na leitura); isto varre o que escapou — um quadro
+// sem atualização há mais de 1h é de uma live encerrada. De hora em hora basta: a
+// janela do órfão já é 1h e é só disco (nenhum dado sensível — snapshot público).
+Schedule::command('live-previews:purge')->hourly()->withoutOverlapping(10);

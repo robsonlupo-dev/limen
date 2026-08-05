@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { computed, ref, onBeforeUnmount } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import VerificationBadges from '@/Components/VerificationBadges.vue'
 import StarRating from '@/Components/StarRating.vue'
@@ -20,6 +20,52 @@ const props = defineProps({
 // `canTip` na página pública do perfil.
 const page = usePage()
 const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
+
+// Preview animado da live (Sprint 15, PR #143). Só faz sentido para membro
+// autenticado (a rota é gateada) e performer ao vivo. `previewActive` é o estado
+// de hover/tap; `previewBroken` esconde a <img> se o frame 404 (live sem quadro)
+// mas mantém o card interativo — cai no badge sozinho.
+const canPreview = computed(() => canFavorite.value && props.performer.is_live)
+const previewActive = ref(false)
+const previewBroken = ref(false)
+const previewSrc = ref(null)
+let previewTimer = null
+
+function loadPreview() {
+    // Cache-bust: enquanto o cursor está sobre o card, repuxa o último quadro
+    // (o backend sobrescreve a cada ~10s) — o preview "anima".
+    previewSrc.value = route('live.preview', props.performer.slug) + '?t=' + Date.now()
+}
+
+function startPreview() {
+    if (!canPreview.value) return
+    previewActive.value = true
+    previewBroken.value = false
+    loadPreview()
+    if (!previewTimer) previewTimer = setInterval(loadPreview, 10000)
+}
+
+function stopPreview() {
+    previewActive.value = false
+    if (previewTimer) { clearInterval(previewTimer); previewTimer = null }
+}
+
+// Clique sobre a IMAGEM de uma performer ao vivo entra na LIVE, não no perfil
+// (o perfil segue no nome/info abaixo). Desktop: o hover já mostrou o preview, o
+// clique entra. Mobile (sem hover): 1º tap mostra o preview, 2º tap entra —
+// exatamente o pedido da spec.
+function onImageClick(e) {
+    if (!canPreview.value) return // card normal: deixa o <Link> abrir o perfil
+    e.preventDefault()
+    e.stopPropagation()
+    if (previewActive.value) {
+        router.visit(route('live.show', props.performer.slug))
+    } else {
+        startPreview()
+    }
+}
+
+onBeforeUnmount(stopPreview)
 
 const categoryLabels = {
     mulheres: 'Mulheres',
@@ -54,7 +100,12 @@ const categoryLabels = {
         </div>
 
         <Link :href="route('catalog.show', performer.slug)" class="block no-underline">
-            <div class="relative aspect-[4/3] bg-surface-2 overflow-hidden">
+            <div
+                class="relative aspect-[4/3] bg-surface-2 overflow-hidden"
+                @mouseenter="startPreview"
+                @mouseleave="stopPreview"
+                @click="onImageClick"
+            >
                 <img
                     v-if="performer.cover_url"
                     :src="performer.cover_url"
@@ -63,12 +114,29 @@ const categoryLabels = {
                 />
                 <div v-else class="h-full w-full bg-gradient-to-br from-gold/25 via-surface-2 to-background" />
 
+                <!-- Preview animado da live (PR #143): sobrepõe a capa no hover/tap.
+                     Borda dourada PULSANTE = "ao vivo". pointer-events-none para o
+                     clique cair no container (onImageClick → entra na live). Se o
+                     frame falha (404/erro), some e fica só o badge. -->
+                <transition name="live-preview">
+                    <img
+                        v-if="previewActive && !previewBroken && performer.is_live"
+                        :src="previewSrc"
+                        alt=""
+                        class="pointer-events-none absolute inset-0 h-full w-full object-cover rounded-[inherit] ring-2 ring-gold animate-pulse"
+                        @error="previewBroken = true"
+                    />
+                </transition>
+
                 <div
                     v-if="performer.is_live"
                     role="img"
                     aria-label="Ao vivo"
-                    class="absolute bottom-2 left-2 h-3 w-3 rounded-full bg-green-500 ring-2 ring-white animate-pulse"
-                />
+                    class="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm"
+                >
+                    <span class="h-2 w-2 rounded-full bg-green-500 ring-2 ring-white animate-pulse" />
+                    Ao vivo
+                </div>
 
                 <!-- Contador da galeria (Sprint 10). No canto SUPERIOR ESQUERDO,
                      porque o direito é do coração de favorito. Discreto e só com
@@ -195,3 +263,15 @@ const categoryLabels = {
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Preview da live: fade-in suave ao entrar/sair (PR #143). */
+.live-preview-enter-active,
+.live-preview-leave-active {
+    transition: opacity 0.35s ease;
+}
+.live-preview-enter-from,
+.live-preview-leave-to {
+    opacity: 0;
+}
+</style>
