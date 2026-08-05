@@ -12,7 +12,9 @@ use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\ChatContentFilter;
+use App\Support\FanAlias;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\URL;
 
 /**
  * Chat pós-desbloqueio de Interesse. Ver docs/INTEREST_SYSTEM_SPEC.md §4-5 e
@@ -267,7 +269,16 @@ class ChatService
     {
         $preview = str($message->body)->limit(60)->value();
         $occurredAt = $message->created_at->toIso8601String();
-        $performerUserId = $conversation->performerProfile->user_id;
+        $profile = $conversation->performerProfile;
+        $performerUserId = $profile->user_id;
+
+        // Remetente pela perspectiva de CADA destinatário (toast, PR #144):
+        //  - à performer, a OUTRA parte é o membro → FanAlias LABEL, avatar NULL
+        //    (ela nunca vê nome/foto reais do membro — M.13.10).
+        //  - ao membro, a OUTRA parte é a performer → stage_name + avatar dela.
+        $memberAlias = $conversation->member_id !== null
+            ? FanAlias::label($profile->id, $conversation->member_id)
+            : 'Membro';
 
         event(new NewMessage(
             recipientUserId: $performerUserId,
@@ -275,6 +286,8 @@ class ChatService
             occurredAt: $occurredAt,
             incrementsUnread: $message->sender_id !== $performerUserId,
             preview: $preview,
+            senderName: $memberAlias,
+            senderAvatarUrl: null,
         ));
 
         $member = $conversation->member;
@@ -287,7 +300,27 @@ class ChatService
                 occurredAt: $occurredAt,
                 incrementsUnread: $message->sender_id !== $member->id,
                 preview: $memberCanRead ? $preview : null,
+                senderName: $profile->stage_name,
+                senderAvatarUrl: $this->performerAvatarUrl($profile),
             ));
         }
+    }
+
+    /**
+     * URL assinada temporária do avatar da performer para o toast (mesma rota e TTL
+     * do PerformerPublicResource). Null quando não há avatar — o toast cai num
+     * placeholder. Usa o profile_id (nunca o user_id) na assinatura.
+     */
+    private function performerAvatarUrl(PerformerProfile $profile): ?string
+    {
+        if (! $profile->avatar_path) {
+            return null;
+        }
+
+        return URL::temporarySignedRoute(
+            'performer.media',
+            now()->addMinutes(60),
+            ['profile_id' => $profile->id, 'type' => 'avatar'],
+        );
     }
 }

@@ -5,6 +5,7 @@ import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import PanicButton from '@/Components/PanicButton.vue'
+import MessageToast from '@/Components/MessageToast.vue'
 
 defineProps({
     title: String,
@@ -201,6 +202,10 @@ function logout() {
 
         <!-- Saída rápida (todos os tiers) -->
         <PanicButton />
+
+        <!-- Toast global de mensagem recebida (Sprint 15). Listener em qualquer
+             página autenticada; escuta o canal user.{id} e nunca mostra o corpo. -->
+        <MessageToast />
 
         <!-- Logout confirmation -->
         <Modal :show="showLogoutConfirm" max-width="sm" @close="showLogoutConfirm = false">
