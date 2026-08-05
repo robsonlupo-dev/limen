@@ -47,7 +47,16 @@ class GiftService
         }
 
         try {
-            return $this->doSend($member, $performerProfile, $gift, $idempotencyKey);
+            $giftSend = $this->doSend($member, $performerProfile, $gift, $idempotencyKey);
+
+            // Prova social na live (PR #142): SÓ para um envio novo (não um retorno
+            // idempotente) e SÓ durante uma live ativa (gate no LiveOverlayService).
+            // Pós-commit — a doSend já retornou com a transação comitada.
+            if ($giftSend->wasRecentlyCreated) {
+                app(LiveOverlayService::class)->gift($performerProfile, $member, $gift);
+            }
+
+            return $giftSend;
         } catch (UniqueConstraintViolationException) {
             // Corrida perdida apesar do lock: a transação reverteu (débito+crédito
             // desfeitos), então o membro NÃO foi cobrado duas vezes. Devolve o

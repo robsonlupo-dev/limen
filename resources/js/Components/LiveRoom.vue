@@ -2,13 +2,21 @@
 import { ref, onBeforeUnmount } from 'vue'
 import { Room, Track } from 'livekit-client'
 import { postJson } from '@/lib/http'
+import LiveOverlay from '@/Components/LiveOverlay.vue'
 
 /**
  * Live pública GRÁTIS — lado da PERFORMER (estúdio de transmissão). Publica
  * câmera + microfone; view-only para os membros. Início/fim batem em
  * performer.live.start / .stop (o backend cria/deleta a sala e liga/desliga
  * is_live). O room_name nunca chega ao cliente — a sala vem dentro do token.
+ *
+ * A performer também vê o <LiveOverlay>: as animações de gorjeta/presente que os
+ * membros enviam (prova social — "todos na sala veem").
  */
+const props = defineProps({
+    performerSlug: { type: String, required: true },
+})
+
 const videoEl = ref(null)
 const status = ref('idle') // idle | starting | live | stopping | error
 const error = ref('')
@@ -58,6 +66,10 @@ onBeforeUnmount(disconnectRoom)
     <div class="space-y-4">
         <div class="relative overflow-hidden rounded-xl border border-frame bg-black aspect-video">
             <video ref="videoEl" autoplay muted playsinline class="h-full w-full object-contain" />
+
+            <!-- Prova social: a performer também vê as animações de gorjeta/presente. -->
+            <LiveOverlay :performer-slug="performerSlug" />
+
             <div v-if="status !== 'live'" class="absolute inset-0 flex items-center justify-center text-cream/70 text-sm">
                 <span v-if="status === 'idle'">Sua câmera aparece aqui quando você entra ao vivo.</span>
                 <span v-else-if="status === 'starting'">Iniciando…</span>

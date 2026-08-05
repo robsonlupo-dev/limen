@@ -31,7 +31,7 @@ class TipService
             return $existing;
         }
 
-        return DB::transaction(function () use ($consumer, $performerProfile, $amount, $idempotencyKey, $message) {
+        $tip = DB::transaction(function () use ($consumer, $performerProfile, $amount, $idempotencyKey, $message) {
             $performerUser = $performerProfile->user;
 
             // Guard against self-tipping at service layer
@@ -134,5 +134,16 @@ class TipService
 
             return $tip;
         });
+
+        // Prova social na live (PR #142): SÓ para uma gorjeta nova (não um retorno
+        // idempotente — `wasRecentlyCreated` false ali) e SÓ durante uma live ativa
+        // (o LiveOverlayService faz o gate). Pós-commit, fora da transação — um
+        // rollback nunca dispara animação. Resolvido pelo container (o construtor
+        // do serviço fica intacto, sem quebrar quem o instancia à mão em teste).
+        if ($tip->wasRecentlyCreated) {
+            app(LiveOverlayService::class)->tip($performerProfile, $consumer, $amount);
+        }
+
+        return $tip;
     }
 }
