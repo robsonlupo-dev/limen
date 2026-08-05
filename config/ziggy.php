@@ -82,6 +82,8 @@ return [
         // Live pública GRÁTIS (Sprint 15): estúdio da performer (LiveRoom.vue)
         'performer.live.start',
         'performer.live.stop',
+        // Preview do catálogo (Sprint 15): o LiveRoom envia o frame periódico
+        'performer.live.preview',
         'performer.interests.send',
         'performer.interests.send-visitor',
         'performer.interests.index',
@@ -155,6 +157,10 @@ return [
         // Live pública GRÁTIS (Sprint 15): viewer do membro (LiveViewer.vue) —
         // gorjeta/presente durante a live + renovação do token.
         'live.refresh',
+        // Preview animado no hover do card do catálogo (Sprint 15): o card entra
+        // na live (live.show) e repuxa o frame (live.preview).
+        'live.show',
+        'live.preview',
         'gifts.send',
         'gifts.catalog',
 

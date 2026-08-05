@@ -22,6 +22,7 @@ const status = ref('idle') // idle | starting | live | stopping | error
 const error = ref('')
 
 let room = null
+let previewTimer = null
 
 async function goLive() {
     status.value = 'starting'
@@ -38,6 +39,7 @@ async function goLive() {
         if (camPub?.track && videoEl.value) camPub.track.attach(videoEl.value)
 
         status.value = 'live'
+        startPreviewCapture()
     } catch (e) {
         error.value = e?.data?.message ?? 'Não foi possível iniciar a live.'
         status.value = 'error'
@@ -55,7 +57,36 @@ async function endLive() {
     }
 }
 
+// Preview do catálogo (PR #143): captura um quadro do vídeo LOCAL num canvas
+// pequeno (320px) em JPEG de baixa qualidade (~30%) e envia a cada 10s. É snapshot,
+// não WebRTC — nenhuma conexão nova (economia no free tier). Falha é inócua.
+function startPreviewCapture() {
+    captureFrame()
+    previewTimer = setInterval(captureFrame, 10000)
+}
+
+async function captureFrame() {
+    const v = videoEl.value
+    if (status.value !== 'live' || !v || !v.videoWidth) return
+
+    const w = 320
+    const h = Math.round(w * (v.videoHeight / v.videoWidth)) || 240
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    canvas.getContext('2d').drawImage(v, 0, 0, w, h)
+
+    try {
+        await postJson(route('performer.live.preview'), {
+            frame: canvas.toDataURL('image/jpeg', 0.3),
+        })
+    } catch (e) {
+        // Frame perdido é inofensivo — o próximo sai em 10s.
+    }
+}
+
 async function disconnectRoom() {
+    if (previewTimer) { clearInterval(previewTimer); previewTimer = null }
     if (room) { await room.disconnect(); room = null }
 }
 

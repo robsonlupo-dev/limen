@@ -76,6 +76,30 @@ return [
             'report' => false,
         ],
 
+        // Preview animado da live no catálogo (Sprint 15, PR #143). Um único frame
+        // JPEG de baixa qualidade por sessão de live (`{session_id}.jpg`), capturado
+        // pelo <LiveRoom> a cada ~10s e sobrescrito. Conteúdo PÚBLICO (snapshot de
+        // uma live pública), mas EFÊMERO — morre quando a live encerra.
+        //
+        // Disco PRÓPRIO, e FORA de `storage/app/private` de propósito, por dois
+        // motivos que se somam:
+        //  1. O disco `private` roda `serve => true` — um subdiretório dele seria
+        //     servível por URL SEM authz (o serving do frame passa pela rota
+        //     autenticada + ServesPhotoBytes, nunca por URL de disco).
+        //  2. `storage/app/private` entra no `docs/backup.sh` (allowlist, 14 dias);
+        //     um frame efêmero num tarball de duas semanas é lixo — mesma razão
+        //     dos discos de story/foto efêmera ficarem fora dali.
+        //
+        // `serve => false` + `throw => false` como os demais privados: os bytes só
+        // saem pelo LivePreviewService, atrás de autorização a cada request.
+        'live_previews' => [
+            'driver' => 'local',
+            'root' => storage_path('app/live-previews'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         // Stories da performer (docs/SECURITY_ISSUES.md § 2.3 e § 2.5).
         //
         // Disco PRÓPRIO, pelas mesmas duas razões do `member_photos` e por uma

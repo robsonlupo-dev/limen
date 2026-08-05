@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Web\Consumer;
 
+use App\Http\Controllers\Concerns\ServesPhotoBytes;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PerformerPublicResource;
+use App\Services\LivePreviewService;
 use App\Services\LiveSessionService;
 use App\Services\PerformerCatalogService;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +22,8 @@ use Inertia\Response;
  */
 class LiveViewController extends Controller
 {
+    use ServesPhotoBytes;
+
     public function __construct(
         private LiveSessionService $live,
         private PerformerCatalogService $catalog,
@@ -56,5 +60,25 @@ class LiveViewController extends Controller
         }
 
         return response()->json($this->live->memberToken($session, $request->user()));
+    }
+
+    /**
+     * Último frame de preview do catálogo (PR #143). Por SLUG (o card tem o slug, o
+     * resource não expõe o id) — resolve perfil público → live ATIVA → frame. 404
+     * quando não há live, não há frame, ou o perfil não é público (paridade com o
+     * show; nunca vaza se a performer existe/está no ar). Servido pela mesma
+     * disciplina de bytes das outras imagens privadas (re-sniff + nosniff + inline
+     * + no-store), atrás do gate de membro autenticado do grupo de rota.
+     */
+    public function preview(string $slug, LivePreviewService $previews): \Illuminate\Http\Response
+    {
+        $performer = $this->catalog->findPublicBySlug($slug);
+        $session = $this->live->activeFor($performer);
+        abort_if($session === null, 404);
+
+        $bytes = $previews->get($session);
+        abort_if($bytes === null, 404);
+
+        return $this->photoResponse($bytes, 'live.jpg');
     }
 }
