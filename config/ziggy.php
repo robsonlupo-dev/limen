@@ -158,6 +158,16 @@ return [
         'gifts.send',
         'gifts.catalog',
 
+        // Chamada privada 1:1 (Sprint 15): o membro pede/heartbeat/renova/encerra;
+        // a performer aceita/recusa/configura. Consumidas por fetch (JSON).
+        'call.request',
+        'call.accept',
+        'call.decline',
+        'call.heartbeat',
+        'call.token-refresh',
+        'call.end',
+        'performer.call.settings',
+
         // Consumer interests (Interesse Controlado)
         'interests.index',
         'interests.unlock',

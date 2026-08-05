@@ -113,3 +113,9 @@ Schedule::command('visits:purge')->dailyAt('04:30')->withoutOverlapping(10);
 // isto só evita acúmulo de linhas mortas. Um DELETE por faixa de data, sem
 // disputa com nada.
 Schedule::command('otp:purge')->hourly()->withoutOverlapping(10);
+
+// Pedidos de chamada 1:1 pendentes vencidos (Sprint 15). A expiração já vale na
+// leitura (reconcilePending no request/accept); isto é só faxina para o pending
+// sem resposta não sobrar. TTL de 60s, mas de hora em hora basta — a leitura já
+// não deixa um pending vencido bloquear nem ser aceito.
+Schedule::command('calls:expire-pending')->hourly()->withoutOverlapping(10);
