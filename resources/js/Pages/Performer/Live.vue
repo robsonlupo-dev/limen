@@ -1,6 +1,10 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
 import LiveRoom from '@/Components/LiveRoom.vue'
+
+defineProps({
+    performerSlug: { type: String, required: true },
+})
 </script>
 
 <template>
@@ -11,7 +15,7 @@ import LiveRoom from '@/Components/LiveRoom.vue'
                 <p class="text-sm text-muted">Sua live pública aparece no catálogo com o selo “Ao vivo”.</p>
             </div>
 
-            <LiveRoom />
+            <LiveRoom :performer-slug="performerSlug" />
         </div>
     </AppLayout>
 </template>

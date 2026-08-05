@@ -23,9 +23,13 @@ class PerformerLiveController extends Controller
     public function __construct(private LiveSessionService $live) {}
 
     /** Estúdio de transmissão da performer (o LiveRoom conecta pelo start). */
-    public function page(): Response
+    public function page(Request $request): Response
     {
-        return Inertia::render('Performer/Live');
+        // O slug alimenta o canal `live.{slug}` do <LiveOverlay> no estúdio — a
+        // performer também vê as animações de gorjeta/presente (prova social).
+        return Inertia::render('Performer/Live', [
+            'performerSlug' => $request->user()->performerProfile->slug,
+        ]);
     }
 
     public function start(Request $request): JsonResponse

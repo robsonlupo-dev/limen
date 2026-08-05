@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Room, RoomEvent } from 'livekit-client'
 import { postJson, getJson } from '@/lib/http'
+import LiveOverlay from '@/Components/LiveOverlay.vue'
 
 /**
  * Live pública GRÁTIS — lado do MEMBRO. Assina o stream da performer (view-only:
@@ -115,6 +116,9 @@ onBeforeUnmount(teardown)
             <div class="relative overflow-hidden rounded-xl border border-frame bg-black aspect-video">
                 <video ref="videoEl" autoplay playsinline class="h-full w-full object-contain" />
                 <audio ref="audioEl" autoplay />
+
+                <!-- Prova social: anima gorjetas/presentes que chegam durante a live. -->
+                <LiveOverlay :performer-slug="performer.slug" />
 
                 <div v-if="status !== 'live'" class="absolute inset-0 flex items-center justify-center text-cream/80 text-sm">
                     <span v-if="status === 'connecting'">Conectando à live…</span>
