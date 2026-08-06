@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\PerformerProfile;
-use App\Models\TokenPackage;
 use App\Models\User;
 use Database\Seeders\Concerns\RefusesUnsafeEnvironment;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -21,32 +20,12 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        $this->seedTokenPackages();
+        // Pacotes M.13.2: fonte única no TokenPackageSeeder, que também roda
+        // ISOLADO em staging/produção (este DatabaseSeeder recusa ambiente real
+        // via safeToSeed). Idempotente e sem dado de teste — seguro nos dois lados.
+        $this->call(TokenPackageSeeder::class);
         $this->call(GiftSeeder::class);
         $this->seedUsers();
-    }
-
-    private function seedTokenPackages(): void
-    {
-        // Pacotes achatados da emenda M.13.2 (Sprint 14). `tokens` já inclui o
-        // valor cheio do pacote; sem `bonus` no modelo novo (a âncora é
-        // R$1,00/token no Starter). Preço em centavos.
-        $packages = [
-            ['slug' => 'starter', 'name' => 'Starter', 'tokens' => 50,  'bonus' => 0, 'price_cents' => 4990,  'sort_order' => 1],
-            ['slug' => 'popular', 'name' => 'Popular', 'tokens' => 105, 'bonus' => 0, 'price_cents' => 9990,  'sort_order' => 2],
-            ['slug' => 'premium', 'name' => 'Premium', 'tokens' => 220, 'bonus' => 0, 'price_cents' => 19990, 'sort_order' => 3],
-            ['slug' => 'vip',     'name' => 'VIP',     'tokens' => 580, 'bonus' => 0, 'price_cents' => 49990, 'sort_order' => 4],
-        ];
-
-        foreach ($packages as $pkg) {
-            TokenPackage::updateOrCreate(['slug' => $pkg['slug']], $pkg + ['active' => true]);
-        }
-
-        // Desativa (NUNCA apaga — a FK de `payments` guarda o histórico) qualquer
-        // pacote pré-M.13 que exista neste ambiente, para o catálogo de compra só
-        // oferecer os pacotes M.13.2.
-        TokenPackage::whereNotIn('slug', array_column($packages, 'slug'))
-            ->update(['active' => false]);
     }
 
     private function seedUsers(): void
