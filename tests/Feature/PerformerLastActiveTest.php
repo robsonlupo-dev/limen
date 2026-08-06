@@ -78,13 +78,18 @@ function laApiRows(): array
 }
 
 // ─── ESCRITA: o middleware carimba ──────────────────────────────────────────
+// Os writes exercitam pela porta PÚBLICA (`performers.public`), não pela
+// `catalog`: o TrackPerformerActivity roda no grupo `web` INTEIRO (carimba em
+// qualquer request da performer), e desde o fix do UAT o `/catalogo` é
+// `role:consumer` — performer/admin levam 403 lá. A porta pública prova o mesmo
+// middleware sem depender de quem pode ver a listagem.
 
 it('carimba last_active_at no request autenticado da performer', function () {
     $profile = laPerformer();
 
     expect($profile->user->last_active_at)->toBeNull();
 
-    test()->actingAs($profile->user)->get(route('catalog'))->assertOk();
+    test()->actingAs($profile->user)->get(route('performers.public'))->assertOk();
 
     expect($profile->user->refresh()->last_active_at)->not->toBeNull();
 });
@@ -95,7 +100,7 @@ it('nao carimba para membro nem para admin', function () {
     $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
 
     foreach ([$member, $admin] as $user) {
-        test()->actingAs($user)->get(route('catalog'))->assertOk();
+        test()->actingAs($user)->get(route('performers.public'))->assertOk();
         expect($user->refresh()->last_active_at)->toBeNull();
     }
 });
@@ -115,14 +120,14 @@ it('nao regrava dentro da janela de throttle de 5 min', function () {
     $profile = laPerformer();
 
     Carbon::setTestNow('2026-07-31 12:00:00');
-    test()->actingAs($profile->user)->get(route('catalog'))->assertOk();
+    test()->actingAs($profile->user)->get(route('performers.public'))->assertOk();
     $first = $profile->user->refresh()->last_active_at;
     expect($first)->not->toBeNull();
 
     // Segundo request 1s depois: dentro dos 5 min, não escreve. O carimbo
     // continua sendo o do PRIMEIRO — é o teste "2 requests em 1s = 1 update".
     Carbon::setTestNow('2026-07-31 12:00:01');
-    test()->actingAs($profile->user)->get(route('catalog'))->assertOk();
+    test()->actingAs($profile->user)->get(route('performers.public'))->assertOk();
 
     expect($profile->user->refresh()->last_active_at->equalTo($first))->toBeTrue();
 
@@ -133,12 +138,12 @@ it('regrava depois que a janela de throttle passa', function () {
     $profile = laPerformer();
 
     Carbon::setTestNow('2026-07-31 12:00:00');
-    test()->actingAs($profile->user)->get(route('catalog'))->assertOk();
+    test()->actingAs($profile->user)->get(route('performers.public'))->assertOk();
     $first = $profile->user->refresh()->last_active_at;
 
     // 6 min depois: fora da janela, escreve de novo.
     Carbon::setTestNow('2026-07-31 12:06:00');
-    test()->actingAs($profile->user)->get(route('catalog'))->assertOk();
+    test()->actingAs($profile->user)->get(route('performers.public'))->assertOk();
 
     expect($profile->user->refresh()->last_active_at->greaterThan($first))->toBeTrue();
 
@@ -154,7 +159,7 @@ it('nao carimba quando ghost mode esta ligado', function () {
     $profile = laPerformer();
     $profile->user->forceFill(['ghost_mode' => true])->save();
 
-    test()->actingAs($profile->user->fresh())->get(route('catalog'))->assertOk();
+    test()->actingAs($profile->user->fresh())->get(route('performers.public'))->assertOk();
 
     expect($profile->user->refresh()->last_active_at)->toBeNull();
 });
@@ -163,7 +168,7 @@ it('nao carimba quando o status invisivel esta ligado', function () {
     $profile = laPerformer();
     $profile->user->forceFill(['invisible_status' => true])->save();
 
-    test()->actingAs($profile->user->fresh())->get(route('catalog'))->assertOk();
+    test()->actingAs($profile->user->fresh())->get(route('performers.public'))->assertOk();
 
     expect($profile->user->refresh()->last_active_at)->toBeNull();
 });

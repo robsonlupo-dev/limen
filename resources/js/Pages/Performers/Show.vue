@@ -10,6 +10,7 @@ import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
+import ContentGallery from '@/Components/ContentGallery.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
@@ -35,6 +36,10 @@ const props = defineProps({
     // Estado do favorito para ESTE espectador, ou null quando ele não pode
     // favoritar (visitante, performer, admin). Ver PublicCatalogController::show.
     favorite: { type: Object, default: null },
+    // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Só os níveis que o tier
+    // do espectador alcança chegam; visitante deslogado vê só o Aberto, bloqueado
+    // e sem URL. Ver PublicCatalogController::show.
+    contents: { type: Array, default: () => [] },
     meta: { type: Object, default: () => ({ title: 'Limen', description: '' }) },
 })
 
@@ -85,10 +90,6 @@ const workModeLabels = {
     privado: 'Sessão privada',
     exclusivo: 'Conteúdo exclusivo',
 }
-
-// Teaser tiles for the locked gallery. No real media is exposed to guests — the
-// thumbnails are deliberately blurred placeholders that route to signup.
-const lockedTiles = 6
 </script>
 
 <template>
@@ -326,26 +327,16 @@ const lockedTiles = 6
                     :can-report="report !== null"
                 />
 
-                <!-- Locked gallery -->
-                <div class="mt-8 space-y-3">
-                    <h2 class="font-serif text-xl text-cream">Conteúdo</h2>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <Link
-                            v-for="n in lockedTiles"
-                            :key="n"
-                            :href="route('entrada')"
-                            class="group relative aspect-square rounded-xl overflow-hidden border border-frame bg-gradient-to-br from-surface-2 to-background flex items-center justify-center no-underline"
-                        >
-                            <div class="absolute inset-0 backdrop-blur-sm bg-background/30" />
-                            <div class="relative flex flex-col items-center gap-1.5 text-center px-2">
-                                <span class="text-2xl" aria-hidden="true">🔒</span>
-                                <span class="text-[11px] text-muted group-hover:text-gold transition-colors">
-                                    Desbloqueie com tokens
-                                </span>
-                            </div>
-                        </Link>
-                    </div>
-                </div>
+                <!-- Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Substitui os
+                     tiles-teaser fixos: agora são as peças REAIS que o tier do
+                     espectador alcança. Visitante/performer/admin caem no cadastro
+                     (signupHref); membro logado que chegue aqui usa o desbloqueio
+                     da própria peça. Some por inteiro sem conteúdo do tier. -->
+                <ContentGallery
+                    :contents="contents"
+                    :performer-name="performer.stage_name"
+                    :signup-href="route('entrada')"
+                />
 
                 <!-- CTA -->
                 <div class="mt-10 mb-16 rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/10 to-transparent p-8 text-center space-y-3">

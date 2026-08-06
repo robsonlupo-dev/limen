@@ -213,6 +213,11 @@ return [
         'stories.feed',
         'stories.image',
 
+        // Conteúdo permanente pago (M.4/M.13.13): a galeria do perfil dispara o
+        // desbloqueio por aqui. `content.image` NÃO entra: o presenter já devolve
+        // a URL pronta como string (o front não a monta com route()).
+        'content.unlock',
+
         // Consumer wallet
         'wallet.index',
         'wallet.history',

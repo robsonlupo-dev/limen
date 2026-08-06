@@ -300,7 +300,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->middleware('throttle:6,1')
         ->name('verification.send');
 
-    Route::get('/catalogo', [CatalogController::class, 'index'])->name('catalog');
+    // O catálogo de MEMBROS é a vitrine onde a performer é o produto — ela não o
+    // navega (o logo dela leva ao próprio painel, PR #146). `role:consumer` fecha
+    // a listagem: performer/admin recebem 403 (UAT fase 1). O serving da própria
+    // atividade (TrackPerformerActivity) roda no grupo `web` inteiro, então o
+    // carimbo de "última atividade" da performer não depende desta porta.
+    // O `/catalogo/{slug}` (show) fica FORA do role:consumer de propósito: é a
+    // tela de um perfil específico, que performer/admin também alcançam por link.
+    Route::get('/catalogo', [CatalogController::class, 'index'])
+        ->middleware('role:consumer')
+        ->name('catalog');
     Route::get('/catalogo/{slug}', [CatalogController::class, 'show'])->name('catalog.show');
 
     Route::patch('/preferencias', [UserPreferencesController::class, 'update'])

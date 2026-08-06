@@ -202,10 +202,35 @@ class LiveKitService
     private function rooms(): RoomServiceClient
     {
         return $this->roomClient ??= new RoomServiceClient(
-            config('livekit.url'),
+            $this->roomServiceUrl(),
             config('livekit.api_key'),
             config('livekit.api_secret'),
         );
+    }
+
+    /**
+     * URL do RoomServiceClient (API de salas, server-side). O LIVEKIT_URL vem no
+     * scheme `wss://` — o que o CLIENTE WebRTC no browser precisa —, mas o
+     * RoomServiceClient fala Twirp sobre HTTP (Guzzle) e RECUSA wss/ws:
+     * "The scheme 'wss' is not supported" (era o 500 do /performer/live/start).
+     * Mesmo host, scheme HTTP: wss:// → https://, ws:// → http://. Uma URL já em
+     * https/http passa intacta. A conversão mora aqui, não no config, porque o
+     * .env guarda a URL do cliente (wss) — princípio nº 5, e o LiveKitService é a
+     * dona única de como se fala com o LiveKit.
+     */
+    private function roomServiceUrl(): string
+    {
+        $url = (string) config('livekit.url');
+
+        if (str_starts_with($url, 'wss://')) {
+            return 'https://'.substr($url, 6);
+        }
+
+        if (str_starts_with($url, 'ws://')) {
+            return 'http://'.substr($url, 5);
+        }
+
+        return $url;
     }
 
     /**

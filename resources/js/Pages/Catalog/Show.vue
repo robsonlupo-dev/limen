@@ -14,6 +14,7 @@ import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
+import ContentGallery from '@/Components/ContentGallery.vue'
 import ComingSoon from '@/Components/ComingSoon.vue'
 import { stateLabel } from '@/lib/performerAttributes'
 
@@ -25,6 +26,10 @@ const props = defineProps({
     // Galeria de fotos pública (Sprint 10): cada item { id, url }. Público, sem
     // paywall — ver PhotoCarousel.
     photos: { type: Array, default: () => [] },
+    // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Só os níveis que o tier
+    // deste membro alcança chegam — o Free recebe só o Aberto. Cada item já vem
+    // com locked/price/image_url/can_unlock resolvido pelo servidor.
+    contents: { type: Array, default: () => [] },
     // Alvo da denúncia ({ type, id }). Ver PublicCatalogController::show.
     report: { type: Object, default: null },
     // Estado do chat para o CTA "Iniciar conversa" do badge de disponibilidade
@@ -240,6 +245,12 @@ function onTipSent(data) {
                 <!-- Galeria de fotos (Sprint 10). Público, sem paywall — separada
                      do avatar/capa e dos stories. Some por inteiro sem foto. -->
                 <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" :can-request="canFavorite" />
+
+                <!-- Conteúdo permanente pago (Sprint 14, M.4/M.13.13). O membro
+                     desbloqueia com tokens (permanente); a peça bloqueada NÃO traz
+                     URL de bytes. O membro logado usa o botão de desbloquear (não
+                     há signupHref). Some por inteiro se não há conteúdo do tier. -->
+                <ContentGallery :contents="contents" :performer-name="performer.stage_name" />
 
                 <!-- Work modes -->
                 <div v-if="performer.work_modes?.length" class="mt-8 space-y-3">

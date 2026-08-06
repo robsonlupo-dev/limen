@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
 use App\Services\ChatAccessService;
+use App\Services\ContentVisibilityService;
 use App\Services\FavoriteService;
 use App\Services\FollowService;
 use App\Services\PerformerCatalogService;
@@ -35,6 +36,7 @@ class CatalogController extends Controller
         private ChatAccessService $chatAccessService,
         private SavedSearchService $savedSearches,
         private TokenCreditPolicy $creditPolicy,
+        private ContentVisibilityService $contentVisibility,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -177,6 +179,12 @@ class CatalogController extends Controller
             // (Sprint 13). A performer que abrir o próprio perfil por aqui vê as
             // dela (o service reconhece a dona).
             'photos' => PhotoGalleryPresenter::forProfile($profile, $request->user()),
+            // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Só os níveis que
+            // o TIER do espectador alcança APARECEM — o Free vê só o Aberto (pago
+            // para desbloquear), nunca Premium/Exclusivo/FC Only. Cada item já vem
+            // com locked/price/image_url resolvido pelo ContentVisibilityService
+            // (dona única do paywall) — bloqueado NÃO recebe URL de bytes.
+            'contents' => $this->contentVisibility->galleryFor($request->user(), $profile),
             // Alvo da denúncia (ver PublicCatalogController::show). Toda a rota
             // já está atrás de auth, então não há caso de visitante aqui.
             'report' => ['type' => 'performer', 'id' => $profile->id],
