@@ -40,6 +40,17 @@ php artisan test              # requer a extensão pdo_sqlite (usada no CI)
 Deploy manual de fallback: `./deploy.sh`. Backup: `docs/backup.sh`.
 Checklist completo de go-live: `.claude/handoff/go-live-checklist.md`.
 
+> **Deploy manual: use `./deploy.sh`, não um `git pull` solto.** Toda mudança de
+> ROTA precisa de `php artisan route:cache` (o `deploy.sh` e o CI já fazem) — o
+> frontend recebe as rotas via Ziggy (`@routes`), que lê a coleção de rotas
+> **em cache**. Um deploy que só faz `git pull && npm run build && config:clear`
+> deixa o cache de rotas velho, e `route('nome.novo')` estoura no console
+> (`Ziggy error: route '…' is not in the route list`) mesmo com a rota já em
+> `web.php` e no allowlist de `config/ziggy.php`. Se for deployar à mão, rode
+> `php artisan route:cache` (e `config:cache`/`view:cache`) depois do build.
+> Achado em staging (ago/2026): a rota `performer.content` existia em todo lugar,
+> só o cache de rotas do servidor estava velho.
+
 ---
 
 ## About Laravel
