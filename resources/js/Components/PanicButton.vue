@@ -125,7 +125,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     <button
         type="button"
         aria-label="Saída rápida"
-        class="fixed bottom-4 right-4 z-[10001] flex h-9 w-9 items-center justify-center rounded-full border border-frame/50 bg-background/70 text-muted/60 backdrop-blur transition-colors hover:text-cream focus:outline-none focus-visible:ring-1 focus-visible:ring-gold/40"
+        title="Saída rápida"
+        class="fixed top-4 right-4 z-[10001] flex h-9 w-9 items-center justify-center rounded-full border border-frame/50 bg-background/70 text-[#6f6a62] backdrop-blur transition-colors hover:text-cream hover:border-gold/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold/40"
         @click="escape"
     >
         <svg

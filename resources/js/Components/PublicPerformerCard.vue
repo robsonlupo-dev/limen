@@ -19,6 +19,10 @@ defineProps({
             ? 'border-gold/60 shadow-[0_0_20px_-8px_rgba(201,162,75,0.45)] hover:border-gold'
             : 'border-frame hover:border-gold/40'"
     >
+        <!-- Wrapper de posicionamento SEM overflow-hidden: o avatar transborda a
+             capa (-bottom-6) e, dentro da capa com overflow-hidden, teria a base
+             cortada (achado do UAT R3). O avatar vira irmão da capa. -->
+        <div class="relative">
         <div class="relative aspect-[4/3] bg-surface-2 overflow-hidden">
             <img
                 v-if="performer.cover_url"
@@ -47,7 +51,10 @@ defineProps({
             >
                 <span aria-hidden="true">📷</span>{{ performer.photos_count }}
             </div>
+        </div>
 
+            <!-- Avatar: irmão da capa (fora do overflow-hidden dela), para o
+                 transbordo -bottom-6 não ser cortado (UAT R3). -->
             <div class="absolute -bottom-6 left-4">
                 <div class="h-14 w-14 rounded-full border-2 border-gold bg-surface-2 overflow-hidden flex items-center justify-center shadow-lg">
                     <img

@@ -173,16 +173,18 @@ it('mantem o panic button montado no AppLayout', function () {
     expect(File::get(resource_path('js/Layouts/AppLayout.vue')))->toContain('<PanicButton />');
 });
 
-// ─── #4 /catalogo é role:consumer ────────────────────────────────────────────
+// ─── #4 /catalogo: membro entra, performer redireciona, admin 403 ────────────
+// (R3 trocou o 403 da performer por um redirect ao painel — UX melhor.)
 
 it('deixa o membro (consumer) entrar em /catalogo', function () {
     test()->actingAs(r2Member())->get(route('catalog'))->assertOk();
 });
 
-it('bloqueia a performer em /catalogo com 403', function () {
-    $profile = r2Performer();
+it('redireciona a performer ativa de /catalogo para o painel (302, nao 403)', function () {
+    $profile = r2Performer(); // status active → painel
 
-    test()->actingAs($profile->user)->get(route('catalog'))->assertForbidden();
+    test()->actingAs($profile->user)->get(route('catalog'))
+        ->assertRedirect(route('performer.dashboard'));
 });
 
 it('bloqueia o admin em /catalogo com 403', function () {

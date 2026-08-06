@@ -80,9 +80,9 @@ function laApiRows(): array
 // ─── ESCRITA: o middleware carimba ──────────────────────────────────────────
 // Os writes exercitam pela porta PÚBLICA (`performers.public`), não pela
 // `catalog`: o TrackPerformerActivity roda no grupo `web` INTEIRO (carimba em
-// qualquer request da performer), e desde o fix do UAT o `/catalogo` é
-// `role:consumer` — performer/admin levam 403 lá. A porta pública prova o mesmo
-// middleware sem depender de quem pode ver a listagem.
+// qualquer request da performer), e desde o fix do UAT o `/catalogo` fecha a
+// listagem para a performer (redireciona ao painel, R3) e para o admin (403). A
+// porta pública prova o mesmo middleware sem depender de quem pode ver a lista.
 
 it('carimba last_active_at no request autenticado da performer', function () {
     $profile = laPerformer();

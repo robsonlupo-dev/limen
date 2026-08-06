@@ -15,6 +15,17 @@ use Illuminate\Support\Facades\Storage;
 class PerformerProfileService
 {
     /**
+     * Capa da vitrine: 3:1 (banner), redimensionada no upload (UAT fase 1, R3).
+     * Sem o corte, uma foto retrato de celular subia em tamanho original e
+     * quebrava o layout do card/perfil no catálogo.
+     */
+    public const COVER_WIDTH = 1200;
+
+    public const COVER_HEIGHT = 400;
+
+    public function __construct(private ImageProcessingService $imageProcessor) {}
+
+    /**
      * @param  array<string, mixed>  $data  já validado (UpdatePerformerProfileRequest)
      */
     public function update(PerformerProfile $profile, array $data): PerformerProfile
@@ -87,11 +98,23 @@ class PerformerProfileService
             Storage::disk('local')->delete($profile->cover_path);
         }
 
-        $path = $file->storeAs(
-            "performer-media/{$profile->user_id}",
-            'cover.'.$file->extension(),
-            'local',
-        );
+        // Redimensiona server-side para 1200x400 (3:1) ANTES de guardar (UAT R3):
+        // a capa é banner de vitrine e, sem o corte, subia em tamanho original e
+        // estourava o card/perfil do catálogo. Reusa o pipeline endurecido do
+        // ImageProcessingService — guarda de imagem-bomba (dimensões lidas do
+        // header antes de decodificar), strip de EXIF/GPS e re-encode que mata
+        // polyglot —, com `crop` para a proporção exata. A saída é sempre JPEG,
+        // então o caminho é fixo `cover.jpg` (não depende mais da extensão do
+        // upload), o que dispensa o descarte por-extensão do avatar.
+        $clean = $this->imageProcessor->process($file, self::COVER_WIDTH, self::COVER_HEIGHT, crop: true);
+
+        $path = "performer-media/{$profile->user_id}/cover.jpg";
+
+        try {
+            Storage::disk('local')->put($path, file_get_contents($clean));
+        } finally {
+            @unlink($clean);
+        }
 
         $profile->update(['cover_path' => $path]);
 
