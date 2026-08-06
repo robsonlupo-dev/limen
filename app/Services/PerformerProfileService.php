@@ -23,6 +23,16 @@ class PerformerProfileService
 
     public const COVER_HEIGHT = 400;
 
+    /**
+     * Avatar: teto de exibição. Passa pelo MESMO pipeline higienizador da capa
+     * (strip de EXIF/GPS + re-encode que mata polyglot + guarda de imagem-bomba).
+     * O avatar é PÚBLICO e a foto de celular carrega coordenadas GPS — sem a
+     * higienização, a localização da performer vazaria no arquivo servido
+     * (leak de segurança, UAT R3). `scaleDown` (sem crop) só REDUZ e preserva o
+     * enquadramento; o recorte circular fica com o front (object-cover).
+     */
+    public const AVATAR_MAX = 512;
+
     public function __construct(private ImageProcessingService $imageProcessor) {}
 
     /**
@@ -69,17 +79,26 @@ class PerformerProfileService
      */
     public function replaceAvatar(PerformerProfile $profile, UploadedFile $file): string
     {
-        // O caminho depende da extensão, então trocar jpg→png deixaria o antigo
-        // órfão no disco se não apagássemos aqui.
         if ($profile->avatar_path) {
             Storage::disk('local')->delete($profile->avatar_path);
         }
 
-        $path = $file->storeAs(
-            "performer-media/{$profile->user_id}",
-            'avatar.'.$file->extension(),
-            'local',
-        );
+        // Higieniza ANTES de guardar (UAT R3): strip de EXIF/GPS + re-encode que
+        // mata polyglot, com a guarda de imagem-bomba (dimensões lidas do header
+        // antes de decodificar). Mesmo pipeline endurecido da capa; `scaleDown`
+        // (sem crop) só reduz e preserva o enquadramento — o recorte circular é
+        // do front (object-cover). Saída sempre JPEG → caminho fixo `avatar.jpg`
+        // (não depende mais da extensão do upload; sobrescrever dispensa o
+        // descarte por-extensão).
+        $clean = $this->imageProcessor->process($file, self::AVATAR_MAX, self::AVATAR_MAX);
+
+        $path = "performer-media/{$profile->user_id}/avatar.jpg";
+
+        try {
+            Storage::disk('local')->put($path, file_get_contents($clean));
+        } finally {
+            @unlink($clean);
+        }
 
         $profile->update(['avatar_path' => $path]);
 

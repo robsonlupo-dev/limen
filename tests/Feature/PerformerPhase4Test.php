@@ -230,7 +230,9 @@ it('avatar upload stores file in private storage and returns a temporary URL', f
 
     [$user, $profile, $token] = makePerformer();
 
-    $file = UploadedFile::fake()->create('avatar.jpg', 500, 'image/jpeg');
+    // Imagem REAL: o avatar agora passa pelo pipeline higienizador (strip
+    // EXIF/GPS + re-encode), que recusa bytes que não decodificam (UAT R3).
+    $file = UploadedFile::fake()->image('avatar.jpg', 500, 500);
 
     $response = $this->postJson('/api/v1/performer/profile/avatar',
         ['file' => $file],

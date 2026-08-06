@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Performer;
 
+use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SubmitKycRequest;
 use App\Http\Requests\UpdatePerformerProfileRequest;
@@ -108,7 +109,13 @@ class OnboardingController extends Controller
         $profile = $request->user()->performerProfile;
         abort_if(! $profile, 404);
 
-        $this->profileService->replaceAvatar($profile, $request->file('file'));
+        // Higienização pode recusar a entrada (imagem-bomba/corrompida) — vira
+        // erro de formulário no wizard, nunca 500.
+        try {
+            $this->profileService->replaceAvatar($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
 

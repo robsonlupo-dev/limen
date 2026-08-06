@@ -122,25 +122,30 @@ it('keeps followers and interests through a rename', function () {
     expect(PerformerInterest::where('performer_profile_id', $profile->id)->count())->toBe(1);
 });
 
-it('replaces the avatar and discards the previous file', function () {
+it('replaces the avatar with a sanitized JPEG and leaves no orphan', function () {
     Storage::fake('local');
     $profile = ppePerformer();
 
     $this->actingAs($profile->user)
-        ->post(route('performer.profile.photo'), ['file' => UploadedFile::fake()->image('first.jpg')])
+        ->post(route('performer.profile.photo'), ['file' => UploadedFile::fake()->image('first.jpg', 300, 300)])
         ->assertRedirect();
 
     $first = $profile->fresh()->avatar_path;
+    // Higienizado (strip EXIF/GPS + re-encode) → saída sempre JPEG, caminho fixo
+    // que não depende da extensão do upload (UAT R3).
+    expect($first)->toBe("performer-media/{$profile->user_id}/avatar.jpg");
     Storage::disk('local')->assertExists($first);
 
+    // PNG entra e vira JPEG no MESMO caminho — sobrescreve, sem arquivo órfão.
     $this->actingAs($profile->user)
-        ->post(route('performer.profile.photo'), ['file' => UploadedFile::fake()->image('second.png')])
+        ->post(route('performer.profile.photo'), ['file' => UploadedFile::fake()->image('second.png', 300, 300)])
         ->assertRedirect();
 
-    $second = $profile->fresh()->avatar_path;
-    Storage::disk('local')->assertExists($second);
-    // Trocar jpg→png muda o caminho; sem o descarte o antigo ficaria órfão.
-    Storage::disk('local')->assertMissing($first);
+    expect($profile->fresh()->avatar_path)->toBe($first);
+    Storage::disk('local')->assertExists($first);
+
+    // O que é servido é re-encodado (bitmap → JPEG), nunca o upload cru.
+    expect(getimagesizefromstring(Storage::disk('local')->get($first))[2])->toBe(IMAGETYPE_JPEG);
 });
 
 it('rejects an avatar that is not an accepted image', function () {

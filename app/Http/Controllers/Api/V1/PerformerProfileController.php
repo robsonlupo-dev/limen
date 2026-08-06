@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
@@ -10,7 +11,6 @@ use App\Services\PerformerProfileService;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
 class PerformerProfileController extends Controller
@@ -54,18 +54,15 @@ class PerformerProfileController extends Controller
 
         $this->authorize('update', $profile);
 
-        if ($profile->avatar_path) {
-            Storage::disk('local')->delete($profile->avatar_path);
+        // Mesmo serviço da edição web/onboarding: higieniza (strip EXIF/GPS +
+        // re-encode) e descarta o arquivo anterior. Duplicar o storeAs aqui era o
+        // que deixava a foto de celular subir com coordenadas GPS pela API — o
+        // avatar é público (leak de localização da performer, UAT R3).
+        try {
+            $this->profileService->replaceAvatar($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         }
-
-        $ext = $request->file('file')->extension();
-        $path = $request->file('file')->storeAs(
-            "performer-media/{$request->user()->id}",
-            "avatar.{$ext}",
-            'local'
-        );
-
-        $profile->update(['avatar_path' => $path]);
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
 
@@ -86,18 +83,14 @@ class PerformerProfileController extends Controller
 
         $this->authorize('update', $profile);
 
-        if ($profile->cover_path) {
-            Storage::disk('local')->delete($profile->cover_path);
+        // Mesmo serviço da edição web: redimensiona 1200x400 (3:1) + higieniza.
+        // Sem isso, a API era a segunda porta que subia a capa em tamanho
+        // original (UAT R3) — a regra vive num lugar só (PerformerProfileService).
+        try {
+            $this->profileService->replaceCover($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         }
-
-        $ext = $request->file('file')->extension();
-        $path = $request->file('file')->storeAs(
-            "performer-media/{$request->user()->id}",
-            "cover.{$ext}",
-            'local'
-        );
-
-        $profile->update(['cover_path' => $path]);
 
         Audit::log('performer_cover_updated', $profile, null, $request);
 

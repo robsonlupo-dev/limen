@@ -115,6 +115,41 @@ it('troca a capa antiga sem deixar orfao, mesmo mudando a extensao de origem', f
     Storage::disk('local')->assertExists($first);
 });
 
+// ─── Avatar: mesmo pipeline higienizador da capa (strip EXIF/GPS + re-encode) ─
+// Avatar é PÚBLICO — foto de celular com GPS vazaria a localização da performer.
+
+it('higieniza o avatar no upload: re-encode para JPEG e scaleDown', function () {
+    Storage::fake('local');
+    $profile = r3Performer();
+
+    test()->actingAs($profile->user)->post(route('performer.profile.photo'), [
+        'file' => UploadedFile::fake()->image('selfie.png', 800, 800),
+    ])->assertRedirect();
+
+    $profile->refresh();
+    expect($profile->avatar_path)->toBe("performer-media/{$profile->user_id}/avatar.jpg");
+
+    // Servido é JPEG re-encodado (bitmap → JPEG): nenhum EXIF/GPS do original
+    // sobrevive. scaleDown(512) preserva a proporção e só reduz: 800 → 512.
+    [$width, $height, $type] = getimagesizefromstring(Storage::disk('local')->get($profile->avatar_path));
+    expect($type)->toBe(IMAGETYPE_JPEG)
+        ->and($width)->toBe(512)
+        ->and($height)->toBe(512);
+});
+
+it('recusa upload que passa no mime mas nao decodifica, sem 500', function () {
+    Storage::fake('local');
+    $profile = r3Performer();
+
+    // Mime jpeg válido, bytes não-imagem: o pipeline recusa e vira erro de
+    // formulário (redirect com erros), nunca 500 nem arquivo gravado.
+    test()->actingAs($profile->user)->post(route('performer.profile.photo'), [
+        'file' => UploadedFile::fake()->create('nao-imagem.jpg', 8, 'image/jpeg'),
+    ])->assertSessionHasErrors('file');
+
+    expect($profile->fresh()->avatar_path)->toBeNull();
+});
+
 // ─── #5 Performer redireciona em /catalogo (302, não 403) ────────────────────
 
 it('redireciona a performer ativa de /catalogo para o painel', function () {

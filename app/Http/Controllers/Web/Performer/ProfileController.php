@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Performer;
 
+use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
@@ -162,7 +163,13 @@ class ProfileController extends Controller
         $profile = $request->user()->performerProfile;
         abort_if(! $profile, 404);
 
-        $this->profileService->replaceAvatar($profile, $request->file('file'));
+        // A higienização pode recusar a entrada (imagem-bomba, formato, arquivo
+        // corrompido) — vira erro de formulário, nunca 500.
+        try {
+            $this->profileService->replaceAvatar($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
 
@@ -176,7 +183,11 @@ class ProfileController extends Controller
         $profile = $request->user()->performerProfile;
         abort_if(! $profile, 404);
 
-        $this->profileService->replaceCover($profile, $request->file('file'));
+        try {
+            $this->profileService->replaceCover($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
 
         Audit::log('performer_cover_updated', $profile, null, $request);
 
