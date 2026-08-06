@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Room, RoomEvent } from 'livekit-client'
 import { postJson, getJson } from '@/lib/http'
 import LiveOverlay from '@/Components/LiveOverlay.vue'
+import GiftIcon from '@/Components/GiftIcon.vue'
 
 /**
  * Live pública GRÁTIS — lado do MEMBRO. Assina o stream da performer (view-only:
@@ -168,10 +169,14 @@ onBeforeUnmount(teardown)
                         :key="gift.slug"
                         type="button"
                         :disabled="status !== 'live'"
-                        class="rounded-lg border border-frame px-3 py-2 text-sm text-cream hover:border-gold/40 disabled:opacity-40"
+                        class="flex items-center gap-2 rounded-lg border border-frame px-3 py-2 text-left hover:border-gold/40 disabled:opacity-40"
                         @click="sendGift(gift)"
                     >
-                        {{ gift.name }} · {{ gift.price_tokens }} 🪙
+                        <span class="h-6 w-6 shrink-0 text-gold"><GiftIcon :slug="gift.slug" /></span>
+                        <span class="min-w-0">
+                            <span class="block truncate text-sm text-cream">{{ gift.name }}</span>
+                            <span class="block text-xs text-gold">{{ gift.price_tokens }} 🪙</span>
+                        </span>
                     </button>
                 </div>
             </div>

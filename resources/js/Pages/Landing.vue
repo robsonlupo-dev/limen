@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Button from '@/Components/Button.vue'
-import PortalLogo from '@/Components/PortalLogo.vue'
 
 // When the visitor arrived via an invite link (/convite/{code}), the server
 // passes the referrer's first name (for the "convidado por X" banner) and a
@@ -15,36 +14,9 @@ const props = defineProps({
 
 // ── Content ──────────────────────────────────────────────────────────────────
 
-const memberSteps = [
-    { n: '01', title: 'Crie sua conta', text: 'Cadastro rápido e discreto. Confirmação de idade 18+ em segundos.' },
-    { n: '02', title: 'Carregue tokens via PIX', text: 'Compre tokens com PIX instantâneo. Sem cartão, sem assinatura obrigatória.' },
-    { n: '03', title: 'Conecte e apoie', text: 'Explore performers verificados, envie gorjetas e entre em sessões privadas.' },
-]
-
-const performerSteps = [
-    { n: '01', title: 'Candidate-se', text: 'Cadastro de performer com nome artístico e o mundo que você representa.' },
-    { n: '02', title: 'Verifique sua identidade', text: 'Verificação de identidade e idade (KYC). Segurança para você e para o público.' },
-    { n: '03', title: 'Publique e receba', text: 'Você controla seu conteúdo. Receba gorjetas com split automático e saque via PIX.' },
-]
-
-const differentials = [
-    {
-        icon: '✦',
-        title: 'Verificado dos dois lados',
-        text: 'Todos os performers passam por verificação de identidade e idade. Sem perfis falsos, sem menores.',
-    },
-    {
-        icon: '◈',
-        title: 'Seguro e discreto',
-        text: 'Seus dados são criptografados e nunca compartilhados. Pagamentos por PIX, cobrança discreta.',
-    },
-    {
-        icon: '◉',
-        title: 'Sem app store',
-        text: 'Funciona direto no navegador, instalável como app (PWA). Sem intermediários, sem censura de loja.',
-    },
-]
-
+// `worlds` alimenta o passo 2 da lista de espera (preferências do membro / mundo
+// da performer). As seções de marketing (como funciona, diferenciais, grid de
+// mundos) saíram no redesign — o landing virou hero + lista de espera.
 const worlds = [
     { value: 'mulheres', label: 'Mulheres', glyph: '♀', accent: 'from-rose-500/20' },
     { value: 'homens', label: 'Homens', glyph: '♂', accent: 'from-sky-500/20' },
@@ -155,142 +127,48 @@ const vReveal = {
 <template>
     <GuestLayout title="Limen — O Portal Exclusivo para Criadores Verificados no Brasil">
         <!-- ── Hero ─────────────────────────────────────────────────────── -->
-        <section class="relative flex min-h-[88vh] flex-col items-center justify-center overflow-hidden px-6 text-center">
-            <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_35%,rgba(201,162,75,0.10),transparent)]" />
+        <!-- Redesign "maison": altura cheia, wordmark LIMEN dominante, UMA frase,
+             UM CTA dourado para a lista de espera. Sem grid de features, sem 3
+             colunas — a vitrine é o nome e o convite. -->
+        <section class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-limen-bg px-6 text-center">
+            <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_55%_50%_at_50%_40%,rgba(214,184,114,0.10),transparent)]" />
 
-            <div class="relative z-10 mx-auto flex max-w-2xl flex-col items-center gap-8 animate-fade-in">
+            <div class="relative z-10 mx-auto flex max-w-2xl flex-col items-center gap-10 animate-fade-in">
                 <div
                     v-if="referral"
-                    class="rounded-full border border-gold/40 bg-gold/[0.06] px-5 py-2 text-sm text-cream"
+                    class="rounded-full border border-limen-gold/40 bg-limen-gold/[0.06] px-5 py-2 text-sm text-limen-ink"
                 >
-                    ✦ Você foi convidado por <span class="text-gold">{{ referral.name }}</span>
+                    Você foi convidado por <span class="text-limen-gold">{{ referral.name }}</span>
                 </div>
 
-                <PortalLogo :size="104" />
+                <!-- Wordmark: Cormorant, letter-spacing largo, dourado champagne.
+                     text-indent compensa o espaço final do tracking, mantendo o
+                     centro óptico. -->
+                <h1
+                    class="font-serif text-6xl font-medium leading-none text-limen-gold md:text-8xl"
+                    style="letter-spacing: 0.35em; text-indent: 0.35em"
+                >
+                    LIMEN
+                </h1>
 
-                <div class="space-y-5">
-                    <h1 class="font-serif text-5xl leading-tight text-cream md:text-7xl">
-                        O portal do desejo,<br />
-                        <em class="not-italic text-gold">verificado e real.</em>
-                    </h1>
-                    <p class="mx-auto max-w-lg text-lg leading-relaxed text-muted">
-                        A plataforma premium de conteúdo adulto do Brasil. Performers verificados,
-                        pagamentos por PIX e privacidade total — dos dois lados.
-                    </p>
-                </div>
+                <p class="max-w-md text-lg leading-relaxed text-limen-ink-soft">
+                    Conteúdo adulto verificado, dos dois lados. Discreto, brasileiro, por convite.
+                </p>
 
-                <div class="flex w-full flex-col gap-4 sm:w-auto sm:flex-row">
-                    <Button variant="primary" size="lg" class="w-full sm:w-auto" @click="scrollToForm('performer')">
-                        Quero ser Performer
-                    </Button>
-                    <Button variant="ghost" size="lg" class="w-full sm:w-auto" @click="scrollToForm('member')">
-                        Quero entrar
-                    </Button>
-                </div>
+                <button
+                    type="button"
+                    class="rounded-full bg-limen-gold px-8 py-3 text-sm font-semibold uppercase tracking-widest text-limen-bg transition-colors hover:bg-[#e3c77a] focus:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
+                    @click="scrollToForm()"
+                >
+                    Entrar na lista de espera
+                </button>
 
-                <p class="text-xs uppercase tracking-widest text-muted/70">
-                    Lançamento em breve · Entre na lista de espera
+                <p class="text-xs uppercase tracking-[0.3em] text-limen-ink-mute">
+                    Lançamento em breve
                 </p>
             </div>
 
-            <div class="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
-        </section>
-
-        <!-- ── Como funciona ────────────────────────────────────────────── -->
-        <section class="px-6 py-24">
-            <div class="mx-auto max-w-5xl">
-                <h2 v-reveal class="mb-4 text-center font-serif text-4xl text-cream">Como funciona</h2>
-                <p v-reveal class="mx-auto mb-16 max-w-xl text-center text-muted">
-                    Simples para quem assiste. Justo para quem cria.
-                </p>
-
-                <div class="grid grid-cols-1 gap-12 md:grid-cols-2">
-                    <!-- Membro -->
-                    <div v-reveal class="space-y-6">
-                        <h3 class="flex items-center gap-3 font-serif text-2xl text-cream">
-                            <span class="text-2xl">👤</span> Para membros
-                        </h3>
-                        <ol class="space-y-5">
-                            <li v-for="step in memberSteps" :key="step.n" class="flex gap-4">
-                                <span class="font-serif text-xl text-gold/60">{{ step.n }}</span>
-                                <div>
-                                    <p class="font-medium text-cream">{{ step.title }}</p>
-                                    <p class="mt-1 text-sm leading-relaxed text-muted">{{ step.text }}</p>
-                                </div>
-                            </li>
-                        </ol>
-                    </div>
-
-                    <!-- Performer -->
-                    <div v-reveal class="space-y-6 rounded-2xl border border-gold/20 bg-gold/[0.03] p-8">
-                        <h3 class="flex items-center gap-3 font-serif text-2xl text-cream">
-                            <span class="text-2xl">🌟</span> Para performers
-                        </h3>
-                        <ol class="space-y-5">
-                            <li v-for="step in performerSteps" :key="step.n" class="flex gap-4">
-                                <span class="font-serif text-xl text-gold/60">{{ step.n }}</span>
-                                <div>
-                                    <p class="font-medium text-cream">{{ step.title }}</p>
-                                    <p class="mt-1 text-sm leading-relaxed text-muted">{{ step.text }}</p>
-                                </div>
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ── Por que Limen ────────────────────────────────────────────── -->
-        <section class="border-y border-frame/40 bg-surface/40 px-6 py-24">
-            <div class="mx-auto max-w-5xl">
-                <h2 v-reveal class="mb-16 text-center font-serif text-4xl text-cream">
-                    Por que <span class="text-gold">Limen</span>
-                </h2>
-                <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
-                    <div
-                        v-for="item in differentials"
-                        :key="item.title"
-                        v-reveal
-                        class="space-y-3 rounded-xl border border-frame bg-surface p-7"
-                    >
-                        <div class="text-3xl text-gold">{{ item.icon }}</div>
-                        <h3 class="font-serif text-xl text-cream">{{ item.title }}</h3>
-                        <p class="text-sm leading-relaxed text-muted">{{ item.text }}</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ── Mundos ───────────────────────────────────────────────────── -->
-        <section class="px-6 py-24">
-            <div class="mx-auto max-w-5xl">
-                <h2 v-reveal class="mb-4 text-center font-serif text-4xl text-cream">Explore os mundos</h2>
-                <p v-reveal class="mx-auto mb-16 max-w-xl text-center text-muted">
-                    Escolha o seu. Diga o que te interessa e avisamos você primeiro.
-                </p>
-
-                <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-                    <button
-                        v-for="world in worlds"
-                        :key="world.value"
-                        v-reveal
-                        type="button"
-                        class="group relative flex aspect-[3/4] flex-col items-center justify-end overflow-hidden rounded-2xl border border-frame p-5 text-center transition-all hover:border-gold/60"
-                        @click="scrollToForm()"
-                    >
-                        <div
-                            class="absolute inset-0 bg-gradient-to-t to-transparent opacity-70 transition-opacity group-hover:opacity-100"
-                            :class="world.accent"
-                        />
-                        <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-                        <span class="relative z-10 mb-2 text-4xl text-cream/90">{{ world.glyph }}</span>
-                        <span class="relative z-10 font-serif text-xl text-cream">{{ world.label }}</span>
-                        <span class="relative z-10 mt-1 text-xs uppercase tracking-widest text-muted transition-colors group-hover:text-gold">
-                            Tenho interesse
-                        </span>
-                    </button>
-                </div>
-            </div>
+            <div class="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-limen-bg to-transparent" />
         </section>
 
         <!-- ── CTA final / lista de espera ──────────────────────────────── -->

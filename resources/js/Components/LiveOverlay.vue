@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import GiftIcon from '@/Components/GiftIcon.vue'
 
 /**
  * Prova social da live pública (Sprint 15, PR #142). Escuta o canal privado
@@ -67,6 +68,12 @@ function processNext() {
     }, style.duration)
 }
 
+// Caixa do ícone por tamanho (o SVG do presente preenche; o emoji da gorjeta
+// usa como font-size). Espelha a antiga escala text-5xl…text-[12rem].
+function iconPx(size) {
+    return ({ sm: '56px', md: '72px', lg: '96px', xl: '128px', xxl: '160px', full: '200px' })[size] ?? '72px'
+}
+
 function labelFor(reaction) {
     if (reaction.type === 'gift') {
         return `${reaction.fan_alias_label} enviou`
@@ -97,17 +104,19 @@ onBeforeUnmount(() => {
                 class="flex flex-col items-center gap-2 text-center"
                 :style="{ animationDuration: `${current.duration}ms` }"
             >
+                <!-- Presente: SVG dourado (fonte única GiftIcon); gorjeta: coin.
+                     A caixa fixa o tamanho pela escala do presente. -->
                 <span
-                    :class="{
-                        'text-5xl': current.size === 'sm',
-                        'text-6xl': current.size === 'md',
-                        'text-7xl': current.size === 'lg',
-                        'text-8xl': current.size === 'xl',
-                        'text-9xl': current.size === 'xxl',
-                        'text-[12rem]': current.size === 'full',
-                    }"
-                    class="reaction-icon drop-shadow-lg"
-                >{{ current.icon }}</span>
+                    class="reaction-icon inline-block text-gold drop-shadow-lg"
+                    :style="{ width: iconPx(current.size), height: iconPx(current.size) }"
+                >
+                    <GiftIcon v-if="current.type === 'gift'" :slug="current.gift_slug" />
+                    <span
+                        v-else
+                        class="grid h-full w-full place-items-center leading-none"
+                        :style="{ fontSize: iconPx(current.size) }"
+                    >{{ current.icon }}</span>
+                </span>
                 <span class="rounded-full bg-black/60 px-3 py-1 text-sm font-medium text-white">
                     {{ labelFor(current) }}
                 </span>
