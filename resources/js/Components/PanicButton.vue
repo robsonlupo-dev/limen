@@ -122,11 +122,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       outro lado do empate está a segurança física de quem usa o site.
     -->
     <Teleport to="body">
+    <!--
+      Contraste é requisito de segurança, não estética: o botão só serve se o
+      membro CONSEGUIR achá-lo na hora. As versões anteriores usavam um fundo
+      translúcido (70% do quase-preto #0A0A0B) sobre uma página quase-preta, com
+      hairline meia-opacidade — sem contraste nenhum, o disco sumia no fundo. Foi
+      o achado do UAT cenário 63 ("membro não vê o botão"): ele SEMPRE esteve
+      montado (AppLayout incondicional; GuestLayout sob login), só era invisível.
+      Agora o disco é opaco (`bg-surface`) com aro dourado fino + sombra, então
+      lê como um controle intencional. O GLIFO segue discreto (`#6f6a62`, pedido
+      do PO) — quem ganha contraste é o disco, não o X.
+    -->
     <button
         type="button"
         aria-label="Saída rápida"
         title="Saída rápida"
-        class="fixed top-4 right-4 z-[10001] flex h-9 w-9 items-center justify-center rounded-full border border-frame/50 bg-background/70 text-[#6f6a62] backdrop-blur transition-colors hover:text-cream hover:border-gold/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold/40"
+        class="fixed top-4 right-4 z-[10001] flex h-10 w-10 items-center justify-center rounded-full border border-gold/40 bg-surface text-[#6f6a62] shadow-lg shadow-black/40 ring-1 ring-gold/25 transition-colors hover:text-cream hover:border-gold/70 hover:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
         @click="escape"
     >
         <svg
