@@ -59,17 +59,19 @@ it('posiciona o panic button visivel no topo direito, discreto e com tooltip', f
         ->and($src)->toContain('z-[10001]');
 });
 
-// ─── #3 Avatar do card fora do overflow-hidden da capa ───────────────────────
+// ─── #3 Foto do card sem corte (redesign do catálogo, card v2) ───────────────
+//
+// O achado original do R3 era o avatar circular FLUTUANTE sendo cortado pelo
+// overflow-hidden da capa. O redesign do catálogo (card v2) eliminou essa
+// estrutura: agora a FOTO preenche o card retrato 3:4 inteiro (object-cover),
+// sem capa + avatar transbordando — logo não há mais o que cortar. Este teste
+// passou a travar o novo invariante: retrato 3:4 preenchido por object-cover.
 
-it('mantem o avatar do card com recorte circular e fixo (nao cortado)', function () {
+it('preenche o card com a foto retrato 3:4 sem cortar (card v2)', function () {
     foreach (['PerformerCard', 'PublicPerformerCard'] as $component) {
         $src = File::get(resource_path("js/Components/{$component}.vue"));
 
-        // Requisitos do PO: object-cover + rounded-full + dimensão fixa no
-        // container do avatar. O transbordo (-bottom-6) deixou de ser cortado
-        // porque o avatar virou irmão da capa (fora do overflow-hidden dela).
-        expect($src)->toContain('h-14 w-14 rounded-full')
-            ->and($src)->toContain('-bottom-6 left-4')
+        expect($src)->toContain('aspect-[3/4]')
             ->and($src)->toContain('object-cover');
     }
 });

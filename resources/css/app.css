@@ -17,6 +17,20 @@
     --color-danger: #B4423A;
     --color-success: #4B9C6B;
 
+    /* Catálogo — tema "maison de joalheria" (PR redesign do catálogo).
+       Paralelo aos tokens acima, de propósito: são as cores da vitrine (cards,
+       trilha "Agora", landing), carvão quente + dourado champagne. O vermelho
+       `limen-live` é EXCLUSIVO do estado ao vivo — nenhum outro uso. */
+    --color-limen-bg: #181410;
+    --color-limen-surface: #241e16;
+    --color-limen-surface-2: #2b241b;
+    --color-limen-ink: #f0e9dc;
+    --color-limen-ink-soft: #a89a82;
+    --color-limen-ink-mute: #8a8175;
+    --color-limen-gold: #d6b872;
+    --color-limen-live: #e24b4a;
+    --color-limen-line: #2e2820;
+
     /* Typography */
     --font-serif: 'Cormorant Garamond', Georgia, ui-serif, serif;
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
