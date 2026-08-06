@@ -13,6 +13,8 @@ use App\Services\ProfileVisitService;
 use App\Services\StoryVisibilityService;
 use App\Services\TokenCreditPolicy;
 use App\Support\PhotoGalleryPresenter;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -93,9 +95,19 @@ class PublicCatalogController extends Controller
         ]);
     }
 
-    public function show(Request $request, string $slug): Response
+    public function show(Request $request, string $slug): Response|RedirectResponse
     {
-        $profile = $this->catalogService->findPublicBySlug($slug);
+        try {
+            $profile = $this->catalogService->findPublicBySlug($slug);
+        } catch (ModelNotFoundException $e) {
+            // Slug antigo de um rename → 301 para o atual (SEO + links vivos), em
+            // vez de 404. Só redireciona se o alvo ainda é público (ver service).
+            if ($current = $this->catalogService->currentPublicSlugForPrevious($slug)) {
+                return redirect()->route('performers.public.show', $current, 301);
+            }
+
+            throw $e;
+        }
 
         // Esta rota é pública, mas o membro logado também chega aqui (link
         // direto, busca). Visitante anônimo não gera visita — não há quem

@@ -15,6 +15,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 class PerformerContentController extends Controller
 {
@@ -25,6 +27,24 @@ class PerformerContentController extends Controller
         private ContentStore $store,
         private ContentVisibilityService $visibility,
     ) {}
+
+    /**
+     * Tela de gestão de conteúdo permanente (UAT fix). O backend do Sprint 14
+     * existia ponta a ponta (store/index/destroy), mas sem página nem link — a
+     * performer não tinha por onde publicar. A tela consome o `index` (JSON) por
+     * fetch no mount, no mesmo molde da galeria/stories.
+     */
+    public function page(Request $request): InertiaResponse
+    {
+        Gate::authorize('performer-active');
+
+        return Inertia::render('Performer/Content/Index', [
+            // Estado inicial (a tela recarrega por fetch após publicar/apagar).
+            'content' => $this->content->forOwner($request->user()->performerProfile),
+            'levels' => PerformerContent::LEVELS,
+            'minPrice' => 5,
+        ]);
+    }
 
     /** As peças da própria performer + contagem de desbloqueios. */
     public function index(Request $request): JsonResponse

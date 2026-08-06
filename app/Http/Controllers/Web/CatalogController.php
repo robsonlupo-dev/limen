@@ -17,6 +17,8 @@ use App\Services\SavedSearchService;
 use App\Services\StoryVisibilityService;
 use App\Services\TokenCreditPolicy;
 use App\Support\PhotoGalleryPresenter;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -128,9 +130,19 @@ class CatalogController extends Controller
         // mount — um round-trip separado, fora do caminho crítico do catálogo.
     }
 
-    public function show(Request $request, string $slug): Response
+    public function show(Request $request, string $slug): Response|RedirectResponse
     {
-        $profile = $this->catalogService->findBySlug($slug);
+        try {
+            $profile = $this->catalogService->findBySlug($slug);
+        } catch (ModelNotFoundException $e) {
+            // Slug antigo de um rename → 301 para o atual, em vez de 404. Só
+            // redireciona se o alvo ainda renderiza neste recorte (ver service).
+            if ($current = $this->catalogService->currentSlugForPrevious($slug)) {
+                return redirect()->route('catalog.show', $current, 301);
+            }
+
+            throw $e;
+        }
 
         // Visita: no-op para quem tem Ghost Mode, e a resposta é idêntica nos
         // dois casos de propósito (ver ProfileVisitService::record).

@@ -343,6 +343,11 @@ class DeletionService
             $summary['performer_content'] = $this->purgePerformerContent($user);
             $summary['performer_content_preserved'] = $this->preservedContentCount($user);
             $summary['performer_locations'] = $this->purgePerformerLocations($user);
+            // Slugs antigos do redirect de rename (UAT fix): carregam o nome
+            // artístico descartado, então saem no Hard Delete. A FK
+            // `cascadeOnDelete` NÃO dispara — `anonymizePerformerProfile` só
+            // soft-deleta/anonimiza o perfil (item 11 do CLAUDE.md).
+            $summary['previous_slugs'] = $this->purgePreviousSlugs($user);
             $summary['messages_soft_deleted'] = $this->softDeleteMessages($user);
             $summary['performer_profile'] = $this->anonymizePerformerProfile($user);
             $summary['payouts_scrubbed'] = $this->scrubPayouts($user);
@@ -580,6 +585,26 @@ class DeletionService
         }
 
         return DB::table('favorites')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Slugs abandonados por renames desta performer (UAT fix, fase 1). Some pelo
+     * `performer_profile_id`, não pela FK: `anonymizePerformerProfile` só
+     * soft-deleta o perfil, então o cascade não dispara (item 11 do CLAUDE.md).
+     * Guarda o nome artístico slugificado que ela descartou — sem valor fiscal,
+     * some com o resto. Roda enquanto o perfil ainda resolve pela coluna.
+     */
+    private function purgePreviousSlugs(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('performer_profile_previous_slugs')
+            ->where('performer_profile_id', $profileId)
+            ->delete();
     }
 
     /**

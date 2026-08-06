@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PerformerProfile;
+use App\Models\PerformerProfilePreviousSlug;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
@@ -276,5 +277,45 @@ class PerformerCatalogService
     public function findBySlug(string $slug): PerformerProfile
     {
         return PerformerProfile::publicCatalog()->where('slug', $slug)->firstOrFail();
+    }
+
+    /**
+     * Slug ATUAL de uma performer que largou `$oldSlug` num rename, ou null.
+     * Alimenta o 301-redirect da show do catálogo AUTENTICADO — mesmo recorte
+     * de visibilidade da findBySlug, para não redirecionar para uma página que
+     * então daria 404 (performer que ficou pending/suspensa some do redirect).
+     */
+    public function currentSlugForPrevious(string $oldSlug): ?string
+    {
+        return $this->resolvePreviousSlug(PerformerProfile::publicCatalog(), $oldSlug);
+    }
+
+    /**
+     * Idem, para a show PÚBLICA (/performers/{slug}) — recorte da
+     * findPublicBySlug (só os mundos públicos, ativa + verificada).
+     */
+    public function currentPublicSlugForPrevious(string $oldSlug): ?string
+    {
+        return $this->resolvePreviousSlug(
+            PerformerProfile::publicCatalog()->whereIn('category', self::PUBLIC_WORLDS),
+            $oldSlug,
+        );
+    }
+
+    private function resolvePreviousSlug(Builder $query, string $oldSlug): ?string
+    {
+        // Resolve o id ANTES de aplicar o recorte de visibilidade: um JOIN
+        // dentro do scope publicCatalog() colidiria com o `whereNotNull('slug')`
+        // dele (coluna `slug` ambígua). Duas queries, sem ambiguidade.
+        $profileId = PerformerProfilePreviousSlug::where('slug', $oldSlug)
+            ->value('performer_profile_id');
+
+        if ($profileId === null) {
+            return null;
+        }
+
+        // null se o perfil não passa mais no recorte (pending/suspensa/mundo
+        // fora): o link antigo 404, não redireciona para uma página escondida.
+        return $query->where('performer_profiles.id', $profileId)->value('slug');
     }
 }

@@ -79,7 +79,10 @@ it('keeps the slug when only the bio changes', function () {
     expect($profile->slug)->toBe($oldSlug);
 });
 
-it('makes the old public url 404 after a rename', function () {
+it('301-redirects the old url to the new one after a rename', function () {
+    // UAT fix (fase 1): o slug antigo deixou de dar 404 e passou a
+    // 301-redirecionar para o atual — link vivo (card, aba, bookmark) não quebra.
+    // O nome antigo continua fora de toda URL NOVA (ver PerformerProfileService).
     $profile = ppePerformer('Ana');
     $oldSlug = $profile->slug;
     $member = User::factory()->create(['role' => 'consumer', 'status' => 'active']);
@@ -91,8 +94,12 @@ it('makes the old public url 404 after a rename', function () {
         ->post(route('performer.profile.save'), ['stage_name' => 'Bianca'])
         ->assertRedirect();
 
-    $this->actingAs($member)->get(route('catalog.show', $oldSlug))->assertNotFound();
-    $this->actingAs($member)->get(route('catalog.show', $profile->fresh()->slug))->assertOk();
+    $newSlug = $profile->fresh()->slug;
+    $this->actingAs($member)
+        ->get(route('catalog.show', $oldSlug))
+        ->assertStatus(301)
+        ->assertRedirect(route('catalog.show', $newSlug));
+    $this->actingAs($member)->get(route('catalog.show', $newSlug))->assertOk();
 });
 
 it('keeps followers and interests through a rename', function () {
