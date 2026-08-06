@@ -4,6 +4,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import AgeGateModal from '@/Components/AgeGateModal.vue'
 import IntroAnimation from '@/Components/IntroAnimation.vue'
+import PanicButton from '@/Components/PanicButton.vue'
 
 defineProps({
     title: String,
@@ -58,6 +59,14 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
         <main class="flex-1">
             <slot />
         </main>
+
+        <!-- Saída rápida: também nas páginas GuestLayout (landing, catálogo e
+             perfil públicos), mas SÓ para o membro logado — que alcança essas
+             telas por link direto e precisa da mesma saída que tem no AppLayout.
+             O AppLayout já a monta sempre; aqui ela dependia de estar logado, e
+             não estava (achado do UAT fase 1). Visitante deslogado não recebe:
+             o logout seria no-op e o botão não faria sentido na vitrine pública. -->
+        <PanicButton v-if="isLoggedIn" />
 
         <!-- Footer -->
         <footer class="border-t border-frame/50 py-8">

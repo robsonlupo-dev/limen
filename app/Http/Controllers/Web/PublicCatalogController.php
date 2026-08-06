@@ -7,6 +7,7 @@ use App\Http\Requests\CatalogFilterRequest;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Conversation;
 use App\Services\ChatAccessService;
+use App\Services\ContentVisibilityService;
 use App\Services\FavoriteService;
 use App\Services\PerformerCatalogService;
 use App\Services\ProfileVisitService;
@@ -36,6 +37,7 @@ class PublicCatalogController extends Controller
         private StoryVisibilityService $storyVisibility,
         private FavoriteService $favorites,
         private TokenCreditPolicy $creditPolicy,
+        private ContentVisibilityService $contentVisibility,
     ) {}
 
     public function index(CatalogFilterRequest $request): Response
@@ -135,6 +137,11 @@ class PublicCatalogController extends Controller
             // Viewer passado: foto privada sem grant vem `locked` e sem URL
             // (Sprint 13). Visitante deslogado (`null`) vê toda privada bloqueada.
             'photos' => PhotoGalleryPresenter::forProfile($profile, $request->user()),
+            // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Só os níveis que
+            // o TIER do espectador alcança APARECEM. Visitante deslogado / membro
+            // Free veem só o Aberto (bloqueado, sem URL de bytes — o CTA leva ao
+            // cadastro/desbloqueio). Mesma fonte do serving (ContentVisibilityService).
+            'contents' => $this->contentVisibility->galleryFor($request->user(), $profile),
             // Estado do chat para ESTE espectador. Chat é interest-gated: só há
             // conversa se a performer mandou Interesse e o membro desbloqueou —
             // não dá para iniciar chat frio daqui. Null (guest, performer/admin,

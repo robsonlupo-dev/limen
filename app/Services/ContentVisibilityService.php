@@ -7,6 +7,7 @@ use App\Models\ContentUnlock;
 use App\Models\PerformerContent;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use App\Support\ContentPresenter;
 
 /**
  * Quem alcança qual peça de conteúdo permanente, resolvido AGORA (M.4/M.13.13).
@@ -167,6 +168,35 @@ class ContentVisibilityService
         }
 
         return 'locked';
+    }
+
+    /**
+     * A galeria de conteúdo permanente que ESTE espectador vê no perfil (M.13.13),
+     * já no shape do ContentPresenter (locked/price/image_url/can_unlock) — a MESMA
+     * fonte do serving, para presenter e listagem nunca divergirem.
+     *
+     * Só os níveis que o TIER do espectador alcança APARECEM: "❌ = sem acesso ao
+     * nível" (M.13.13). O Free vê só o Aberto (pago, para desbloquear), nunca
+     * Premium/Exclusivo/FC Only — que não são upsell de tile bloqueado aqui. Por
+     * `tierAllows`: Aberto → todos; Premium → Prestige+; Exclusivo → Black+; FC
+     * Only → só FC. Ordem: mais recente primeiro (id desc), como forOwner.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function galleryFor(?User $viewer, PerformerProfile $profile): array
+    {
+        if (! $this->performerIsReachable($profile)) {
+            return [];
+        }
+
+        return PerformerContent::query()
+            ->where('performer_profile_id', $profile->id)
+            ->orderByDesc('id')
+            ->get()
+            ->filter(fn (PerformerContent $content) => $this->tierAllows($viewer, $content))
+            ->map(fn (PerformerContent $content) => ContentPresenter::one($content, $viewer))
+            ->values()
+            ->all();
     }
 
     /**
