@@ -27,6 +27,9 @@ const props = defineProps({
 const avatarForm = useForm({ file: null })
 const avatarPreview = ref(null)
 
+const coverForm = useForm({ file: null })
+const coverPreview = ref(null)
+
 // Os quatro mundos oficiais (espelha PerformerProfile::WORLDS). O servidor
 // revalida com Rule::in — isto é só o rótulo da tela.
 const WORLDS = [
@@ -177,6 +180,21 @@ function submitAvatar(event) {
     })
 }
 
+const currentCover = computed(() => coverPreview.value ?? props.profile.cover_url)
+
+function submitCover(event) {
+    const file = event.target.files[0]
+    if (!file) return
+
+    coverPreview.value = URL.createObjectURL(file)
+    coverForm.file = file
+    coverForm.post(route('performer.profile.cover-photo'), {
+        forceFormData: true,
+        preserveScroll: true,
+        onError: () => (coverPreview.value = null),
+    })
+}
+
 function save() {
     if (worldsInvalid.value) return
     profileForm.post(route('performer.profile.save'), { preserveScroll: true })
@@ -222,6 +240,33 @@ function save() {
                         <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB.</p>
                         <p v-if="avatarForm.errors.file" class="text-xs text-danger">{{ avatarForm.errors.file }}</p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Foto de capa (UAT fix): a faixa larga do topo do perfil. -->
+            <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
+                <h2 class="font-serif text-xl text-cream">Foto de capa</h2>
+
+                <div class="aspect-[3/1] w-full overflow-hidden rounded-lg bg-surface-2 border border-frame flex items-center justify-center">
+                    <img v-if="currentCover" :src="currentCover" alt="Sua foto de capa" class="h-full w-full object-cover" />
+                    <span v-else class="text-sm text-muted">Nenhuma foto de capa</span>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="cursor-pointer inline-block">
+                        <span class="inline-flex items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
+                            {{ coverForm.processing ? 'Enviando...' : (currentCover ? 'Trocar capa' : 'Adicionar capa') }}
+                        </span>
+                        <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            class="hidden"
+                            :disabled="coverForm.processing"
+                            @change="submitCover"
+                        />
+                    </label>
+                    <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Proporção recomendada 3:1.</p>
+                    <p v-if="coverForm.errors.file" class="text-xs text-danger">{{ coverForm.errors.file }}</p>
                 </div>
             </div>
 

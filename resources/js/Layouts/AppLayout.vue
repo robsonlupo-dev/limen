@@ -26,6 +26,11 @@ const dashboardRoute = computed(() =>
     isActivePerformer.value ? route('performer.dashboard') : route('performer.onboarding'),
 )
 
+// O logo leva cada papel ao SEU início: a performer não navega o catálogo de
+// membros (é a vitrine onde ela é o produto), então cai no próprio painel. Os
+// demais (membro, admin/moderador) seguem para o catálogo.
+const homeRoute = computed(() => (isPerformer.value ? dashboardRoute.value : route('catalog')))
+
 const showLogoutConfirm = ref(false)
 
 function logout() {
@@ -40,7 +45,7 @@ function logout() {
         <!-- Header -->
         <header class="border-b border-frame/50">
             <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-                <Link :href="route('catalog')" class="flex items-center gap-3 no-underline">
+                <Link :href="homeRoute" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
                     <span class="font-serif text-[#C9A24B] tracking-widest">Limen</span>
                 </Link>
@@ -70,6 +75,12 @@ function logout() {
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
                             Interesses
+                        </Link>
+                        <Link
+                            :href="route('performer.content')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Conteúdo
                         </Link>
                         <Link
                             :href="route('chat.index')"

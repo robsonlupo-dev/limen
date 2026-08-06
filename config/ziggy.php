@@ -92,6 +92,15 @@ return [
         'performer.profile.edit',
         'performer.profile.save',
         'performer.profile.photo',
+        // Foto de capa pela porta web (UAT fix). Nome distinto do
+        // `performer.profile.cover` da API para não colidir no lookup.
+        'performer.profile.cover-photo',
+        // Gestão de conteúdo permanente (UAT fix): a página + os endpoints JSON
+        // que ela consome (listar, publicar, remover).
+        'performer.content',
+        'performer.content.index',
+        'performer.content.store',
+        'performer.content.destroy',
         // Localizações da performer (Sprint 13): a tela de edição dá PUT aqui
         // (porta dedicada, separada do save do perfil).
         'performer.locations.update',

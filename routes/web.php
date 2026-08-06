@@ -424,6 +424,17 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.profile.photo')
             ->can('performer-active');
 
+        // Foto de capa (UAT fix): gêmea da foto de perfil pela porta WEB. Sem ela
+        // o `cover_path` (coluna + `cover_url` no resource + DeletionService)
+        // nunca era preenchido pelo frontend Inertia, e o checklist "Adicionar
+        // foto de capa" ficava impossível. Nome DISTINTO do `performer.profile.cover`
+        // da API (mesma disciplina de `.photo` vs `.avatar`): nome repetido faria
+        // route() apontar para a URL da API (405). Ver RouteNameCollisionTest.
+        Route::post('/performer/perfil/capa', [PerformerProfileController::class, 'cover'])
+            ->middleware('throttle:20,1')
+            ->name('performer.profile.cover-photo')
+            ->can('performer-active');
+
         // Localizações da performer (Sprint 13). Porta DEDICADA — separada de
         // `performer.profile.save`, que deixou de aceitar `state`/`city`: o
         // PerformerLocationService é a dona única da escrita (tabela + cache).
@@ -642,6 +653,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
             // (grupo) e performer-active. O `desbloqueios` (GET, literal) e o POST
             // vêm antes das rotas com {content}. Serving da própria peça (preview de
             // gestão) é rota SEPARADA da do membro, onde vive o paywall.
+            // Tela de gestão (UAT fix): página Inertia. Vem ANTES das rotas com
+            // {content} (todas com sufixo /… ou whereNumber), então `/gerenciar`
+            // não é capturado por elas. O `index` (JSON) segue como fonte de dados.
+            Route::get('/performer/conteudo/gerenciar', [PerformerContentController::class, 'page'])
+                ->middleware('throttle:60,1')
+                ->name('performer.content')
+                ->can('performer-active');
+
             Route::get('/performer/conteudo', [PerformerContentController::class, 'index'])
                 ->middleware('throttle:60,1')
                 ->name('performer.content.index')

@@ -73,6 +73,12 @@ class ProfileController extends Controller
                         'type' => 'avatar',
                     ])
                     : null,
+                'cover_url' => $profile->cover_path
+                    ? URL::temporarySignedRoute('performer.media', now()->addMinutes(60), [
+                        'profile_id' => $profile->id,
+                        'type' => 'cover',
+                    ])
+                    : null,
             ],
             // Galeria de fotos (Sprint 10): a lista atual, na ordem do carrossel,
             // e o teto para a tela desenhar "N/6". As mutações (upload, delete,
@@ -144,7 +150,7 @@ class ProfileController extends Controller
         return back()->with(
             'success',
             $renamed
-                ? 'Perfil atualizado. O endereço do seu perfil mudou — links antigos não funcionam mais.'
+                ? 'Perfil atualizado. O endereço do seu perfil mudou; links antigos passam a redirecionar para o novo.'
                 : 'Perfil atualizado.',
         );
     }
@@ -161,5 +167,19 @@ class ProfileController extends Controller
         Audit::log('performer_avatar_updated', $profile, null, $request);
 
         return back()->with('success', 'Foto de perfil atualizada.');
+    }
+
+    public function cover(UploadMediaRequest $request): RedirectResponse
+    {
+        Gate::authorize('performer-active');
+
+        $profile = $request->user()->performerProfile;
+        abort_if(! $profile, 404);
+
+        $this->profileService->replaceCover($profile, $request->file('file'));
+
+        Audit::log('performer_cover_updated', $profile, null, $request);
+
+        return back()->with('success', 'Foto de capa atualizada.');
     }
 }

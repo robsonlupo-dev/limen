@@ -631,7 +631,13 @@ class PerformerProfile extends Model
         $base = Str::slug($stageName);
         do {
             $slug = $base.'-'.strtolower(Str::random(4));
-        } while (static::withTrashed()->where('slug', $slug)->exists());
+        } while (
+            static::withTrashed()->where('slug', $slug)->exists()
+            // Não reciclar um slug que ainda 301-redireciona para outra
+            // performer (PerformerProfilePreviousSlug) — senão o link antigo dela
+            // passaria a apontar para o perfil novo.
+            || PerformerProfilePreviousSlug::where('slug', $slug)->exists()
+        );
 
         return $slug;
     }

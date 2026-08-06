@@ -426,6 +426,20 @@ async function decideAccess(req, approve) {
                 </div>
             </div>
 
+            <!-- Conteúdo permanente (UAT fix): acesso claro à publicação de peças
+                 pagas. Só para performer ativa — a rota exige performer-active. -->
+            <Link
+                v-if="canPublishStories"
+                :href="route('performer.content')"
+                class="flex items-center justify-between rounded-xl border border-frame bg-surface p-5 no-underline hover:border-gold/40 transition-colors"
+            >
+                <div class="space-y-1">
+                    <p class="font-serif text-lg text-cream">Conteúdo permanente</p>
+                    <p class="text-sm text-muted">Publique fotos pagas (Aberto, Premium, Exclusivo ou FC Only).</p>
+                </div>
+                <span class="shrink-0 text-sm text-gold">Gerenciar &rarr;</span>
+            </Link>
+
             <!-- Tips table -->
             <div class="space-y-3">
                 <h2 class="font-serif text-xl text-cream">Últimas gorjetas</h2>
