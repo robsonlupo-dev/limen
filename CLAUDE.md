@@ -1267,3 +1267,23 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
 - **Ressalva de suíte local:** `GeoBlockTest` "bloqueia com 451" falha **só neste
   clone de dev** — a view custom de erro 451 não está compilada aqui, então cai na
   página de erro padrão do Symfony. É verde no CI. Não é regressão; não persiga.
+
+## Nota operacional — 06/08/2026 (ambiente de teste)
+
+- **PHP subiu de 8.4.22 para 8.4.24** no servidor (upgrade via apt junto com
+  `php8.4-sqlite3`). A stack no topo deste arquivo ainda cita 8.4.22 — vale
+  atualizar quando conveniente.
+- **`php8.4-sqlite3` agora ESTÁ instalado** (antes ausente por premissa). Isso
+  torna o `phpunit.xml` (que aponta para sqlite `:memory:`) uma armadilha: rodar
+  `php artisan test` PURO agora executa as migrations em sqlite e quebra em massa,
+  porque várias migrations usam SQL específico de MySQL (`IF()`, `MODIFY ... ENUM`,
+  `UPDATE ... JOIN`). **Isso NÃO é bug** — as migrations estão corretas para MySQL.
+- **Regra:** rode a suíte SEMPRE com as variáveis MySQL prefixadas, nunca
+  `php artisan test` puro:
+```bash
+  DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3306 \
+  DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD='<ver .env>' \
+  HCAPTCHA_ENABLED=false php artisan test
+```
+  Resultado esperado: **1780 passam, 1 falha** (o `GeoBlockTest` da view 451,
+  falha documentada só neste clone de dev).
