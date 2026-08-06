@@ -301,15 +301,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->name('verification.send');
 
     // O catálogo de MEMBROS é a vitrine onde a performer é o produto — ela não o
-    // navega (o logo dela leva ao próprio painel, PR #146). `role:consumer` fecha
-    // a listagem: performer/admin recebem 403 (UAT fase 1). O serving da própria
+    // navega (o logo dela leva ao próprio painel, PR #146). O corte de papel mora
+    // no CONTROLLER, não num `role:consumer` no meio: a performer é REDIRECIONADA
+    // ao próprio painel (302), UX melhor que a página de 403 (UAT fase 1, R3); os
+    // demais não-membros (admin) seguem barrados com 403. O serving da própria
     // atividade (TrackPerformerActivity) roda no grupo `web` inteiro, então o
     // carimbo de "última atividade" da performer não depende desta porta.
-    // O `/catalogo/{slug}` (show) fica FORA do role:consumer de propósito: é a
-    // tela de um perfil específico, que performer/admin também alcançam por link.
-    Route::get('/catalogo', [CatalogController::class, 'index'])
-        ->middleware('role:consumer')
-        ->name('catalog');
+    // O `/catalogo/{slug}` (show) já fica aberto a performer/admin por link.
+    Route::get('/catalogo', [CatalogController::class, 'index'])->name('catalog');
     Route::get('/catalogo/{slug}', [CatalogController::class, 'show'])->name('catalog.show');
 
     Route::patch('/preferencias', [UserPreferencesController::class, 'update'])

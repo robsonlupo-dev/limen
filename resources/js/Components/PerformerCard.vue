@@ -104,6 +104,12 @@ const categoryLabels = {
         </div>
 
         <Link :href="route('catalog.show', performer.slug)" class="block no-underline">
+            <!-- Wrapper de posicionamento SEM overflow-hidden: o avatar transborda
+                 a capa (-bottom-6) e, se ficasse DENTRO da capa — que precisa de
+                 overflow-hidden para o zoom no hover e para o preview animado —,
+                 teria a base cortada (achado do UAT R3). O avatar passa a ser
+                 IRMÃO da capa, posicionado em relação a este wrapper. -->
+            <div class="relative">
             <div
                 class="relative aspect-[4/3] bg-surface-2 overflow-hidden"
                 @mouseenter="startPreview"
@@ -153,7 +159,11 @@ const categoryLabels = {
                 >
                     <span aria-hidden="true">📷</span>{{ performer.photos_count }}
                 </div>
+            </div>
 
+                <!-- Avatar: irmão da capa (fora do overflow-hidden dela), para o
+                     transbordo -bottom-6 não ser cortado. object-cover + rounded-full
+                     + dimensão fixa mantêm o recorte circular do UAT R3. -->
                 <div class="absolute -bottom-6 left-4">
                     <div class="h-14 w-14 rounded-full border-2 border-gold bg-surface-2 overflow-hidden flex items-center justify-center shadow-lg">
                         <img

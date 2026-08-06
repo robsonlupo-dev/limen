@@ -39,8 +39,26 @@ class CatalogController extends Controller
         private ContentVisibilityService $contentVisibility,
     ) {}
 
-    public function index(CatalogFilterRequest $request): Response
+    public function index(CatalogFilterRequest $request): Response|RedirectResponse
     {
+        $user = $request->user();
+
+        // A performer não navega o catálogo de membros (é a vitrine onde ela é o
+        // produto). Em vez de um 403, redireciona ao próprio painel — UX melhor
+        // que uma página de erro (UAT fase 1, R3). Espelha o dashboardRoute do
+        // AppLayout: quem ainda está em onboarding (não `active`) cai na tela de
+        // onboarding, não no painel gateado por `performer-active`.
+        if ($user->role === 'performer') {
+            return redirect()->route(
+                $user->status === 'active' ? 'performer.dashboard' : 'performer.onboarding',
+            );
+        }
+
+        // Os demais não-membros (admin) seguem barrados: o catálogo é área do
+        // membro. O corte saiu do `role:consumer` da rota para o controller só
+        // para dar à performer o redirect acima — a regra de papel não mudou.
+        abort_unless($user->role === 'consumer', 403);
+
         // `category` fica fora do CatalogFilterRequest: o mundo é do catálogo
         // autenticado (o público usa `mundo`), e as duas telas compartilham só
         // as facetas do Sprint 9.

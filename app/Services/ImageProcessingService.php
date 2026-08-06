@@ -65,10 +65,21 @@ class ImageProcessingService
      * reabrindo uma janela de corrida por um dado que ninguém deve consultar:
      * o tipo se descobre por sniff do conteúdo, que é sempre `image/jpeg`.
      *
+     * Dimensões alvo: por padrão o teto de exibição da config (`scaleDown`, que
+     * só REDUZ e preserva a proporção). O chamador pode fixar outro alvo — a
+     * capa da performer pede 1200x400 (3:1) em `$crop=true`, que usa `cover()`:
+     * escala para PREENCHER a caixa e recorta o excesso, garantindo a proporção
+     * exata (uma foto retrato vira uma faixa 3:1 sem distorção). As guardas de
+     * imagem-bomba (assertSafeDimensions) valem igual nos dois modos.
+     *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      */
-    public function process(UploadedFile $file): string
-    {
+    public function process(
+        UploadedFile $file,
+        ?int $maxWidth = null,
+        ?int $maxHeight = null,
+        bool $crop = false,
+    ): string {
         $source = $file->getRealPath();
 
         if ($source === false || ! is_readable($source)) {
@@ -84,16 +95,23 @@ class ImageProcessingService
             throw ImageProcessingException::unreadable();
         }
 
+        $width = $maxWidth ?? (int) config('image.max_width');
+        $height = $maxHeight ?? (int) config('image.max_height');
+
         try {
-            $this->manager()
-                ->read($source)
+            $image = $this->manager()->read($source);
+
+            if ($crop) {
+                // Recorta para a proporção EXATA da caixa (preenche e apara).
+                $image->cover($width, $height);
+            } else {
                 // Só REDUZ e mantém a proporção: imagem menor que o teto sai
                 // com as dimensões originais, nunca ampliada (ampliar não
                 // acrescenta informação e só multiplica bytes).
-                ->scaleDown(
-                    (int) config('image.max_width'),
-                    (int) config('image.max_height'),
-                )
+                $image->scaleDown($width, $height);
+            }
+
+            $image
                 ->toJpeg(
                     quality: (int) config('image.quality'),
                     // Advisory sob GD — o strip aqui é estrutural, não vem da
