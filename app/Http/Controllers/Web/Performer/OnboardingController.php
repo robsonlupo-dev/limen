@@ -11,6 +11,7 @@ use App\Models\IdentityVerification;
 use App\Services\Kyc\DuplicateKycSubmissionException;
 use App\Services\Kyc\KycSubmissionService;
 use App\Services\PerformerProfileService;
+use App\Exceptions\ImageProcessingException;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -108,7 +109,12 @@ class OnboardingController extends Controller
         $profile = $request->user()->performerProfile;
         abort_if(! $profile, 404);
 
-        $this->profileService->replaceAvatar($profile, $request->file('file'));
+        // Ver ProfileController::avatar — imagem hostil vira erro de sessão, não 500.
+        try {
+            $this->profileService->replaceAvatar($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
 

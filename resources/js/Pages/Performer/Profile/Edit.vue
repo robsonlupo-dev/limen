@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PhotoGalleryManager from '@/Components/PhotoGalleryManager.vue'
+import ImageCropper from '@/Components/ImageCropper.vue'
 import {
     TAG_GROUPS,
     MAX_TAGS,
@@ -26,9 +27,12 @@ const props = defineProps({
 
 const avatarForm = useForm({ file: null })
 const avatarPreview = ref(null)
+// File aguardando enquadramento no cropper (null = cropper fechado).
+const pendingAvatarFile = ref(null)
 
 const coverForm = useForm({ file: null })
 const coverPreview = ref(null)
+const pendingCoverFile = ref(null)
 
 // Os quatro mundos oficiais (espelha PerformerProfile::WORLDS). O servidor
 // revalida com Rule::in — isto é só o rótulo da tela.
@@ -167,10 +171,18 @@ const willRename = computed(
 
 const currentAvatar = computed(() => avatarPreview.value ?? props.profile.avatar_url)
 
-function submitAvatar(event) {
+// O <input> só ABRE o cropper — o envio acontece depois do enquadramento. Zera
+// o value do input para permitir reescolher o mesmo arquivo (change não dispara
+// duas vezes com o mesmo File).
+function pickAvatar(event) {
     const file = event.target.files[0]
+    event.target.value = ''
     if (!file) return
+    pendingAvatarFile.value = file
+}
 
+function onAvatarCropped(file) {
+    pendingAvatarFile.value = null
     avatarPreview.value = URL.createObjectURL(file)
     avatarForm.file = file
     avatarForm.post(route('performer.profile.photo'), {
@@ -182,10 +194,15 @@ function submitAvatar(event) {
 
 const currentCover = computed(() => coverPreview.value ?? props.profile.cover_url)
 
-function submitCover(event) {
+function pickCover(event) {
     const file = event.target.files[0]
+    event.target.value = ''
     if (!file) return
+    pendingCoverFile.value = file
+}
 
+function onCoverCropped(file) {
+    pendingCoverFile.value = null
     coverPreview.value = URL.createObjectURL(file)
     coverForm.file = file
     coverForm.post(route('performer.profile.cover-photo'), {
@@ -234,10 +251,10 @@ function save() {
                                 accept="image/jpeg,image/png,image/webp"
                                 class="hidden"
                                 :disabled="avatarForm.processing"
-                                @change="submitAvatar"
+                                @change="pickAvatar"
                             />
                         </label>
-                        <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB.</p>
+                        <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em quadrado antes de salvar.</p>
                         <p v-if="avatarForm.errors.file" class="text-xs text-danger">{{ avatarForm.errors.file }}</p>
                     </div>
                 </div>
@@ -262,13 +279,34 @@ function save() {
                             accept="image/jpeg,image/png,image/webp"
                             class="hidden"
                             :disabled="coverForm.processing"
-                            @change="submitCover"
+                            @change="pickCover"
                         />
                     </label>
-                    <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Proporção recomendada 3:1.</p>
+                    <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em 3:1 antes de salvar.</p>
                     <p v-if="coverForm.errors.file" class="text-xs text-danger">{{ coverForm.errors.file }}</p>
                 </div>
             </div>
+
+            <!-- Croppers: abrem quando um arquivo é escolhido; ao confirmar,
+                 enviam o JPEG já enquadrado. O corte definitivo é server-side. -->
+            <ImageCropper
+                :file="pendingAvatarFile"
+                :aspect-ratio="1"
+                :output-width="512"
+                title="Enquadre sua foto de perfil"
+                hint="Arraste e ajuste o zoom. A foto fica quadrada no seu card."
+                @crop="onAvatarCropped"
+                @cancel="pendingAvatarFile = null"
+            />
+            <ImageCropper
+                :file="pendingCoverFile"
+                :aspect-ratio="3"
+                :output-width="1200"
+                title="Enquadre sua foto de capa"
+                hint="Arraste e ajuste o zoom. A capa é a faixa larga 3:1 do topo do perfil."
+                @crop="onCoverCropped"
+                @cancel="pendingCoverFile = null"
+            />
 
             <!-- Galeria de fotos (Sprint 10) -->
             <PhotoGalleryManager :initial-photos="photos" :max-photos="maxPhotos" />

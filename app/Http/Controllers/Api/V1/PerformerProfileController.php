@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
@@ -10,7 +11,6 @@ use App\Services\PerformerProfileService;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
 class PerformerProfileController extends Controller
@@ -54,18 +54,18 @@ class PerformerProfileController extends Controller
 
         $this->authorize('update', $profile);
 
-        if ($profile->avatar_path) {
-            Storage::disk('local')->delete($profile->avatar_path);
+        // Mesmo serviço da edição web e do onboarding: o avatar passa pelo
+        // pipeline endurecido (imagem-bomba/EXIF/polyglot) e é cortado 1:1 no
+        // servidor. Antes esta rota guardava o arquivo CRU do cliente — nenhuma
+        // dessas defesas. Delegar fecha a assimetria (a mesma razão de o update()
+        // acima delegar ao serviço em vez de reescrever a regra do slug aqui).
+        // Imagem hostil (bomba/corrompida/formato) falha nas guardas do serviço,
+        // depois do UploadMediaRequest — traduz para 422 como os demais uploads.
+        try {
+            $this->profileService->replaceAvatar($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         }
-
-        $ext = $request->file('file')->extension();
-        $path = $request->file('file')->storeAs(
-            "performer-media/{$request->user()->id}",
-            "avatar.{$ext}",
-            'local'
-        );
-
-        $profile->update(['avatar_path' => $path]);
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
 
@@ -86,18 +86,13 @@ class PerformerProfileController extends Controller
 
         $this->authorize('update', $profile);
 
-        if ($profile->cover_path) {
-            Storage::disk('local')->delete($profile->cover_path);
+        // Delega ao serviço, como o avatar acima: a capa é redimensionada 3:1 e
+        // re-encodada server-side. Antes esta rota também guardava o arquivo cru.
+        try {
+            $this->profileService->replaceCover($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         }
-
-        $ext = $request->file('file')->extension();
-        $path = $request->file('file')->storeAs(
-            "performer-media/{$request->user()->id}",
-            "cover.{$ext}",
-            'local'
-        );
-
-        $profile->update(['cover_path' => $path]);
 
         Audit::log('performer_cover_updated', $profile, null, $request);
 

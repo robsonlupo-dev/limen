@@ -23,6 +23,12 @@ class PerformerProfileService
 
     public const COVER_HEIGHT = 400;
 
+    /**
+     * Avatar: quadrado 1:1. O cropperjs no cliente enquadra para UX, mas o corte
+     * definitivo é SERVER-SIDE (crop:true) — o recorte do cliente não é confiável.
+     */
+    public const AVATAR_SIZE = 512;
+
     public function __construct(private ImageProcessingService $imageProcessor) {}
 
     /**
@@ -69,17 +75,28 @@ class PerformerProfileService
      */
     public function replaceAvatar(PerformerProfile $profile, UploadedFile $file): string
     {
-        // O caminho depende da extensão, então trocar jpg→png deixaria o antigo
-        // órfão no disco se não apagássemos aqui.
         if ($profile->avatar_path) {
             Storage::disk('local')->delete($profile->avatar_path);
         }
 
-        $path = $file->storeAs(
-            "performer-media/{$profile->user_id}",
-            'avatar.'.$file->extension(),
-            'local',
-        );
+        // Gêmea de replaceCover: passa pelo mesmo pipeline endurecido do
+        // ImageProcessingService — guarda de imagem-bomba (dimensões lidas do
+        // header antes de decodificar), strip de EXIF/GPS e re-encode que mata
+        // polyglot. Antes o avatar subia o ARQUIVO CRU do cliente, sem nenhuma
+        // dessas defesas (achado ao adicionar o crop interativo). `crop` força o
+        // 1:1 NO SERVIDOR: o enquadramento do cropperjs no cliente é UX, não
+        // confiança — cliente adverso manda qualquer coisa. A saída é sempre
+        // JPEG, então o caminho é fixo `avatar.jpg` (não depende mais da extensão
+        // do upload), o que torna o órfão por-extensão estruturalmente impossível.
+        $clean = $this->imageProcessor->process($file, self::AVATAR_SIZE, self::AVATAR_SIZE, crop: true);
+
+        $path = "performer-media/{$profile->user_id}/avatar.jpg";
+
+        try {
+            Storage::disk('local')->put($path, file_get_contents($clean));
+        } finally {
+            @unlink($clean);
+        }
 
         $profile->update(['avatar_path' => $path]);
 
