@@ -48,6 +48,11 @@ return [
         'consumer.settings',
         'consumer.settings.discrete-mode',
         'consumer.settings.privacy',
+        'consumer.settings.performer-visibility',
+
+        // Catálogo de membros para a performer (Sprint 16)
+        'performer.members',
+        'performer.members.interest',
 
         // Denúncia (compliance)
         'report.store',

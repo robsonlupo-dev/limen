@@ -60,6 +60,13 @@ class HandleInertiaRequests extends Middleware
                     // implementar presença tem que checar isto antes de expor o
                     // membro, em vez de descobrir o perk depois do vazamento.
                     'is_invisible' => $perkState['invisible_status'],
+                    // Visibilidade EFETIVA no catálogo de membros (Sprint 16).
+                    // Só faz sentido para o membro (consumer); a tela de
+                    // configurações usa para posicionar o toggle. `null` (nunca
+                    // escolheu) já vem resolvido pelo padrão-por-tier.
+                    'visible_to_performers' => $user->role === 'consumer'
+                        ? $user->isVisibleToPerformers()
+                        : null,
                 ] : null,
             ],
             'flash' => [

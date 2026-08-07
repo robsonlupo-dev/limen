@@ -102,6 +102,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
             'interests_opt_out' => 'boolean',
+            // Visibilidade no catálogo de membros (Sprint 16). Nullable no banco
+            // (null = "nunca escolheu"); o efetivo sai de isVisibleToPerformers().
+            // Fora do $fillable — escrita só pelo endpoint dedicado de settings.
+            'visible_to_performers' => 'boolean',
             'discrete_mode' => 'boolean',
             // Sinal antifraude (fora do $fillable — set explícito no cadastro/KYC).
             'blacklist_hit' => 'boolean',
@@ -305,6 +309,25 @@ class User extends Authenticatable implements MustVerifyEmail
     public function activeCircle(): ?Circle
     {
         return $this->activeSubscription()?->circle;
+    }
+
+    /**
+     * Visibilidade EFETIVA no catálogo de membros (Sprint 16). Escolha explícita
+     * manda; `null` cai no padrão POR TIER — Black/FC ocultos, demais visíveis
+     * (decisão do PO). Usado pela tela de configurações do membro e nos testes;
+     * o catálogo em si aplica a mesma regra em SQL (MemberCatalogService), para
+     * não pagar N+1 de assinatura por linha.
+     *
+     * NÃO é o único gate: o Modo Discreto (invisível às performers) exclui do
+     * catálogo mesmo com visibilidade ON — ver MemberCatalogService.
+     */
+    public function isVisibleToPerformers(): bool
+    {
+        if ($this->visible_to_performers !== null) {
+            return (bool) $this->visible_to_performers;
+        }
+
+        return ! in_array($this->activeCircleSlug(), ['black', 'founders_circle'], true);
     }
 
     /** Slug of the active Círculo (for Inertia / gates), or null. */

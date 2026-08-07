@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Consumer;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ToggleDiscreteModeRequest;
+use App\Http\Requests\TogglePerformerVisibilityRequest;
 use App\Http\Requests\TogglePrivacyPerkRequest;
 use App\Models\User;
 use App\Services\DeletionService;
@@ -100,5 +101,26 @@ class PreferencesController extends Controller
         }
 
         return back()->with('success', 'Preferência de privacidade atualizada');
+    }
+
+    /**
+     * "Visível para performers" (Sprint 16). Grava a escolha EXPLÍCITA do membro
+     * (tri-state → a partir daqui nunca mais `null`). `visible_to_performers`
+     * está fora do $fillable, então a escrita é atribuição direta pelo endpoint.
+     */
+    public function togglePerformerVisibility(TogglePerformerVisibilityRequest $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $user->visible_to_performers = $request->desiredValue();
+        $user->save();
+
+        return back()->with(
+            'success',
+            $user->visible_to_performers
+                ? 'Você está visível para as performers'
+                : 'Você não aparece mais no catálogo de membros',
+        );
     }
 }

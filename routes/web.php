@@ -52,6 +52,7 @@ use App\Http\Controllers\Web\Performer\GroupShowController as PerformerGroupShow
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
+use App\Http\Controllers\Web\Performer\MemberCatalogController;
 use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
@@ -615,6 +616,28 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.interests.send-visitor')
             ->can('performer-active');
 
+        // Catálogo de MEMBROS (Sprint 16): a performer navega membros que optaram
+        // por aparecer e sinaliza interesse (Interesse Controlado invertido). Só
+        // performer verificada (can('performer-active')); a máscara de privacidade
+        // e a regra de visibilidade vivem no MemberCatalogService.
+        // `role:performer` explícito além do `can('performer-active')`: o grupo
+        // `documents.accepted` NÃO aplica papel no todo (só subgrupos), então é o
+        // piso de papel redundante que notas/boost adotaram — se o gate
+        // performer-active for afrouxado no futuro, a rota não fica sem rede.
+        Route::get('/performer/membros', [MemberCatalogController::class, 'index'])
+            ->middleware(['role:performer', 'throttle:60,1'])
+            ->name('performer.members')
+            ->can('performer-active');
+
+        // Envio de interesse a partir do catálogo. Rota/porta separada das outras
+        // duas de propósito (a origem decide contra qual conjunto o handle é
+        // resolvido — ver SendInterestFromCatalogRequest). Throttle igual ao de
+        // seguidores: a cota diária desta origem é 5.
+        Route::post('/performer/membros/interesse', [PerformerInterestController::class, 'storeFromCatalog'])
+            ->middleware(['role:performer', 'throttle:10,1'])
+            ->name('performer.members.interest')
+            ->can('performer-active');
+
         // Foto efêmera recebida de um membro (Sprint 9B). Dentro do grupo
         // `documents.accepted`, que por sua vez está sob `auth`+`2fa`: a rota
         // nasce nos dois gates, como manda o CLAUDE.md. `can('performer-active')`
@@ -950,6 +973,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::patch('/configuracoes/privacidade', [ConsumerPreferencesController::class, 'togglePrivacyPerk'])
             ->middleware('throttle:20,1')
             ->name('consumer.settings.privacy');
+
+        // Visibilidade no catálogo de membros (Sprint 16): o membro liga/desliga
+        // aparecer para as performers. Escreve a escolha EXPLÍCITA (tri-state).
+        Route::patch('/configuracoes/visibilidade-performers', [ConsumerPreferencesController::class, 'togglePerformerVisibility'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.settings.performer-visibility');
 
         // Assinaturas (Círculos) — escolha de tier + cartão + cancelamento.
         Route::get('/assinar', [SubscriptionController::class, 'index'])->name('subscribe.index');
