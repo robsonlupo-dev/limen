@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import FilterPanel from '@/Components/Catalog/FilterPanel.vue'
@@ -7,18 +7,31 @@ import PerformerCard from '@/Components/PerformerCard.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
 import OnboardingTutorial from '@/Components/OnboardingTutorial.vue'
-import StoriesFeed from '@/Components/StoriesFeed.vue'
+import NowStrip from '@/Components/NowStrip.vue'
 import StoryViewer from '@/Components/StoryViewer.vue'
 import { getJson } from '@/lib/http'
 
 const props = defineProps({
     performers: { type: Object, required: true },
+    // Trilha "Agora": lives ativas do mundo atual (vazio com a feature off).
+    lives: { type: Array, default: () => [] },
     filters: { type: Object, default: () => ({}) },
     currentWorld: { type: String, default: 'mulheres' },
     userWorld: { type: String, default: null },
     // Buscas salvas do membro (Sprint 12). Só o catálogo autenticado as recebe.
     savedSearches: { type: Array, default: () => [] },
 })
+
+// Slot de Destaque (Boost): a PRIMEIRA performer boostada da página vira um card
+// largo (2 colunas) no topo do grid, e sai da grade normal para não duplicar. A
+// POSIÇÃO já vem do servidor (scopePublicCatalog põe boostados primeiro); aqui só
+// promovemos o primeiro à vitrine larga. Sem boost ativo → sem slot, grid normal.
+const featuredPerformer = computed(() => props.performers.data.find((p) => p.is_boosted) ?? null)
+const gridPerformers = computed(() =>
+    featuredPerformer.value
+        ? props.performers.data.filter((p) => p.slug !== featuredPerformer.value.slug)
+        : props.performers.data,
+)
 
 // Feed de Stories (Sprint 13). Buscado por FETCH no mount, não como prop: o
 // feedFor roda canView por story (O(stories) em queries) e servi-lo junto do
@@ -45,6 +58,12 @@ async function loadFeed() {
 function openViewer(index) {
     viewerStart.value = index
     viewerOpen.value = true
+}
+
+// Trilha "Agora": clique num círculo de live entra na transmissão. O gate de
+// feature/permissão vive na rota (LiveViewController) — o front só navega.
+function enterLive(slug) {
+    router.visit(route('live.show', slug))
 }
 
 // Ao fechar o viewer, recarrega para o anel dourado→cinza acompanhar as views
@@ -97,56 +116,59 @@ function selectWorld(value) {
     <AppLayout title="Catálogo">
         <OnboardingTutorial v-if="showTutorial" @close="showTutorial = false" />
 
-        <div class="max-w-6xl mx-auto px-6 py-10 space-y-8">
+        <div class="bg-limen-bg">
+        <div class="max-w-screen-2xl mx-auto px-6 py-10 space-y-8">
             <div class="flex items-start justify-between gap-4">
                 <div class="space-y-2">
-                    <h1 class="font-serif text-4xl text-cream">Catálogo</h1>
-                    <p class="text-muted text-sm">Performers verificados, ao vivo agora ou disponíveis para conteúdo.</p>
-                    <p class="text-xs text-muted flex items-center gap-1.5">
-                        🌐 Mundo: <span class="text-gold">{{ worldLabel(currentWorld) }}</span>
+                    <h1 class="font-serif text-4xl text-limen-ink">Catálogo</h1>
+                    <p class="text-limen-ink-soft text-sm">Performers verificados, ao vivo agora ou disponíveis para conteúdo.</p>
+                    <p class="text-xs text-limen-ink-mute flex items-center gap-1.5">
+                        🌐 Mundo: <span class="text-limen-gold">{{ worldLabel(currentWorld) }}</span>
                     </p>
                 </div>
                 <button
                     type="button"
-                    class="shrink-0 text-xs text-muted hover:text-gold transition-colors border border-frame rounded-lg px-3 py-2"
+                    class="shrink-0 text-xs text-limen-ink-mute hover:text-limen-gold transition-colors border border-limen-line rounded-lg px-3 py-2"
                     @click="showWorldPicker = true"
                 >
                     🌐 Mudar Mundo
                 </button>
             </div>
 
-            <!-- Carrossel de Stories (Sprint 13): topo do catálogo, antes dos
-                 filtros e dos cards. Some inteiro quando não há feed. -->
-            <StoriesFeed :feed="feed" @open="openViewer" />
+            <!-- Trilha "Agora" (redesign): lives (anel vermelho) + stories (anel
+                 dourado) no topo do catálogo. Some inteira quando não há nem live
+                 nem story. Clique em live entra na transmissão; em story abre o
+                 viewer. -->
+            <NowStrip :lives="lives" :feed="feed" @open-live="enterLive" @open-story="openViewer" />
 
             <FilterPanel :filters="filters" :saved-searches="savedSearches" :can-save="true" />
 
             <!-- Skeleton loading -->
-            <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-                <div v-for="n in 10" :key="n" class="rounded-xl border border-frame bg-surface overflow-hidden animate-pulse">
-                    <div class="aspect-[4/3] bg-surface-2" />
-                    <div class="p-4 space-y-2">
-                        <div class="h-4 w-3/4 bg-surface-2 rounded" />
-                        <div class="h-3 w-1/2 bg-surface-2 rounded" />
-                        <div class="h-8 w-full bg-surface-2 rounded mt-3" />
-                    </div>
-                </div>
+            <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                <div v-for="n in 8" :key="n" class="rounded-xl bg-limen-surface-2 aspect-[3/4] animate-pulse" />
             </div>
 
             <!-- Empty state -->
             <div v-else-if="performers.data.length === 0" class="flex flex-col items-center justify-center text-center py-24 gap-4">
                 <PortalLogo :size="72" :show-text="false" />
-                <p class="font-serif text-2xl text-cream">O Portal ainda está abrindo suas portas.</p>
-                <p class="text-muted text-sm max-w-sm">
+                <p class="font-serif text-2xl text-limen-ink">O Portal ainda está abrindo suas portas.</p>
+                <p class="text-limen-ink-soft text-sm max-w-sm">
                     Em breve, os primeiros performers deste mundo estarão aqui.
                 </p>
             </div>
 
             <!-- Grid -->
             <template v-else>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                    <!-- Slot de Destaque (Boost): card largo (2 colunas) no topo,
+                         só quando há performer boostada. Sai do grid normal abaixo
+                         para não duplicar. -->
+                    <div v-if="featuredPerformer" class="col-span-2">
+                        <PerformerCard :performer="featuredPerformer" featured />
+                    </div>
+
                     <PerformerCard
-                        v-for="performer in performers.data"
+                        v-for="performer in gridPerformers"
                         :key="performer.slug"
                         :performer="performer"
                     />
@@ -157,7 +179,7 @@ function selectWorld(value) {
                     <template v-for="(link, i) in performers.meta.links" :key="i">
                         <span
                             v-if="!link.url"
-                            class="px-3 py-1.5 text-sm text-muted/50"
+                            class="px-3 py-1.5 text-sm text-limen-ink-mute/50"
                             v-html="link.label"
                         />
                         <Link
@@ -167,14 +189,15 @@ function selectWorld(value) {
                             :class="[
                                 'px-3 py-1.5 rounded-lg text-sm transition-colors',
                                 link.active
-                                    ? 'bg-gold text-background'
-                                    : 'text-muted hover:text-cream border border-frame',
+                                    ? 'bg-limen-gold text-limen-bg'
+                                    : 'text-limen-ink-mute hover:text-limen-ink border border-limen-line',
                             ]"
                             v-html="link.label"
                         />
                     </template>
                 </div>
             </template>
+        </div>
         </div>
 
         <!-- World picker modal -->
