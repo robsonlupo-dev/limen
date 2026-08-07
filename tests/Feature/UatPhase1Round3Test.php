@@ -47,16 +47,22 @@ it('libera camera e microfone para a propria origem no Permissions-Policy', func
         ->and($policy)->toContain('geolocation=()');
 });
 
-// ─── #2 Panic button visível no topo direito ─────────────────────────────────
+// ─── #2 Panic button visível: disco no topo direito + link rotulado ──────────
+//
+// O achado original do R3 pedia o botão VISÍVEL e discreto. A pedido do PO
+// (ago/2026) ganhou um LINK rotulado no header (mais legível, diz o que é) SEM
+// perder o disco flutuante no topo direito (a via sempre visível). O detalhe do
+// desenho vive em PanicButtonVisibilityTest/PanicButtonLayerTest; aqui trava as
+// duas superfícies do R3: disco no topo direito, discreto, com tooltip, E rótulo.
 
-it('posiciona o panic button visivel no topo direito, discreto e com tooltip', function () {
+it('mantem o disco no topo direito e o link rotulado, com tooltip', function () {
     $src = File::get(resource_path('js/Components/PanicButton.vue'));
 
-    expect($src)->toContain('fixed top-4 right-4')      // topo direito, perto do usuário
-        ->and($src)->toContain('text-[#6f6a62]')        // cor discreta pedida pelo PO
+    expect($src)->toContain('fixed top-4 right-4')      // disco no topo direito
+        ->and($src)->toContain('text-[#6f6a62]')        // glifo discreto (PO)
         ->and($src)->toContain('title="Saída rápida"')  // tooltip no hover
-        // Continua na camada de topo (invariante do PanicButtonLayerTest).
-        ->and($src)->toContain('z-[10001]');
+        ->and($src)->toContain('z-[10001]')             // camada de topo
+        ->and($src)->toContain('Panic Button');         // rótulo da via descoberta
 });
 
 // ─── #3 Foto do card sem corte (redesign do catálogo, card v2) ───────────────

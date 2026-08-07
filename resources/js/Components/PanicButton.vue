@@ -101,43 +101,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
     <!--
-      Teleport + z-[10001]: a saída rápida é a camada de topo do produto, e essa
-      é a razão de ser deste componente. Antes ele era z-50 dentro da div raiz do
-      AppLayout — que não cria stacking context, então qualquer overlay com
-      z-index maior o cobria E engolia o clique. Modal.vue (z-50, renderizado
-      depois no DOM) já fazia isso, e o tutorial de onboarding (z-[9000]) também.
-      No desktop restava o duplo-Escape; no touch não há Escape, então o membro
-      ficava sem saída na exata situação que o botão existe para resolver.
+      TRÊS vias para a mesma saída (escape()), e cada uma cobre um buraco da outra:
 
-      O Teleport tira o botão de dentro de qualquer stacking context que um layout
-      venha a criar (um `transform` num ancestral prenderia o z-index lá dentro,
-      por mais alto que fosse).
+      1. LINK DE TEXTO no header (pedido do PO, ago/2026), montado inline pelos
+         layouts ao lado do nome. É a via DESCOBERTA/ROTULADA — "Panic Button" diz o
+         que é sem o membro adivinhar, o que o disco sozinho (lido como "fechar") não
+         fazia (achado do UAT). Mas, inline no fluxo do header, um modal pode cobri-lo.
 
-      O número é 10001, e não 10000, para caber UM acima do teto que já existia no
-      projeto: IntroAnimation (10000) e AgeGateModal (9999) vivem no GuestLayout,
-      nesta ordem de propósito — a splash cobre o gate 18+ até terminar. Descer os
-      dois para abrir espaço em 10000 mexeria no gate de idade sem necessidade.
-      Invariante: NENHUM outro componente usa z-index >= 10001, e é PanicButtonLayerTest
-      que cobra isso. Overlay novo entra abaixo — não suba o overlay, porque do
-      outro lado do empate está a segurança física de quem usa o site.
-    -->
-    <Teleport to="body">
-    <!--
-      Contraste é requisito de segurança, não estética: o botão só serve se o
-      membro CONSEGUIR achá-lo na hora. As versões anteriores usavam um fundo
-      translúcido (70% do quase-preto #0A0A0B) sobre uma página quase-preta, com
-      hairline meia-opacidade — sem contraste nenhum, o disco sumia no fundo. Foi
-      o achado do UAT cenário 63 ("membro não vê o botão"): ele SEMPRE esteve
-      montado (AppLayout incondicional; GuestLayout sob login), só era invisível.
-      Agora o disco é opaco (`bg-surface`) com aro dourado fino + sombra, então
-      lê como um controle intencional. O GLIFO segue discreto (`#6f6a62`, pedido
-      do PO) — quem ganha contraste é o disco, não o X.
+      2. DISCO FLUTUANTE teleportado para a raiz em z-[10001] — a via SEMPRE VISÍVEL e
+         INTOCÁVEL. O Teleport tira o botão de qualquer stacking context de layout, e o
+         10001 fica UM acima do teto do projeto (IntroAnimation 10000, AgeGateModal
+         9999): nada o cobre nem engole o clique. É o fallback que o link não é.
+         Invariante cobrado por PanicButtonLayerTest: NENHUM outro componente usa
+         z-index >= 10001 — overlay novo entra abaixo, não suba o disco.
+
+      3. DUPLO-ESCAPE (listener em `window`) — a via de TECLADO, dispara mesmo sob
+         overlay e sem apontar para nada. Cobre o touch-less e o caso de os dois
+         botões estarem cobertos.
+
+      Ao mexer no visual, preserve as três — cada uma existe porque as outras falham
+      num cenário. Discreto mas legível: o link é `muted` com pílula (hover `danger`);
+      o disco é opaco (`bg-surface`) com aro dourado, glifo discreto (`#6f6a62`, pedido
+      do PO) — quem ganha contraste é o disco, não o X (regressão do UAT cenário 63).
     -->
     <button
         type="button"
-        aria-label="Saída rápida"
+        aria-label="Panic Button — saída rápida: sai da Limen e vai para outro site"
         title="Saída rápida"
-        class="fixed top-4 right-4 z-[10001] flex h-10 w-10 items-center justify-center rounded-full border border-gold/40 bg-surface text-[#6f6a62] shadow-lg shadow-black/40 ring-1 ring-gold/25 transition-colors hover:text-cream hover:border-gold/70 hover:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+        class="inline-flex items-center gap-1.5 rounded border border-frame/70 px-2 py-1 text-xs text-muted transition-colors hover:text-danger hover:border-danger/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/60"
         @click="escape"
     >
         <svg
@@ -147,11 +138,36 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             stroke="currentColor"
             stroke-width="1.5"
             stroke-linecap="round"
-            class="h-4 w-4"
+            stroke-linejoin="round"
+            class="h-3.5 w-3.5"
             aria-hidden="true"
         >
-            <path d="M6 6l12 12M18 6L6 18" />
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path d="M16 17l5-5-5-5M21 12H9" />
         </svg>
+        Panic Button
     </button>
+
+    <Teleport to="body">
+        <button
+            type="button"
+            aria-label="Saída rápida"
+            title="Saída rápida"
+            class="fixed top-4 right-4 z-[10001] flex h-10 w-10 items-center justify-center rounded-full border border-gold/40 bg-surface text-[#6f6a62] shadow-lg shadow-black/40 ring-1 ring-gold/25 transition-colors hover:text-cream hover:border-gold/70 hover:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+            @click="escape"
+        >
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                class="h-4 w-4"
+                aria-hidden="true"
+            >
+                <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+        </button>
     </Teleport>
 </template>

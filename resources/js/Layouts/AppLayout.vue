@@ -44,10 +44,10 @@ function logout() {
     <div class="min-h-screen bg-background flex flex-col">
         <!-- Header -->
         <header class="border-b border-frame/50">
-            <!-- pr-16 reserva o canto superior direito para a Saída rápida
-                 (PanicButton, fixed top-4 right-4). Sem essa folga, em telas
-                 estreitas o botão flutuante cobria "Sair"/nome — invisível, ele
-                 chegava a interceptar o clique de logout (achado do UAT cenário 63). -->
+            <!-- pr-16 reserva o canto superior direito para o DISCO da Saída rápida
+                 (PanicButton teleporta um disco fixed top-4 right-4 além do link
+                 inline abaixo). Sem a folga, em tela estreita o disco cobre nome/Sair
+                 e o link — achado do UAT cenário 63. -->
             <div class="max-w-6xl mx-auto pl-6 pr-16 py-4 flex items-center justify-between">
                 <Link :href="homeRoute" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
@@ -179,6 +179,10 @@ function logout() {
                         Admin
                     </a>
                     <span class="text-cream">{{ page.props.auth.user?.name }}</span>
+                    <!-- Saída rápida (todos os tiers). Link de texto ao lado do
+                         nome — ver PanicButton.vue. O duplo-Escape mora no mesmo
+                         componente e vale mesmo se esta barra sair da tela. -->
+                    <PanicButton />
                     <button
                         class="hover:text-cream transition-colors"
                         @click="showLogoutConfirm = true"
@@ -214,9 +218,6 @@ function logout() {
                 </p>
             </div>
         </footer>
-
-        <!-- Saída rápida (todos os tiers) -->
-        <PanicButton />
 
         <!-- Toast global de mensagem recebida (Sprint 15). Listener em qualquer
              página autenticada; escuta o canal user.{id} e nunca mostra o corpo. -->
