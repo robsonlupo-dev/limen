@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
 use App\Models\PerformerProfile;
 use App\Services\PerformerProfileService;
+use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Support\Audit;
 use App\Support\PhotoGalleryPresenter;
@@ -171,6 +172,8 @@ class ProfileController extends Controller
             $this->profileService->replaceAvatar($profile, $request->file('file'));
         } catch (ImageProcessingException $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
+        } catch (CsamDetectedException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
         }
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
@@ -188,6 +191,8 @@ class ProfileController extends Controller
         try {
             $this->profileService->replaceCover($profile, $request->file('file'));
         } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        } catch (CsamDetectedException $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
         }
 

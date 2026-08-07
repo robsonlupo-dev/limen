@@ -41,7 +41,7 @@ class PerformerContentService
             throw ContentException::invalidPrice();
         }
 
-        $stored = $this->store->store($file, $profile->id);
+        $stored = $this->store->store($file, $profile->id, $profile->user);
 
         try {
             $content = new PerformerContent;

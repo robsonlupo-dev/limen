@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Performer;
 
 use App\Exceptions\ContentException;
+use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Concerns\ServesPhotoBytes;
 use App\Http\Controllers\Controller;
@@ -71,6 +72,10 @@ class PerformerContentController extends Controller
             return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], 422);
         } catch (ImageProcessingException $e) {
             return response()->json(['message' => $e->getMessage(), 'reason' => 'invalid_image'], 422);
+        } catch (CsamDetectedException $e) {
+            // Mensagem genérica (não revela o motivo real). O CRITICAL/flag já
+            // aconteceram no CsamScanService.
+            return response()->json(['message' => $e->getMessage(), 'reason' => 'rejected'], 422);
         }
 
         return response()->json([

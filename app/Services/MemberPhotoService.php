@@ -220,7 +220,7 @@ class MemberPhotoService
             throw MemberPhotoException::activeLimitReached();
         }
 
-        ['path' => $path, 'hash' => $hash] = $this->store->store($file, $member->id);
+        ['path' => $path, 'hash' => $hash] = $this->store->store($file, $member->id, $member);
 
         try {
             return DB::transaction(function () use ($member, $file, $path, $hash, $ttlHours) {

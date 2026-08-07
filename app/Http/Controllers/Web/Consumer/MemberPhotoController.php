@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Consumer;
 
+use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Exceptions\MemberPhotoException;
 use App\Http\Controllers\Concerns\ServesPhotoBytes;
@@ -45,6 +46,8 @@ class MemberPhotoController extends Controller
             );
         } catch (MemberPhotoException|ImageProcessingException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (CsamDetectedException $e) {
+            return response()->json(['reason' => 'rejected', 'message' => $e->getMessage()], 422);
         }
 
         // A resposta devolve a MESMA faixa que a tela mostra — nunca o

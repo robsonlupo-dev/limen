@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdatePerformerProfileRequest;
@@ -65,6 +66,8 @@ class PerformerProfileController extends Controller
             $this->profileService->replaceAvatar($profile, $request->file('file'));
         } catch (ImageProcessingException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (CsamDetectedException $e) {
+            return response()->json(['reason' => 'rejected', 'message' => $e->getMessage()], 422);
         }
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
@@ -92,6 +95,8 @@ class PerformerProfileController extends Controller
             $this->profileService->replaceCover($profile, $request->file('file'));
         } catch (ImageProcessingException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (CsamDetectedException $e) {
+            return response()->json(['reason' => 'rejected', 'message' => $e->getMessage()], 422);
         }
 
         Audit::log('performer_cover_updated', $profile, null, $request);

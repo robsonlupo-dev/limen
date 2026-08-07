@@ -55,7 +55,7 @@ class PerformerPhotoService
      */
     public function add(PerformerProfile $profile, UploadedFile $file): PerformerPhoto
     {
-        $path = $this->store->store($file, (int) $profile->getKey());
+        $path = $this->store->store($file, (int) $profile->getKey(), $profile->user);
 
         try {
             return DB::transaction(function () use ($profile, $path) {

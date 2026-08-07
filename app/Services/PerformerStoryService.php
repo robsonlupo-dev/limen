@@ -323,7 +323,7 @@ class PerformerStoryService
             throw StoryException::inviteLimitReached(self::MAX_ACTIVE_INVITES);
         }
 
-        ['path' => $path, 'hash' => $hash] = $this->store->store($file, $profile->getKey());
+        ['path' => $path, 'hash' => $hash] = $this->store->store($file, $profile->getKey(), $profile->user);
 
         try {
             $story = new PerformerStory(['visibility_level' => $visibility]);

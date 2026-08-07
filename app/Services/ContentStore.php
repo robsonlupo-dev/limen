@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -27,14 +28,19 @@ class ContentStore
 {
     public const DISK = 'performer_content';
 
-    public function __construct(private ImageProcessingService $images) {}
+    public function __construct(
+        private ImageProcessingService $images,
+        private CsamScanService $csam,
+    ) {}
 
     /**
-     * Higieniza e grava. Devolve ['path' => ..., 'hash' => ...].
+     * Higieniza e grava. Devolve ['path' => ..., 'hash' => ...]. O `$uploader` é a
+     * conta que envia — para a sinalização anti-CSAM no match.
      *
      * @throws ImageProcessingException entrada recusada ou indecodificável
+     * @throws \App\Exceptions\CsamDetectedException imagem bate na lista de CSAM
      */
-    public function store(UploadedFile $file, int $performerProfileId): array
+    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null): array
     {
         $processed = $this->images->process($file);
 
@@ -44,6 +50,11 @@ class ContentStore
             if ($bytes === false) {
                 throw new RuntimeException('Falha ao ler a imagem higienizada.');
             }
+
+            // Anti-CSAM (Sprint 16): confere o phash ANTES de gravar. Match →
+            // bloqueia (nada é gravado). content_id ainda não existe (a linha nasce
+            // depois do store); o par context+user identifica a trilha.
+            $this->csam->scanBytes($bytes, 'content', $uploader);
 
             $hash = hash('sha256', $bytes);
             $path = $performerProfileId.'/'.Str::random(40).'.jpg';
