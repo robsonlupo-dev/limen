@@ -19,6 +19,10 @@ const props = defineProps({
     // Quais props recarregar depois do toggle de favorito. O catálogo recarrega
     // 'performers'; a tela de Favoritos usa o mesmo nome de prop.
     favoriteReloadOnly: { type: Array, default: () => ['performers'] },
+    // Slot de Destaque (Boost) no topo do grid: mesmo card, proporção mais larga
+    // (ocupa 2 colunas) e nome maior. A largura de 2 colunas é do PAI (grid);
+    // aqui só a proporção e a tipografia mudam.
+    featured: { type: Boolean, default: false },
 })
 
 // O catálogo autenticado não é exclusivo do membro — performer e admin também
@@ -89,10 +93,13 @@ onBeforeUnmount(stopPreview)
 
 <template>
     <div
-        class="group relative aspect-[3/4] overflow-hidden rounded-xl bg-limen-surface-2 transition-all duration-200"
-        :class="isMaison
-            ? 'ring-1 ring-limen-gold/80 shadow-[0_0_22px_-10px_rgba(214,184,114,0.5)]'
-            : 'ring-1 ring-limen-line hover:ring-limen-gold/40'"
+        class="group relative overflow-hidden rounded-xl bg-limen-surface-2 transition-all duration-200"
+        :class="[
+            featured ? 'aspect-[16/10]' : 'aspect-[3/4]',
+            isMaison
+                ? 'ring-1 ring-limen-gold/80 shadow-[0_0_22px_-10px_rgba(214,184,114,0.5)]'
+                : 'ring-1 ring-limen-line hover:ring-limen-gold/40',
+        ]"
     >
         <!-- Ações (favorito, mensagem): IRMÃS do <Link> de navegação, nunca
              aninhadas (um <button>/<a> dentro de <a> é HTML inválido e o clique
@@ -205,7 +212,7 @@ onBeforeUnmount(stopPreview)
                      reserva o canto para o cluster de ações. -->
                 <div class="absolute inset-x-0 bottom-0 p-3 pr-24">
                     <div class="flex items-center gap-1.5 min-w-0">
-                        <h3 class="font-serif text-base leading-tight text-limen-ink truncate">{{ performer.stage_name }}</h3>
+                        <h3 class="font-serif leading-tight text-limen-ink truncate" :class="featured ? 'text-2xl' : 'text-base'">{{ performer.stage_name }}</h3>
                         <!-- UM selo dourado. Maison/Select ganham variação sutil
                              (preenchido vs. contorno); Verificada é o selo base.
                              Só quando is_verified — selo é fato conferido. -->

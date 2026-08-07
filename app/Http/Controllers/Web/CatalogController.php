@@ -21,6 +21,7 @@ use App\Support\PhotoGalleryPresenter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -117,6 +118,40 @@ class CatalogController extends Controller
             $profile->slug => in_array($profile->id, $favoritedIds, true),
         ]);
 
+        // Trilha "Agora" (redesign do catálogo): quem está AO VIVO agora no mundo
+        // corrente, para o topo do catálogo. Independente do filtro/paginação — é
+        // "quem está ao vivo agora", não a busca — mas no MESMO recorte público
+        // (`publicCatalog`: ativa + verificada) e mundo (`inWorld`) que o catálogo,
+        // então não expõe ninguém que o catálogo esconderia. Só quando a feature
+        // está ligada: com o dark launch off ninguém está de fato ao vivo e o card
+        // já não mostra "AO VIVO". Sem live → array vazio → a trilha não renderiza.
+        // A parte de STORIES da trilha continua vindo do fetch de `stories.feed`
+        // (fora do caminho crítico — ver nota no fim do método).
+        $lives = [];
+        if (config('features.live_enabled')) {
+            $lives = PerformerProfile::query()
+                ->publicCatalog()
+                ->inWorld($currentWorld)
+                ->where('is_live', true)
+                ->limit(30)
+                ->get()
+                ->map(fn (PerformerProfile $profile) => [
+                    'slug' => $profile->slug,
+                    'stage_name' => $profile->stage_name,
+                    // Foto pública, URL assinada por profile_id (nunca user_id) —
+                    // mesma escolha do PerformerPublicResource e do feed de stories.
+                    'avatar_url' => $profile->avatar_path
+                        ? URL::temporarySignedRoute(
+                            'performer.media',
+                            now()->addMinutes(60),
+                            ['profile_id' => $profile->id, 'type' => 'avatar'],
+                        )
+                        : null,
+                ])
+                ->values()
+                ->all();
+        }
+
         $paginated = PerformerPublicResource::collection($performers)->response()->getData(true);
         $paginated['data'] = collect($paginated['data'])
             ->map(fn ($item) => array_merge($item, [
@@ -128,6 +163,9 @@ class CatalogController extends Controller
 
         return Inertia::render('Catalog/Index', [
             'performers' => $paginated,
+            // Trilha "Agora": lives ativas do mundo corrente (vazio com a feature
+            // off). Os stories da trilha vêm do fetch de `stories.feed`.
+            'lives' => $lives,
             // filterState() e não $filters: a tela precisa dos extremos do
             // slider resolvidos em número para renderizar os controles.
             'filters' => array_merge($request->filterState(), [
