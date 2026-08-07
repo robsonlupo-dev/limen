@@ -173,7 +173,7 @@ function logout() {
                          é Blade puro, fora do Inertia. -->
                     <a
                         v-if="isAdmin"
-                        href="/admin/kyc"
+                        href="/admin/dashboard"
                         class="text-gold/80 hover:text-gold transition-colors no-underline"
                     >
                         Admin

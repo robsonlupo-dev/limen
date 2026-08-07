@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
+use App\Http\Controllers\Web\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Web\Admin\KycAdminController;
 use App\Http\Controllers\Web\Admin\PerformerTierController;
 use App\Http\Controllers\Web\Admin\ReportAdminController;
@@ -202,6 +203,10 @@ Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')-
 
 // Admin back-office (auth + admin role).
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    // Painel de receita (Sprint 16): agregados do ledger + contadores + payouts
+    // em needs_review. Só role:admin — moderador não vê receita.
+    Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
+
     Route::get('/waitlist', [WaitlistAdminController::class, 'index'])->name('admin.waitlist');
 
     // Fila de moderação das denúncias (conteúdo ilegal, coerção, etc).
