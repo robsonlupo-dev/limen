@@ -30,14 +30,17 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
 
         <!-- Header -->
         <header class="border-b border-frame/50">
-            <!-- pr-16: mesma folga do AppLayout para a Saída rápida flutuante
-                 (o membro logado a recebe nas telas públicas). -->
-            <div class="max-w-6xl mx-auto pl-6 pr-16 py-4 flex items-center justify-between">
+            <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
                 <Link :href="route('landing')" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
                     <span class="font-serif text-[#C9A24B] tracking-widest">Limen</span>
                 </Link>
                 <nav class="flex items-center gap-6 text-sm text-muted">
+                    <!-- Saída rápida SÓ para o membro logado que chega às telas
+                         públicas por link direto — mesma regra da versão flutuante
+                         anterior. Visitante deslogado não recebe (logout seria
+                         no-op). Ver PanicButton.vue. -->
+                    <PanicButton v-if="isLoggedIn" />
                     <Link :href="route('login')" class="hover:text-cream transition-colors">Entrar</Link>
                     <Link
                         :href="route('entrada')"
@@ -61,14 +64,6 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
         <main class="flex-1">
             <slot />
         </main>
-
-        <!-- Saída rápida: também nas páginas GuestLayout (landing, catálogo e
-             perfil públicos), mas SÓ para o membro logado — que alcança essas
-             telas por link direto e precisa da mesma saída que tem no AppLayout.
-             O AppLayout já a monta sempre; aqui ela dependia de estar logado, e
-             não estava (achado do UAT fase 1). Visitante deslogado não recebe:
-             o logout seria no-op e o botão não faria sentido na vitrine pública. -->
-        <PanicButton v-if="isLoggedIn" />
 
         <!-- Footer -->
         <footer class="border-t border-frame/50 py-8">
