@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Performer;
 
+use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Exceptions\StoryException;
 use App\Http\Controllers\Concerns\ServesPhotoBytes;
@@ -73,6 +74,8 @@ class StoryController extends Controller
             );
         } catch (ImageProcessingException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (CsamDetectedException $e) {
+            return response()->json(['reason' => 'rejected', 'message' => $e->getMessage()], 422);
         } catch (StoryException $e) {
             // Hoje só o teto de convites (Sprint 12) chega aqui; é recusa de
             // negócio que a tela sabe explicar. `InvalidArgumentException` (nível

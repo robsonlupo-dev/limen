@@ -11,6 +11,7 @@ use App\Models\IdentityVerification;
 use App\Services\Kyc\DuplicateKycSubmissionException;
 use App\Services\Kyc\KycSubmissionService;
 use App\Services\PerformerProfileService;
+use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
@@ -113,6 +114,8 @@ class OnboardingController extends Controller
         try {
             $this->profileService->replaceAvatar($profile, $request->file('file'));
         } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        } catch (CsamDetectedException $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
         }
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -32,7 +33,10 @@ class PerformerPhotoStore
 {
     public const DISK = 'performer_photos';
 
-    public function __construct(private ImageProcessingService $images) {}
+    public function __construct(
+        private ImageProcessingService $images,
+        private CsamScanService $csam,
+    ) {}
 
     /**
      * Higieniza e grava. Devolve o caminho no disco.
@@ -42,7 +46,7 @@ class PerformerPhotoStore
      *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      */
-    public function store(UploadedFile $file, int $performerProfileId): string
+    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null): string
     {
         $processed = $this->images->process($file);
 
@@ -52,6 +56,9 @@ class PerformerPhotoStore
             if ($bytes === false) {
                 throw new RuntimeException('Falha ao ler a imagem higienizada.');
             }
+
+            // Anti-CSAM (Sprint 16): confere o phash antes de gravar.
+            $this->csam->scanBytes($bytes, 'gallery', $uploader);
 
             $path = $performerProfileId.'/'.Str::random(40).'.jpg';
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -38,7 +39,10 @@ class MemberPhotoStore
 {
     public const DISK = 'member_photos';
 
-    public function __construct(private ImageProcessingService $images) {}
+    public function __construct(
+        private ImageProcessingService $images,
+        private CsamScanService $csam,
+    ) {}
 
     /**
      * Higieniza, cifra e grava. Devolve o caminho no disco e o hash do conteúdo.
@@ -62,7 +66,7 @@ class MemberPhotoStore
      *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      */
-    public function store(UploadedFile $file, int $userId): array
+    public function store(UploadedFile $file, int $userId, ?User $uploader = null): array
     {
         $processed = $this->images->process($file);
 
@@ -72,6 +76,11 @@ class MemberPhotoStore
             if ($bytes === false) {
                 throw new RuntimeException('Falha ao ler a imagem higienizada.');
             }
+
+            // Anti-CSAM (Sprint 16): confere o phash dos bytes EM CLARO, antes do
+            // Crypt e antes de gravar. Match → bloqueia (nada é gravado/cifrado).
+            // Esta é a superfície de maior risco de conteúdo ilegal (§ Foto Efêmera).
+            $this->csam->scanBytes($bytes, 'member_photo', $uploader);
 
             $path = $userId.'/'.Str::random(40).'.jpg.enc';
 

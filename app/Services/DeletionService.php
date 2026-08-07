@@ -342,6 +342,7 @@ class DeletionService
             $summary['content_unlocks'] = $this->purgeContentUnlocks($user);
             $summary['performer_content'] = $this->purgePerformerContent($user);
             $summary['performer_content_preserved'] = $this->preservedContentCount($user);
+            $summary['content_hash_checks'] = $this->purgeContentHashChecks($user);
             $summary['performer_locations'] = $this->purgePerformerLocations($user);
             // Slugs antigos do redirect de rename (UAT fix): carregam o nome
             // artístico descartado, então saem no Hard Delete. A FK
@@ -1222,6 +1223,23 @@ class DeletionService
     private function purgeContentUnlocks(User $user): int
     {
         return DB::table('content_unlocks')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * Trilha de verificação de hash do upload (anti-CSAM). Apaga só as linhas de
+     * ROTINA (matched=false) — trilha de uploads da conta, sem valor após o
+     * encerramento, na disciplina de favorites/otp_codes. As linhas `matched=true`
+     * FICAM (com o user_id): são evidência de CSAM, cuja retenção é dever legal —
+     * a mesma lógica do story/foto denunciados, que sobrevivem ao encerramento.
+     * A FK é nullOnDelete, mas anonymizeUser só soft-deleta o users, então não
+     * dispara: a varredura é explícita.
+     */
+    private function purgeContentHashChecks(User $user): int
+    {
+        return DB::table('content_hash_checks')
+            ->where('user_id', $user->id)
+            ->where('matched', false)
+            ->delete();
     }
 
     /**

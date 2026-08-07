@@ -29,7 +29,10 @@ class PerformerProfileService
      */
     public const AVATAR_SIZE = 512;
 
-    public function __construct(private ImageProcessingService $imageProcessor) {}
+    public function __construct(
+        private ImageProcessingService $imageProcessor,
+        private CsamScanService $csam,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data  já validado (UpdatePerformerProfileRequest)
@@ -75,10 +78,6 @@ class PerformerProfileService
      */
     public function replaceAvatar(PerformerProfile $profile, UploadedFile $file): string
     {
-        if ($profile->avatar_path) {
-            Storage::disk('local')->delete($profile->avatar_path);
-        }
-
         // Gêmea de replaceCover: passa pelo mesmo pipeline endurecido do
         // ImageProcessingService — guarda de imagem-bomba (dimensões lidas do
         // header antes de decodificar), strip de EXIF/GPS e re-encode que mata
@@ -93,7 +92,19 @@ class PerformerProfileService
         $path = "performer-media/{$profile->user_id}/avatar.jpg";
 
         try {
-            Storage::disk('local')->put($path, file_get_contents($clean));
+            $bytes = file_get_contents($clean);
+
+            // Anti-CSAM (Sprint 16): confere o phash ANTES de gravar. Match →
+            // bloqueia (CsamDetectedException) sem gravar nada. Scaneia antes de
+            // apagar o avatar anterior, para um upload bloqueado não destruir o que
+            // já estava no ar.
+            $this->csam->scanBytes($bytes, 'avatar', $profile->user);
+
+            if ($profile->avatar_path) {
+                Storage::disk('local')->delete($profile->avatar_path);
+            }
+
+            Storage::disk('local')->put($path, $bytes);
         } finally {
             @unlink($clean);
         }
@@ -111,10 +122,6 @@ class PerformerProfileService
      */
     public function replaceCover(PerformerProfile $profile, UploadedFile $file): string
     {
-        if ($profile->cover_path) {
-            Storage::disk('local')->delete($profile->cover_path);
-        }
-
         // Redimensiona server-side para 1200x400 (3:1) ANTES de guardar (UAT R3):
         // a capa é banner de vitrine e, sem o corte, subia em tamanho original e
         // estourava o card/perfil do catálogo. Reusa o pipeline endurecido do
@@ -128,7 +135,16 @@ class PerformerProfileService
         $path = "performer-media/{$profile->user_id}/cover.jpg";
 
         try {
-            Storage::disk('local')->put($path, file_get_contents($clean));
+            $bytes = file_get_contents($clean);
+
+            // Anti-CSAM (Sprint 16): confere o phash antes de gravar/apagar o antigo.
+            $this->csam->scanBytes($bytes, 'cover', $profile->user);
+
+            if ($profile->cover_path) {
+                Storage::disk('local')->delete($profile->cover_path);
+            }
+
+            Storage::disk('local')->put($path, $bytes);
         } finally {
             @unlink($clean);
         }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Performer;
 
+use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Exceptions\PhotoGalleryException;
 use App\Http\Controllers\Concerns\ServesPhotoBytes;
@@ -62,6 +63,8 @@ class PhotoController extends Controller
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
         } catch (PhotoGalleryException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (CsamDetectedException $e) {
+            return response()->json(['reason' => 'rejected', 'message' => $e->getMessage()], 422);
         }
 
         Audit::log('performer_photo_added', $profile, ['photo_id' => $photo->id], $request);
