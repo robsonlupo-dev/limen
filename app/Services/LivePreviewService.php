@@ -66,6 +66,17 @@ class LivePreviewService
     public function purgeOrphans(): int
     {
         $disk = Storage::disk(self::DISK);
+
+        // Guard: o diretório do disco só passa a existir quando o PRIMEIRO frame é
+        // gravado (nenhuma live transmitiu ainda = sem diretório). Listar um path
+        // inexistente faz o Flysystem estourar, e o live-previews:purge roda de
+        // tempos em tempos — logo, exceção recorrente no log sem nada a faxinar.
+        // Sai cedo. directoryExists é LEITURA: não materializa o diretório (a
+        // faxina não deve criar storage do nada).
+        if (! $disk->directoryExists('')) {
+            return 0;
+        }
+
         $cutoff = now()->getTimestamp() - self::ORPHAN_TTL_SECONDS;
         $deleted = 0;
 

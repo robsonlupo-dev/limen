@@ -184,7 +184,26 @@ class PaymentService
             ->where('created_at', '<=', now()->subMinutes(5))
             ->get();
 
+        // Ids sintéticos ('pay_fake_...') vêm do FakeAsaasClient (seed/dev/staging).
+        // Só o gateway REAL devolve 404 neles; a Fake os resolve normalmente. Por
+        // isso a faxina só vale contra o gateway real — senão o reconcile de
+        // dev/staging pararia de processar a própria massa sintética (e quebraria
+        // os testes de reconcile, que rodam sobre a Fake).
+        $realGateway = ! $this->asaas->isFake();
+
         foreach ($pendingPayments as $payment) {
+            // Pagamento de seed/teste alcançando o Asaas REAL: consultá-lo dá 404,
+            // e o reconcile roda de tempos em tempos — Log::error recorrente sobre
+            // dado sintético. Pula sem consultar; info, não error.
+            if ($realGateway && str_starts_with((string) $payment->provider_charge_id, 'pay_fake_')) {
+                Log::info('Skipping fake payment', [
+                    'payment_id' => $payment->id,
+                    'provider_charge_id' => $payment->provider_charge_id,
+                ]);
+
+                continue;
+            }
+
             try {
                 $remote = $this->asaas->getPayment($payment->provider_charge_id);
                 $status = $remote['status'] ?? '';

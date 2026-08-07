@@ -32,4 +32,12 @@ interface AsaasClientInterface
     public function getSubscriptionPayments(string $subscriptionId): array;
 
     public function cancelSubscription(string $subscriptionId): array;
+
+    /**
+     * Is this the fake/simulated gateway (dev, staging, tests)?
+     *
+     * O reconcile usa isto para decidir se pula ids sintéticos: o Fake gera
+     * `pay_fake_...` e os resolve normalmente; só o gateway REAL devolve 404 neles.
+     */
+    public function isFake(): bool;
 }

@@ -4,6 +4,11 @@ namespace App\Services\Asaas;
 
 class FakeAsaasClient implements AsaasClientInterface
 {
+    public function isFake(): bool
+    {
+        return true;
+    }
+
     private array $charges = [];
 
     private array $customers = [];

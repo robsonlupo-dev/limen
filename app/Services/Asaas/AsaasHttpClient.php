@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Log;
 
 class AsaasHttpClient implements AsaasClientInterface
 {
+    public function isFake(): bool
+    {
+        return false;
+    }
+
     // Seconds to wait on the Asaas API before giving up. A hung gateway must not
     // hold a user request (or webhook handler) open indefinitely.
     private const TIMEOUT_SECONDS = 20;

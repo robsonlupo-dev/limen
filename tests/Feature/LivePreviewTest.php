@@ -245,3 +245,17 @@ it('o command live-previews:purge apaga frames órfãos (sem quadro há mais de 
     $disk->assertMissing('999.jpg')
         ->assertExists('1000.jpg');
 });
+
+it('purgeOrphans retorna 0 sem estourar quando o diretório do disco não existe', function () {
+    // O diretório do disco só passa a existir quando o PRIMEIRO frame é gravado.
+    // Simula o live-previews:purge rodando antes de qualquer live ter transmitido:
+    // remove o diretório do disco fakeado. purgeOrphans deve sair em 0, sem
+    // estourar ao listar um path inexistente — e sem recriar o diretório (o guard
+    // é leitura, faxina não materializa storage).
+    $root = Storage::disk('live_previews')->path('');
+    rmdir($root);
+    expect(is_dir($root))->toBeFalse();
+
+    expect(app(LivePreviewService::class)->purgeOrphans())->toBe(0);
+    expect(is_dir($root))->toBeFalse();
+});
