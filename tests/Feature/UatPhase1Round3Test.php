@@ -47,19 +47,22 @@ it('libera camera e microfone para a propria origem no Permissions-Policy', func
         ->and($policy)->toContain('geolocation=()');
 });
 
-// ─── #2 Panic button legível no header ───────────────────────────────────────
+// ─── #2 Panic button visível: disco no topo direito + link rotulado ──────────
 //
 // O achado original do R3 pedia o botão VISÍVEL e discreto. A pedido do PO
-// (ago/2026) ele deixou de ser o disco flutuante no topo direito e virou um link
-// de texto rotulado no header, ao lado do nome — mais legível, porque diz o que é.
-// O detalhe do desenho vive em PanicButtonVisibilityTest; aqui trava só que a
-// saída continua descoberta (rótulo + tooltip), não que ela flutue.
+// (ago/2026) ganhou um LINK rotulado no header (mais legível, diz o que é) SEM
+// perder o disco flutuante no topo direito (a via sempre visível). O detalhe do
+// desenho vive em PanicButtonVisibilityTest/PanicButtonLayerTest; aqui trava as
+// duas superfícies do R3: disco no topo direito, discreto, com tooltip, E rótulo.
 
-it('mantem o panic button legivel e rotulado no header, com tooltip', function () {
+it('mantem o disco no topo direito e o link rotulado, com tooltip', function () {
     $src = File::get(resource_path('js/Components/PanicButton.vue'));
 
-    expect($src)->toContain('Panic Button')            // rótulo em texto, não adivinha
-        ->and($src)->toContain('title="Saída rápida"'); // tooltip no hover
+    expect($src)->toContain('fixed top-4 right-4')      // disco no topo direito
+        ->and($src)->toContain('text-[#6f6a62]')        // glifo discreto (PO)
+        ->and($src)->toContain('title="Saída rápida"')  // tooltip no hover
+        ->and($src)->toContain('z-[10001]')             // camada de topo
+        ->and($src)->toContain('Panic Button');         // rótulo da via descoberta
 });
 
 // ─── #3 Foto do card sem corte (redesign do catálogo, card v2) ───────────────

@@ -101,21 +101,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
     <!--
-      Link de texto no header (pedido do PO, ago/2026): substitui o disco flutuante
-      que vivia teleportado na camada de topo. O disco lia como "botão de fechar" e no
-      UAT confundia o membro; um link ROTULADO ("Panic Button") diz o que é sem ele
-      precisar adivinhar. É montado inline pelos layouts, ao lado do nome do usuário.
+      TRÊS vias para a mesma saída (escape()), e cada uma cobre um buraco da outra:
 
-      Consequência assumida da mudança: como link inline no fluxo do header, ele NÃO
-      é mais a camada de topo intocável — um modal pode cobri-lo. A saída sempre
-      disponível passou a ser o DUPLO-ESCAPE (listener em `window`, dispara mesmo
-      sob overlay); o link é a via descoberta/rotulada. É o duplo-Escape, não o
-      z-index, que PanicButtonLayerTest agora cobra. Ao mexer no visual, preserve o
-      listener de teclado — é ele o caminho que nenhuma tela cobre.
+      1. LINK DE TEXTO no header (pedido do PO, ago/2026), montado inline pelos
+         layouts ao lado do nome. É a via DESCOBERTA/ROTULADA — "Panic Button" diz o
+         que é sem o membro adivinhar, o que o disco sozinho (lido como "fechar") não
+         fazia (achado do UAT). Mas, inline no fluxo do header, um modal pode cobri-lo.
 
-      Discreto mas legível (pedido do PO): tom `muted` com pílula de borda fina que
-      o marca como controle intencional, e o RÓTULO em texto para não depender de
-      glifo. O hover puxa para `danger` — reforça "saída de emergência" sem gritar.
+      2. DISCO FLUTUANTE teleportado para a raiz em z-[10001] — a via SEMPRE VISÍVEL e
+         INTOCÁVEL. O Teleport tira o botão de qualquer stacking context de layout, e o
+         10001 fica UM acima do teto do projeto (IntroAnimation 10000, AgeGateModal
+         9999): nada o cobre nem engole o clique. É o fallback que o link não é.
+         Invariante cobrado por PanicButtonLayerTest: NENHUM outro componente usa
+         z-index >= 10001 — overlay novo entra abaixo, não suba o disco.
+
+      3. DUPLO-ESCAPE (listener em `window`) — a via de TECLADO, dispara mesmo sob
+         overlay e sem apontar para nada. Cobre o touch-less e o caso de os dois
+         botões estarem cobertos.
+
+      Ao mexer no visual, preserve as três — cada uma existe porque as outras falham
+      num cenário. Discreto mas legível: o link é `muted` com pílula (hover `danger`);
+      o disco é opaco (`bg-surface`) com aro dourado, glifo discreto (`#6f6a62`, pedido
+      do PO) — quem ganha contraste é o disco, não o X (regressão do UAT cenário 63).
     -->
     <button
         type="button"
@@ -140,4 +147,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         </svg>
         Panic Button
     </button>
+
+    <Teleport to="body">
+        <button
+            type="button"
+            aria-label="Saída rápida"
+            title="Saída rápida"
+            class="fixed top-4 right-4 z-[10001] flex h-10 w-10 items-center justify-center rounded-full border border-gold/40 bg-surface text-[#6f6a62] shadow-lg shadow-black/40 ring-1 ring-gold/25 transition-colors hover:text-cream hover:border-gold/70 hover:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+            @click="escape"
+        >
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                class="h-4 w-4"
+                aria-hidden="true"
+            >
+                <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+        </button>
+    </Teleport>
 </template>

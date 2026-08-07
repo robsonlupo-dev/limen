@@ -44,7 +44,11 @@ function logout() {
     <div class="min-h-screen bg-background flex flex-col">
         <!-- Header -->
         <header class="border-b border-frame/50">
-            <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <!-- pr-16 reserva o canto superior direito para o DISCO da Saída rápida
+                 (PanicButton teleporta um disco fixed top-4 right-4 além do link
+                 inline abaixo). Sem a folga, em tela estreita o disco cobre nome/Sair
+                 e o link — achado do UAT cenário 63. -->
+            <div class="max-w-6xl mx-auto pl-6 pr-16 py-4 flex items-center justify-between">
                 <Link :href="homeRoute" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
                     <span class="font-serif text-[#C9A24B] tracking-widest">Limen</span>

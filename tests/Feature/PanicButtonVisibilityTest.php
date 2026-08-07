@@ -5,13 +5,14 @@ use Illuminate\Support\Facades\File;
 // Visibilidade da Saída rápida (PanicButton).
 //
 // O botão é perk de privacidade DO MEMBRO (Sprint 6): tira a Limen da tela
-// quando alguém entra na sala. Desde ago/2026 (pedido do PO) ele deixou de ser o
-// disco flutuante teleportado e virou um LINK DE TEXTO no header, ao lado do nome
-// do usuário — o disco lia como "fechar" e no UAT confundia o membro. Estes
-// testes travam duas coisas:
-//   (a) a matriz de montagem (membro vê, visitante não, performer mantém), e
-//   (b) o desenho como link rotulado e legível — para não regredir ao disco nem
-//       virar um ícone mudo que o membro precise adivinhar.
+// quando alguém entra na sala. Desde ago/2026 (pedido do PO) ele tem DUAS
+// superfícies clicáveis + o teclado: um LINK DE TEXTO rotulado no header (ao lado
+// do nome — a via descoberta, que o disco sozinho, lido como "fechar", não era) E
+// o DISCO flutuante teleportado na camada de topo (a via sempre visível/intocável,
+// que o link inline não é). Estes testes travam:
+//   (a) a matriz de montagem (membro vê, visitante não, performer mantém),
+//   (b) o link rotulado e legível, e
+//   (c) o disco de contraste na camada de topo (a causa raiz do UAT cenário 63).
 //
 // Como o projeto não tem Vitest/Jest, a verificação roda pela fonte .vue —
 // mesma disciplina do PanicButtonLayerTest e do UatPhase1Round2Test.
@@ -39,20 +40,30 @@ it('nao expoe o panic button ao visitante deslogado, so ao membro logado', funct
         ->toMatch('/<PanicButton\s+v-if="isLoggedIn"\s*\/>/');
 });
 
-// ─── Desenho: link de texto rotulado, não mais o disco flutuante ─────────────
+// ─── Desenho: link de texto rotulado E disco flutuante convivem ──────────────
 
-it('desenha o panic button como link de texto rotulado, nao um disco flutuante', function () {
+it('desenha o panic button como link de texto rotulado', function () {
     $src = File::get(resource_path(PANIC));
 
-    // O RÓTULO em texto é o coração da mudança: o membro lê o que é, não adivinha
-    // um glifo. E precisa de nome acessível para quem navega por leitor de tela.
+    // O RÓTULO em texto é a via descoberta: o membro lê o que é, não adivinha um
+    // glifo. E precisa de nome acessível para quem navega por leitor de tela.
     expect($src)->toContain('Panic Button')
         ->and($src)->toContain('aria-label="Panic Button');
+});
 
-    // Regressão que a mudança encerra: o disco flutuante teleportado no topo.
-    expect($src)->not->toContain('fixed top-4 right-4')
-        ->and($src)->not->toContain('<Teleport')
-        ->and($src)->not->toContain('z-[10001]');
+it('mantem tambem o disco flutuante opaco na camada de topo (fallback do UAT 63)', function () {
+    // O disco é a via SEMPRE VISÍVEL que o link inline não é: teleportado para a
+    // raiz, fixo no topo direito, na camada de topo. Contraste é requisito de
+    // segurança (cenário 63): disco opaco `bg-surface` com aro dourado, glifo
+    // discreto. Guarda contra remover o disco OU deixá-lo translúcido de novo.
+    $src = File::get(resource_path(PANIC));
+
+    expect($src)->toContain('<Teleport to="body">')
+        ->and($src)->toContain('fixed top-4 right-4')
+        ->and($src)->toContain('z-[10001]')
+        ->and($src)->toContain('bg-surface')
+        ->and($src)->not->toContain('bg-background/70')
+        ->and($src)->toContain('text-[#6f6a62]');
 });
 
 it('mantem o link discreto mas legivel (muted com pilula, hover de perigo)', function () {
@@ -67,13 +78,13 @@ it('mantem o link discreto mas legivel (muted com pilula, hover de perigo)', fun
         ->and($src)->toContain('hover:text-danger');
 });
 
-// ─── O link mora no header, ao lado do nome — não flutua mais ────────────────
+// ─── O disco flutua no canto: o header reserva a folga nos dois layouts ───────
 
-it('nao reserva mais o canto do header (o botao deixou de flutuar)', function () {
-    // O disco era `fixed top-4 right-4` e exigia `pr-16` para não cobrir "Sair".
-    // Como link inline no fluxo do header, a folga não é mais necessária — e
-    // mantê-la deixaria um buraco à direita. Trava a limpeza nos dois layouts.
+it('reserva o canto do header para o disco flutuante nos dois layouts', function () {
+    // O disco é `fixed top-4 right-4`, teleportado — flutua sobre o header. Sem
+    // folga à direita, em tela estreita ele cobre (e, invisível, interceptava o
+    // clique de) nome/Sair e o próprio link. pr-16 abre o espaço nos dois headers.
     foreach ([APP_LAYOUT, GUEST_LAYOUT] as $layout) {
-        expect(File::get(resource_path($layout)))->not->toContain('pr-16');
+        expect(File::get(resource_path($layout)))->toContain('pr-16');
     }
 });

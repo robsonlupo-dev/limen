@@ -30,7 +30,9 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
 
         <!-- Header -->
         <header class="border-b border-frame/50">
-            <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <!-- pr-16: mesma folga do AppLayout para o disco flutuante da Saída
+                 rápida (o membro logado o recebe nas telas públicas). -->
+            <div class="max-w-6xl mx-auto pl-6 pr-16 py-4 flex items-center justify-between">
                 <Link :href="route('landing')" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
                     <span class="font-serif text-[#C9A24B] tracking-widest">Limen</span>
