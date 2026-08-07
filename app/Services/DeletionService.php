@@ -479,6 +479,13 @@ class DeletionService
                 if ($path = $piece->path) {
                     $paths[] = ['disk' => ContentStore::DISK, 'path' => $path];
                 }
+
+                // Vídeo (Sprint 16): o POSTER é um arquivo à parte no mesmo disco —
+                // sem isto ficaria órfão no hard delete, como a foto ficaria sem a
+                // varredura acima. (O content_hash preservado é do MP4, não do poster.)
+                if ($thumb = $piece->thumbnail_path) {
+                    $paths[] = ['disk' => ContentStore::DISK, 'path' => $thumb];
+                }
             }
         }
 

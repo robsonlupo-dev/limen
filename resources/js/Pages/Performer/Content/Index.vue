@@ -43,6 +43,9 @@ const canPublish = computed(
     () => !!file.value && !publishing.value && Number(preco.value) >= props.minPrice,
 )
 
+// Vídeo é higienizado por ffmpeg num job — a peça nasce "processando".
+const isVideoFile = computed(() => !!file.value && String(file.value.type).startsWith('video/'))
+
 function levelLabel(slug) {
     return LEVEL_LABELS[slug] ?? slug
 }
@@ -123,18 +126,27 @@ async function remove(piece) {
                 <h2 class="font-serif text-xl text-cream">Publicar nova peça</h2>
 
                 <div class="aspect-[4/3] w-full max-w-sm overflow-hidden rounded-lg bg-surface-2 border border-frame flex items-center justify-center">
-                    <img v-if="filePreview" :src="filePreview" alt="Prévia" class="h-full w-full object-cover" />
-                    <span v-else class="text-sm text-muted">Nenhuma imagem escolhida</span>
+                    <video v-if="filePreview && isVideoFile" :src="filePreview" class="h-full w-full object-cover" controls muted />
+                    <img v-else-if="filePreview" :src="filePreview" alt="Prévia" class="h-full w-full object-cover" />
+                    <span v-else class="text-sm text-muted">Nenhum arquivo escolhido</span>
                 </div>
 
                 <div class="space-y-2">
                     <label class="cursor-pointer inline-block">
                         <span class="inline-flex items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
-                            {{ file ? 'Trocar imagem' : 'Escolher imagem' }}
+                            {{ file ? 'Trocar arquivo' : 'Escolher arquivo' }}
                         </span>
-                        <input type="file" accept="image/jpeg,image/png" class="hidden" @change="onFile" />
+                        <input
+                            type="file"
+                            accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm,video/x-matroska"
+                            class="hidden"
+                            @change="onFile"
+                        />
                     </label>
-                    <p class="text-xs text-muted">JPEG ou PNG. Até 10 MB.</p>
+                    <p class="text-xs text-muted">
+                        Foto (JPEG/PNG, até 10 MB) ou vídeo (MP4/MOV/WebM/MKV, até 500 MB, no máx. 10 min).
+                        Vídeo passa por processamento antes de ficar disponível.
+                    </p>
                 </div>
 
                 <div class="grid gap-4 sm:grid-cols-2">
@@ -183,13 +195,23 @@ async function remove(piece) {
                         :key="piece.id"
                         class="flex items-center gap-4 rounded-xl border border-frame bg-surface p-4"
                     >
-                        <img :src="piece.image_url" alt="" class="h-16 w-16 shrink-0 rounded-lg border border-frame object-cover" />
+                        <div class="h-16 w-16 shrink-0 rounded-lg border border-frame overflow-hidden bg-surface-2 flex items-center justify-center">
+                            <img v-if="piece.image_url" :src="piece.image_url" alt="" class="h-full w-full object-cover" />
+                            <span v-else class="text-xl" aria-hidden="true">{{ piece.kind === 'video' ? '🎬' : '🖼️' }}</span>
+                        </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-cream">
                                 <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-gold">{{ levelLabel(piece.access_level) }}</span>
                                 <span class="ml-2 text-muted">{{ piece.price_tokens }} tokens</span>
+                                <span v-if="piece.kind === 'video'" class="ml-2 text-xs text-muted">🎬 vídeo</span>
                             </p>
-                            <p class="mt-1 text-xs text-muted">{{ piece.unlock_count }} desbloqueio(s)</p>
+                            <p v-if="piece.status === 'processing'" class="mt-1 text-xs text-gold">
+                                Processando o vídeo… ficará disponível em breve.
+                            </p>
+                            <p v-else-if="piece.status === 'failed'" class="mt-1 text-xs text-danger">
+                                Falhou: {{ piece.failure_reason }} Envie novamente.
+                            </p>
+                            <p v-else class="mt-1 text-xs text-muted">{{ piece.unlock_count }} desbloqueio(s)</p>
                         </div>
                         <button
                             type="button"

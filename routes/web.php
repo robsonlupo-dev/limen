@@ -1059,6 +1059,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->whereNumber('content')
             ->name('content.image');
 
+        // Bytes do vídeo higienizado (MP4). Range/seek via BinaryFileResponse;
+        // mesma autorização por request do serving da imagem.
+        Route::get('/conteudo/{content}/video', [ContentController::class, 'video'])
+            ->middleware('throttle:120,1')
+            ->whereNumber('content')
+            ->name('content.video');
+
         Route::post('/conteudo/{content}/desbloquear', [ContentController::class, 'unlock'])
             ->middleware('throttle:20,1')
             ->whereNumber('content')

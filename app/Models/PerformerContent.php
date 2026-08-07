@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,6 +22,17 @@ class PerformerContent extends Model
     protected $table = 'performer_content';
 
     public const KIND_PHOTO = 'photo';
+
+    public const KIND_VIDEO = 'video';
+
+    // Ciclo de sanitização do vídeo (Sprint 16). Foto nasce READY (não passa por
+    // job). Vídeo nasce PROCESSING; o job de ffmpeg leva a READY ou FAILED. Só
+    // READY é servível — ver ContentVisibilityService::canView.
+    public const STATUS_READY = 'ready';
+
+    public const STATUS_PROCESSING = 'processing';
+
+    public const STATUS_FAILED = 'failed';
 
     // Níveis (M.13.13). O tier mínimo por nível vive no ContentVisibilityService.
     public const LEVEL_OPEN = 'open';
@@ -42,7 +54,24 @@ class PerformerContent extends Model
     {
         return [
             'price_tokens' => 'integer',
+            'duration_seconds' => 'integer',
         ];
+    }
+
+    public function isVideo(): bool
+    {
+        return $this->kind === self::KIND_VIDEO;
+    }
+
+    public function isReady(): bool
+    {
+        return $this->status === self::STATUS_READY;
+    }
+
+    /** Só peças prontas para servir (foto sempre; vídeo só após o job). */
+    public function scopeReady(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_READY);
     }
 
     public function performerProfile(): BelongsTo

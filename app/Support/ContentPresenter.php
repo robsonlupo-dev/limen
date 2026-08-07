@@ -39,7 +39,10 @@ class ContentPresenter
             'state' => $state, // owner | unlocked | free | locked (dado do próprio membro)
             'can_unlock' => $canUnlock,
             // Bloqueado → sem URL (o paywall vive aqui, não num blur de CSS).
+            // Para vídeo, image_url é o POSTER (thumbnail); os bytes do vídeo saem
+            // por content.video, só quando canView (mesmo paywall).
             'image_url' => $canView ? route('content.image', $content->id) : null,
+            'video_url' => ($canView && $content->isVideo()) ? route('content.video', $content->id) : null,
         ];
     }
 
