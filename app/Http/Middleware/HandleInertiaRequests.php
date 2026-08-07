@@ -60,6 +60,12 @@ class HandleInertiaRequests extends Middleware
                     // implementar presença tem que checar isto antes de expor o
                     // membro, em vez de descobrir o perk depois do vazamento.
                     'is_invisible' => $perkState['invisible_status'],
+                    // Sons de notificação (Sprint 16). Global porque o gate de som
+                    // é consultado FORA da tela de configurações: o composable de
+                    // áudio precisa da preferência em mãos onde quer que o evento
+                    // (mensagem/gorjeta/chamada) chegue. Já resolvido com o padrão
+                    // "ausente = ON" — o front nunca reimplementa esse default.
+                    'notification_preferences' => $user->notificationSoundPreferences(),
                 ] : null,
             ],
             'flash' => [

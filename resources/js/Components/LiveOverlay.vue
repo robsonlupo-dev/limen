@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
+import { useNotificationSound } from '@/composables/useNotificationSound'
 
 /**
  * Prova social da live pública (Sprint 15, PR #142). Escuta o canal privado
@@ -29,6 +30,8 @@ const GIFT_STYLES = {
 const GIFT_DEFAULT = { icon: '🎁', size: 'md', duration: 3000 }
 const TIP_STYLE = { icon: '🪙', size: 'md', duration: 3000 }
 
+const { play } = useNotificationSound()
+
 const current = ref(null)
 
 // Fila interna (não reativa — só o `current` é renderizado por vez).
@@ -45,6 +48,9 @@ function styleFor(reaction) {
 }
 
 function enqueue(reaction) {
+    // Som por reação (gorjeta E presente caem na preferência 'tip'); toca no
+    // enfileiramento, não na exibição, para acompanhar a chegada mesmo com fila.
+    play('tip')
     queue.push(reaction)
     if (!processing) {
         processNext()

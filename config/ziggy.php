@@ -48,6 +48,7 @@ return [
         'consumer.settings',
         'consumer.settings.discrete-mode',
         'consumer.settings.privacy',
+        'notifications.sound.update',
 
         // Denúncia (compliance)
         'report.store',

@@ -31,6 +31,15 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public const MAX_INTERESTS = 8;
 
+    /**
+     * Categorias de som de notificação (Sprint 16). Fecham o allowlist do Form
+     * Request e do accessor — chave fora desta lista nunca é escrita nem lida.
+     * `message` (chat, ambos os papéis), `tip` (gorjeta/presente na live, à
+     * performer), `live` (pedido de chamada 1:1, à performer). Todas ON por
+     * padrão; o membro/performer desliga individualmente.
+     */
+    public const NOTIFICATION_SOUND_KEYS = ['message', 'tip', 'live'];
+
     protected $fillable = [
         'name', 'email', 'password', 'phone', 'birthdate',
         'lgpd_consent_at', 'terms_version', 'last_login_at', 'asaas_customer_id',
@@ -102,6 +111,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
             'interests_opt_out' => 'boolean',
+            // Preferências de som de notificação (Sprint 16). Fora do $fillable:
+            // escrita só pelo endpoint dedicado, com allowlist de chaves — nunca
+            // um blob JSON arbitrário por mass assignment.
+            'notification_preferences' => 'array',
             'discrete_mode' => 'boolean',
             // Sinal antifraude (fora do $fillable — set explícito no cadastro/KYC).
             'blacklist_hit' => 'boolean',
@@ -115,6 +128,26 @@ class User extends Authenticatable implements MustVerifyEmail
             'deletion_confirmed_at' => 'datetime',
             'deletion_token_expires_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Estado efetivo dos sons de notificação (Sprint 16). NULL/ausente vale
+     * como ON — o padrão é tocar; só o `false` explícito silencia. Sempre
+     * devolve as três chaves conhecidas, ignorando qualquer lixo eventual no
+     * JSON (a escrita já é por allowlist, isto é o cinto e suspensório da
+     * leitura). É o que o front recebe e o que o composable de áudio consulta.
+     *
+     * @return array<string, bool>
+     */
+    public function notificationSoundPreferences(): array
+    {
+        $stored = $this->notification_preferences ?? [];
+        $out = [];
+        foreach (self::NOTIFICATION_SOUND_KEYS as $key) {
+            $out[$key] = ! array_key_exists($key, $stored) || (bool) $stored[$key];
+        }
+
+        return $out;
     }
 
     public function deletionLogs(): HasMany

@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import ComingSoon from '@/Components/ComingSoon.vue'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
+import NotificationSoundSettings from '@/Components/NotificationSoundSettings.vue'
 import ProfileProgress from '@/Components/ProfileProgress.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryPanel from '@/Components/StoryPanel.vue'
@@ -670,6 +671,8 @@ async function decideAccess(req, approve) {
                     </div>
                 </div>
             </div>
+
+            <NotificationSoundSettings />
         </div>
 
         <!-- Visualização inline. Sem botão de download e sem link direto: o

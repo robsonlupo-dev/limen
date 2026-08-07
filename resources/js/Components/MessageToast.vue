@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
+import { useNotificationSound } from '@/composables/useNotificationSound'
 
 /**
  * Toast global de mensagem recebida (Sprint 15, PR #144). Registrado no AppLayout,
@@ -15,6 +16,7 @@ import { router, usePage } from '@inertiajs/vue3'
  * remetente (não notifica o que ele está lendo).
  */
 const page = usePage()
+const { play } = useNotificationSound()
 
 const toasts = ref([])
 const MAX_TOASTS = 3
@@ -34,6 +36,10 @@ function onNewMessage(e) {
     // Só mensagem NOVA da outra parte, e não a que já estou lendo.
     if (!e?.increments_unread) return
     if (onOpenConversation(e.conversation_id)) return
+
+    // Som discreto junto do toast (respeita a preferência 'message'; silencioso
+    // se o browser bloquear autoplay ou o usuário tiver desligado).
+    play('message')
 
     const id = ++seq
     toasts.value.push({
