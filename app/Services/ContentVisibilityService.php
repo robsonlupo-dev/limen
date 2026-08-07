@@ -71,6 +71,29 @@ class ContentVisibilityService
         return $member?->activeCircle()?->tierAtLeast($minTier) ?? false;
     }
 
+    /**
+     * Os níveis de acesso que o TIER deste espectador ALCANÇA — a forma
+     * PAGINÁVEL do `tierAllows` (que é predicado por item). Derivado do MESMO
+     * `LEVEL_MIN_TIER`, então filtrar o feed no SQL por `whereIn('access_level',
+     * ...)` nunca diverge do que o perfil libera item a item. Sempre inclui
+     * `open` (min tier null); não-assinante recebe só ele.
+     *
+     * Existe para o feed poder paginar corretamente: filtrar por tier DEPOIS do
+     * paginate devolveria páginas curtas e contadores errados; filtrar no SQL,
+     * antes, mantém a contagem exata.
+     *
+     * @return array<int, string>
+     */
+    public function allowedLevelsFor(?User $viewer): array
+    {
+        $circle = $viewer?->activeCircle();
+
+        return array_keys(array_filter(
+            self::LEVEL_MIN_TIER,
+            fn (?string $minTier) => $minTier === null || ($circle?->tierAtLeast($minTier) ?? false),
+        ));
+    }
+
     /** Grátis para este membro? SÓ Aberto E só para assinante (M.13.13). */
     public function isFreeFor(?User $member, PerformerContent $content): bool
     {

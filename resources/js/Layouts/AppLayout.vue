@@ -117,6 +117,13 @@ function logout() {
                         >
                             Meu Painel
                         </Link>
+                        <!-- Feed de conteúdo permanente de quem o membro segue. -->
+                        <Link
+                            :href="route('feed')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Feed
+                        </Link>
                         <!-- "Meu Perfil" e "Interesses" são coisas diferentes e
                              ficam lado a lado de propósito: Interesses é a caixa
                              do Interesse Controlado (o que performers mandaram),

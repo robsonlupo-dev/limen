@@ -143,6 +143,9 @@ return [
         // Consumer panel
         'consumer.dashboard',
 
+        // Feed de conteúdo permanente das performers seguidas (Sprint 16)
+        'feed',
+
         // Perfil do membro (interesses + "o que estou buscando")
         'consumer.profile.edit',
         'consumer.profile.update',

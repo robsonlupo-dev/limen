@@ -19,6 +19,7 @@ use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\FavoriteController;
+use App\Http\Controllers\Web\Consumer\FeedController;
 use App\Http\Controllers\Web\Consumer\GiftController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\LiveViewController;
@@ -800,6 +801,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/painel', [ConsumerDashboardController::class, 'index'])
             ->middleware('throttle:60,1')
             ->name('consumer.dashboard');
+
+        // Feed de conteúdo permanente das performers seguidas (Sprint 16).
+        // Consome o backend do PR #135; desbloqueio/serving reusam content.*.
+        Route::get('/feed', [FeedController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('feed');
 
         Route::post('/gorjetas', [TipController::class, 'store'])
             ->middleware('throttle:10,1')
