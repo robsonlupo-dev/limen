@@ -19,6 +19,7 @@ import { computed, ref } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import HCaptcha from '@/Components/HCaptcha.vue'
+import ImageCropper from '@/Components/ImageCropper.vue'
 
 const props = defineProps({
     // 'register' → passos 1–3 (guest) · 'profile' → passos 4–5 (autenticada)
@@ -81,6 +82,8 @@ function toggleWorld(value) {
 const bioForm = useForm({ bio: props.profile?.bio ?? '' })
 const avatarForm = useForm({ file: null })
 const avatarPreview = ref(props.profile?.avatar_url ?? null)
+// File aguardando enquadramento no cropper (null = cropper fechado).
+const pendingAvatarFile = ref(null)
 
 // ─── Validação inline ───────────────────────────────────────────────────────
 // "Continuar" só habilita com o passo válido. A mensagem inline aparece
@@ -193,11 +196,20 @@ function advance() {
     step.value += 1
 }
 
+// O <input> só ABRE o cropper; o enquadramento produz o File final. Zera o value
+// para permitir reescolher o mesmo arquivo.
 function pickAvatar(e) {
     const file = e.target.files[0] ?? null
+    e.target.value = ''
+    if (!file) return
+    pendingAvatarFile.value = file
+}
+
+function onAvatarCropped(file) {
+    pendingAvatarFile.value = null
     avatarForm.file = file
     if (avatarPreview.value?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview.value)
-    avatarPreview.value = file ? URL.createObjectURL(file) : null
+    avatarPreview.value = URL.createObjectURL(file)
 }
 
 const processing = computed(
@@ -453,6 +465,16 @@ const continueLabel = computed(() => {
                 <p class="text-xs text-[#8a8280] text-center">
                     Essa é a foto do seu card no catálogo. Boa luz vale mais que filtro.
                 </p>
+
+                <ImageCropper
+                    :file="pendingAvatarFile"
+                    :aspect-ratio="1"
+                    :output-width="512"
+                    title="Enquadre sua foto"
+                    hint="Arraste e ajuste o zoom. A foto fica quadrada no seu card."
+                    @crop="onAvatarCropped"
+                    @cancel="pendingAvatarFile = null"
+                />
             </div>
 
             <!-- Navegação -->

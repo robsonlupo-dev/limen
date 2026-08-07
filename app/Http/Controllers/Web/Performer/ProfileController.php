@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
 use App\Models\PerformerProfile;
 use App\Services\PerformerProfileService;
+use App\Exceptions\ImageProcessingException;
 use App\Support\Audit;
 use App\Support\PhotoGalleryPresenter;
 use Illuminate\Http\RedirectResponse;
@@ -162,7 +163,15 @@ class ProfileController extends Controller
         $profile = $request->user()->performerProfile;
         abort_if(! $profile, 404);
 
-        $this->profileService->replaceAvatar($profile, $request->file('file'));
+        // Imagem-bomba / corrompida / formato falha DENTRO do pipeline (as guardas
+        // do ImageProcessingService), depois do UploadMediaRequest, que só vê
+        // mime+tamanho e não dimensões. Traduz para erro de sessão (o form Inertia
+        // lê errors.file) em vez de deixar a DomainException virar 500.
+        try {
+            $this->profileService->replaceAvatar($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
 
         Audit::log('performer_avatar_updated', $profile, null, $request);
 
@@ -176,7 +185,11 @@ class ProfileController extends Controller
         $profile = $request->user()->performerProfile;
         abort_if(! $profile, 404);
 
-        $this->profileService->replaceCover($profile, $request->file('file'));
+        try {
+            $this->profileService->replaceCover($profile, $request->file('file'));
+        } catch (ImageProcessingException $e) {
+            return back()->withErrors(['file' => $e->getMessage()]);
+        }
 
         Audit::log('performer_cover_updated', $profile, null, $request);
 

@@ -230,7 +230,9 @@ it('avatar upload stores file in private storage and returns a temporary URL', f
 
     [$user, $profile, $token] = makePerformer();
 
-    $file = UploadedFile::fake()->create('avatar.jpg', 500, 'image/jpeg');
+    // Imagem REAL (não fake create): o avatar agora passa pelo ImageProcessingService,
+    // que lê as dimensões do header — um arquivo sem bytes de imagem seria recusado.
+    $file = UploadedFile::fake()->image('avatar.jpg', 600, 600);
 
     $response = $this->postJson('/api/v1/performer/profile/avatar',
         ['file' => $file],
@@ -267,6 +269,26 @@ it('rejects invalid file type and file exceeding 5MB with 422', function () {
         ['file' => UploadedFile::fake()->create('big.jpg', 6000, 'image/jpeg')],
         ['Authorization' => "Bearer $token"]
     )->assertStatus(422)->assertJsonValidationErrors('file');
+});
+
+// ─── 11b. Image-bomb passes UploadMediaRequest but the hardened pipeline 422s ─
+//
+// UploadMediaRequest só vê mime+tamanho de arquivo; a dimensão (imagem-bomba) só
+// é barrada dentro do ImageProcessingService. Antes de rotear o avatar por ele, a
+// DomainException virava 500 — agora o controller traduz para 422, como os demais
+// uploads (PhotoController/StoryController).
+
+it('rejects an image-bomb avatar with 422, not a 500', function () {
+    Storage::fake('local');
+
+    [, , $token] = makePerformer();
+
+    // 4000x4000 = 16 MP > max_pixels (13 MP): recusada pela leitura do header,
+    // antes de qualquer decodificação. Bytes ficam bem abaixo do teto de 5 MB.
+    $this->postJson('/api/v1/performer/profile/avatar',
+        ['file' => UploadedFile::fake()->image('bomb.png', 4000, 4000)],
+        ['Authorization' => "Bearer $token"]
+    )->assertStatus(422)->assertJsonPath('reason', 'dimensions_too_large');
 });
 
 // ─── 12. Pending performer not in catalog and returns 404 on slug ────────────

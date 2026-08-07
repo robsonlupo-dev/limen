@@ -122,7 +122,7 @@ it('keeps followers and interests through a rename', function () {
     expect(PerformerInterest::where('performer_profile_id', $profile->id)->count())->toBe(1);
 });
 
-it('replaces the avatar and discards the previous file', function () {
+it('replaces the avatar, normalizing to a single avatar.jpg without orphans', function () {
     Storage::fake('local');
     $profile = ppePerformer();
 
@@ -132,15 +132,24 @@ it('replaces the avatar and discards the previous file', function () {
 
     $first = $profile->fresh()->avatar_path;
     Storage::disk('local')->assertExists($first);
+    // O avatar é re-encodado para JPEG server-side (ImageProcessingService), então
+    // o caminho é sempre avatar.jpg — não depende mais da extensão do upload.
+    expect($first)->toEndWith('/avatar.jpg');
 
+    // Segundo upload vem de um PNG; o caminho continua avatar.jpg (normalizado),
+    // então o arquivo é sobrescrito e o órfão por-extensão é impossível por
+    // construção — não há mais first.jpg + second.png convivendo.
     $this->actingAs($profile->user)
         ->post(route('performer.profile.photo'), ['file' => UploadedFile::fake()->image('second.png')])
         ->assertRedirect();
 
     $second = $profile->fresh()->avatar_path;
+    expect($second)->toBe($first);
     Storage::disk('local')->assertExists($second);
-    // Trocar jpg→png muda o caminho; sem o descarte o antigo ficaria órfão.
-    Storage::disk('local')->assertMissing($first);
+
+    $avatars = collect(Storage::disk('local')->files("performer-media/{$profile->user_id}"))
+        ->filter(fn ($f) => str_contains($f, 'avatar'));
+    expect($avatars)->toHaveCount(1);
 });
 
 it('rejects an avatar that is not an accepted image', function () {
@@ -149,6 +158,19 @@ it('rejects an avatar that is not an accepted image', function () {
 
     $this->actingAs($profile->user)
         ->post(route('performer.profile.photo'), ['file' => UploadedFile::fake()->create('payload.php', 10)])
+        ->assertSessionHasErrors('file');
+
+    expect($profile->fresh()->avatar_path)->toBeNull();
+});
+
+it('rejects an image-bomb avatar as a session error, not a 500', function () {
+    Storage::fake('local');
+    $profile = ppePerformer();
+
+    // 16 MP passa o UploadMediaRequest (mime+tamanho) mas é barrada pelo teto de
+    // dimensões do ImageProcessingService — traduzido para erro de sessão, não 500.
+    $this->actingAs($profile->user)
+        ->post(route('performer.profile.photo'), ['file' => UploadedFile::fake()->image('bomb.png', 4000, 4000)])
         ->assertSessionHasErrors('file');
 
     expect($profile->fresh()->avatar_path)->toBeNull();
