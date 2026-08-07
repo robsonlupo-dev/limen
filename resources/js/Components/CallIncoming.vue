@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { postJson } from '@/lib/http'
+import { useNotificationSound } from '@/composables/useNotificationSound'
 
 /**
  * Chamada privada 1:1 (Sprint 15) — lado da PERFORMER. Assina o canal privado
@@ -18,6 +19,8 @@ const props = defineProps({
 
 const emit = defineEmits(['accepted'])
 
+const { play } = useNotificationSound()
+
 const incoming = ref(null) // { callId, memberLabel, pricePerMinute }
 const secondsLeft = ref(0)
 const busy = ref(false)
@@ -30,6 +33,9 @@ function subscribe() {
     if (!window.Echo) return
     channel = window.Echo.private(`user.${props.myUserId}`)
     channel.listen('.call.requested', (e) => {
+        // Som de chamada ao vivo (preferência 'live'); silencioso se desligado
+        // ou se o autoplay estiver bloqueado.
+        play('live')
         incoming.value = {
             callId: e.call_id,
             memberLabel: e.member_label,
