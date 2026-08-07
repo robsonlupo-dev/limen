@@ -303,6 +303,42 @@ it('marks expired pending payments during reconcile', function () {
     expect($payment->status)->toBe('expired');
 });
 
+// 9b. Fake/seed payments are skipped by reconcile against the REAL gateway
+// (that is where 'pay_fake_' ids 404 — the Fake resolves them, so no skip there).
+it('skips fake payments during reconcile against the real gateway, logging info', function () {
+    [$user] = authenticatedUser();
+
+    // Gateway REAL (isFake=false): é onde 'pay_fake_...' dá 404. getPayment NUNCA
+    // deve ser chamado para o id sintético — o reconcile pula antes de consultar.
+    $realGateway = Mockery::mock(AsaasClientInterface::class);
+    $realGateway->shouldReceive('isFake')->andReturnFalse();
+    $realGateway->shouldReceive('getPayment')->never();
+    app()->instance(AsaasClientInterface::class, $realGateway);
+
+    $payment = Payment::create([
+        'user_id' => $user->id,
+        'provider' => 'asaas',
+        'provider_charge_id' => 'pay_fake_'.uniqid(),
+        'method' => 'pix',
+        'amount_cents' => 4990,
+        'tokens' => 500,
+        'status' => 'pending',
+        'expires_at' => now()->addDay(),
+    ]);
+    $payment->forceFill(['created_at' => now()->subMinutes(10)])->save();
+
+    Log::spy();
+
+    $this->artisan('payments:reconcile')->assertSuccessful();
+
+    // Fica pendente (não consultado, não expirado) e o log é info, nunca error.
+    expect($payment->fresh()->status)->toBe('pending');
+    Log::shouldHaveReceived('info')
+        ->with('Skipping fake payment', Mockery::type('array'))
+        ->once();
+    Log::shouldNotHaveReceived('error');
+});
+
 // 10. Create payment for inactive/nonexistent package -> 422
 it('rejects payment for inactive or nonexistent package', function () {
     $inactive = createActivePackage(['active' => false]);
@@ -495,6 +531,12 @@ it('leaves the event unprocessed when confirm fails at the gateway so reconcile 
         public function cancelSubscription(string $subscriptionId): array
         {
             return ['id' => $subscriptionId, 'deleted' => true];
+        }
+
+        // Simula o gateway REAL (estoura como um timeout do Asaas), não a Fake.
+        public function isFake(): bool
+        {
+            return false;
         }
     };
     app()->instance(AsaasClientInterface::class, $throwing);
