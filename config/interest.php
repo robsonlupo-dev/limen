@@ -31,6 +31,14 @@ return [
     // Subir este valor barateia a sondagem; descer encarece.
     'visitor_daily_limit' => (int) env('INTEREST_VISITOR_DAILY_LIMIT', 3),
 
+    // Cota diária da origem CATÁLOGO DE MEMBROS (Sprint 16), separada das outras
+    // duas pela mesma razão do PO: o teto por origem é independente. Diferente do
+    // painel de visitantes (onde 3 = SLOT_MIN_K carregava uma restrição de
+    // k-anonimato), o catálogo não tem faixa/k a proteger — é a base inteira de
+    // membros que optaram por aparecer —, então o teto é só anti-flood: 5, igual
+    // ao de seguidores. O cooldown de 30 dias por par segue valendo por cima.
+    'catalog_daily_limit' => (int) env('INTEREST_CATALOG_DAILY_LIMIT', 5),
+
     // Uma performer não pode reenviar interesse ao mesmo membro dentro desta
     // janela (em dias), mesmo sem desbloqueio — evita "cutucadas" repetidas.
     'cooldown_days' => (int) env('INTEREST_COOLDOWN_DAYS', 30),

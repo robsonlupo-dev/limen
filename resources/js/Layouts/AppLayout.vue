@@ -75,6 +75,12 @@ function logout() {
                             Seguidores
                         </Link>
                         <Link
+                            :href="route('performer.members')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Membros
+                        </Link>
+                        <Link
                             :href="route('performer.interests.index')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >

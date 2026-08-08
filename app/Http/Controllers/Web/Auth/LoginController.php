@@ -54,6 +54,11 @@ class LoginController extends Controller
         }
 
         Auth::login($user);
+        // Espelha o login por OTP (OtpService) e o da API (LoginController da v1),
+        // que já carimbam. Sem isto, o login por senha na web deixava
+        // `last_login_at` defasado — e ele é o sinal de "Ativo hoje/semana/mês" do
+        // membro no catálogo de membros (Sprint 16), além da métrica de admin.
+        $user->forceFill(['last_login_at' => now()])->save();
         $request->session()->regenerate();
 
         // regenerate() TROCA o id da sessão mas PRESERVA os dados dela. Sem este

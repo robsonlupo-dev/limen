@@ -4,6 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import DiscreteModeToggle from '@/Components/DiscreteModeToggle.vue'
 import PrivacyPerkToggle from '@/Components/PrivacyPerkToggle.vue'
+import PerformerVisibilityToggle from '@/Components/PerformerVisibilityToggle.vue'
 import AccountDeletionSection from '@/Components/AccountDeletionSection.vue'
 
 defineProps({
@@ -65,6 +66,8 @@ const canUseDiscreteMode = computed(() => page.props.auth?.user?.can_use_discret
                     detail="Você continua vendo quando suas próprias mensagens são lidas por quem não desligou."
                     inverted
                 />
+
+                <PerformerVisibilityToggle />
             </div>
 
             <!-- Última seção da tela de propósito: ação destrutiva não disputa

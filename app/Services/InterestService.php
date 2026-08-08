@@ -36,15 +36,19 @@ class InterestService
 
     public const SOURCE_VISITOR = 'visitor';
 
+    public const SOURCE_CATALOG = 'catalog';
+
     /**
      * Cota diária da origem. São SEPARADAS por decisão do PO — o teto diário
-     * total da performer é a soma (hoje 5 + 3 = 8), e não 5.
+     * total da performer é a soma (hoje 5 + 3 + 5), e não um número só.
      */
     private function dailyLimit(string $source = self::SOURCE_FOLLOWER): int
     {
-        return $source === self::SOURCE_VISITOR
-            ? (int) config('interest.visitor_daily_limit')
-            : (int) config('interest.daily_limit');
+        return match ($source) {
+            self::SOURCE_VISITOR => (int) config('interest.visitor_daily_limit'),
+            self::SOURCE_CATALOG => (int) config('interest.catalog_daily_limit'),
+            default => (int) config('interest.daily_limit'),
+        };
     }
 
     private function cooldownDays(): int

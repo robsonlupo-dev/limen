@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Performer;
 
 use App\Exceptions\InterestException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SendInterestFromCatalogRequest;
 use App\Http\Requests\SendInterestRequest;
 use App\Http\Requests\SendInterestToVisitorRequest;
 use App\Services\InterestService;
@@ -71,6 +72,39 @@ class InterestController extends Controller
 
         try {
             $this->interestService->send($profile, $member, InterestService::SOURCE_VISITOR);
+        } catch (InterestException $e) {
+            return response()->json([
+                'reason' => $e->reason,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        return response()->json(['sent' => true], 201);
+    }
+
+    /**
+     * Interesse a partir do CATÁLOGO DE MEMBROS (Sprint 16).
+     *
+     * Terceira porta. Resposta byte a byte igual às outras duas — mesmo 201,
+     * mesmo corpo, mesmos 422 por cooldown/cota — e, para o MEMBRO, nada muda: a
+     * notificação é a mesma cega e a revelação custa os mesmos tokens. Só o
+     * `source` (catálogo) e a cota diária própria mudam, ambos invisíveis a ele.
+     */
+    public function storeFromCatalog(SendInterestFromCatalogRequest $request): JsonResponse
+    {
+        $profile = $request->user()->performerProfile;
+
+        if (! $profile) {
+            return response()->json([
+                'reason' => 'no_profile',
+                'message' => 'Complete seu perfil de performer antes de demonstrar interesse.',
+            ], 422);
+        }
+
+        $member = $request->resolvedMember();
+
+        try {
+            $this->interestService->send($profile, $member, InterestService::SOURCE_CATALOG);
         } catch (InterestException $e) {
             return response()->json([
                 'reason' => $e->reason,
