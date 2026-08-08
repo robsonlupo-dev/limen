@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import DiscreteModeToggle from '@/Components/DiscreteModeToggle.vue'
 import PrivacyPerkToggle from '@/Components/PrivacyPerkToggle.vue'
 import PerformerVisibilityToggle from '@/Components/PerformerVisibilityToggle.vue'
+import NotificationSoundSettings from '@/Components/NotificationSoundSettings.vue'
 import AccountDeletionSection from '@/Components/AccountDeletionSection.vue'
 
 defineProps({
@@ -69,6 +70,8 @@ const canUseDiscreteMode = computed(() => page.props.auth?.user?.can_use_discret
 
                 <PerformerVisibilityToggle />
             </div>
+
+            <NotificationSoundSettings />
 
             <!-- Última seção da tela de propósito: ação destrutiva não disputa
                  atenção com preferência de uso. -->

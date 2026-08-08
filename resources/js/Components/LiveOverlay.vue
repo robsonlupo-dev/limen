@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
+import { useNotificationSound } from '@/composables/useNotificationSound'
 
 /**
  * Prova social da live pública (Sprint 15, PR #142; animações v2 no Sprint 16).
@@ -76,6 +77,8 @@ const SPARKS = [
     { dx: '95px', dy: '-55px', delay: 40 },
 ]
 
+const { play } = useNotificationSound()
+
 const ICON_PX = { sm: '56px', md: '72px', lg: '96px', xl: '128px', xxl: '160px', full: '200px' }
 
 // Reações ATIVAS na tela (até MAX_CONCURRENT) + fila de excedente.
@@ -94,6 +97,10 @@ function styleFor(reaction) {
 }
 
 function enqueue(reaction) {
+    // Som por reação (gorjeta E presente caem na preferência 'tip'); toca na
+    // chegada, respeitando o toggle do usuário e falhando em silêncio.
+    play('tip')
+
     if (active.value.length < MAX_CONCURRENT) {
         activate(reaction)
     } else {

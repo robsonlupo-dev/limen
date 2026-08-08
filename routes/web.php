@@ -66,6 +66,7 @@ use App\Http\Controllers\Web\Performer\SentInterestsController;
 use App\Http\Controllers\Web\Performer\StoryController as PerformerStoryController;
 use App\Http\Controllers\Web\Performer\TwoFactorController;
 use App\Http\Controllers\Web\PublicCatalogController;
+use App\Http\Controllers\Web\NotificationPreferencesController;
 use App\Http\Controllers\Web\UserPreferencesController;
 use App\Http\Controllers\Web\WaitlistController;
 use Illuminate\Support\Facades\Route;
@@ -321,6 +322,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
     Route::patch('/preferencias', [UserPreferencesController::class, 'update'])
         ->middleware('throttle:30,1')
         ->name('preferences.update');
+
+    // Sons de notificação (Sprint 16). Role-NEUTRA de propósito: `message` toca
+    // para ambos, `tip`/`live` para a performer — por isso fica no grupo
+    // compartilhado auth+2fa, e não sob role:consumer. Cada usuário edita só a
+    // própria preferência (allowlist de chaves no Form Request).
+    Route::patch('/notificacoes/som', [NotificationPreferencesController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('notifications.sound.update');
 
     // Denúncia de conteúdo/conduta. Fora de role:consumer de propósito: uma
     // performer também precisa poder denunciar (impersonation, coerção), e

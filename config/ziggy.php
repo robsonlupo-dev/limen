@@ -49,6 +49,7 @@ return [
         'consumer.settings.discrete-mode',
         'consumer.settings.privacy',
         'consumer.settings.performer-visibility',
+        'notifications.sound.update',
 
         // Catálogo de membros para a performer (Sprint 16)
         'performer.members',
