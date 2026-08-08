@@ -5,7 +5,9 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 
 ## Stack
 - PHP 8.4.24 + Laravel 13 (`laravel/framework: ^13.8`). **`ffmpeg` instalado no
-  servidor** (sanitização de vídeo — ver backlog do Sprint 16). Upload no FPM
+  servidor** — sanitização de upload de vídeo **entregue** no fecho do Sprint 16
+  (PR #167, `VideoProcessingService`/`ProcessVideoContent`; re-encode H.264/AAC dos
+  streams decodificados, strip de metadata, teto 500MB/10min). Upload no FPM
   ajustado para **512M** (`upload_max_filesize`/`post_max_size`) para o conteúdo
   em vídeo.
 - MySQL 8.4 (via Docker) — banco principal
@@ -294,10 +296,10 @@ Nada de M.13 está implementado até o PR #130. O bloco de monetização acima (
 
 ## Estado atual
 
-> **Estado atual** (`main`, `37d8cec`, Sprint 16 FECHADO): **1854 testes, 15308
-> asserts** (1853 passam local — a única falha é a antiga da view 451 do GeoBlock,
+> **Estado atual** (`main`, `55de8cd`, Sprint 16 FECHADO): **1866 testes, 15354
+> asserts** (1865 passam local — a única falha é a antiga da view 451 do GeoBlock,
 > que não recorre depois do `npm run build`, que compila a view — ver § "Ambiente
-> de dev"). **120 migrations, ~170 rotas web + 42 rotas API.** **Base original**
+> de dev"). **121 migrations, ~170 rotas web + 42 rotas API.** **Base original**
 > (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
@@ -309,7 +311,8 @@ Sprint 10, **`v1.0-sprint11`** (`11354b4`) no fecho do Sprint 11,
 **`v1.0-sprint12`** (`f23368a`) no fecho do Sprint 12, **`v1.0-sprint13`**
 (`1d63371`) no fecho do Sprint 13, **`v1.0-sprint14`** (`0f6aefb`) no fecho do
 Sprint 14, e **`v1.0-sprint15`** (`bf1c3dd`) no fecho do Sprint 15). **O Sprint 16
-fechou em `37d8cec` (PRs #151–#166) e ainda não tem tag** — o fecho é este doc.
+fechou em `37d8cec` (PRs #151–#166); os PRs #167/#168 mergearam logo depois (`main`
+em `55de8cd`) e ainda não há tag** — o fecho é este doc.
 **O Sprint 9B não tem tag própria** e não está fechado.
 
 > **Sprint 15 fechou com 8 entregas** (tag `v1.0-sprint15`, `bf1c3dd`) — **vídeo
@@ -369,13 +372,13 @@ fechou em `37d8cec` (PRs #151–#166) e ainda não tem tag** — o fecho é este
 > dashboard passa a somar `payments` confirmados, não estimativa de ledger), PR #165
 > (**catálogo de membros para a performer** — § abaixo, `MemberCatalogService`,
 > Interesse Controlado invertido), PR #166 (**som de notificação + preferências** —
-> § abaixo, `users.notification_preferences`). **Ficou de fora / segue em branch
-> não-mergeada:** a **sanitização de upload de vídeo** (branch `feat/video-sanitization`,
-> `ebdf802`) e o **selo de curadoria "maison/select"** (branch `curation-seal`) foram
-> desenvolvidos e empurrados, mas **NÃO estão em `main`** — `performer_content.kind`
-> segue enum photo-only, sem coluna de status de processamento. Abrir PR para
-> mergear é decisão do PO. Também não iniciados: verificação de documento (Didit),
-> hCaptcha em produção, pin PHP 8.5→8.4 no `deploy.yml`.
+> § abaixo, `users.notification_preferences`). **Mergeados APÓS o fecho inicial (PRs
+> #167/#168, `main` em `55de8cd`):** a **sanitização de upload de vídeo** (PR #167 —
+> `performer_content.kind` ganhou `'video'` + coluna `status`
+> `processing→ready/failed`; migration `2026_08_10_000001_add_video_support_to_performer_content`)
+> e o **selo de curadoria "maison/select"** (PR #168 — `<CurationSeal>` no perfil e
+> na `Catalog/Show`/`Performers/Show`). **Não iniciados:** verificação de documento
+> (Didit), hCaptcha em produção, pin PHP 8.5→8.4 no `deploy.yml`.
 
 > **Sprint 14 fechou com 8 entregas** (tag `v1.0-sprint14`, `0f6aefb`) — a
 > **implementação do modelo de monetização fechado** (§ "Modelo de monetização —
@@ -499,7 +502,7 @@ subiu antes do primeiro upload** (denúncia + quarentena + `content_hash`).
 - **Sprint 13** — FECHADO, tag `v1.0-sprint13` (`1d63371`), 5 entregas: **Refactor de roles** (PR #125: `moderador` separado de `admin`, fila humana dedicada `/moderacao/*` sob `role:moderador`, em vez do antigo `/admin/reports` sob `role:admin` — pré-requisito da fila de moderação de verdade e do Curador das FC Sessions); **Evidence viewer** (PR #126: a fila de moderação passou a exibir a PROVA retida — bytes congelados de Story/Foto Efêmera denunciados —, fechando o achado da revisão de 30/07 "a fila não tem como VER a prova"); **Múltiplas localizações** (PR #127: até 3 por performer, com migração das linhas de UF única existentes; só UF é público, `city` segue interno — mesma regra da localização opt-in do Sprint 9A); **Photo permissions** (§ abaixo, PR #128: cada foto da galeria pode ser pública ou privada; foto privada aparece borrada no perfil e só é servida a quem tem `photo_grant` aprovado — ou à dona; o membro solicita, a performer aprova/revoga pelo FanAlias, `member_id` nunca vaza; Hard Delete nos dois sentidos); **Stories feed carousel** (§ abaixo, PR #129: a UI que consome `stories.feed` — carrossel tipo Instagram no topo do catálogo, buscado por fetch para não pagar o `canView` por story no caminho crítico; o selo do Convite via Stories do Sprint 12 finalmente tem tela). **Deploy de staging: as 5 pendentes.** Fora das PRs, nesta janela o **modelo de monetização** foi fechado e documentado (§ "Modelo de monetização — DECISÕES FECHADAS", commit `f6aa9a3`).
 - **Sprint 14** — FECHADO, tag `v1.0-sprint14` (`0f6aefb`), 8 entregas — a **implementação do modelo de monetização M.13**: **PR #130** (invariantes M.13: `config/monetization.php` como fonte canônica dos números + `TokenCreditPolicy` dona única de teto por entry_type/M.13.9, fila de pendência/M.13.8, split round-half-up com `applied_rate` congelado/M.13.7, sinais de chat/gift/payout; migrations de `token_ledger.applied_rate` e `token_wallets.pending_grant_tokens`); **PR #131** (rewire de gorjeta/pacotes/desconto para M.13: `TipService` usa `policy.applyRate/creditWithSplit` 80/20 por evento e dropou `split_pct`, desconto de compra vem da config M.13.3, pacotes achatados M.13.2 no seeder); **PR #132** (chat M.13.1: fim do chat grátis de assinante — todo tier paga abertura via `policy.chatCost`, performer +1 token FIXO `chat_access_credit` never-cap, `memberHasChatWith` virou só `ChatAccess::exists`); **PR #133** (subscription grant com fila de pendência M.13.4/M.13.8: franquia mensal com teto escalonado, webhook de cobrança PRIMÁRIO + `subscriptions:grant-monthly` como rede de reconciliação, marca por-ciclo `last_grant_period_start` fecha o double-grant); **PR #134** (payout mensal R$0,60/token M.13.5/M.10: `calculatePayoutCentavos` = `tokens × 60`, sweep `payouts:process-monthly` dia 1 idempotente por (performer, ano, mês) + on-demand, **só ganhos sacáveis** via allowlist estrito, não paga banida); **PR #135** (conteúdo permanente com acesso por tier M.13.13/M.4 — § abaixo: foto v1, níveis Aberto/Premium/Exclusivo/FC Only, desbloqueio permanente via `ContentUnlock`, `ContentVisibilityService` dona única, split 80/20, denunciável, Hard Delete dois sentidos); **PR #136** (fix de copy dos founding members: gênero-neutro, position counter removido); **PR #137** (catálogo de presentes virtuais M.13.6 — § abaixo: 6 presentes fixos da Limen múltiplos de 4, `GiftService` espelha Tip/ContentUnlock, split 75/25 `applied_rate=75`, idempotência por remetente via UNIQUE composto, performer só vê FanAlias, `gift_credit` no allowlist de payout). **Deploy de staging: as 8 pendentes.** Não iniciado (foi para Sprint 15): live/chamada LiveKit, gorjeta/presente na live com animação, feed de conteúdo permanente, verificação de documento, sanitização de upload de vídeo.
 - **Sprint 15** — FECHADO, tag `v1.0-sprint15` (`bf1c3dd`), 8 entregas — **vídeo em tempo real (LiveKit)**, planejado desde a fundação e finalmente implementado: **PR #138** (infra LiveKit + token service: `LiveKitService` dona única de rooms/JWTs HS256 assinados localmente, `config/livekit.php`, `config/features.php` com flags de dark launch, `feature:*` middleware, identity OPACA por live e FanAlias handle por par na chamada, room_name imprevisível nunca em URL/log/resposta, backstop interno da flag no createRoom/generateToken); **PR #139** (live pública GRÁTIS com gorjeta/presente: `LiveSession`/`LiveSessionService`, serving autorizado por sessão sem URL assinada, reconciliação na leitura da live abandonada, badge "AO VIVO" + ordenação no catálogo, gorjeta 80/20 e presente 75/25 pelas rotas existentes; sem `Crypt` de propósito — 1:N); **PR #140** (chamada privada 1:1 com cobrança por minuto: split 70/30 `applied_rate=70`, request→accept→active, heartbeat pré-pago idempotente por minuto via `minutes_billed`, `MinuteBiller` como motor único, saldo nunca negativo, exclusividade do membro sob lock-âncora, ban/kill-switch, `calls:expire-pending` + `calls:reap-stale`); **PR #141** (group show 1:X + upgrade para 1:1: 1 `call_sessions` `type=group` com `member_id` nullable + N `call_session_participants` de cobrança independente, `MinuteBiller` compartilhado com o 1:1, upgrade que vira `type=private` + revoke dos outros por job de 10s, exclusividade bidirecional 1:1↔group, `closeForMember`); **PR #142** (animação de gorjeta/presente na live: evento broadcast `LiveReaction` no canal privado `live.{slug}` disparado pós-commit pelo Tip/GiftService só durante live ativa, `<LiveOverlay>` com fila sequencial, payload não-sensível — FanAlias label, valor, tipo, nunca member_id/saldo); **PR #143** (preview animado no catálogo: frame JPEG por sessão capturado do canvas do `<LiveRoom>` a cada 10s, validação sem decode server-side, disco privado `live_previews` fora do backup, serving por ServesPhotoBytes autenticado, delete no fim da live + `live-previews:purge`); **PR #144** (toast global estilo Seeking: `<MessageToast>` no AppLayout escuta `user.{id}`, `NewMessage` ganhou `sender_name`/`sender_avatar_url` mascarados por destinatário — FanAlias à performer, stage_name+avatar ao membro —, nunca o corpo, máx. 3 empilhados, auto-dismiss 8s); **PR #145** (**"Em breve"** em produção: flags `features.live_enabled`/`features.call_enabled` compartilhadas como props Inertia globais, `<ComingSoon>`, badge/hover do card gateados na flag, varredura de teste garantindo que TODA rota de live/call/group carrega `feature:*`). **Resolução do § 2.5:** o serving sem cifra em memória que travou as FC Sessions **deixou de existir por arquitetura** — não há serving HTTP de bytes de vídeo; o LiveKit SFU faz o relay via WebRTC (DTLS-SRTP), o backend só emite tokens JWT e controla permissão. **Deploy de staging pendente**; sobe com as flags **off** (liberação é jurídica, muda só o `.env`). Não iniciado (foi para Sprint 16): feed de conteúdo permanente, sanitização de upload de vídeo, verificação de documento, animações elaboradas de presente, preview via WebRTC real, som de notificação.
-- **Sprint 16** — FECHADO, `main` em `37d8cec`, **sem tag** (16 PRs, #151–#166) — duas frentes: **redesign maison** do front (design system `limen-*`) e **superfícies novas de produto**. **PR #151** (fix: PanicButton estava invisível para o membro em certas telas); **PR #152** (card de catálogo v2 nos tokens `limen-*`); **PR #153** (landing redesenhada); **PR #154** (grid v2 + trilha "Agora" agregando lives/stories no topo + slot de Destaque do Boost); **PR #155** (PanicButton vira **link de texto no header** — o disco flutuante sozinho era lido como "fechar" e o membro não achava a saída; achado do UAT — § "PanicButton"); **PR #156** (**crop interativo** de avatar 1:1 e capa 3:1 com cropperjs; o avatar passou a ser higienizado pelo `ImageProcessingService` como o resto); **PR #157** (fix de ruído de log: reconciliação pula pagamentos `pay_fake_` que davam 404 no Asaas, e `LivePreviewService::purgeOrphans` protege contra disco ausente); **PR #158** (perfil da performer redesenhado na estética maison); **PR #159** (**feed do membro** `/feed` — consome o conteúdo permanente do PR #135; `FeedController`, desbloqueio/serving reusam `content.*`); **PR #160** (**dashboard admin de receita** `/admin/dashboard` — `AdminMetricsService`, agregados do ledger + contadores + payouts em `needs_review`, `role:admin` (moderador não vê receita), **zero PII de membro**); **PR #161** (**anti-CSAM MVP** — `CsamScanService`/`PerceptualHashService`, dHash em toda imagem no upload nos 6 caminhos, § abaixo); **PR #162** (preview WebRTC real no hover do card, v2 do snapshot JPEG); **PR #163** (animações de presente por partícula/sprite no `<LiveOverlay>`, v2 da CSS simples); **PR #164** (**receita real**: o dashboard soma `payments` confirmados por `confirmed_at`, não estimativa do ledger); **PR #165** (**catálogo de membros para a performer** — `MemberCatalogService`, Interesse Controlado INVERTIDO, § abaixo); **PR #166** (**som de notificação + preferências** — `users.notification_preferences` JSON, § abaixo). **Ficou de fora / branch NÃO-mergeada:** sanitização de upload de vídeo (`feat/video-sanitization`, `ebdf802` — `main` segue photo-only) e o selo de curadoria (`curation-seal`). **Não iniciados:** verificação de documento (Didit), hCaptcha em produção, pin PHP 8.5→8.4 no `deploy.yml`. Deploy de staging pendente para tudo.
+- **Sprint 16** — FECHADO, `main` em `37d8cec`, **sem tag** (16 PRs, #151–#166) — duas frentes: **redesign maison** do front (design system `limen-*`) e **superfícies novas de produto**. **PR #151** (fix: PanicButton estava invisível para o membro em certas telas); **PR #152** (card de catálogo v2 nos tokens `limen-*`); **PR #153** (landing redesenhada); **PR #154** (grid v2 + trilha "Agora" agregando lives/stories no topo + slot de Destaque do Boost); **PR #155** (PanicButton vira **link de texto no header** — o disco flutuante sozinho era lido como "fechar" e o membro não achava a saída; achado do UAT — § "PanicButton"); **PR #156** (**crop interativo** de avatar 1:1 e capa 3:1 com cropperjs; o avatar passou a ser higienizado pelo `ImageProcessingService` como o resto); **PR #157** (fix de ruído de log: reconciliação pula pagamentos `pay_fake_` que davam 404 no Asaas, e `LivePreviewService::purgeOrphans` protege contra disco ausente); **PR #158** (perfil da performer redesenhado na estética maison); **PR #159** (**feed do membro** `/feed` — consome o conteúdo permanente do PR #135; `FeedController`, desbloqueio/serving reusam `content.*`); **PR #160** (**dashboard admin de receita** `/admin/dashboard` — `AdminMetricsService`, agregados do ledger + contadores + payouts em `needs_review`, `role:admin` (moderador não vê receita), **zero PII de membro**); **PR #161** (**anti-CSAM MVP** — `CsamScanService`/`PerceptualHashService`, dHash em toda imagem no upload nos 6 caminhos, § abaixo); **PR #162** (preview WebRTC real no hover do card, v2 do snapshot JPEG); **PR #163** (animações de presente por partícula/sprite no `<LiveOverlay>`, v2 da CSS simples); **PR #164** (**receita real**: o dashboard soma `payments` confirmados por `confirmed_at`, não estimativa do ledger); **PR #165** (**catálogo de membros para a performer** — `MemberCatalogService`, Interesse Controlado INVERTIDO, § abaixo); **PR #166** (**som de notificação + preferências** — `users.notification_preferences` JSON, § abaixo). **Mergeados após o fecho inicial (PRs #167/#168, `main` em `55de8cd`):** sanitização de upload de vídeo (PR #167 — `performer_content.kind` ganhou `'video'` + coluna `status`; ffmpeg re-encode H.264/AAC) e o selo de curadoria (PR #168). **Não iniciados:** verificação de documento (Didit), hCaptcha em produção, pin PHP 8.5→8.4 no `deploy.yml`. Deploy de staging pendente para tudo.
 - Fora da trilha numerada: **Waitlist** (double opt-in, drip, painel admin) e **Círculos** (assinaturas por tier — Fase A Explorador→Prestige, Fase B Black/FC).
 
 > **Sprint 2 não tem registro** nos docs; a numeração pula de 1 para 3 de propósito.
@@ -525,18 +528,29 @@ resolvido** (não há serving HTTP de bytes de vídeo; o LiveKit SFU faz o relay
 WebRTC/DTLS-SRTP e o backend só emite tokens JWT + controla permissão). O que ficou
 de fora daquele backlog carregou para o Sprint 16 abaixo.
 
-### Sprint 16 — FECHADO (PRs #151–#166, `37d8cec`, sem tag)
-O que era backlog do Sprint 16 foi majoritariamente entregue. Estado item a item:
+### Sprint 16 — FECHADO (PRs #151–#166 + #167/#168, `main` em `55de8cd`, sem tag)
+O que era backlog do Sprint 16 foi entregue. Os dois itens que fecharam em branch
+não-mergeada (vídeo e selo de curadoria) foram mergeados APÓS o fecho inicial —
+PRs #167 (`feat/video-sanitization`) e #168 (`feat/profile-curation-seal`), `main`
+em `55de8cd`. Estado item a item:
 
 - ✅ **Feed/timeline de conteúdo permanente** — entregue (PR #159): rota `/feed`
   (`FeedController`, `throttle:60,1`, grupo de membro verificado), consome o backend
   do PR #135; desbloqueio/serving reusam `content.*`.
-- ⚠️ **Sanitização de upload de vídeo** — **desenvolvida em branch, NÃO mergeada.**
-  `feat/video-sanitization` (`ebdf802`): pipeline ffmpeg (H.264/AAC, strip de
-  metadata, teto 500MB/10min, thumbnail, job assíncrono, status
-  `processing→ready/failed`). **`main` NÃO tem isso** — `performer_content.kind` segue
-  enum `['photo']`, sem coluna de status. Abrir PR é decisão do PO. (NÃO se aplica ao
-  vídeo ao vivo do LiveKit, que é relay WebRTC, não upload — § 2.5.)
+- ✅ **Sanitização de upload de vídeo** — **entregue (PR #167, `main` em `55de8cd`).**
+  Pipeline ffmpeg: job assíncrono `ProcessVideoContent` re-encoda para H.264/AAC a
+  partir dos streams DECODIFICADOS (nunca stream copy), mapeia só o 1º vídeo + 1º
+  áudio e derruba data/subtitle/attachment (`-dn -sn`) e toda metadata
+  (`-map_metadata -1`, mata GPS/device); thumbnail auto ~1s (640px JPEG, fallback
+  frame-0). Limites 500MB (Form Request) e 10min (ffprobe no upload → 422); não-vídeo
+  → 422. Upload volta na hora com `status=processing`; só é servível em `status=ready`
+  (o `ContentVisibilityService` e o feed exigem `ready`, então processing/failed
+  nunca é visto/listado/desbloqueável — nem pela dona). ffmpeg ausente → fail-closed.
+  `performer_content.kind` ganhou `'video'` + coluna `status` (migration
+  `2026_08_10_000001`); `content.video` faz streaming (BinaryFile, Range/seek,
+  `video/mp4`+nosniff). GC `content:purge-orphan-raw` (horário). Foto segue no
+  pipeline GD síncrono. (NÃO se aplica ao vídeo ao vivo do LiveKit, que é relay
+  WebRTC, não upload — § 2.5.)
 - ❌ **Verificação de documento como produto** (R$ 9,90) — **não iniciada.** Depende
   da Didit (a mesma integração do KYC da performer).
 - ✅ **Animações elaboradas de presente** — entregue (PR #163): sprites/partículas
@@ -545,8 +559,12 @@ O que era backlog do Sprint 16 foi majoritariamente entregue. Estado item a item
   v2 do snapshot JPEG a cada 10s do PR #143.
 - ✅ **Som de notificação + preferências** — entregue (PR #166): § abaixo,
   `users.notification_preferences` (JSON por-usuário).
-- ⚠️ **Selo de curadoria "maison/select"** — **branch `curation-seal`, NÃO mergeada.**
-  Mostraria o tier de curadoria no card/perfil; não está em `main`.
+- ✅ **Selo de curadoria "maison/select"** — **entregue (PR #168, `main` em `55de8cd`).**
+  `<CurationSeal>` (fonte única) mostra o tier de curadoria como pílula dourada
+  discreta ao lado do nome na `Catalog/Show` (membro) e na `Performers/Show` (guest),
+  espelhando o card: Maison = pílula com borda, Select = pílula sutil preenchida.
+  Renderiza só para tiers com selo (nada para os demais); usa a prop `performer.tier`
+  já existente. **É a curadoria DA PERFORMER — nenhum tier de membro é exposto.**
 - ❌ **hCaptcha habilitado em produção** — não feito; `HCAPTCHA_ENABLED` segue off.
 - ❌ **Pin PHP 8.5→8.4 no `deploy.yml`** — não feito (exige token com escopo
   `workflow`; o servidor de dev não tem). Alvo de produção é 8.4.24.
@@ -1412,6 +1430,6 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD='<ver .env>' \
   HCAPTCHA_ENABLED=false php artisan test
 ```
-  Resultado esperado (Sprint 16, `37d8cec`): **1853 passam, 1 falha** de **1854
-  testes / 15308 asserts** (o `GeoBlockTest` da view 451, falha documentada só neste
+  Resultado esperado (Sprint 16, `55de8cd`): **1865 passam, 1 falha** de **1866
+  testes / 15354 asserts** (o `GeoBlockTest` da view 451, falha documentada só neste
   clone de dev; verde no CI).

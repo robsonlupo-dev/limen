@@ -15,13 +15,14 @@
 > (`/admin/dashboard`, #160/#164), **anti-CSAM MVP** (#161), preview WebRTC real
 > (#162), animações de presente v2 (#163), **catálogo de membros para a performer**
 > (#165, Interesse Controlado invertido) e **som de notificação + preferências**
-> (#166). PanicButton ganhou 3 saídas redundantes (#151/#155). **Ficou de fora /
-> branch NÃO-mergeada:** a sanitização de upload de vídeo (`feat/video-sanitization`,
-> `ebdf802`) e o selo de curadoria (`curation-seal`) — **não estão em `main`**;
-> `performer_content.kind` segue enum photo-only. Suíte: **1854 testes, 15308
-> asserts** (1853 passam local — a única falha é a antiga view 451 do GeoBlock, que
-> compila no `npm run build`/CI). PHP no servidor **8.4.24**, `ffmpeg` instalado,
-> upload do FPM em 512M.
+> (#166). PanicButton ganhou 3 saídas redundantes (#151/#155). **Mergeados APÓS o
+> fecho inicial (`main` em `55de8cd`):** a sanitização de upload de vídeo (PR #167,
+> `feat/video-sanitization` — `performer_content.kind` ganhou `'video'` + coluna
+> `status`; ffmpeg re-encode H.264/AAC) e o selo de curadoria (PR #168,
+> `feat/profile-curation-seal`). Suíte: **1866 testes, 15354 asserts** (1865 passam
+> local — a única falha é a antiga view 451 do GeoBlock, que compila no
+> `npm run build`/CI). PHP no servidor **8.4.24**, `ffmpeg` instalado, upload do FPM
+> em 512M.
 >
 > **Histórico recente:** 05/08/2026 — **`main` em `bf1c3dd`**, tag
 > **`v1.0-sprint15`** (`bf1c3dd`). **Sprint 15 FECHADO** — 8 entregas, o **vídeo
@@ -114,6 +115,7 @@
 23. [Aceite de documentos da performer](#23-aceite-de-documentos-da-performer)
 24. [LGPD — Hard Delete e sistema de Report](#24-lgpd--hard-delete-e-sistema-de-report)
 25. [Rotas, CI/CD, deploy e ambiente](#25-rotas-cicd-deploy-e-ambiente)
+- [**Features desenhadas, não implementadas**](#features-desenhadas-não-implementadas) — inclui **Agendamento de chamada** (design fechado)
 - [**MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS**](#modelo-de-monetização-limen--decisões-fechadas)
 - [Apêndice A — Backlog e próximos passos](#apêndice-a--backlog-e-próximos-passos)
 - [Apêndice B — Limitações conhecidas (não redescobrir)](#apêndice-b--limitações-conhecidas-não-redescobrir)
@@ -124,13 +126,13 @@
 
 ## 1. Snapshot do estado atual
 
-> **Snapshot de `main` HEAD (`37d8cec`) — Sprint 16 fechado (PRs #151–#166),
-> SEM TAG (o fecho é este doc).** Os números abaixo refletem esse estado.
+> **Snapshot de `main` HEAD (`55de8cd`) — Sprint 16 fechado (PRs #151–#166 +
+> #167/#168), SEM TAG (o fecho é este doc).** Os números abaixo refletem esse estado.
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1854 testes, 15308 asserts** (verde no CI; local 1853 passam — a única falha é a antiga view 451 do GeoBlock, que compila no `npm run build`/CI) | `php artisan test` (~210 s) |
-| Migrations | **120** (+5 no Sprint 16: csam, notification_preferences, visible_to_performers, enum de source `catalog`, previous_slugs) | `ls database/migrations/*.php \| wc -l` |
+| Suíte de testes | **1866 testes, 15354 asserts** (verde no CI; local 1865 passam — a única falha é a antiga view 451 do GeoBlock, que compila no `npm run build`/CI) | `php artisan test` (~210 s) |
+| Migrations | **121** (+6 no Sprint 16: csam, notification_preferences, visible_to_performers, enum de source `catalog`, previous_slugs, suporte a vídeo em `performer_content`) | `ls database/migrations/*.php \| wc -l` |
 | Rotas registradas | **223** | `php artisan route:list` |
 | `Route::` nomeadas em `routes/web.php` | 175 | `grep` |
 | Rotas HTTP em `routes/api.php` | 42 (o OTP e o **catálogo de presentes** têm porta de API; **feed, catálogo de membros, dashboard admin, foto, story, notas, boost, convite, buscas salvas, photo permissions, ENVIO de presente e TODA a superfície de live/chamada/group continuam só web**) | `grep` |
@@ -1030,12 +1032,13 @@ busca" + modal e o dropdown "Buscas salvas" (aplica/apaga). Detalhe no
 
 ## Sprint 16 — Fechado
 
-> **FECHADO — `main` em `37d8cec`, SEM TAG NOVA** (o fecho é este doc; a última
+> **FECHADO — `main` em `55de8cd`, SEM TAG NOVA** (o fecho é este doc; a última
 > tag segue `v1.0-sprint15`). **16 PRs mergeadas (#151–#166)** em duas frentes: um
 > **redesign "maison"** do front sobre o design system `limen-*` e um conjunto de
-> **superfícies novas de produto**. Suíte no fecho: **1854 testes, 15308 asserts**
-> (1853 passam local; a única falha é a antiga view 451 do GeoBlock). PHP no
-> servidor **8.4.24**, `ffmpeg` instalado, upload do FPM em 512M.
+> **superfícies novas de produto** — mais **dois PRs que fecharam logo depois**
+> (#167 sanitização de vídeo, #168 selo de curadoria). Suíte no fecho: **1866
+> testes, 15354 asserts** (1865 passam local; a única falha é a antiga view 451 do
+> GeoBlock). PHP no servidor **8.4.24**, `ffmpeg` instalado, upload do FPM em 512M.
 
 ### ENTREGUE — redesign maison + fixes de UX
 
@@ -1110,20 +1113,44 @@ busca" + modal e o dropdown "Buscas salvas" (aplica/apaga). Detalhe no
   `NULL ≡ nunca escolheu`, resolvido na leitura por `User::notificationSoundPreferences()`
   como todos ON). Toggles por tipo (message/tip/live); coluna fora do `$fillable`.
 
+### Mergeado após o fecho inicial (PRs #167/#168, `main` em `55de8cd`)
+
+- ✅ **PR #167 — Sanitização de upload de vídeo (ENTREGUE).** Job assíncrono
+  `ProcessVideoContent` re-encoda para MP4 H.264/AAC a partir dos streams
+  DECODIFICADOS (nunca stream copy), mapeando só o 1º vídeo + 1º áudio e derrubando
+  data/subtitle/attachment (`-dn -sn`, vetores de payload) e toda metadata
+  (`-map_metadata -1`, mata GPS/device). Thumbnail auto ~1s (640px JPEG, fallback
+  frame-0). Limites: 500MB (Form Request, antes do processamento); 10min (ffprobe no
+  upload → 422, antes de disparar o job caro); não-vídeo → 422. Upload volta na hora
+  com `status=processing`; só é servível em `status=ready` — o
+  `ContentVisibilityService` (canView/denialForUnlock/galleryFor) e o feed exigem
+  `ready`, então processing/failed nunca é visto/listado/desbloqueável, nem pela dona
+  (não há bytes). ffmpeg ausente → **fail-closed** (422/failed, nunca grava arquivo
+  não-higienizado). `content.image` serve o poster do vídeo; `content.video` faz
+  streaming (BinaryFile, Range/seek, `video/mp4`+nosniff), só quando `canView`.
+  `performer_content.kind` ganhou `'video'` + coluna `status`
+  (`2026_08_10_000001_add_video_support_to_performer_content`); GC
+  `content:purge-orphan-raw` (horário) varre uploads crus de jobs largados;
+  `DeletionService` apaga o thumbnail. Foto segue no pipeline GD síncrono.
+  **Security review passou** (re-encode neutraliza polyglot/payload; `Process` usa
+  args de array — sem shell injection).
+- ✅ **PR #168 — Selo de curadoria "maison/select" (ENTREGUE).** `<CurationSeal>`
+  (fonte única) mostra o tier de curadoria como pílula dourada discreta ao lado do
+  nome na `Catalog/Show` (membro) e na `Performers/Show` (guest), espelhando o card:
+  Maison = pílula com borda, Select = pílula sutil preenchida. Renderiza só para
+  tiers com selo (nada para os demais); usa a prop `performer.tier` já existente.
+  **É a curadoria DA PERFORMER — nenhum tier de membro é exposto.**
+
 ### O que NÃO subiu / ficou de fora
 
-- ⚠️ **Sanitização de upload de vídeo — desenvolvida em branch, NÃO mergeada.**
-  Branch `feat/video-sanitization` (`ebdf802`): pipeline ffmpeg (H.264/AAC, strip de
-  metadata, teto 500MB/10min, thumbnail, job assíncrono, status
-  `processing→ready/failed`). **`main` NÃO tem** — `performer_content.kind` segue
-  enum `['photo']`, sem coluna de status. Abrir PR é decisão do PO.
-- ⚠️ **Selo de curadoria "maison/select" — branch `curation-seal`, NÃO mergeada.**
 - ❌ **Não iniciados:** verificação de documento como produto (Didit), hCaptcha em
   produção, pin PHP 8.5→8.4 no `deploy.yml`.
-- **Deploy de staging pendente** para as 16 entregas.
+- **Deploy de staging pendente** para as 18 entregas.
 
-### Novas migrations (Sprint 16, 5)
+### Novas migrations (Sprint 16, 6)
 
+`2026_08_10_000001_add_video_support_to_performer_content` (kind ganha `'video'` +
+coluna `status` `processing/ready/failed`, PR #167),
 `2026_08_10_000002_create_csam_tables` (csam_hashes + content_hash_checks),
 `2026_08_11_000001_add_notification_preferences_to_users`,
 `2026_08_11_000002_add_visible_to_performers_to_users` (tri-state + backfill
@@ -1132,6 +1159,124 @@ conservador), `2026_08_11_000003_add_catalog_to_interest_source_enum`,
 
 Detalhe completo por feature no **CLAUDE.md** (§§ Catálogo de membros, Anti-CSAM,
 Som de notificação, PanicButton, e a convenção de design tokens `limen-*`).
+
+---
+
+## Features desenhadas, não implementadas
+
+> Seção para specs **fechadas pelo PO** cujo **código ainda não existe**. Não é
+> backlog solto (Apêndice A) nem inventário do que roda (§ 1) — é o desenho pronto
+> para virar sprint. Ao pegar um item daqui, **releia a spec inteira antes de
+> codar** e rode o subagente de segurança (é feature sensível: paga, com sala de
+> vídeo e des-anonimização por chamada).
+
+### Agendamento de chamada — DESIGN FECHADO, código PENDENTE
+
+**Estado: DESIGN FECHADO pelo PO, código PENDENTE (nenhuma linha em `main`).**
+
+Evolução da **chamada privada 1:1** (PR #140, Sprint 15): em vez de pedir a chamada
+agora e depender de a performer estar online, o **membro agenda** performer + data/
+hora e o sistema **trava um depósito** para garantir o compromisso dos dois lados.
+Reusa o motor de cobrança por minuto do PR #140 (`MinuteBiller`, `LiveKitService`,
+split 70/30 congelado) — o que muda é o **ciclo de vida** (reserva → confirmação →
+janela → ativa/no-show) e a **contabilidade do depósito**. Toda a economia segue os
+princípios não-negociáveis: **ledger append-only** (cada movimento é linha nova,
+nunca `UPDATE ... saldo`), **pré-pago / saldo nunca negativo**, **split por evento
+congelado** em `applied_rate`, **tokens inteiros**.
+
+#### Ciclo de vida
+
+1. **Reserva (membro).** O membro escolhe performer + data/hora dentro de um slot
+   disponível. No ato, o sistema **TRAVA 1 minuto** (o preço/min corrente da
+   performer, em tokens) como **depósito**, debitando o saldo do membro numa linha
+   `spend_call_reservation` do ledger (débito pré-pago — sem saldo, sem reserva; o
+   preço/min fica **congelado** na reserva para o depósito não mudar se a performer
+   reprecificar). Cria `call_reservations` com `status=pending`.
+2. **Confirmação (performer, MANUAL).** A performer confirma a reserva →
+   `status=confirmed`. **Não confirmar até 2h antes** do horário → o sistema
+   **cancela automaticamente e faz refund integral** do depósito ao membro
+   (`call_reservation_refund`, 100% ao membro). É a garantia do membro contra
+   performer que "aceita e squeeze": silêncio = devolução.
+3. **Sala privada.** A chamada acontece numa **sala privada** — **NÃO aparece como
+   live** em catálogo/trilha "Agora"/badge algum (é o oposto da live pública do
+   PR #139). A **performer entra primeiro** (é ela quem abre a sala verificada).
+4. **Aviso T-5min.** Cinco minutos antes do horário, **aviso aos dois** (reusa o
+   canal de notificação/som do PR #166). Quando a **performer entra**, dispara a
+   **janela de 2 minutos** para o **membro entrar**.
+5. **Membro entra (chamada ativa).** O **1º minuto é pago pelo depósito** já
+   travado na reserva (converte a reserva no minuto 1: o membro já pagou, a
+   performer é creditada 70/30 por esse minuto via `call_credit`). Do 2º minuto em
+   diante segue a cobrança normal do PR #140 — **70/30 por minuto** pré-pago via
+   `MinuteBiller` (`spend_call` + `call_credit`, `applied_rate=70`), saldo nunca
+   negativo, encerra quando acaba o saldo ou o slot.
+
+#### No-show — a contabilidade do depósito
+
+- **No-show do MEMBRO** (performer entrou, membro não entrou na janela de 2min): o
+  **depósito vira 100% da performer** via **`call_noshow_credit`** (split **100/0** —
+  `applied_rate=100`, é compensação pela reserva do horário, não minuto de serviço).
+  Entra no **allowlist de ganhos sacáveis** (M.13.5/M.10) — é ganho da performer.
+- **No-show da PERFORMER** (confirmou mas não entrou): **refund imediato** do
+  depósito ao membro (`call_reservation_refund`, 100%) **+ 1 strike** na performer.
+  **3 strikes → review de admin** (fila de moderação/`needs_review`, decisão humana
+  — não banimento automático). O strike é o custo de confirmar e não aparecer.
+
+#### Slot, buffer e limites
+
+- **Slot:** a performer define a duração-padrão do slot (**default 15min**),
+  **flexível** — se não houver próximo agendamento na sequência, a chamada pode
+  passar do slot (a cobrança por minuto continua enquanto houver saldo).
+- **Buffer de 5min** entre slots (evita colisão e dá respiro entre chamadas).
+- **Cancelamento grátis até 2h antes** (refund integral do depósito). Depois disso,
+  cancelar do lado do membro **não** devolve o depósito (é a contrapartida do
+  compromisso — mesma janela dos 2h da confirmação).
+- **Máximo 5 agendamentos ativos por membro** (teto duro, imposto sob lock na
+  linha-âncora do `users`, como o cap de buscas salvas do Sprint 12).
+
+#### Escopo (v1) e backlog (v2)
+
+- **v1 SEM agenda visual** — o membro escolhe data/hora por formulário simples
+  contra os slots livres; nada de calendário renderizado.
+- **v2 (BACKLOG):** agenda recorrente (a performer publica horários fixos
+  semanais), visão de calendário, lembretes escalonados.
+
+#### Escopo técnico (para quem for implementar)
+
+1. **Migration `call_reservations`** — `member_id`, `performer_profile_id`,
+   `scheduled_at`, `slot_minutes`, `status`
+   (`pending/confirmed/cancelled/refunded/active/completed/no_show_member/no_show_performer`),
+   `deposit_tokens` + `price_per_min_locked`, timestamps de confirmação/entrada de
+   cada lado, `call_session_id` nullable (liga na sessão do PR #140 quando ativa).
+   Índices para o job de cron (por `status` + `scheduled_at`) e para o teto por membro.
+2. **Novos `entry_type` no enum do `token_ledger`** (migration própria, princípio
+   nº 2 — nunca `UPDATE` de saldo): **`spend_call_reservation`** (débito do depósito),
+   **`call_reservation_refund`** (refund ao membro — nunca respeita teto, fora do
+   allowlist de payout), **`call_noshow_credit`** (crédito 100/0 à performer no
+   no-show do membro — **dentro** do allowlist de ganhos). Registrar as taxas em
+   `config/monetization.php` por `entry_type` com data de vigência (M.13.7).
+3. **Controller + Form Requests** (rota de membro verificado para
+   agendar/cancelar; rota de performer para confirmar) + **policy/autorização**
+   (só o dono da reserva age; erro do lado seguro é 404, não 403 — disciplina do
+   Interesse/notas).
+4. **Job de cron** — varre `pending` sem confirmação a T-2h (cancela + refund),
+   `confirmed` cujo horário passou sem a performer entrar (no-show performer:
+   refund + strike), e a janela de 2min do membro (no-show membro: depósito à
+   performer). Idempotente por reserva (não pode refundar/creditar duas vezes).
+5. **Integração com o PR #140** — reusar `LiveKitService` (sala privada, room_name
+   nunca em URL/log), `MinuteBiller` (minutos 2+), a exclusividade sob lock e o
+   kill-switch/ban. A reserva NÃO cria `LiveSession` (não é live) — cria/liga uma
+   `call_sessions` `type=private` na entrada.
+6. **Strike da performer** — contador + limiar 3 → `needs_review` na fila de
+   moderação (reusa a porta do payout `needs_review`/evidence do Sprint 13).
+7. **UI** — do membro: agendar (form contra slots livres), lista das próprias
+   reservas com faixa de horário (nunca relógio ao minuto, disciplina do painel de
+   visitantes), cancelar; da performer: fila de reservas a confirmar, aviso T-5min,
+   entrar na sala. Notificação/som pelo PR #166.
+8. **Revisão de segurança OBRIGATÓRIA antes do merge** — é feature paga, com sala
+   de vídeo e des-anonimização por chamada (a performer vê o membro): rodar o
+   subagente de segurança e cobrir depósito/refund idempotentes, saldo nunca
+   negativo, teto por membro sob concorrência, e o par de respostas não virar
+   oráculo de existência de reserva.
 
 ---
 
@@ -1292,8 +1437,9 @@ dois. A revisão do plano achou que o sweep pagava conta **banida** (só checava
 aos DOIS caminhos.
 
 **PR #135 — Conteúdo permanente com acesso por tier (M.13.13/M.4).** Primeira
-monetização de CONTEÚDO: **photo-only v1** (vídeo é upload não-higienizável — GD
-não processa vídeo — fica p/ PR próprio) e **1 arquivo por peça**. `PerformerContent`
+monetização de CONTEÚDO: **photo-only v1** (o vídeo não passava pela higienização
+GD; **foi entregue depois no PR #167** com pipeline ffmpeg assíncrono — ver Sprint 16)
+e **1 arquivo por peça**. `PerformerContent`
 (níveis Aberto/Premium/Exclusivo/FC Only + preço) + `ContentUnlock` (UNIQUE
 (peça,membro), desbloqueio **permanente**). `ContentVisibilityService` é a **dona
 única** de "quem alcança" (espelha `StoryVisibilityService`, fail-closed por tier).
@@ -1543,7 +1689,7 @@ desbloqueio de Interesse. Dona única: `BoostService`. Detalhe no CLAUDE.md, § 
 | Testes | Pest | `^4.7` (+ plugin-laravel `^4.1`) |
 | Lint PHP | Laravel Pint | `^1.27` — **não há step de lint no CI** |
 | Pagamento | Asaas / PIX | driver `fake` em dev/staging |
-| Vídeo | ffmpeg | instalado no servidor (sanitização de upload — branch não-mergeada) |
+| Vídeo | ffmpeg | instalado no servidor (sanitização de upload ENTREGUE, PR #167 — `VideoProcessingService`) |
 | Upload | PHP-FPM | `upload_max_filesize`/`post_max_size` **512M** (conteúdo em vídeo) |
 
 **Dependências JS (package.json):** `cropperjs` (crop de avatar/capa, Sprint 16), `@inertiajs/vue3`, `vue ^3.5`, `ziggy-js`,
@@ -1603,9 +1749,9 @@ HCAPTCHA_ENABLED=false php artisan test
 > Pest re-roda `migrate:fresh` a cada teste e o processo *parece travar*. Para
 > ver a exceção real, rode `php artisan migrate:fresh` sozinho.
 
-> A suíte tem **1854 testes** e leva **~3,5min** (`37d8cec`). Em foreground isso
+> A suíte tem **1866 testes** e leva **~3,5min** (`55de8cd`). Em foreground isso
 > estoura o timeout de 120s de uma chamada de shell; rode em background e aguarde a
-> notificação de conclusão. Baseline verde local: **1853 passam, 1 falha** (a antiga
+> notificação de conclusão. Baseline verde local: **1865 passam, 1 falha** (a antiga
 > view 451 do GeoBlock, que não compila neste clone de dev; verde no CI).
 
 ### 3.2 Lint (Pint)
@@ -2895,19 +3041,21 @@ pendente:
 Estado item a item (ver "Sprint 16 — Fechado" para o detalhe por PR):
 
 - [x] **Feed/timeline de conteúdo permanente** — ENTREGUE (PR #159, `/feed`).
-- [ ] **Sanitização de upload de vídeo** — ⚠️ **branch `feat/video-sanitization`
-      (`ebdf802`) NÃO mergeada.** Pipeline ffmpeg pronto (H.264/AAC, strip metadata,
-      500MB/10min, thumbnail, job assíncrono, status `processing→ready/failed`), mas
-      **`main` NÃO tem** — `performer_content.kind` segue photo-only. Abrir PR é
-      decisão do PO. **Não se aplica ao vídeo LiveKit** (relay WebRTC — § 2.5).
+- [x] **Sanitização de upload de vídeo** — ENTREGUE (PR #167, `main` em `55de8cd`).
+      Pipeline ffmpeg assíncrono (`ProcessVideoContent`/`VideoProcessingService`):
+      re-encode H.264/AAC dos streams decodificados, strip de metadata, 500MB/10min,
+      thumbnail, status `processing→ready/failed`; `performer_content.kind` ganhou
+      `'video'` + coluna `status`; fail-closed sem ffmpeg. **Não se aplica ao vídeo
+      LiveKit** (relay WebRTC — § 2.5).
 - [ ] **Verificação de documento como produto** (R$ 9,90) — não iniciada. Depende
       da Didit.
 - [x] **Animações elaboradas de presente** — ENTREGUE (PR #163).
 - [x] **Preview via WebRTC real** — ENTREGUE (PR #162).
 - [x] **Som de notificação + preferências** — ENTREGUE (PR #166,
       `users.notification_preferences`).
-- [ ] **Selo de curadoria "maison/select"** — ⚠️ branch `curation-seal` NÃO
-      mergeada (mostraria o tier de curadoria no card/perfil).
+- [x] **Selo de curadoria "maison/select"** — ENTREGUE (PR #168, `main` em `55de8cd`;
+      `<CurationSeal>` na `Catalog/Show` e `Performers/Show` — curadoria da performer,
+      nenhum tier de membro exposto).
 - [ ] **hCaptcha habilitado em produção** — não feito; segue off.
 - [ ] **Prazo máximo de retenção da prova** — o evidence viewer (Sprint 13) deixa
       a moderação VER a prova retida, mas nada expira a retenção. (Metade restante
