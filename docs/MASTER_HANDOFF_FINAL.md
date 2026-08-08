@@ -7,7 +7,23 @@
 > continua sendo o cérebro operacional do projeto.
 >
 > **Gerado em:** 22/07/2026 · **Branch de origem:** `feat/sprint6-final`
-> **Última atualização:** 05/08/2026 — **`main` em `bf1c3dd`**, tag
+> **Última atualização:** 08/08/2026 — **`main` em `37d8cec`**, **SEM TAG NOVA**
+> (o fecho do Sprint 16 é este doc). **Sprint 16 FECHADO** — 16 PRs (#151–#166),
+> duas frentes: **redesign "maison"** do front no design system `limen-*` (catálogo,
+> landing, card, perfil, crop de avatar/capa — PRs #152–#158) e **superfícies novas
+> de produto**: feed do membro (`/feed`, #159), dashboard admin de receita
+> (`/admin/dashboard`, #160/#164), **anti-CSAM MVP** (#161), preview WebRTC real
+> (#162), animações de presente v2 (#163), **catálogo de membros para a performer**
+> (#165, Interesse Controlado invertido) e **som de notificação + preferências**
+> (#166). PanicButton ganhou 3 saídas redundantes (#151/#155). **Ficou de fora /
+> branch NÃO-mergeada:** a sanitização de upload de vídeo (`feat/video-sanitization`,
+> `ebdf802`) e o selo de curadoria (`curation-seal`) — **não estão em `main`**;
+> `performer_content.kind` segue enum photo-only. Suíte: **1854 testes, 15308
+> asserts** (1853 passam local — a única falha é a antiga view 451 do GeoBlock, que
+> compila no `npm run build`/CI). PHP no servidor **8.4.24**, `ffmpeg` instalado,
+> upload do FPM em 512M.
+>
+> **Histórico recente:** 05/08/2026 — **`main` em `bf1c3dd`**, tag
 > **`v1.0-sprint15`** (`bf1c3dd`). **Sprint 15 FECHADO** — 8 entregas, o **vídeo
 > em tempo real (LiveKit)** planejado desde a fundação: PR #138 (infra LiveKit +
 > token service), PR #139 (live pública grátis com gorjeta/presente), PR #140
@@ -16,9 +32,7 @@
 > (preview animado no catálogo), PR #144 (toast global de mensagem), PR #145
 > ("Em breve" em produção via feature flag). **§ 2.5 RESOLVIDO** — não há serving
 > HTTP de bytes de vídeo; o LiveKit SFU faz o relay via WebRTC (DTLS-SRTP) e o
-> backend só emite tokens JWT. Suíte: **1743 testes, 14627 asserts** (verde no CI;
-> local 1742 passam — a única falha é a antiga view 451 do GeoBlock, que compila no
-> `npm run build`/CI).
+> backend só emite tokens JWT. Suíte era **1743 testes, 14627 asserts**.
 >
 > **A tag `v1.0-sprint15` (`bf1c3dd`) marca o fecho do Sprint 15, e é marco de
 > CÓDIGO, não de go-live.** Deploy de staging pendente: **as 8 entregas ainda NÃO
@@ -110,27 +124,27 @@
 
 ## 1. Snapshot do estado atual
 
-> **Snapshot de `main` HEAD (`bf1c3dd`) = tag `v1.0-sprint15` — Sprint 15
-> fechado (PRs #138–#145).** Os números abaixo refletem esse estado.
+> **Snapshot de `main` HEAD (`37d8cec`) — Sprint 16 fechado (PRs #151–#166),
+> SEM TAG (o fecho é este doc).** Os números abaixo refletem esse estado.
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1743 testes, 14627 asserts** (verde no CI; local 1742 passam — a única falha é a antiga view 451 do GeoBlock, que compila no `npm run build`/CI) | `php artisan test` (~190 s) |
-| Migrations | **115** | `ls database/migrations/*.php \| wc -l` |
-| Rotas registradas | **215** | `php artisan route:list` |
-| `Route::` nomeadas em `routes/web.php` | 167 | `grep` |
-| Rotas HTTP em `routes/api.php` | 42 (o OTP e o **catálogo de presentes** têm porta de API; **foto, story, notas, boost, convite, buscas salvas, photo permissions, feed de stories, ENVIO de presente e TODA a superfície de live/chamada/group continuam só web**) | `grep` |
-| Services | 50 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) | `ls app/Services/*.php` |
-| Models | 48 | `ls app/Models/` |
-| Controllers Web | 66 | `find app/Http/Controllers/Web` |
+| Suíte de testes | **1854 testes, 15308 asserts** (verde no CI; local 1853 passam — a única falha é a antiga view 451 do GeoBlock, que compila no `npm run build`/CI) | `php artisan test` (~210 s) |
+| Migrations | **120** (+5 no Sprint 16: csam, notification_preferences, visible_to_performers, enum de source `catalog`, previous_slugs) | `ls database/migrations/*.php \| wc -l` |
+| Rotas registradas | **223** | `php artisan route:list` |
+| `Route::` nomeadas em `routes/web.php` | 175 | `grep` |
+| Rotas HTTP em `routes/api.php` | 42 (o OTP e o **catálogo de presentes** têm porta de API; **feed, catálogo de membros, dashboard admin, foto, story, notas, boost, convite, buscas salvas, photo permissions, ENVIO de presente e TODA a superfície de live/chamada/group continuam só web**) | `grep` |
+| Services | 54 (+ subpastas `Asaas`, `Kyc`, `Waitlist`) — novos no Sprint 16: `MemberCatalogService`, `CsamScanService`, `PerceptualHashService`, `AdminMetricsService` | `ls app/Services/*.php` |
+| Models | 51 | `ls app/Models/` |
+| Controllers Web | 70 | `find app/Http/Controllers/Web` |
 | Controllers API | 23 | `find app/Http/Controllers/Api` |
 | Middleware | 13 | `ls app/Http/Middleware/` |
-| Commands (agendáveis) | 18 | `ls app/Console/Commands/` |
+| Commands (agendáveis) | 19 (`csam:import-hashes` novo) | `ls app/Console/Commands/` |
 | Jobs | 4 | `ls app/Jobs/` |
 | Events | 12 | `ls app/Events/` |
 | Policies | 4 | `ls app/Policies/` |
-| Configs | 30 (`livekit`, `features` novos no Sprint 15) | `ls config/` |
-| Tag Git | **`v1.0-sprint15` (`bf1c3dd`, fecho do Sprint 15)**, `v1.0-sprint14` (`0f6aefb`), `v1.0-sprint13` (`1d63371`), `v1.0-sprint12` (`f23368a`), `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
+| Configs | 31 (`csam` novo no Sprint 16) | `ls config/` |
+| Tag Git | **`v1.0-sprint15` (`bf1c3dd`) é a mais recente — o Sprint 16 (`37d8cec`) NÃO recebeu tag**, `v1.0-sprint14` (`0f6aefb`), `v1.0-sprint13` (`1d63371`), `v1.0-sprint12` (`f23368a`), `v1.0-sprint11` (`11354b4`), `v1.0-sprint10` (`402d29e`), `v1.0-sprint9.1` (`49ef728`), `v1.0-sprint9` (`57aab21`), `v1.0-sprint9a` (`1a51d77`), `v1.0-sprint8` (`93b2878`), `v1.0-sprint7` (`80ba300`), `v1.0-sprint6` (`5070638`), `archive/qa-pre-prod-operation` | `git tag` |
 
 > **O que a tag `v1.0-sprint9` significa — e o que ela NÃO significa.** Ela marca
 > o fecho do **Sprint 9C** e, com ele, do arco Sprint 9 inteiro: 9A (`v1.0-sprint9a`,
@@ -1014,6 +1028,113 @@ busca" + modal e o dropdown "Buscas salvas" (aplica/apaga). Detalhe no
 
 ---
 
+## Sprint 16 — Fechado
+
+> **FECHADO — `main` em `37d8cec`, SEM TAG NOVA** (o fecho é este doc; a última
+> tag segue `v1.0-sprint15`). **16 PRs mergeadas (#151–#166)** em duas frentes: um
+> **redesign "maison"** do front sobre o design system `limen-*` e um conjunto de
+> **superfícies novas de produto**. Suíte no fecho: **1854 testes, 15308 asserts**
+> (1853 passam local; a única falha é a antiga view 451 do GeoBlock). PHP no
+> servidor **8.4.24**, `ffmpeg` instalado, upload do FPM em 512M.
+
+### ENTREGUE — redesign maison + fixes de UX
+
+- **PR #151 — Fix: PanicButton invisível ao membro.** Em certas telas o botão de
+  pânico não aparecia para o consumer; corrigida a visibilidade.
+- **PR #152 — Card de catálogo v2.** Primeiro componente no design system `limen-*`
+  (ver §"Design system" no CLAUDE.md — `limen-bg/surface/ink/gold/line`, e
+  `limen-live` EXCLUSIVO do estado ao vivo).
+- **PR #153 — Landing redesenhada** na estética maison.
+- **PR #154 — Grid v2 + trilha "Agora".** Grid do catálogo redesenhado, faixa
+  "Agora" agregando lives + stories no topo, e o slot de **Destaque** do Boost.
+- **PR #155 — PanicButton vira link de texto no header.** Achado do UAT: o disco
+  flutuante sozinho era lido como "fechar" e o membro não achava a saída. Hoje há
+  **3 saídas redundantes** para a mesma ação — (1) link nomeado no header, (2) disco
+  flutuante em `z-[10001]` (SEMPRE visível, o fallback), (3) **duplo-Escape** (dois
+  `Escape` em <500ms; um sozinho não faz nada). O `z-10001` fica UM acima do teto do
+  projeto (IntroAnimation 10000, AgeGate 9999) e **continua reservado ao disco**.
+- **PR #156 — Crop interativo de avatar/capa.** cropperjs, avatar 1:1 e capa 3:1;
+  o avatar passou a ser higienizado pelo `ImageProcessingService` (strip EXIF/GPS +
+  re-encode) como o resto dos uploads.
+- **PR #157 — Limpeza de ruído de log.** A reconciliação de pagamentos pula os
+  `pay_fake_*` (que davam 404 no Asaas real de staging); `LivePreviewService::purgeOrphans`
+  protege contra o disco `live_previews` ausente.
+- **PR #158 — Perfil da performer redesenhado** na estética maison.
+
+### ENTREGUE — superfícies novas
+
+- **PR #159 — Feed do membro (`/feed`).** A UI que consome o conteúdo permanente do
+  PR #135 (§ conteúdo permanente): `FeedController`, rota de membro verificado
+  (`throttle:60,1`), lista peças das performers seguidas por nível de acesso;
+  desbloqueio e serving **reusam `content.*`** (nada de segundo caminho de paywall).
+- **PR #160 — Dashboard admin de receita (`/admin/dashboard`).** `AdminMetricsService`
+  como dona única das consultas; agregados do ledger (`SUM(amount)` por `entry_type`)
+  + contadores + lista de payouts em `needs_review`. **`role:admin` (moderador NÃO vê
+  receita)** e **zero PII de membro** — nunca uma linha nem um `user_id`, só somas;
+  a única lista com nomes é a de payouts (performers: stage_name + valores, nunca
+  PIX/CPF/e-mail).
+- **PR #161 — Anti-CSAM MVP.** `CsamScanService` (dona única) + `PerceptualHashService`
+  (dHash). Toda imagem no upload passa pelo scan nos **6 caminhos** (`ContentStore`,
+  `MemberPhotoStore`, `PerformerPhotoStore`, `PerformerStoryStore`, avatar/capa via
+  `PerformerProfileService`, e `PerformerContentController`), sobre os bytes JÁ
+  higienizados e ANTES do put. **MATCH → bloqueia** (`CsamDetectedException`),
+  `Log::critical('csam.match')`, `Audit::log` e **`users.csam_flagged_at`** para
+  review imediato. **FAIL-OPEN com WARNING** se o hasher não decodifica (não trava
+  upload legítimo; registra `verified=false` em `content_hash_checks` — toda chamada
+  grava trilha). MVP = **match EXATO do dHash** (indexado); near-match por Hamming e
+  PhotoDNA real são follow-up (lista real depende de parceria NCMEC/IWF + CNPJ — a
+  seed sobe VAZIA). Config `config/csam.php` (`CSAM_SCAN_ENABLED` default on).
+  **Hard Delete PRESERVA as linhas COM match** como evidência
+  (`DeletionService::purgeContentHashChecks` apaga só as sem match). Import:
+  `php artisan csam:import-hashes {file.csv} {--source=}`.
+- **PR #162 — Preview WebRTC real** no hover do card (v2 do snapshot JPEG a cada 10s
+  do PR #143).
+- **PR #163 — Animações de presente v2.** Sprites/partículas por presente no
+  `<LiveOverlay>` (v2 da CSS animation simples do PR #142).
+- **PR #164 — Receita REAL** no dashboard. Substitui a estimativa do ledger pela
+  soma de `payments` **confirmados**, filtrada por `confirmed_at` na janela (reembolso
+  vira `refunded` e sai fora). O dinheiro que entrou, não o proxy do ledger.
+- **PR #165 — Catálogo de membros para a performer.** Primeira vitrine
+  **membro→performer** do projeto: a performer navega MEMBROS e sinaliza interesse
+  (**Interesse Controlado INVERTIDO** — ela sinaliza, o membro decide se paga;
+  `performer_interests.source='catalog'`, enum ampliado). `MemberCatalogService` é
+  **dona única** — a MESMA query alimenta a lista E a resolução do handle no envio
+  (senão o par 404/201 viraria oráculo). **LOCKED:** `visible_to_performers`
+  **tri-state** (nullable, sem default — `null` = padrão por tier: **Black/FC ocultos**,
+  demais visíveis; backfill conservador manteve Black/FC ativos em `null`); **só
+  FanAlias** (label+handle) + faixa de atividade, **tier invisível** (M.13.10);
+  **Modo Discreto exclui**, Status Invisível suprime a faixa; só membro verificado
+  e ativo.
+- **PR #166 — Som de notificação + preferências.** v2 do toast silencioso do PR #144.
+  Preferências em **`users.notification_preferences`** (JSON nullable, sem default —
+  `NULL ≡ nunca escolheu`, resolvido na leitura por `User::notificationSoundPreferences()`
+  como todos ON). Toggles por tipo (message/tip/live); coluna fora do `$fillable`.
+
+### O que NÃO subiu / ficou de fora
+
+- ⚠️ **Sanitização de upload de vídeo — desenvolvida em branch, NÃO mergeada.**
+  Branch `feat/video-sanitization` (`ebdf802`): pipeline ffmpeg (H.264/AAC, strip de
+  metadata, teto 500MB/10min, thumbnail, job assíncrono, status
+  `processing→ready/failed`). **`main` NÃO tem** — `performer_content.kind` segue
+  enum `['photo']`, sem coluna de status. Abrir PR é decisão do PO.
+- ⚠️ **Selo de curadoria "maison/select" — branch `curation-seal`, NÃO mergeada.**
+- ❌ **Não iniciados:** verificação de documento como produto (Didit), hCaptcha em
+  produção, pin PHP 8.5→8.4 no `deploy.yml`.
+- **Deploy de staging pendente** para as 16 entregas.
+
+### Novas migrations (Sprint 16, 5)
+
+`2026_08_10_000002_create_csam_tables` (csam_hashes + content_hash_checks),
+`2026_08_11_000001_add_notification_preferences_to_users`,
+`2026_08_11_000002_add_visible_to_performers_to_users` (tri-state + backfill
+conservador), `2026_08_11_000003_add_catalog_to_interest_source_enum`,
+`2026_08_13_000001_create_performer_profile_previous_slugs_table`.
+
+Detalhe completo por feature no **CLAUDE.md** (§§ Catálogo de membros, Anti-CSAM,
+Som de notificação, PanicButton, e a convenção de design tokens `limen-*`).
+
+---
+
 ## Sprint 15 — Fechado
 
 > **FECHADO — tag `v1.0-sprint15` (`bf1c3dd`).** Oito entregas mergeadas
@@ -1409,7 +1530,7 @@ desbloqueio de Interesse. Dona única: `BoostService`. Detalhe no CLAUDE.md, § 
 
 | Camada | Tecnologia | Versão / restrição |
 |---|---|---|
-| Linguagem | PHP | 8.4.22 (composer exige `^8.3`; CI roda 8.5) |
+| Linguagem | PHP | **8.4.24** no servidor (composer exige `^8.3`; CI roda 8.5) |
 | Framework | Laravel | `^13.8` |
 | Banco principal | MySQL | 8.4 (via Docker em dev; service no CI) |
 | Cache / filas | Redis | via Docker (`REDIS_CLIENT=phpredis`) |
@@ -1422,8 +1543,10 @@ desbloqueio de Interesse. Dona única: `BoostService`. Detalhe no CLAUDE.md, § 
 | Testes | Pest | `^4.7` (+ plugin-laravel `^4.1`) |
 | Lint PHP | Laravel Pint | `^1.27` — **não há step de lint no CI** |
 | Pagamento | Asaas / PIX | driver `fake` em dev/staging |
+| Vídeo | ffmpeg | instalado no servidor (sanitização de upload — branch não-mergeada) |
+| Upload | PHP-FPM | `upload_max_filesize`/`post_max_size` **512M** (conteúdo em vídeo) |
 
-**Dependências JS (package.json):** `@inertiajs/vue3`, `vue ^3.5`, `ziggy-js`,
+**Dependências JS (package.json):** `cropperjs` (crop de avatar/capa, Sprint 16), `@inertiajs/vue3`, `vue ^3.5`, `ziggy-js`,
 `laravel-echo`, `pusher-js` (para o Reverb quando subir), Tailwind v4 via
 `@tailwindcss/vite`, Vite `^8`.
 
@@ -1447,25 +1570,43 @@ dependência no projeto — não presuma que existe.
 
 ## 3. Como rodar (ambiente, testes, comandos)
 
-### 3.1 Testes — a pegadinha do SQLite
+### 3.1 Testes — a pegadinha do SQLite (INCIDENTE registrado, 06/08/2026)
 
-O `phpunit.xml` aponta para SQLite, mas **o ambiente de dev não tem `pdo_sqlite`**
-e o projeto usa MySQL. **Não edite o `phpunit.xml`** — prefixe as variáveis
-`DB_*` no comando (é o que o CI faz):
+O `phpunit.xml` aponta para SQLite `:memory:`, mas **o projeto usa MySQL** e várias
+migrations usam SQL específico de MySQL (`IF()`, `MODIFY ... ENUM`, `UPDATE ... JOIN`).
+**Rode a suíte SEMPRE com as variáveis MySQL prefixadas, nunca `php artisan test`
+puro** (é o que o CI faz). **NÃO edite o `phpunit.xml`.**
 
 ```bash
 DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3306 \
-DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD=limen_dev_pw \
-php artisan test
+DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD='<ver .env do servidor>' \
+HCAPTCHA_ENABLED=false php artisan test
 ```
+
+> ⚠️ **Incidente sqlite→MySQL (06/08/2026).** Historicamente o servidor de dev NÃO
+> tinha `pdo_sqlite`, então `php artisan test` puro simplesmente falhava ao abrir a
+> conexão — inofensivo. Em 06/08 o `php8.4-sqlite3` **foi instalado** (junto com o
+> upgrade PHP 8.4.22→8.4.24). Agora `php artisan test` puro **conecta em sqlite,
+> roda as migrations lá e quebra em MASSA** — e isso NÃO é bug: as migrations estão
+> corretas para MySQL. A pegadinha ficou mais perigosa (falha silenciosa vira
+> falha em massa que parece regressão). **Regra:** sempre prefixe os `DB_*` de
+> MySQL. A senha de teste (usuário `limen`, banco `limen_test`) vive no **`.env` do
+> servidor**, fora do Git (princípio nº 5) — **não** é `limen_dev_pw` (placeholder
+> antigo que este doc trazia; nunca funcionou).
+
+> ⚠️ **`HCAPTCHA_ENABLED=false` ao rodar local.** O `.env` do servidor tem o
+> hCaptcha LIGADO (é dev real); com ele ligado os Form Requests de auth exigem
+> `h-captcha-response` e a suíte de auth inteira quebra. O CI roda com ele off;
+> reproduza no COMANDO, não editando o config.
 
 > ⚠️ **Migration quebrada NÃO dá erro — parece hang.** Se uma migration falha, o
 > Pest re-roda `migrate:fresh` a cada teste e o processo *parece travar*. Para
 > ver a exceção real, rode `php artisan migrate:fresh` sozinho.
 
-> A suíte tem **1268 testes** e leva **~3min**. Em foreground isso estoura o
-> timeout de 120s de uma chamada de shell; rode em background e aguarde a
-> notificação de conclusão.
+> A suíte tem **1854 testes** e leva **~3,5min** (`37d8cec`). Em foreground isso
+> estoura o timeout de 120s de uma chamada de shell; rode em background e aguarde a
+> notificação de conclusão. Baseline verde local: **1853 passam, 1 falha** (a antiga
+> view 451 do GeoBlock, que não compila neste clone de dev; verde no CI).
 
 ### 3.2 Lint (Pint)
 
@@ -2749,37 +2890,36 @@ pendente:
       LiveKit via WebRTC/DTLS-SRTP, backend só emite tokens (ver "Sprint 15 —
       Fechado").
 
-### A.0.3 Sprint 16 — registrado, não iniciado
+### A.0.3 Sprint 16 — FECHADO (PRs #151–#166, `37d8cec`)
 
-Ordem não é prioridade. Nada aqui foi começado.
+Estado item a item (ver "Sprint 16 — Fechado" para o detalhe por PR):
 
-- [ ] **Feed/timeline de conteúdo permanente** — a UI que consome os dados do
-      PR #135. O backend (`PerformerContent`, `ContentUnlock`,
-      `ContentVisibilityService`, serving) está entregue e testado desde o
-      Sprint 14; falta o consumidor Vue — mesma situação do `stories.feed` antes do
-      Sprint 13.
-- [ ] **Sanitização de upload de vídeo** — pipeline ffmpeg para `PerformerContent`
-      `kind=video`. O PR #135 é photo-only de propósito (GD não processa vídeo, e
-      sem higienização o upload é superfície não-confiável). Destrava vídeo no
-      conteúdo permanente. **Não se aplica ao vídeo ao vivo do LiveKit** (relay
-      WebRTC, não upload — § 2.5).
-- [ ] **Verificação de documento como produto** (R$ 9,90) — selo pago para o
-      membro. **Depende da Didit** (a mesma integração do KYC da performer).
-- [ ] **Animações elaboradas de presente** — sprites/partículas no `<LiveOverlay>`
-      (a v1 do PR #142 é CSS animation simples de propósito).
-- [ ] **Preview via WebRTC real** — v2 do hover do catálogo (o PR #143 é snapshot
-      JPEG a cada 10s para economizar conexões no free tier).
-- [ ] **Som de notificação + preferências** — o toast do PR #144 é silencioso e
-      sem toggle de propósito (v2).
-- [ ] **hCaptcha habilitado em produção** — hoje off no dev; a infra do widget e do
-      gate existe desde o Sprint 9A.
+- [x] **Feed/timeline de conteúdo permanente** — ENTREGUE (PR #159, `/feed`).
+- [ ] **Sanitização de upload de vídeo** — ⚠️ **branch `feat/video-sanitization`
+      (`ebdf802`) NÃO mergeada.** Pipeline ffmpeg pronto (H.264/AAC, strip metadata,
+      500MB/10min, thumbnail, job assíncrono, status `processing→ready/failed`), mas
+      **`main` NÃO tem** — `performer_content.kind` segue photo-only. Abrir PR é
+      decisão do PO. **Não se aplica ao vídeo LiveKit** (relay WebRTC — § 2.5).
+- [ ] **Verificação de documento como produto** (R$ 9,90) — não iniciada. Depende
+      da Didit.
+- [x] **Animações elaboradas de presente** — ENTREGUE (PR #163).
+- [x] **Preview via WebRTC real** — ENTREGUE (PR #162).
+- [x] **Som de notificação + preferências** — ENTREGUE (PR #166,
+      `users.notification_preferences`).
+- [ ] **Selo de curadoria "maison/select"** — ⚠️ branch `curation-seal` NÃO
+      mergeada (mostraria o tier de curadoria no card/perfil).
+- [ ] **hCaptcha habilitado em produção** — não feito; segue off.
 - [ ] **Prazo máximo de retenção da prova** — o evidence viewer (Sprint 13) deixa
       a moderação VER a prova retida, mas nada expira a retenção. (Metade restante
       do achado da revisão de 30/07.)
 - [ ] **Pin PHP 8.5→8.4 no `deploy.yml`** — o job de teste do CI fixa
-      `php-version: '8.5'`, mas o alvo de produção é 8.4.22. Alinhar. É mudança em
+      `php-version: '8.5'`, mas o alvo de produção é 8.4.24. Alinhar. É mudança em
       `.github/workflows/`, que exige token com escopo `workflow` (o servidor de
       dev não tem) — vai pela UI do GitHub ou por um push com esse escopo.
+
+**Superfícies novas do Sprint 16 fora do backlog original:** catálogo de membros
+para a performer (#165), anti-CSAM MVP (#161), dashboard admin de receita
+(#160/#164) e o redesign maison do front (#152–#158).
 
 > **O "Toast notification estilo Seeking" já foi entregue** (PR #144). Se aparecer
 > em lista antiga de backlog, está feito.
