@@ -6,6 +6,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\InterestService;
 use App\Support\FanAlias;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -71,6 +72,27 @@ it('escolha explícita vence o padrão-por-tier', function () {
     subscribeTo($member, 'founders_circle');
 
     expect($member->fresh()->isVisibleToPerformers())->toBeTrue();
+});
+
+// Backfill conservador (variante do PO): contas existentes viram `true`, MENOS
+// Black/FC ativo, que fica `null` (oculto por padrão) para não reexpor quem paga
+// pela discrição. Roda só o DML backfill() da migration (sem re-DDL), então é
+// seguro sob a transação do RefreshDatabase.
+it('o backfill da migration deixa Black/FC atual null (oculto) e o resto visível', function () {
+    $plain = catalogMember();
+    $black = catalogMember();
+    subscribeTo($black, 'black');
+
+    // Pré-estado logo após adicionar a coluna: null para todos.
+    DB::table('users')->update(['visible_to_performers' => null]);
+
+    (require database_path('migrations/2026_08_11_000002_add_visible_to_performers_to_users.php'))->backfill();
+
+    expect($plain->fresh()->visible_to_performers)->toBeTrue()
+        ->and($black->fresh()->visible_to_performers)->toBeNull()
+        // Efeito: o Black fica oculto no catálogo; o comum, visível.
+        ->and($black->fresh()->isVisibleToPerformers())->toBeFalse()
+        ->and($plain->fresh()->isVisibleToPerformers())->toBeTrue();
 });
 
 // ─── Quem aparece no catálogo ────────────────────────────────────────────────
