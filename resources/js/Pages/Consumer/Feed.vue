@@ -185,8 +185,16 @@ async function confirmUnlock() {
                         <!-- Corpo: imagem real (desbloqueado/grátis/dona) OU placeholder
                              bloqueado com cadeado + nível + preço + botão. -->
                         <div class="relative aspect-square bg-limen-surface-2">
+                            <video
+                                v-if="!item.locked && item.kind === 'video' && item.video_url"
+                                :src="item.video_url"
+                                :poster="item.image_url"
+                                controls
+                                playsinline
+                                class="h-full w-full object-cover bg-black"
+                            />
                             <img
-                                v-if="!item.locked && item.image_url"
+                                v-else-if="!item.locked && item.image_url"
                                 :src="item.image_url"
                                 :alt="item.performer.stage_name"
                                 class="h-full w-full object-cover"

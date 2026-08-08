@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\ImageProcessingException;
 use App\Models\User;
+use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -69,6 +70,67 @@ class ContentStore
         } finally {
             @unlink($processed);
         }
+    }
+
+    /**
+     * Guarda o vídeo CRU do upload num caminho temporário do disco (`tmp/…`), para
+     * o job assíncrono processar depois que o request acabar (o temporário do PHP
+     * some no fim do request). Devolve o path no disco. NÃO higieniza — isso é do
+     * ProcessVideoContent + VideoProcessingService.
+     */
+    public function storeRawVideo(UploadedFile $file, int $performerProfileId): string
+    {
+        $path = $file->storeAs("tmp/{$performerProfileId}", Str::random(40), self::DISK);
+
+        if ($path === false) {
+            throw new RuntimeException('Falha ao guardar o upload de vídeo temporário.');
+        }
+
+        return $path;
+    }
+
+    /** Caminho ABSOLUTO no filesystem de um path do disco (local) — para o ffmpeg. */
+    public function absolutePath(string $path): string
+    {
+        return Storage::disk(self::DISK)->path($path);
+    }
+
+    /**
+     * Move o MP4 higienizado + o thumbnail (arquivos locais já processados pelo
+     * job) para o disco de conteúdo. Devolve ['path','thumbnail_path','hash'].
+     * hash = SHA-256 do MP4 processado (prova, como a foto), lido em stream.
+     */
+    public function putSanitizedVideo(string $mp4Path, string $thumbPath, int $performerProfileId): array
+    {
+        $hash = hash_file('sha256', $mp4Path);
+
+        if ($hash === false) {
+            throw new RuntimeException('Falha ao ler o vídeo processado.');
+        }
+
+        $videoPath = Storage::disk(self::DISK)->putFileAs(
+            (string) $performerProfileId,
+            new File($mp4Path),
+            Str::random(40).'.mp4',
+        );
+
+        if ($videoPath === false) {
+            throw new RuntimeException('Falha ao gravar o vídeo no disco.');
+        }
+
+        $thumbnailPath = Storage::disk(self::DISK)->putFileAs(
+            (string) $performerProfileId,
+            new File($thumbPath),
+            Str::random(40).'.jpg',
+        );
+
+        if ($thumbnailPath === false) {
+            Storage::disk(self::DISK)->delete($videoPath);
+
+            throw new RuntimeException('Falha ao gravar o thumbnail no disco.');
+        }
+
+        return ['path' => $videoPath, 'thumbnail_path' => $thumbnailPath, 'hash' => $hash];
     }
 
     public function retrieve(string $path): string

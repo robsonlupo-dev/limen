@@ -79,7 +79,15 @@ async function confirmUnlock() {
                     v-if="!item.locked && item.image_url"
                     class="relative aspect-square rounded-xl overflow-hidden border border-frame bg-surface-2"
                 >
-                    <img :src="item.image_url" :alt="performerName" class="h-full w-full object-cover" />
+                    <video
+                        v-if="item.kind === 'video' && item.video_url"
+                        :src="item.video_url"
+                        :poster="item.image_url"
+                        controls
+                        playsinline
+                        class="h-full w-full object-cover bg-black"
+                    />
+                    <img v-else :src="item.image_url" :alt="performerName" class="h-full w-full object-cover" />
                     <span
                         class="absolute top-2 left-2 rounded-full bg-background/70 px-2 py-0.5 text-[10px] text-gold backdrop-blur"
                     >

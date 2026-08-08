@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Performer;
 use App\Exceptions\ContentException;
 use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
+use App\Exceptions\VideoProcessingException;
 use App\Http\Controllers\Concerns\ServesPhotoBytes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\PublishContentRequest;
@@ -61,13 +62,16 @@ class PerformerContentController extends Controller
     {
         Gate::authorize('performer-active');
 
+        $profile = $request->user()->performerProfile;
+        $file = $request->file('arquivo');
+        $level = $request->validated('nivel');
+        $price = (int) $request->validated('preco');
+
         try {
-            $piece = $this->content->publish(
-                $request->user()->performerProfile,
-                $request->file('arquivo'),
-                $request->validated('nivel'),
-                (int) $request->validated('preco'),
-            );
+            // Vídeo → pipeline assíncrono (ffmpeg); foto → síncrono (GD).
+            $piece = $request->isVideoUpload()
+                ? $this->content->publishVideo($profile, $file, $level, $price)
+                : $this->content->publish($profile, $file, $level, $price);
         } catch (ContentException $e) {
             return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], 422);
         } catch (ImageProcessingException $e) {
@@ -76,11 +80,17 @@ class PerformerContentController extends Controller
             // Mensagem genérica (não revela o motivo real). O CRITICAL/flag já
             // aconteceram no CsamScanService.
             return response()->json(['message' => $e->getMessage(), 'reason' => 'rejected'], 422);
+        } catch (VideoProcessingException $e) {
+            return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], 422);
         }
 
         return response()->json([
-            'message' => 'Conteúdo publicado.',
+            'message' => $piece->isVideo()
+                ? 'Vídeo recebido. Ele ficará disponível após o processamento.'
+                : 'Conteúdo publicado.',
             'id' => $piece->id,
+            'kind' => $piece->kind,
+            'status' => $piece->status,
             'access_level' => $piece->access_level,
             'price_tokens' => $piece->price_tokens,
         ], 201);
@@ -126,6 +136,9 @@ class PerformerContentController extends Controller
 
         abort_unless($this->visibility->canView($request->user(), $content), 404);
 
-        return $this->photoResponse($this->store->retrieve($content->path), 'conteudo.jpg');
+        // Vídeo pronto → o POSTER (thumbnail); foto → a própria imagem.
+        $path = $content->isVideo() ? $content->thumbnail_path : $content->path;
+
+        return $this->photoResponse($this->store->retrieve($path), 'conteudo.jpg');
     }
 }

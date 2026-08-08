@@ -46,6 +46,7 @@ class FeedController extends Controller
 
         $paginator = PerformerContent::query()
             ->whereIn('performer_profile_id', $followedIds)
+            ->ready() // vídeo em processing/failed fica fora do feed
             ->whereIn('access_level', $this->visibility->allowedLevelsFor($user))
             ->with('performerProfile')
             ->orderByDesc('created_at')

@@ -131,3 +131,7 @@ Schedule::command('calls:reap-stale')->everyFiveMinutes()->withoutOverlapping(5)
 // sem atualização há mais de 1h é de uma live encerrada. De hora em hora basta: a
 // janela do órfão já é 1h e é só disco (nenhum dado sensível — snapshot público).
 Schedule::command('live-previews:purge')->hourly()->withoutOverlapping(10);
+
+// GC dos uploads de vídeo crus órfãos (Sprint 16): job descartado sem executar
+// deixa até 500 MB em tmp/. De hora em hora; só disco privado, nenhum dado servido.
+Schedule::command('content:purge-orphan-raw')->hourly()->withoutOverlapping(10);

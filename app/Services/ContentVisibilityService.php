@@ -124,6 +124,13 @@ class ContentVisibilityService
      */
     public function canView(?User $member, PerformerContent $content): bool
     {
+        // Só peça PRONTA tem bytes servíveis — vídeo em processing/failed não é
+        // servível para NINGUÉM (nem para a dona: a gestão mostra o STATUS, não a
+        // imagem). Vale antes do atalho da dona, de propósito. Foto nasce ready.
+        if (! $content->isReady()) {
+            return false;
+        }
+
         if ($this->isOwner($member, $content)) {
             return true;
         }
@@ -149,7 +156,11 @@ class ContentVisibilityService
             return ContentException::SELF;
         }
 
-        if ($member->role !== 'consumer' || ! $this->performerIsReachable($content->performerProfile)) {
+        // Peça não pronta (vídeo em processing/failed) não é desbloqueável —
+        // trata como fora do ar (defesa; o membro nem a vê na galeria/feed).
+        if (! $content->isReady()
+            || $member->role !== 'consumer'
+            || ! $this->performerIsReachable($content->performerProfile)) {
             return ContentException::OFFLINE;
         }
 
@@ -214,6 +225,7 @@ class ContentVisibilityService
 
         return PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
+            ->ready() // vídeo em processing/failed não aparece na vitrine
             ->orderByDesc('id')
             ->get()
             ->filter(fn (PerformerContent $content) => $this->tierAllows($viewer, $content))

@@ -14,6 +14,7 @@ use App\Support\ContentPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ContentController extends Controller
 {
@@ -40,9 +41,27 @@ class ContentController extends Controller
     {
         abort_unless($this->visibility->canView($request->user(), $content), 404);
 
-        $bytes = $this->store->retrieve($content->path);
+        // Foto → a própria imagem; vídeo → o POSTER (thumbnail gerado pelo ffmpeg).
+        // O canView já garante READY, então o thumbnail existe para vídeo.
+        $path = $content->isVideo() ? $content->thumbnail_path : $content->path;
 
-        return $this->photoResponse($bytes, 'conteudo.jpg');
+        return $this->photoResponse($this->store->retrieve($path), 'conteudo.jpg');
+    }
+
+    /**
+     * Bytes do VÍDEO (MP4 já higienizado). BinaryFileResponse streama do disco
+     * local com suporte a Range (seek do player), sem carregar tudo em memória.
+     * Content-Type FIXO video/mp4 (nós controlamos os bytes) + nosniff.
+     */
+    public function video(Request $request, PerformerContent $content): BinaryFileResponse
+    {
+        abort_unless($content->isVideo() && $this->visibility->canView($request->user(), $content), 404);
+
+        return response()->file($this->store->absolutePath($content->path), [
+            'Content-Type' => 'video/mp4',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Disposition' => 'inline; filename="conteudo.mp4"',
+        ]);
     }
 
     /** Desbloqueio pago e permanente. Mapeia a recusa de domínio para HTTP. */
