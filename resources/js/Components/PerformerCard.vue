@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, onBeforeUnmount } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
+import { postJson } from '@/lib/http'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
 
 // Card v2 — "maison de joalheria": foto retrato preenche o card, barra inferior
@@ -67,11 +68,109 @@ function startPreview() {
     previewBroken.value = false
     loadPreview()
     if (!previewTimer) previewTimer = setInterval(loadPreview, 10000)
+    // Em paralelo, tenta o preview REAL por WebRTC (v2). O snapshot fica de
+    // fundo/fallback e o vídeo entra por cima quando (e se) conectar.
+    startWebrtcPreview()
 }
 
 function stopPreview() {
     previewActive.value = false
     if (previewTimer) { clearInterval(previewTimer); previewTimer = null }
+    stopWebrtcPreview()
+}
+
+// ─── Preview WebRTC real (Sprint 16, v2 do PR #143) ──────────────────────────
+//
+// No hover de um card AO VIVO, abre um subscriber LiveKit e mostra o vídeo REAL
+// em baixa resolução (adaptiveStream escolhe a camada pela caixa do elemento).
+// Ao sair do hover, desconecta na hora — conexão nenhuma fica aberta. Timeout de
+// 5s para conectar: se não vier, fica o snapshot JPEG (v1) de fallback, que já
+// está desenhado. Assistir a live pública é GRÁTIS (LiveSessionService), então o
+// preview NÃO cobra o membro — reusa o token de viewer (rota live.refresh).
+//
+// SÓ desktop com hover real: em toque não há hover, e o tap segue como antes
+// (mostra o snapshot; 2º tap entra na live). livekit-client é importado sob
+// demanda (dynamic import) — não entra no bundle do catálogo, só carrega no 1º
+// hover de uma live.
+const webrtcVideoEl = ref(null)
+const webrtcActive = ref(false)
+const WEBRTC_CONNECT_TIMEOUT_MS = 5000
+const HOVER_DEBOUNCE_MS = 350
+let room = null
+let hoverTimer = null
+let connectTimer = null
+// Gera um "token de tentativa": cada stop incrementa, e todo passo assíncrono
+// confere se ainda é a tentativa corrente — um connect que resolve DEPOIS do
+// mouse-leave é descartado (e a sala, desconectada).
+let previewGen = 0
+
+function webrtcSupported() {
+    return typeof window !== 'undefined'
+        && typeof window.RTCPeerConnection !== 'undefined'
+        // Só onde há hover de verdade (desktop): em toque o mouseenter é ruído.
+        && window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches === true
+}
+
+function startWebrtcPreview() {
+    if (!canPreview.value || !webrtcSupported() || room || hoverTimer) return
+    // Debounce: só conecta se o cursor ficar sobre o card — evita abrir/fechar
+    // subscriber a cada passagem rápida (custo de minuto no LiveKit).
+    hoverTimer = setTimeout(connectWebrtc, HOVER_DEBOUNCE_MS)
+}
+
+async function connectWebrtc() {
+    hoverTimer = null
+    const gen = previewGen
+    connectTimer = setTimeout(stopWebrtcPreview, WEBRTC_CONNECT_TIMEOUT_MS)
+
+    try {
+        // Import sob demanda: mantém o livekit-client fora do bundle do catálogo.
+        const { Room, RoomEvent } = await import('livekit-client')
+        if (gen !== previewGen) return
+
+        const { token, wsUrl } = await postJson(route('live.refresh', props.performer.slug))
+        if (gen !== previewGen) return
+
+        room = new Room({ adaptiveStream: true, dynacast: true })
+        room.on(RoomEvent.TrackSubscribed, (track) => {
+            // Só o vídeo — preview é mudo (áudio nem é anexado; autoplay exige mudo).
+            if (track.kind === 'video' && webrtcVideoEl.value && gen === previewGen) {
+                track.attach(webrtcVideoEl.value)
+                webrtcActive.value = true
+                if (connectTimer) { clearTimeout(connectTimer); connectTimer = null }
+            }
+        })
+
+        await room.connect(wsUrl, token)
+        if (gen !== previewGen) { stopWebrtcPreview(); return }
+
+        // Tracks já publicados pela performer no momento do connect.
+        room.remoteParticipants.forEach((p) =>
+            p.trackPublications.forEach((pub) => {
+                if (pub.track?.kind === 'video' && webrtcVideoEl.value) {
+                    pub.track.attach(webrtcVideoEl.value)
+                    webrtcActive.value = true
+                    if (connectTimer) { clearTimeout(connectTimer); connectTimer = null }
+                }
+            }),
+        )
+    } catch {
+        // Token 403, live encerrada, WebRTC bloqueado: silencioso — fica o
+        // snapshot JPEG que já está na tela.
+        stopWebrtcPreview()
+    }
+}
+
+function stopWebrtcPreview() {
+    previewGen += 1 // invalida qualquer tentativa em voo
+    if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null }
+    if (connectTimer) { clearTimeout(connectTimer); connectTimer = null }
+    webrtcActive.value = false
+    if (room) {
+        // disconnect() é idempotente; o preview não retém nada.
+        room.disconnect()
+        room = null
+    }
 }
 
 // Clique sobre a foto de uma performer ao vivo entra na LIVE, não no perfil.
@@ -203,6 +302,20 @@ onBeforeUnmount(stopPreview)
                         @error="previewBroken = true"
                     />
                 </transition>
+
+                <!-- Preview WebRTC real (Sprint 16): entra POR CIMA do snapshot
+                     quando conecta, e some (voltando ao snapshot) ao sair do
+                     hover ou se falhar. Mudo + playsinline para autoplay; o
+                     elemento existe sempre (o track precisa de destino ao
+                     anexar), mas só fica visível quando há vídeo. -->
+                <video
+                    v-show="webrtcActive && showLive"
+                    ref="webrtcVideoEl"
+                    muted
+                    autoplay
+                    playsinline
+                    class="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                />
 
                 <!-- Scrim para legibilidade da barra. pointer-events-none: o
                      clique atravessa para a foto/link. -->
