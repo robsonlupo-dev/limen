@@ -93,7 +93,7 @@
                         <div class="value">{{ $tok($r['retention']) }} <span class="unit">tokens</span></div>
                     </div>
                     <div class="metric">
-                        <div class="label">Receita bruta (estimada)</div>
+                        <div class="label">Receita bruta{{ $r['is_estimate'] ? ' (estimada)' : '' }}</div>
                         <div class="value gold">{{ $brl($r['gross_revenue_cents']) }}</div>
                     </div>
                     <div class="metric">
@@ -111,10 +111,17 @@
                     @endforeach
                 </div>
 
-                <p class="est">
-                    Receita bruta = tokens vendidos × preço médio do pacote por token.
-                    Estimativa — não desconta o desconto por tier na compra.
-                </p>
+                @if ($r['is_estimate'])
+                    <p class="est">
+                        Receita bruta = tokens vendidos × preço médio do pacote por token.
+                        Estimativa — não desconta o desconto por tier na compra.
+                        Sem cobrança confirmada nesta janela; assim que houver, mostramos o valor real.
+                    </p>
+                @else
+                    <p class="est">
+                        Receita bruta = soma das cobranças confirmadas (Asaas/PIX) na janela. Valor real.
+                    </p>
+                @endif
             </div>
         @endforeach
 

@@ -2,6 +2,7 @@
 
 use App\Models\CallSession;
 use App\Models\LiveSession;
+use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\PerformerProfile;
 use App\Models\TokenLedger;
@@ -54,6 +55,17 @@ function admMetrics(): AdminMetricsService
     return app(AdminMetricsService::class);
 }
 
+function admPayment(int $amountCents, string $status = 'confirmed', ?Carbon $confirmedAt = null): void
+{
+    Payment::create([
+        'user_id' => User::factory()->create(['role' => 'consumer'])->id,
+        'amount_cents' => $amountCents,
+        'tokens' => 100,
+        'status' => $status,
+        'confirmed_at' => $status === 'confirmed' ? ($confirmedAt ?? now()) : null,
+    ]);
+}
+
 // ─── Receita: SUM por entry_type ─────────────────────────────────────────────
 
 it('soma tokens vendidos, gastos por tipo, payout, retenção e receita bruta', function () {
@@ -98,6 +110,49 @@ it('separa a janela de hoje da de 30 dias e exclui o que é mais antigo', functi
 
     expect($revenue['today']['tokens_sold'])->toBe(500)
         ->and($revenue['last30']['tokens_sold'])->toBe(800);
+});
+
+// ─── Receita REAL vs. estimativa (Sprint 16, item 5) ─────────────────────────
+
+it('usa a receita REAL dos pagamentos confirmados no lugar da estimativa', function () {
+    $wallet = admWallet(User::factory()->create(['role' => 'consumer']));
+    admLedger($wallet, 'purchase', 1000); // estimativa isolada seria 88963
+
+    admPayment(50000); // R$ 500,00 confirmado hoje
+    admPayment(19990); // R$ 199,90 confirmado hoje
+
+    $r = admMetrics()->revenue()['last30'];
+
+    expect($r['gross_revenue_cents'])->toBe(69990)
+        ->and($r['is_estimate'])->toBeFalse();
+});
+
+it('cai na estimativa quando não há pagamento confirmado na janela', function () {
+    $wallet = admWallet(User::factory()->create(['role' => 'consumer']));
+    admLedger($wallet, 'purchase', 1000);
+
+    $r = admMetrics()->revenue()['last30'];
+
+    expect($r['gross_revenue_cents'])->toBe(88963)
+        ->and($r['is_estimate'])->toBeTrue();
+});
+
+it('conta só o confirmado dentro da janela — ignora pendente, reembolsado e antigo', function () {
+    $this->travelTo(Carbon::parse('2026-08-15 15:00:00', 'America/Sao_Paulo'));
+    $wallet = admWallet(User::factory()->create(['role' => 'consumer']));
+    admLedger($wallet, 'purchase', 1000);
+
+    admPayment(50000, 'confirmed', now());               // conta (hoje e 30d)
+    admPayment(30000, 'confirmed', now()->subDays(40));  // confirmado, mas fora de 30d
+    admPayment(20000, 'pending');                        // não confirmado
+    admPayment(10000, 'refunded');                       // reembolsado
+
+    $revenue = admMetrics()->revenue();
+
+    expect($revenue['last30']['gross_revenue_cents'])->toBe(50000)
+        ->and($revenue['last30']['is_estimate'])->toBeFalse()
+        ->and($revenue['today']['gross_revenue_cents'])->toBe(50000)
+        ->and($revenue['today']['is_estimate'])->toBeFalse();
 });
 
 // ─── Contadores ──────────────────────────────────────────────────────────────

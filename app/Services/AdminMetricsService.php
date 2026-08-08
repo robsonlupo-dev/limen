@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CallSession;
 use App\Models\LiveSession;
+use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\TokenLedger;
 use App\Models\User;
@@ -54,7 +55,8 @@ class AdminMetricsService
 
     /**
      * @return array{tokens_sold:int, spent_by_type:array<string,int>, spent_total:int,
-     *               tokens_paid_out:int, retention:int, gross_revenue_cents:int}
+     *               tokens_paid_out:int, retention:int, gross_revenue_cents:int,
+     *               is_estimate:bool}
      */
     private function revenueSince(Carbon $since): array
     {
@@ -71,6 +73,14 @@ class AdminMetricsService
         // que de fato SAIU — negativo —, então nega para o total pago (positivo).
         $paidOut = -($this->sumType('payout_reserve', $since) + $this->sumType('payout_reversal', $since));
 
+        // Receita REAL: SUM(amount_cents) das cobranças confirmadas (Asaas/PIX) na
+        // janela. É o que de fato entrou — desconta tier, pacote, tudo. Quando há
+        // pagamento confirmado, vence a estimativa. Sem nenhum (base nova, ou só
+        // dados sintéticos de ledger em dev), cai na estimativa por token e a Blade
+        // recoloca o rótulo "(estimada)".
+        $realRevenueCents = $this->realRevenueSince($since);
+        $isEstimate = $realRevenueCents <= 0;
+
         return [
             'tokens_sold' => $sold,
             'spent_by_type' => $spentByType,
@@ -78,9 +88,10 @@ class AdminMetricsService
             'tokens_paid_out' => $paidOut,
             // Retenção da Limen em tokens: vendidos − pagos em payout.
             'retention' => $sold - $paidOut,
-            // Receita bruta ESTIMADA: vendidos × preço médio do pacote por token.
-            // É estimativa — não desconta o desconto por tier na compra (a Blade diz).
-            'gross_revenue_cents' => (int) round($sold * $this->avgPricePerTokenCents()),
+            'gross_revenue_cents' => $isEstimate
+                ? (int) round($sold * $this->avgPricePerTokenCents())
+                : $realRevenueCents,
+            'is_estimate' => $isEstimate,
         ];
     }
 
@@ -90,6 +101,21 @@ class AdminMetricsService
             ->where('entry_type', $entryType)
             ->where('created_at', '>=', $since)
             ->sum('amount');
+    }
+
+    /**
+     * Receita real em centavos: SUM(amount_cents) das cobranças `confirmed` cujo
+     * `confirmed_at` cai na janela. Filtra por confirmed_at (quando o dinheiro
+     * entrou), não por created_at (quando a cobrança foi gerada) — uma cobrança
+     * antiga confirmada hoje é receita de hoje. Reembolso vira status `refunded`,
+     * então já sai fora do `confirmed`.
+     */
+    private function realRevenueSince(Carbon $since): int
+    {
+        return (int) Payment::query()
+            ->where('status', 'confirmed')
+            ->where('confirmed_at', '>=', $since)
+            ->sum('amount_cents');
     }
 
     /** Preço médio (blended) do pacote por token, em centavos — fonte: config M.13.2. */
