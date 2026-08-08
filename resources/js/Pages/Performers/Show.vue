@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
+import CurationSeal from '@/Components/CurationSeal.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
@@ -131,6 +132,7 @@ const workModeLabels = {
                     <div class="flex items-center gap-2 flex-wrap">
                         <h1 class="font-serif text-4xl text-limen-ink">{{ performer.stage_name }}</h1>
                         <VerifiedBadge v-if="performer.is_verified" :category="performer.category" />
+                        <CurationSeal :tier="performer.tier" />
                     </div>
 
                     <div class="flex items-center gap-3 flex-wrap">

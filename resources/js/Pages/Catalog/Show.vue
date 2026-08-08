@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
+import CurationSeal from '@/Components/CurationSeal.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
 import FollowButton from '@/Components/FollowButton.vue'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
@@ -114,6 +115,7 @@ function onTipSent(data) {
                     <div class="flex items-center gap-2 flex-wrap">
                         <h1 class="font-serif text-4xl text-limen-ink">{{ performer.stage_name }}</h1>
                         <VerifiedBadge v-if="performer.is_verified" :category="performer.category" />
+                        <CurationSeal :tier="performer.tier" />
                     </div>
 
                     <div class="flex items-center gap-3">
