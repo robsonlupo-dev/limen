@@ -15,6 +15,8 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\CallController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\Consumer\CallReservationController as ConsumerCallReservationController;
+use App\Http\Controllers\Web\Performer\CallReservationController as PerformerCallReservationController;
 use App\Http\Controllers\Web\GroupShowController;
 use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
@@ -1202,6 +1204,60 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->middleware('throttle:10,1')
                 ->whereNumber('group')
                 ->name('group.upgrade.request');
+        });
+
+        // ── Agendamento de chamada (feat/scheduled-call-v1) ──────────────────
+        // Mesmo dark-launch (`feature:call`) e mesma disciplina anti-oráculo: a
+        // AUTORIZAÇÃO DE DONO de `{reservation}` (resolvido por id) é do
+        // CallReservationService (404 uniforme para reserva de terceiro), não do
+        // route-binding. O 1º minuto é pago pelo depósito; os minutos 2+ usam as
+        // rotas /call/{call}/* acima sobre a call_session ligada na entrada.
+
+        // Membro: agenda, lista, cancela, entra. role:consumer + member.verified.
+        Route::middleware(['role:consumer', 'member.verified'])->group(function () {
+            Route::get('/minhas-chamadas', [ConsumerCallReservationController::class, 'index'])
+                ->name('reservations.index');
+
+            Route::post('/performer/{profile}/call/schedule', [ConsumerCallReservationController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->whereNumber('profile')
+                ->name('reservations.store');
+
+            Route::post('/agendamentos/{reservation}/cancelar', [ConsumerCallReservationController::class, 'cancel'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('reservation')
+                ->name('reservations.cancel');
+
+            Route::post('/agendamentos/{reservation}/entrar', [ConsumerCallReservationController::class, 'enter'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('reservation')
+                ->name('reservations.enter');
+        });
+
+        // Performer: fila, confirma, recusa, entra. role:performer + documents.accepted
+        // + performer-active (atender é publicar sob a Política, como o accept 1:1).
+        Route::middleware(['role:performer', 'documents.accepted'])->group(function () {
+            Route::get('/painel/agendamentos', [PerformerCallReservationController::class, 'index'])
+                ->name('performer.reservations.index')
+                ->can('performer-active');
+
+            Route::post('/performer/agendamentos/{reservation}/confirmar', [PerformerCallReservationController::class, 'confirm'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('reservation')
+                ->name('performer.reservations.confirm')
+                ->can('performer-active');
+
+            Route::post('/performer/agendamentos/{reservation}/recusar', [PerformerCallReservationController::class, 'decline'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('reservation')
+                ->name('performer.reservations.decline')
+                ->can('performer-active');
+
+            Route::post('/performer/agendamentos/{reservation}/entrar', [PerformerCallReservationController::class, 'enter'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('reservation')
+                ->name('performer.reservations.enter')
+                ->can('performer-active');
         });
     });
 });

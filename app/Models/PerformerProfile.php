@@ -177,6 +177,13 @@ class PerformerProfile extends Model
             'rating_count' => 'integer',
             'followers_count' => 'integer',
             'tier_granted_at' => 'datetime',
+            // Chamada 1:1 (PR #140) e agendamento (feat/scheduled-call-v1). Todos
+            // FORA do $fillable — escrita só via forceFill nos services (disciplina
+            // de discrete_mode/2FA/boost).
+            'call_price_per_minute' => 'integer',
+            'call_max_duration_minutes' => 'integer',
+            'call_slot_minutes' => 'integer',
+            'noshow_strike_count' => 'integer',
         ];
     }
 

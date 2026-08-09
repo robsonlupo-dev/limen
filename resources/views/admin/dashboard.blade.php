@@ -180,6 +180,33 @@
                 </table>
             @endif
         </div>
+
+        {{-- ── Performers com strikes de no-show (agendamento de chamada) ─────── --}}
+        <div class="card">
+            <h2>Performers em revisão por no-show</h2>
+            @if ($strikeReviewPerformers->isEmpty())
+                <p class="empty">Nenhuma performer no limiar de strikes.</p>
+            @else
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Performer</th>
+                            <th class="num">Strikes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($strikeReviewPerformers as $row)
+                            <tr>
+                                <td>{{ $row['id'] }}</td>
+                                <td>{{ $row['performer'] }}</td>
+                                <td class="num">{{ $row['strikes'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </div>
     </div>
 </body>
 </html>

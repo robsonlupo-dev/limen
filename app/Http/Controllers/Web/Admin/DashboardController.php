@@ -19,6 +19,7 @@ class DashboardController extends Controller
             'revenue' => $metrics->revenue(),
             'counters' => $metrics->counters(),
             'pendingPayouts' => $metrics->pendingPayouts(),
+            'strikeReviewPerformers' => $metrics->strikeReviewPerformers(),
         ]);
     }
 }

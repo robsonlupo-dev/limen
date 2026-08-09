@@ -37,6 +37,9 @@ class UpdateCallSettingsRequest extends FormRequest
                 Rule::when($step > 0, ['multiple_of:'.$step]),
             ],
             'max_duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1440'],
+            // Duração-padrão do slot de agendamento (feat/scheduled-call-v1). NULL =
+            // usa o default de config. Faixa 5–240 min (bloco de atendimento).
+            'slot_minutes' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:240'],
         ];
     }
 
@@ -50,6 +53,13 @@ class UpdateCallSettingsRequest extends FormRequest
     public function maxDurationMinutes(): ?int
     {
         $value = $this->input('max_duration_minutes');
+
+        return $value === null ? null : (int) $value;
+    }
+
+    public function slotMinutes(): ?int
+    {
+        $value = $this->input('slot_minutes');
 
         return $value === null ? null : (int) $value;
     }

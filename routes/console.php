@@ -126,6 +126,12 @@ Schedule::command('calls:expire-pending')->hourly()->withoutOverlapping(10);
 // (tempo pago vencido sem novo minuto). Só faxina — não cobra.
 Schedule::command('calls:reap-stale')->everyFiveMinutes()->withoutOverlapping(5);
 
+// Agendamento de chamada (feat/scheduled-call-v1). Motor de tempo: a cada minuto
+// resolve confirmação vencida (cancel+refund), no-shows (refund+strike / depósito à
+// performer) e os avisos T-5min/T-3min. Idempotente por reserva (deposit_settled).
+// A janela do membro é 2min, então a granularidade de 1min é o teto de atraso.
+Schedule::command('reservations:process')->everyMinute()->withoutOverlapping(2);
+
 // Frames de preview de live ÓRFÃOS (Sprint 15, PR #143). O frame morre no fim da
 // live (stop/ban/reconciliação na leitura); isto varre o que escapou — um quadro
 // sem atualização há mais de 1h é de uma live encerrada. De hora em hora basta: a
