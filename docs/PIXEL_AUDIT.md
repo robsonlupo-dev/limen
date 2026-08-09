@@ -207,3 +207,26 @@ produção. Detalhe em `docs/HCAPTCHA.md`.
 mantida **literal** no componente de propósito: a varredura só enxerga literal,
 e escondê-la atrás de uma constante faria este terceiro passar despercebido pela
 auditoria que existe para pegá-lo.
+
+## Atualização Sprint 16 — Cloudflare Turnstile (captcha vira driver)
+
+O captcha virou **driver abstrato** (`CAPTCHA_PROVIDER=hcaptcha|turnstile|none`),
+e entrou um **segundo terceiro literal**: o SDK do Cloudflare Turnstile em
+`challenges.cloudflare.com`. Tudo do raciocínio acima vale igual — a exposição é
+a mesma (IP/User-Agent/horário de quem abre as telas de auth), só muda o
+subprocessador (Cloudflare, Inc. em vez de Intuition Machines).
+
+| Arquivo | O que é | Classificação |
+|---|---|---|
+| `resources/js/Components/Captcha.vue` | SDK do provedor ativo (`js.hcaptcha.com` **ou** `challenges.cloudflare.com`), injetado em runtime | **ATENÇÃO — área PÚBLICA, gated por config** |
+
+- **`HCaptcha.vue` virou `Captcha.vue`**: componente único que carrega o SDK do
+  provedor ativo. As duas URLs são LITERAIS, uma por provedor (uma em cada braço
+  do `if`), pela MESMA razão de sempre — a varredura só enxerga literal.
+- **Sentinela:** `challenges.cloudflare.com` foi acrescentado a
+  `ALLOWED_JS_ORIGINS`, ao lado de `js.hcaptcha.com`.
+- **Gate:** com `CAPTCHA_PROVIDER=none` (o padrão) nenhum byte sai — o widget nem
+  monta e o `sitekey` nem vai à tela.
+- **Conformidade:** a mesma pendência (política de privacidade + registro de
+  subprocessadores + DPA) vale para o Cloudflare antes de `CAPTCHA_PROVIDER=turnstile`
+  em produção. Detalhe em `docs/CAPTCHA.md`.

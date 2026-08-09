@@ -50,23 +50,29 @@ const ALLOWED_BLADE_ORIGINS = [];
  * Listas separadas de propósito: liberar um host no e-mail não é a mesma
  * decisão que liberar no bundle que roda na área logada.
  *
- * `js.hcaptcha.com` (Sprint 9, aval do PO): SDK do hCaptcha, carregado por
- * resources/js/Components/HCaptcha.vue. É a primeira entrada desta lista e vale
- * uma leitura antes de a próxima ser acrescentada:
+ * SDKs de captcha, carregados por resources/js/Components/Captcha.vue conforme
+ * CAPTCHA_PROVIDER (`js.hcaptcha.com` para hCaptcha — Sprint 9; e
+ * `challenges.cloudflare.com` para o Cloudflare Turnstile — Sprint 16, quando o
+ * trial Pro do hCaptcha venceu). Valem uma leitura antes de a próxima entrada
+ * ser acrescentada:
  *
  *  - o componente só é montado em /login e /cadastro, que são PÚBLICAS e
  *    deslogadas — o invariante que este teste protege ("zero terceiros em área
  *    logada") continua de pé, e é por isso que o script NÃO está no
  *    app.blade.php, que renderiza toda tela logada;
- *  - o SDK só é buscado com HCAPTCHA_ENABLED=true; desligado (o padrão) nenhum
- *    byte sai;
- *  - hCaptcha é SUBPROCESSADOR e vê IP de quem abre as telas de auth. Ligar em
- *    produção depende de política de privacidade, registro de subprocessadores
- *    e DPA assinado. Ver docs/HCAPTCHA.md.
+ *  - o SDK só é buscado com um provedor ativo; com `CAPTCHA_PROVIDER=none` (o
+ *    padrão) nenhum byte sai;
+ *  - todo provedor de captcha é SUBPROCESSADOR e vê o IP de quem abre as telas
+ *    de auth. Ligar qualquer um em produção depende de política de privacidade,
+ *    registro de subprocessadores e DPA assinado. Ver docs/CAPTCHA.md.
+ *
+ * Cada URL é LITERAL no Captcha.vue de propósito, para que esta varredura a
+ * enxergue — escondê-la atrás de uma constante/mapa faria o terceiro passar
+ * despercebido pela auditoria que existe justamente para pegá-lo.
  *
  * @var list<string>
  */
-const ALLOWED_JS_ORIGINS = ['js.hcaptcha.com'];
+const ALLOWED_JS_ORIGINS = ['js.hcaptcha.com', 'challenges.cloudflare.com'];
 
 /** Tags cujo atributo dispara download automático pelo cliente. */
 const ASSET_PATTERN = '/<(?:script|img|iframe|source|embed|object|video|audio|link)\b[^>]*?\b(?:src|href|data|poster)\s*=\s*["\'](?<url>(?:https?:)?\/\/[^"\']+)/i';
