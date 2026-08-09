@@ -30,10 +30,18 @@ const dashboardRoute = computed(() =>
     isActivePerformer.value ? route('performer.dashboard') : route('performer.onboarding'),
 )
 
-// O logo leva cada papel ao SEU início: a performer não navega o catálogo de
-// membros (é a vitrine onde ela é o produto), então cai no próprio painel. Os
-// demais (membro, admin/moderador) seguem para o catálogo.
-const homeRoute = computed(() => (isPerformer.value ? dashboardRoute.value : route('catalog')))
+// O logo leva cada papel ao SEU início. A HOME da performer ativa passou a ser o
+// CATÁLOGO DE MEMBROS (a vitrine onde ela navega e engaja), simétrico ao catálogo
+// que o membro vê ao logar — o painel segue acessível por "Meu Painel". Performer
+// ainda em onboarding cai no onboarding (o catálogo de membros é gateado por
+// performer-active). Os demais (membro, admin/moderador) seguem para o catálogo.
+const homeRoute = computed(() => {
+    if (!isPerformer.value) {
+        return route('catalog')
+    }
+
+    return isActivePerformer.value ? route('performer.members') : route('performer.onboarding')
+})
 
 const showLogoutConfirm = ref(false)
 
@@ -78,12 +86,8 @@ function logout() {
                         >
                             Seguidores
                         </Link>
-                        <Link
-                            :href="route('performer.members')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Membros
-                        </Link>
+                        <!-- "Membros" saiu da nav: o catálogo de membros virou a
+                             HOME da performer (volta pelo logo). Ver homeRoute. -->
                         <Link
                             :href="route('performer.interests.index')"
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
@@ -158,6 +162,15 @@ function logout() {
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
                             Interesses
+                        </Link>
+                        <!-- "Performers interessadas em você" (corações recebidos):
+                             grátis e com a identidade da performer visível — o
+                             oposto do Interesse pago/anônimo acima. -->
+                        <Link
+                            :href="route('consumer.hearts.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Interessadas
                         </Link>
                         <!-- Bookmark privado — a performer não é avisada. Fica
                              na nav do MEMBRO e não tem espelho na da performer. -->
