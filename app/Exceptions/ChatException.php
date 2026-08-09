@@ -26,9 +26,24 @@ class ChatException extends DomainException
 
     public const CONDUCT_BLOCKED = 'conduct_blocked';
 
+    public const DAILY_MESSAGE_LIMIT = 'daily_message_limit';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
+    }
+
+    /**
+     * A performer esgotou a franquia diária de mensagens grátis do catálogo
+     * (config/member_engagement.php). O membro nunca vê isto — é limite do lado
+     * dela; a UI mostra "você usou suas N mensagens grátis de hoje".
+     */
+    public static function dailyMessageLimit(int $limit): self
+    {
+        return new self(
+            self::DAILY_MESSAGE_LIMIT,
+            "Você usou suas {$limit} mensagens grátis de hoje. A franquia renova amanhã.",
+        );
     }
 
     public static function channelNotOpen(): self

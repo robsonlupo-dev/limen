@@ -9,11 +9,13 @@ use App\Models\AuditLog;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerInterest;
+use App\Models\PerformerMessageQuota;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\ChatContentFilter;
 use App\Support\FanAlias;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 
 /**
@@ -172,6 +174,98 @@ class ChatService
         $conversation->loadMissing('performerProfile');
 
         return $this->sendMessage($conversation, $performerProfile->user, $body);
+    }
+
+    /**
+     * MENSAGEM PERSONALIZADA do catálogo de membros (home da performer).
+     *
+     * A performer inicia a conversa com um membro que ela vê no catálogo — a
+     * PRIMEIRA superfície em que a performer abre o canal (o Interesse Controlado
+     * abre só no unlock pago do MEMBRO). Grátis para ela até esgotar a franquia
+     * diária (config/member_engagement.php); o membro vê QUE recebeu e DE QUEM (a
+     * performer nunca é anônima), mas o CORPO fica bloqueado até ele abrir o chat
+     * pago (ChatAccessService — a mesma economia M.13.1). Só o membro paga, e paga
+     * para LER, nunca por mensagem.
+     *
+     * @throws ChatException conteúdo barrado (filtro) ou franquia diária esgotada
+     */
+    public function sendCatalogMessage(PerformerProfile $performerProfile, User $member, string $body): Message
+    {
+        // Filtro ANTES de consumir a franquia (mesma disciplina de
+        // performerMessageFromInterest): uma mensagem barrada não gasta cota e
+        // responde 422 pelo texto, sem depender de nada do destinatário.
+        $this->assertContentAllowed($performerProfile->user, $body);
+
+        return DB::transaction(function () use ($performerProfile, $member, $body) {
+            // Serializa os envios DESTA performer travando a linha do perfil como
+            // 1ª instrução (padrão do InterestService): a contagem da franquia
+            // abaixo fica inescapável por corrida — dois envios simultâneos não
+            // furam o teto diário.
+            PerformerProfile::whereKey($performerProfile->id)->lockForUpdate()->first();
+
+            $this->consumeDailyMessageQuota($performerProfile);
+
+            // Reusa a conversa do par se já existir (ex.: interesse desbloqueado
+            // antes), senão nasce aqui. Idempotência por (member, performer) —
+            // mesmo firstOrCreate de openConversationForUnlock.
+            $conversation = Conversation::firstOrCreate(
+                ['member_id' => $member->id, 'performer_profile_id' => $performerProfile->id],
+                ['status' => 'active'],
+            );
+            $conversation->loadMissing('performerProfile');
+
+            // A performer envia de graça (sendMessage não a submete ao gate de
+            // acesso do membro). O membro só LÊ o corpo com janela paga
+            // (accessState.can_read); até lá o broadcast e o preview vão sem corpo
+            // (broadcastListUpdate já respeita o paywall). O filtro roda de novo
+            // aqui dentro — idempotente, já passou.
+            return $this->sendMessage($conversation, $performerProfile->user, $body);
+        });
+    }
+
+    /**
+     * Consome uma unidade da franquia diária de mensagens grátis da performer, ou
+     * lança se esgotada. Contado sob o lock do perfil (sendCatalogMessage), então
+     * a leitura da linha do dia é serializada. Uma linha por (performer, dia); dia
+     * novo = linha nova, reset implícito.
+     *
+     * @throws ChatException franquia diária esgotada
+     */
+    private function consumeDailyMessageQuota(PerformerProfile $performerProfile): void
+    {
+        $limit = (int) config('member_engagement.free_messages_per_day');
+        $today = now()->toDateString();
+
+        $quota = PerformerMessageQuota::firstOrCreate([
+            'performer_profile_id' => $performerProfile->id,
+            'quota_date' => $today,
+        ]);
+
+        // Trava a própria linha do contador: sob o lock do perfil ela já não
+        // corre com outro envio desta performer, mas travá-la mantém a leitura
+        // fresca (imune ao snapshot de REPEATABLE READ).
+        $quota = PerformerMessageQuota::whereKey($quota->id)->lockForUpdate()->first();
+
+        if ($quota->sent_count >= $limit) {
+            throw ChatException::dailyMessageLimit($limit);
+        }
+
+        $quota->increment('sent_count');
+    }
+
+    /**
+     * Quantas mensagens grátis restam à performer hoje. Consumido pelo catálogo
+     * para exibir "N/limite" e travar o botão ao esgotar.
+     */
+    public function remainingDailyMessages(PerformerProfile $performerProfile): int
+    {
+        $limit = (int) config('member_engagement.free_messages_per_day');
+
+        $sent = (int) PerformerMessageQuota::where('performer_profile_id', $performerProfile->id)
+            ->where('quota_date', now()->toDateString())
+            ->value('sent_count');
+
+        return max(0, $limit - $sent);
     }
 
     /**

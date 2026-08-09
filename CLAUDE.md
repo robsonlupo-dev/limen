@@ -317,7 +317,13 @@ PR #140 — sem tipo novo.
 > ~180 rotas web + 42 rotas API.** O **Agendamento de chamada** (PR #170,
 > `feat/scheduled-call-v1`, +28 testes) foi mergeado na `main` (`db007b3`) — ver §
 > "Agendamento de chamada". (Sprint 16 fechou em `55de8cd`; o merge de docs #169
-> levou `main` a `3328390`, e o #170 a `db007b3`.) **Base original**
+> levou `main` a `3328390`, e o #170 a `db007b3`.)
+>
+> **Em branch (`feat/member-catalog-home-engagement`, +13 testes → 1907 testes /
+> 15501 asserts, PR pendente):** o **catálogo de membros virou a HOME da performer**
+> e ganhou o **motor de engajamento coração + mensagem** — ver §§ "Catálogo de
+> membros como home" e "Motor de engajamento". Sobe DESLIGADO de nada (não tem flag —
+> é reescrita de superfície existente + duas tabelas novas). **Base original**
 > (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
@@ -978,6 +984,65 @@ oráculo para reconstruir quem a lista esconde — disciplina do
 - **Só membro verificado e ativo** (`role=consumer`, `status=active`,
   `email_verified_at` não-nulo) — throwaway não é exposto à performer.
 
+## Catálogo de membros como HOME + motor de engajamento — `feat/member-catalog-home-engagement` (PR pendente)
+
+Evolução do PR #165. **O catálogo de membros virou a HOME da performer** (antes era o
+painel): ao logar, a performer ativa cai em `performer.members`
+(`RedirectsToHome::homeRouteFor`), e o **logo do header leva a essa tela** (AppLayout
+`homeRoute` — simétrico ao catálogo do membro). O painel segue acessível por "Meu
+Painel"; o link "Membros" saiu da nav (volta pelo logo). A tela foi redesenhada na
+estética maison, espelhando `Catalog/Index.vue` (grid full-width 2/3/4, card retrato
+3:4 full-bleed via `<MemberCard>`, tokens `limen-*`, FanAlias + faixa de atividade na
+barra). **NÃO regride a privacidade do #165** — a máscara do `MemberCatalogService`
+segue igual (FanAlias sempre, tier NUNCA, Black/FC ocultos por padrão).
+
+Duas ações grátis por card — o **motor de engajamento** —, e as duas são o OPOSTO do
+Interesse Controlado pago/anônimo (que continua nas superfícies de
+seguidores/visitantes; no catálogo o coração o substitui):
+
+- **[CORAÇÃO] Interesse grátis e ilimitado.** Tabela DEDICADA `performer_hearts`
+  (UNIQUE por par, idempotente), `PerformerHeartService` dona única — **não** é
+  overload de `performer_interests` (semântica oposta: grátis, ilimitado, sempre
+  visível; misturar enroscaria a máquina de suppressed/opt-out/desbloqueio-pago). O
+  membro vê **quem o curtiu, COM a identidade da performer** (não anônima — é o
+  produto do coração), na tela `/interessadas` (`consumer.hearts.index`), **sem pagar
+  nada**. Não move tokens (fora do ledger); o único freio é o throttle da rota. O que
+  protege o membro não é cota aqui — é o catálogo, que já só expõe quem optou por
+  aparecer, então a performer só curte quem já via.
+- **[MENSAGEM PERSONALIZADA] texto livre, franquia diária grátis.** A performer tem
+  uma franquia diária de mensagens grátis **por performer** (não por par;
+  `config/member_engagement.php` → `free_messages_per_day`, hoje 15; contador em
+  `performer_message_quotas`, uma linha por (performer, dia), reset implícito).
+  `ChatService::sendCatalogMessage` cria a Conversation + 1ª Message (é a PRIMEIRA
+  superfície em que a performer inicia o canal — o Interesse abre só no unlock do
+  membro). O membro vê **QUE recebeu e DE QUEM**, mas o **CORPO fica bloqueado** até
+  ele **abrir o chat pago** (`ChatAccessService`, a MESMA economia M.13.1: 1-2 tokens
+  por janela, performer recebe o crédito fixo de abertura). **A performer NÃO paga
+  para enviar; só o membro paga para LER.** Franquia esgotada → 422
+  `daily_message_limit` ("você usou suas N mensagens grátis de hoje").
+
+Invariantes travadas (revisão de segurança rodada, sem 🔴):
+- **Alvo pela MESMA fonte da lista.** Coração e mensagem resolvem o `member_handle`
+  pelo trait `ResolvesCatalogMember` (contra `MemberCatalogService::visibleMemberIds`,
+  a mesma `visibleQuery` da tela) — a lista e a ação concordam por construção, o par
+  404/sucesso não vira oráculo de quem a lista esconde. Todo modo de falha é o mesmo
+  404. (O antigo `SendInterestFromCatalogRequest` foi refatorado para reusar o trait —
+  fim da cópia divergente.)
+- **Corpo atrás do paywall.** A mensagem reusa `sendMessage`/`ChatController`, então
+  herda o gate: `accessState.can_read` false → corpo não trafega, e o broadcast manda
+  preview `null` a quem não pagou. O filtro de conteúdo roda ANTES de consumir a
+  franquia (mensagem barrada não gasta cota).
+- **Franquia à prova de corrida:** `consumeDailyMessageQuota` sob `lockForUpdate` da
+  linha do perfil (1ª instrução da transação) + lock da linha do contador, UNIQUE
+  (perfil, dia).
+- **M.13.10 mantido:** o membro nunca vê tier; a performer nunca vê id/nome/e-mail/
+  saldo do membro (só FanAlias). O coração expõe só a identidade PÚBLICA da performer
+  ao membro (nome/slug/avatar por rota assinada).
+- **Hard Delete varre os dois sentidos:** corações RECEBIDOS pelo membro
+  (`purgePerformerHearts`) e DADOS pela performer (`purgePerformerHeartsByPerformer`)
+  + o contador (`purgePerformerMessageQuotas`). FKs `restrictOnDelete` não disparam
+  (soft-delete) — DELETE explícito.
+
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 
 Toda imagem no upload passa por hash perceptual conferido contra uma lista local.
@@ -1100,8 +1165,18 @@ ação:
 
 1. **Link de texto no header** (pedido do PO) — montado inline no fluxo do header,
    nomeado, para o membro achar a saída sem adivinhar. Um modal pode cobri-lo.
+   **Atualização (`feat/member-catalog-home-engagement`, PR pendente):** o link é
+   agora **PROMINENTE e empilhado ABAIXO do nome** (nome em cima, "Panic Button"
+   embaixo, numa coluna no header desktop), com **borda dourada `limen-gold`
+   visível** e rótulo legível `text-limen-gold` (antes era `muted`/`border-frame`,
+   discreto) — outro achado do UAT: o tom apagado escondia a saída. O hover puxa para
+   `danger` e o ícone de saída fica. **Só desktop** (mobile é PR de responsividade
+   separado). `PanicButtonVisibilityTest` foi atualizado para a nova prominência
+   (`border-limen-gold`/`text-limen-gold`), preservando todos os invariantes de
+   segurança (rótulo, aria-label, disco, duplo-Escape).
 2. **Disco flutuante** teleportado para a raiz em **`z-[10001]`** — a via SEMPRE
-   VISÍVEL, o fallback que o link não é.
+   VISÍVEL, o fallback que o link não é. **Inalterado** (o disco mantém
+   `bg-surface`/`text-[#6f6a62]`; a prominência acima é só do link inline).
 3. **Duplo-Escape** (dois `Escape` em < 500ms). Um Escape sozinho não faz nada
    (senão fechar um modal viraria evasão acidental).
 
@@ -1528,4 +1603,6 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
 ```
   Resultado esperado (`main` `db007b3`, pós-PR #170): **1893 passam, 1 falha** de
   **1894 testes / 15458 asserts** (o `GeoBlockTest` da view 451, falha documentada só
-  neste clone de dev; verde no CI).
+  neste clone de dev; verde no CI). Na branch
+  `feat/member-catalog-home-engagement` (+13 testes): **1906 passam, 1 falha** (a
+  mesma do GeoBlock) de **1907 testes / 15501 asserts**.

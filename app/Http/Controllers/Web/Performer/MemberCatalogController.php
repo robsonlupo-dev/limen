@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Performer;
 
 use App\Http\Controllers\Controller;
+use App\Services\ChatService;
 use App\Services\MemberCatalogService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +20,10 @@ use Inertia\Response;
  */
 class MemberCatalogController extends Controller
 {
-    public function __construct(private MemberCatalogService $catalog) {}
+    public function __construct(
+        private MemberCatalogService $catalog,
+        private ChatService $chatService,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -32,6 +36,10 @@ class MemberCatalogController extends Controller
 
         return Inertia::render('Performer/Members', [
             'members' => $this->catalog->page($profile),
+            // Franquia diária de mensagens grátis (config/member_engagement.php) e
+            // quantas restam hoje — a UI trava o botão de mensagem ao esgotar.
+            'messagesRemaining' => $this->chatService->remainingDailyMessages($profile),
+            'messagesDailyLimit' => (int) config('member_engagement.free_messages_per_day'),
         ]);
     }
 }

@@ -1,155 +1,216 @@
 <script setup>
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
+import MemberCard from '@/Components/MemberCard.vue'
 import { postJson } from '@/lib/http'
 
 /**
- * Catálogo de MEMBROS (Sprint 16) — lado da PERFORMER. Vitrine invertida: a
- * performer navega membros que optaram por aparecer e sinaliza interesse
- * (Interesse Controlado invertido — ela sinaliza, o membro decide se paga para
- * abrir o chat).
+ * Catálogo de MEMBROS — a HOME da performer (redesign maison). A performer navega
+ * membros que optaram por aparecer e engaja por duas ações grátis: CORAÇÃO
+ * (interesse grátis e ilimitado — o membro vê quem curtiu, com a identidade dela)
+ * e MENSAGEM PERSONALIZADA (franquia diária grátis; o membro paga para LER pelo
+ * gate de chat existente). A performer NÃO paga por nenhuma das duas.
  *
  * Cada item já chega MASCARADO do backend (MemberCatalogService): FanAlias label
- * + handle, faixa de atividade e nada mais. Nunca nome, e-mail, tier ou saldo do
- * membro — o payload não os carrega, então não há o que vazar no DevTools.
+ * + handle, faixa de atividade e nada mais — nunca nome, e-mail, tier ou saldo.
  */
 const props = defineProps({
-    // Paginator do Laravel: { data, links, last_page, ... }. Cada item de data:
-    // { fan_alias_label, member_handle, avatar_url, activity_label, interest_sent }.
+    // Paginator do Laravel. Cada item de data:
+    // { fan_alias_label, member_handle, avatar_url, activity_label, interest_sent, hearted }
     members: { type: Object, required: true },
+    // Franquia diária de mensagens grátis e quantas restam hoje (por performer).
+    messagesRemaining: { type: Number, default: 0 },
+    messagesDailyLimit: { type: Number, default: 0 },
 })
 
-const justSent = ref({})
-const sendingHandle = ref(null)
-const errorFor = ref({})
+// Estado local do coração por handle: parte de `member.hearted` e reflete o
+// clique na hora, sem esperar o servidor (o backend é idempotente).
+const heartedByHandle = reactive({})
+const heartingHandle = ref(null)
+
+// Franquia restante como estado local — a resposta do envio a atualiza.
+const remaining = ref(props.messagesRemaining)
+
 const toastMessage = ref('')
 
-function alreadySent(member) {
-    return member.interest_sent || justSent.value[member.member_handle]
+// Modal de mensagem personalizada.
+const msg = reactive({ open: false, member: null, body: '', sending: false, error: '' })
+
+function isHearted(member) {
+    return heartedByHandle[member.member_handle] ?? member.hearted
 }
 
-function initial(label) {
-    return (label ?? '?').replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase() || '?'
+function flashToast(text) {
+    toastMessage.value = text
+    setTimeout(() => (toastMessage.value = ''), 4000)
 }
 
-async function sendInterest(member) {
-    if (alreadySent(member) || sendingHandle.value !== null) return
-
-    errorFor.value = { ...errorFor.value, [member.member_handle]: '' }
-    sendingHandle.value = member.member_handle
+async function sendHeart(member) {
+    if (isHearted(member) || heartingHandle.value !== null) return
+    heartingHandle.value = member.member_handle
 
     try {
-        await postJson(route('performer.members.interest'), { member_handle: member.member_handle })
-
-        justSent.value[member.member_handle] = true
-        toastMessage.value = 'Interesse enviado'
-        setTimeout(() => (toastMessage.value = ''), 4000)
+        await postJson(route('performer.members.heart'), { member_handle: member.member_handle })
+        heartedByHandle[member.member_handle] = true
+        flashToast('Coração enviado')
     } catch (error) {
-        // 404: o membro pode ter saído do catálogo (desligou a visibilidade,
-        // encerrou a conta) entre o render e o clique. Copy única para todos os
-        // casos — distinguir "não existe" de "saiu da lista" viraria oráculo.
-        const message =
+        // 404: o membro saiu do catálogo (desligou a visibilidade, encerrou a
+        // conta) entre o render e o clique. Copy única — distinguir "não existe"
+        // de "saiu da lista" viraria oráculo.
+        flashToast(
             error.status === 429
                 ? 'Muitos envios em pouco tempo. Aguarde um instante.'
                 : error.status === 404
                   ? 'Este membro não está mais disponível.'
-                  : (error.data?.message ?? 'Não foi possível enviar. Tente novamente.')
-
-        errorFor.value = { ...errorFor.value, [member.member_handle]: message }
+                  : 'Não foi possível enviar. Tente novamente.',
+        )
     } finally {
-        sendingHandle.value = null
+        heartingHandle.value = null
+    }
+}
+
+function openMessage(member) {
+    msg.member = member
+    msg.body = ''
+    msg.error = ''
+    msg.open = true
+}
+
+async function sendMessage() {
+    if (msg.sending || remaining.value <= 0 || msg.body.trim() === '') return
+    msg.sending = true
+    msg.error = ''
+
+    try {
+        const data = await postJson(route('performer.members.message'), {
+            member_handle: msg.member.member_handle,
+            body: msg.body,
+        })
+        remaining.value = data.messages_remaining_today ?? remaining.value
+        msg.open = false
+        flashToast('Mensagem enviada')
+    } catch (error) {
+        // A franquia esgotada volta o restante zerado no corpo — reflete na UI.
+        if (typeof error.data?.messages_remaining_today === 'number') {
+            remaining.value = error.data.messages_remaining_today
+        }
+        msg.error =
+            error.status === 404
+                ? 'Este membro não está mais disponível.'
+                : error.status === 429
+                  ? 'Muitos envios em pouco tempo. Aguarde um instante.'
+                  : (error.data?.message ?? 'Não foi possível enviar. Tente novamente.')
+    } finally {
+        msg.sending = false
     }
 }
 </script>
 
 <template>
     <AppLayout title="Membros">
-        <div class="max-w-5xl mx-auto px-6 py-10 space-y-8">
-            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div class="space-y-1">
-                    <h1 class="font-serif text-4xl text-cream">Membros</h1>
-                    <p class="text-muted text-sm">
-                        Membros que topam ser encontrados. Demonstre interesse — eles decidem se abrem a conversa.
-                    </p>
-                </div>
-                <Link :href="route('performer.dashboard')" class="text-sm text-gold hover:text-gold-light transition-colors shrink-0">
-                    Voltar ao painel
-                </Link>
-            </div>
-
-            <p v-if="members.data.length === 0" class="rounded-xl border border-frame bg-surface p-8 text-center text-muted">
-                Nenhum membro disponível no momento.
-            </p>
-
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div
-                    v-for="member in members.data"
-                    :key="member.member_handle"
-                    class="flex flex-col gap-3 rounded-xl border border-frame bg-surface p-5"
-                >
-                    <div class="flex items-center gap-3">
-                        <img
-                            v-if="member.avatar_url"
-                            :src="member.avatar_url"
-                            alt=""
-                            class="h-12 w-12 shrink-0 rounded-full object-cover"
-                        />
-                        <div
-                            v-else
-                            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-lg font-semibold text-gold"
-                        >{{ initial(member.fan_alias_label) }}</div>
-
-                        <div class="min-w-0 flex-1">
-                            <p class="truncate text-cream font-medium">{{ member.fan_alias_label }}</p>
-                            <p v-if="member.activity_label" class="text-xs text-muted">{{ member.activity_label }}</p>
-                        </div>
+        <div class="bg-limen-bg">
+            <div class="max-w-screen-2xl mx-auto px-6 py-10 space-y-8">
+                <!-- Cabeçalho maison -->
+                <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div class="space-y-2">
+                        <h1 class="font-serif text-4xl text-limen-ink">Membros</h1>
+                        <p class="text-sm text-limen-ink-soft">
+                            Membros que topam ser encontrados. Curta ou mande uma mensagem — eles decidem se abrem a conversa.
+                        </p>
                     </div>
-
-                    <p v-if="errorFor[member.member_handle]" class="text-xs text-danger">
-                        {{ errorFor[member.member_handle] }}
-                    </p>
-
-                    <Button
-                        v-if="alreadySent(member)"
-                        variant="ghost"
-                        disabled
-                        class="w-full"
-                    >
-                        Interesse enviado
-                    </Button>
-                    <Button
-                        v-else
-                        :disabled="sendingHandle === member.member_handle"
-                        class="w-full"
-                        @click="sendInterest(member)"
-                    >
-                        Enviar interesse
-                    </Button>
+                    <!-- Franquia diária de mensagens grátis. -->
+                    <div class="shrink-0 rounded-lg border border-limen-line px-3 py-2 text-xs text-limen-ink-mute">
+                        Mensagens grátis hoje:
+                        <span class="text-limen-gold">{{ remaining }}/{{ messagesDailyLimit }}</span>
+                    </div>
                 </div>
-            </div>
 
-            <div v-if="members.last_page > 1" class="flex justify-center gap-2 pt-2">
-                <Link
-                    v-for="link in members.links"
-                    :key="link.label"
-                    :href="link.url ?? '#'"
-                    class="rounded-lg border px-3 py-1.5 text-sm transition-colors no-underline"
-                    :class="[
-                        link.active ? 'border-gold bg-gold/10 text-gold' : 'border-frame text-muted hover:border-gold/40',
-                        !link.url && 'pointer-events-none opacity-40',
-                    ]"
-                    v-html="link.label"
-                />
+                <p
+                    v-if="members.data.length === 0"
+                    class="rounded-xl border border-limen-line bg-limen-surface p-8 text-center text-limen-ink-mute"
+                >
+                    Nenhum membro disponível no momento.
+                </p>
+
+                <!-- Grid full-width, mesma proporção do catálogo de performers. -->
+                <div v-else class="grid grid-cols-2 gap-3.5 md:grid-cols-3 lg:grid-cols-4">
+                    <MemberCard
+                        v-for="member in members.data"
+                        :key="member.member_handle"
+                        :member="member"
+                        :hearted="isHearted(member)"
+                        :hearting="heartingHandle === member.member_handle"
+                        @heart="sendHeart(member)"
+                        @message="openMessage(member)"
+                    />
+                </div>
+
+                <!-- Paginação -->
+                <div v-if="members.last_page > 1" class="flex flex-wrap justify-center gap-2 pt-2">
+                    <Link
+                        v-for="link in members.links"
+                        :key="link.label"
+                        :href="link.url ?? '#'"
+                        preserve-scroll
+                        class="rounded-lg px-3 py-1.5 text-sm no-underline transition-colors"
+                        :class="[
+                            link.active
+                                ? 'bg-limen-gold text-limen-bg'
+                                : 'border border-limen-line text-limen-ink-mute hover:text-limen-ink',
+                            !link.url && 'pointer-events-none opacity-40',
+                        ]"
+                        v-html="link.label"
+                    />
+                </div>
             </div>
         </div>
 
-        <!-- Toast simples de confirmação de envio. -->
+        <!-- Modal de mensagem personalizada -->
+        <Modal :show="msg.open" max-width="md" @close="msg.open = false">
+            <h2 class="mb-1 font-serif text-2xl text-limen-ink">Mensagem para {{ msg.member?.fan_alias_label }}</h2>
+            <p class="mb-4 text-sm text-limen-ink-soft">
+                Ele vê que recebeu uma mensagem sua e de quem é, mas só lê o conteúdo depois de abrir o chat.
+            </p>
+
+            <template v-if="remaining > 0">
+                <textarea
+                    v-model="msg.body"
+                    rows="4"
+                    maxlength="2000"
+                    placeholder="Escreva algo pessoal…"
+                    class="w-full rounded-lg border border-limen-line bg-limen-surface-2 px-3 py-2 text-sm text-limen-ink placeholder:text-limen-ink-mute focus:border-limen-gold focus:outline-none"
+                ></textarea>
+                <p v-if="msg.error" class="mt-2 text-xs text-danger">{{ msg.error }}</p>
+                <div class="mt-4 flex items-center justify-between">
+                    <span class="text-xs text-limen-ink-mute">{{ remaining }}/{{ messagesDailyLimit }} grátis hoje</span>
+                    <div class="flex gap-3">
+                        <Button variant="ghost" size="sm" @click="msg.open = false">Cancelar</Button>
+                        <Button size="sm" :disabled="msg.sending || msg.body.trim() === ''" @click="sendMessage">
+                            Enviar
+                        </Button>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Franquia esgotada. -->
+            <div v-else class="space-y-4">
+                <p class="rounded-lg border border-limen-line bg-limen-surface-2 p-4 text-sm text-limen-ink-soft">
+                    Você usou suas {{ messagesDailyLimit }} mensagens grátis de hoje. A franquia renova amanhã.
+                </p>
+                <div class="flex justify-end">
+                    <Button variant="ghost" size="sm" @click="msg.open = false">Fechar</Button>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- Toast simples de confirmação. -->
         <transition name="fade">
             <div
                 v-if="toastMessage"
-                class="fixed bottom-4 right-4 z-50 rounded-lg border border-gold/40 bg-surface px-4 py-2 text-sm text-cream shadow-xl"
+                class="fixed bottom-4 right-4 z-50 rounded-lg border border-limen-gold/40 bg-limen-surface px-4 py-2 text-sm text-limen-ink shadow-xl"
             >
                 {{ toastMessage }}
             </div>
