@@ -3122,6 +3122,45 @@ para a performer (#165), anti-CSAM MVP (#161), dashboard admin de receita
 > **O "Toast notification estilo Seeking" já foi entregue** (PR #144). Se aparecer
 > em lista antiga de backlog, está feito.
 
+### A.0.4 Visitas bidirecionais — DESENHADO, PENDENTE
+
+Feature planejada, **não iniciada por decisão do PO (09/08/2026)**: fica para um PR
+**depois** que o **catálogo de membros como home** (coração/mensagem + panic button)
+estiver mergeado. Registrado aqui para não ser redescoberto do zero.
+
+**O que existe hoje (auditado, só leitura):** o sistema de visitas é
+**unidirecional — membro → performer**. `ProfileVisitService::record()` só grava
+quando um `consumer` abre o perfil de uma performer (chamado em `CatalogController`
+e `PublicCatalogController`), e só a **performer** vê o resultado, no painel
+"Visitantes recentes" do dashboard (`panelFor()`). **Performer visitando membro não
+gera registro** (o `record()` rejeita não-`consumer`), e **não existe tela "quem me
+visitou" para o membro** — o dado do sentido inverso nem é coletado.
+
+**O que a feature adiciona (dois lados novos):**
+- [ ] **Membro vê as performers que o visitaram** — primeira superfície
+      performer→membro de visita. Precisa gravar a visita quando uma **performer**
+      abre o perfil de um membro (hoje o catálogo de membros do PR #165 /
+      `MemberCatalogService` não chama `record()` nem tem conceito de visita) + tela
+      nova no lado do membro.
+- [ ] **Registro do sentido performer → membro** — `record()` atual retorna cedo se
+      o visitante não for `consumer`; o novo caminho é a coleta desse lado.
+
+**Restrições de privacidade já identificadas (LOCKED, não redescobrir):**
+- **M.13.10** — o membro **nunca** vê tier/Círculo da performer; expor "performer X
+  te visitou" não pode vazar tier nem virar oráculo disso.
+- **Colisão com Ghost Mode / Modo Discreto** — hoje esses perks protegem a performer
+  no sentido membro→performer (ausência de linha *é* o produto). O sentido inverso
+  precisa da decisão simétrica do PO: o que o membro pode ver de uma performer que o
+  visitou, e se a performer tem um opt-out equivalente.
+- **FanAlias / isolamento por par** — qualquer exposição de identidade continua sob
+  `FanAlias` (nunca id cru), com a mesma disciplina de piso/k-anonimato/faixa de
+  horário do painel atual (ver `ProfileVisitService` e § "Piso de visitantes" do
+  CLAUDE.md) reavaliada para a direção nova.
+- **Ledger não se aplica** — visita não move tokens; nada de `entry_type` aqui.
+
+**Dependência dura:** catálogo de membros como home mergeado primeiro (é onde a
+performer navega membros — a superfície que passaria a gerar o registro).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),
