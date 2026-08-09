@@ -2,21 +2,22 @@
 
 namespace App\Rules;
 
-use App\Services\HCaptchaVerifier;
+use App\Services\Captcha\CaptchaManager;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
 /**
- * O token do hCaptcha confere?
+ * O token do captcha confere?
  *
- * Dona única do contrato do captcha nas QUATRO portas que o usam: login web,
- * cadastro web, `POST /api/v1/auth/login` e os dois `register` da API. Cada
- * Form Request só chama `rules()` e `messages()` daqui — sem isso a lista de
- * regras seria copiada quatro vezes e a quinta porta nasceria sem captcha, que
- * é a lição que o CLAUDE.md tira do `documents.accepted` ("gate que fecha uma
- * porta só não é gate").
+ * Dona única do contrato do captcha nas portas que o usam: login web, cadastro
+ * web, `POST /api/v1/auth/login`, os dois `register` da API e o pedido de OTP.
+ * Cada Form Request só chama `rules()` e `messages()` daqui — sem isso a lista
+ * de regras seria copiada e a próxima porta nasceria sem captcha, que é a lição
+ * que o CLAUDE.md tira do `documents.accepted` ("gate que fecha uma porta só não
+ * é gate"). Qual PROVEDOR responde (hCaptcha/Turnstile/nenhum) é decisão do
+ * CaptchaManager; esta regra não conhece o driver concreto.
  *
- * Por que `rules()` estático em vez de só `new HCaptchaValid` na lista: com o
+ * Por que `rules()` estático em vez de só `new CaptchaValid` na lista: com o
  * captcha DESLIGADO o campo não pode ser exigido, e com ele LIGADO o campo
  * ausente precisa falhar. Um objeto de regra sozinho não resolve os dois — o
  * validator do Laravel pula regras não-implícitas quando o campo não veio, e o
@@ -24,10 +25,14 @@ use Illuminate\Contracts\Validation\ValidationRule;
  * regra implícita: desligado vira `nullable`, ligado vira `required` + esta
  * verificação.
  */
-class HCaptchaValid implements ValidationRule
+class CaptchaValid implements ValidationRule
 {
-    /** Nome do campo que o widget do hCaptcha injeta no form. */
-    public const FIELD = 'h-captcha-response';
+    /**
+     * Nome do campo que carrega o token no formulário. Neutro por provedor — o
+     * front captura o token pelo callback do widget e o envia aqui, seja
+     * hCaptcha ou Turnstile. Fonte do valor: config('captcha.field').
+     */
+    public const FIELD = 'captcha_token';
 
     /**
      * Mensagem única para os dois modos de falha (ausente e recusado).
@@ -40,17 +45,18 @@ class HCaptchaValid implements ValidationRule
     public const MESSAGE = 'Verificação de segurança falhou. Tente novamente.';
 
     /**
-     * As regras do campo, conforme o captcha esteja ligado ou não.
+     * As regras do campo, conforme haja provedor ativo ou não.
      *
-     * DESLIGADO devolve `nullable` e mais nada: o campo vira opcional e
-     * ignorado, então nenhum teste e nenhum cliente antigo precisa mandá-lo.
-     * É o que mantém dev, teste e CI funcionando sem tocar no phpunit.xml.
+     * DESLIGADO (`captcha.provider=none`) devolve `nullable` e mais nada: o
+     * campo vira opcional e ignorado, então nenhum teste e nenhum cliente antigo
+     * precisa mandá-lo. É o que mantém dev, teste e CI funcionando sem tocar no
+     * phpunit.xml.
      *
      * @return array<int, mixed>
      */
     public static function rules(): array
     {
-        if (! config('hcaptcha.enabled')) {
+        if (! app(CaptchaManager::class)->enabled()) {
             return ['nullable'];
         }
 
@@ -60,9 +66,8 @@ class HCaptchaValid implements ValidationRule
     /**
      * Mensagens do campo, para o Form Request mesclar nas suas.
      *
-     * O `required` também precisa da mensagem: sem ela o Laravel geraria "The h
-     * captcha response field is required", que expõe o nome interno do campo e
-     * não está nem em português.
+     * O `required` também precisa da mensagem: sem ela o Laravel geraria "The
+     * captcha token field is required", que expõe o nome interno do campo.
      *
      * @return array<string, string>
      */
@@ -76,7 +81,7 @@ class HCaptchaValid implements ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if (! app(HCaptchaVerifier::class)->verify(is_string($value) ? $value : null)) {
+        if (! app(CaptchaManager::class)->verify(is_string($value) ? $value : null)) {
             $fail(self::MESSAGE);
         }
     }

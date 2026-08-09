@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\CaptchaValid;
 use App\Rules\CpfValido;
-use App\Rules\HCaptchaValid;
 use Illuminate\Foundation\Http\FormRequest;
 
 class RegisterConsumerRequest extends FormRequest
@@ -36,16 +36,16 @@ class RegisterConsumerRequest extends FormRequest
             'lgpd_consent' => ['required', 'accepted'],
             'terms_version' => ['required', 'string', 'max:20'],
 
-            // hCaptcha. Herdado por RegisterPerformerRequest, então as DUAS
+            // Captcha. Herdado por RegisterPerformerRequest, então as DUAS
             // portas de cadastro da API v1 ficam cobertas de uma vez. No-op com
-            // HCAPTCHA_ENABLED=false.
-            HCaptchaValid::FIELD => HCaptchaValid::rules(),
+            // CAPTCHA_PROVIDER=none.
+            CaptchaValid::FIELD => CaptchaValid::rules(),
         ];
     }
 
     public function messages(): array
     {
-        return array_merge(HCaptchaValid::messages(), [
+        return array_merge(CaptchaValid::messages(), [
             'birthdate.before_or_equal' => 'You must be at least 18 years old to register.',
             'password.regex' => 'Password must contain at least one uppercase letter and one number.',
             'accept_terms.accepted' => 'You must accept the terms of service.',

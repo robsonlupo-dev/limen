@@ -1477,6 +1477,53 @@ regra numa das portas reabriria a enumeração ou o reuso.
   "Limen", **sem imagem remota** (pixel audit). O dígito viaja no corpo porque é o
   produto do e-mail — não em audit, não em log.
 
+## Captcha — driver abstrato hCaptcha/Turnstile (Sprint 16)
+Anti-bot em login e cadastro. O que era só hCaptcha (Sprint 9) virou **driver
+abstrato** com dois provedores intercambiáveis — **hCaptcha** e **Cloudflare
+Turnstile** —, motivado pelo fim do trial Pro do hCaptcha (11/08/2026, cairia para
+o plano free e seus limites; o Turnstile é gratuito e sem eles). **Sobe DESLIGADO**
+(`CAPTCHA_PROVIDER=none`, o padrão versionado — NO-OP total). Detalhe completo em
+`docs/CAPTCHA.md`.
+
+- **Um interruptor:** `CAPTCHA_PROVIDER=none|hcaptcha|turnstile`. `none` é no-op
+  (campo não exigido, widget não monta, zero byte para terceiro). Chaves por
+  provedor: `HCAPTCHA_SITEKEY`/`HCAPTCHA_SECRET` e `TURNSTILE_SITE_KEY`/
+  `TURNSTILE_SECRET_KEY`. **Ponte de compat:** sem `CAPTCHA_PROVIDER`, um
+  `HCAPTCHA_ENABLED=true` legado ainda seleciona o hCaptcha (não desliga um gate
+  ativo em silêncio no deploy).
+- **Dona única da ESCOLHA do provedor:** `App\Services\Captcha\CaptchaManager` —
+  resolve o driver do config. A regra de validação e as props do Inertia falam só
+  com ele, nunca com um driver concreto. **A lógica NÃO é duplicada por provedor:**
+  `RemoteCaptchaDriver` tem o POST de siteverify + fail-open compartilhado
+  (hCaptcha e Turnstile têm contratos server-side IDÊNTICOS — POST `secret`+
+  `response`, resposta `success`); `HcaptchaDriver`/`TurnstileDriver` só declaram a
+  chave de config; `NullCaptchaDriver` é o `none`.
+- **Dona única do CONTRATO nas portas:** `App\Rules\CaptchaValid` (era
+  `HCaptchaValid`), consumida por `LoginRequest`, `RegisterWebRequest`,
+  `RegisterConsumerRequest` (o performer herda) e `RequestOtpRequest`. Campo NEUTRO
+  `captcha_token` (`CaptchaValid::FIELD`) — o front captura o token pelo callback e
+  o envia via `useForm`, então UM nome serve aos dois provedores. **Rota de auth
+  nova entra pela regra, não reimplementa o captcha** (lição do `documents.accepted`).
+- **Frontend:** `resources/js/Components/Captcha.vue` (era `HCaptcha.vue`) — widget
+  único que carrega o SDK do provedor ativo. **As duas URLs de SDK são LITERAIS**,
+  uma por provedor (`js.hcaptcha.com` e `challenges.cloudflare.com`), para a
+  varredura de origem externa (`ExternalAssetPolicyTest`, ambos em
+  `ALLOWED_JS_ORIGINS`) enxergá-las — escondê-las atrás de um mapa/variável faria o
+  terceiro passar despercebido pela auditoria. Montado só em /login e /cadastro
+  (públicas, deslogadas), **nunca** no `app.blade.php` (docs/PIXEL_AUDIT.md).
+- **Segurança preservada do provedor único:** segredo nunca vai ao frontend,
+  `remoteip` nunca vai ao siteverify (vale p/ os dois — a Limen não retransmite o
+  IP ao subprocessador), fail-OPEN em queda do provedor (5xx/timeout passa, como o
+  GeoBlock), token de uso único com reset no `onError`. **CSP não mudou** — só há
+  `frame-ancestors 'self'`, sem `script-src`/`frame-src` restritivo, então nada a
+  adicionar (e um `script-src` parcial quebraria o Vite).
+- **Conformidade (bloqueia ativação, não merge):** QUALQUER provedor é
+  subprocessador e vê o IP de quem abre as telas de auth. Antes de sair de `none`
+  em produção, o provedor escolhido entra na política de privacidade + registro de
+  subprocessadores + DPA assinado (Intuition Machines p/ hCaptcha; Cloudflare, Inc.
+  p/ Turnstile). Mesma disciplina de linguagem do painel de visitantes: **captcha
+  não é garantia de ausência de bot** — encarece, não elimina.
+
 ## Geobloqueio (FOSTA-SESTA) — montado, NÃO ativo
 Middleware `GeoBlock` nos grupos `web` e `api`, 451. **Com `GEO_DRIVER=none` (o
 padrão e o valor de hoje) ele não bloqueia ninguém** — falta a fonte de
@@ -1576,9 +1623,13 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   HCAPTCHA_ENABLED=false php artisan test
   ```
 - **`HCAPTCHA_ENABLED=false` ao rodar testes localmente:** o `.env` do servidor
-  tem o hCaptcha LIGADO (é dev real), e com ele ligado os Form Requests de auth
-  exigem o campo `h-captcha-response` — a suíte inteira de auth quebra. O CI roda
-  com ele desligado; reproduza isso no comando (acima), **não** editando o config.
+  tem o captcha LIGADO (é dev real), e com ele ligado os Form Requests de auth
+  exigem o campo `captcha_token` — a suíte inteira de auth quebra. O CI roda com
+  ele desligado; reproduza isso no comando (acima), **não** editando o config.
+  **Desde o driver de captcha (§ "Captcha"), o interruptor é `CAPTCHA_PROVIDER`;**
+  `HCAPTCHA_ENABLED=false` no comando continua funcionando pela ponte de
+  compatibilidade (sem `CAPTCHA_PROVIDER` definido, `HCAPTCHA_ENABLED=false` cai
+  em `none`). Equivalente e mais explícito: `CAPTCHA_PROVIDER=none`.
 - Migration quebrada faz o Pest re-rodar `migrate:fresh` a cada teste e **parece
   hang**, não erro. Rode `php artisan migrate:fresh` sozinho para ver a exceção.
 - **Ressalva de suíte local:** `GeoBlockTest` "bloqueia com 451" falha **só neste

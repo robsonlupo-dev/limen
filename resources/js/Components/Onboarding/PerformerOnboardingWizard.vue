@@ -18,7 +18,7 @@
 import { computed, ref } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import PortalLogo from '@/Components/PortalLogo.vue'
-import HCaptcha from '@/Components/HCaptcha.vue'
+import Captcha from '@/Components/Captcha.vue'
 import ImageCropper from '@/Components/ImageCropper.vue'
 
 const props = defineProps({
@@ -63,13 +63,13 @@ const registerForm = useForm({
     category: '',
     accept_terms: false,
     lgpd_consent: false,
-    'h-captcha-response': '',
+    captcha_token: '',
 })
 
 // O passo 3 posta em register.store, a MESMA rota do formulário de membro —
 // logo o captcha vale aqui também. Sem isto o cadastro de performer quebraria
-// no dia em que HCAPTCHA_ENABLED virasse true, e só o dela.
-const hcaptcha = usePage().props.hcaptcha ?? { enabled: false, sitekey: null }
+// no dia em que CAPTCHA_PROVIDER saísse de `none`, e só o dela.
+const captchaConfig = usePage().props.captcha ?? { enabled: false, provider: null, sitekey: null }
 const captcha = ref(null)
 
 function toggleWorld(value) {
@@ -164,7 +164,7 @@ function advance() {
         registerForm.category = registerForm.worlds[0] ?? ''
         registerForm.post(route('register.store'), {
             // Token de uso único — rearmar depois de uma recusa, senão a
-            // correção do passo esbarraria no captcha. Ver HCaptcha.vue.
+            // correção do passo esbarraria no captcha. Ver Captcha.vue.
             onError: () => captcha.value?.reset(),
             onFinish: () => registerForm.reset('password', 'password_confirmation'),
         })
@@ -405,14 +405,15 @@ const continueLabel = computed(() => {
                         {{ registerForm.errors.lgpd_consent }}
                     </p>
 
-                    <div v-if="hcaptcha.enabled" class="pt-1">
-                        <HCaptcha
+                    <div v-if="captchaConfig.enabled" class="pt-1">
+                        <Captcha
                             ref="captcha"
-                            :sitekey="hcaptcha.sitekey"
-                            v-model="registerForm['h-captcha-response']"
+                            :provider="captchaConfig.provider"
+                            :sitekey="captchaConfig.sitekey"
+                            v-model="registerForm.captcha_token"
                         />
-                        <p v-if="registerForm.errors['h-captcha-response']" class="pt-1 text-xs text-red-400">
-                            {{ registerForm.errors['h-captcha-response'] }}
+                        <p v-if="registerForm.errors.captcha_token" class="pt-1 text-xs text-red-400">
+                            {{ registerForm.errors.captcha_token }}
                         </p>
                     </div>
                 </div>

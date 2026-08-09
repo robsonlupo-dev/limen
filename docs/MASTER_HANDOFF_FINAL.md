@@ -404,7 +404,8 @@ todos pela Regra de Ouro do Git Flow (branch + PR para `main`). Suíte passou de
 `add_seeking_to_users`, `add_source_to_performer_interests`,
 `add_location_to_performer_profiles`, `add_welcome_email_sent_at_to_users`.
 **Models novos (2):** `PerformerTag`, `MemberInterest`. **Service novo:**
-`HCaptchaVerifier`. **Config novo:** `config/hcaptcha.php`.
+`HCaptchaVerifier` *(Sprint 16: substituído pelo driver `App\Services\Captcha\*`)*.
+**Config novo:** `config/hcaptcha.php` *(Sprint 16: substituído por `config/captcha.php`)*.
 
 ### Decisões de produto tomadas no Sprint 9A
 
@@ -3585,14 +3586,46 @@ o Sprint 9 reimplementar o que já roda.
 - [x] **R6 atendido:** envelope neutro. O que a caixa de entrada mostra não
       denuncia cadastro em plataforma adulta; o corpo é que é pessoal.
 
-**hCaptcha no login e cadastro — ✅ ENTREGUE (PR #97):**
+**hCaptcha no login e cadastro — ✅ ENTREGUE (PR #97); virou driver abstrato no Sprint 16 (ver "Captcha — driver abstrato" abaixo):**
 - [x] `HCaptchaVerifier` + `config/hcaptcha.php`. Só a chave **pública** vai ao
       front, e só quando ligado — desligado, o componente não monta e **nenhuma
-      requisição sai para o hcaptcha.com**.
-- [ ] **R7 continua ABERTO e não é dívida de código:** hCaptcha é
+      requisição sai para o hcaptcha.com**. *(Sprint 16: `HCaptchaVerifier`/
+      `config/hcaptcha.php` foram substituídos pelo driver — `CaptchaManager` +
+      `config/captcha.php`. A garantia acima segue idêntica.)*
+- [ ] **R7 continua ABERTO e não é dívida de código:** captcha é
       **subprocessador terceiro** que vê o IP de quem entra numa plataforma
-      adulta. Falta entrar na **política de privacidade** e no **registro de
-      subprocessadores** antes de subir com a chave real. Ver A.1.
+      adulta (hCaptcha OU Cloudflare, conforme `CAPTCHA_PROVIDER`). Falta entrar
+      na **política de privacidade** e no **registro de subprocessadores** antes
+      de subir com a chave real. Ver A.1.
+
+**Captcha — driver abstrato hCaptcha/Turnstile — ✅ ENTREGUE (Sprint 16, `feat/cloudflare-turnstile`):**
+- [x] **Motivo:** o trial Pro do hCaptcha vence 11/08/2026 e cai para o plano
+      free (com limites). O **Cloudflare Turnstile** é gratuito e sem os mesmos
+      limites — a Limen agora **alterna entre os dois por config**.
+- [x] **Um interruptor: `CAPTCHA_PROVIDER=none|hcaptcha|turnstile`.** `none`
+      (padrão) é NO-OP total. Chaves: `HCAPTCHA_SITEKEY`/`HCAPTCHA_SECRET` e
+      `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`. Ponte de compat: sem
+      `CAPTCHA_PROVIDER`, um `HCAPTCHA_ENABLED=true` legado ainda escolhe hCaptcha.
+- [x] **Lógica não duplicada:** `App\Services\Captcha\CaptchaManager` (dona da
+      escolha) resolve `HcaptchaDriver`/`TurnstileDriver`/`NullCaptchaDriver`, e o
+      POST de siteverify + fail-open vive uma vez em `RemoteCaptchaDriver` (os dois
+      provedores têm contrato server-side idêntico). Regra `App\Rules\CaptchaValid`
+      (era `HCaptchaValid`) segue dona única do contrato nas portas de auth; campo
+      neutro `captcha_token`.
+- [x] **Frontend:** `Captcha.vue` (era `HCaptcha.vue`) renderiza o widget do
+      provedor ativo. As duas URLs de SDK são **literais** (`js.hcaptcha.com`,
+      `challenges.cloudflare.com`), ambas em `ALLOWED_JS_ORIGINS`, para a auditoria
+      de origem externa enxergá-las. Montado só em /login e /cadastro; nunca no
+      `app.blade.php`.
+- [x] **Segurança preservada:** segredo nunca ao front, `remoteip` nunca ao
+      siteverify (nos dois), fail-open em queda, token de uso único. **CSP não
+      mudou** (só `frame-ancestors 'self'`; sem `script-src`/`frame-src` a
+      restringir, nada a adicionar). Suíte verde; revisão de segurança rodada.
+- [x] **Docs:** `docs/CAPTCHA.md` (canônico; `docs/HCAPTCHA.md` virou pointer),
+      `docs/PIXEL_AUDIT.md` (2º terceiro literal registrado), `.env.example`.
+- [ ] **R7 (conformidade) vale para o provedor escolhido** — DPA da Cloudflare, Inc.
+      (Turnstile) ou da Intuition Machines (hCaptcha) + política de privacidade +
+      registro de subprocessadores antes de `CAPTCHA_PROVIDER` sair de `none`.
 
 **Geolocalização no perfil — ✅ ENTREGUE, com escopo reduzido de propósito (PR #96):**
 - [x] Opt-in — a performer pode não preencher e pode limpar depois. Ausente é o
@@ -3956,7 +3989,8 @@ PerformerProfileService · PerformerCatalogService
 ChatService · ChatAccessService
 FollowerVisibilityService · DiscreteModeService · ProfileVisitService · PrivacyPerkService
 DocumentAcceptanceService · DeletionService · TwoFactorService
-GeoLocationService · SharedRegistrationIpService · HCaptchaVerifier
+GeoLocationService · SharedRegistrationIpService
+Captcha/ (CaptchaManager, RemoteCaptchaDriver, HcaptchaDriver, TurnstileDriver, NullCaptchaDriver)   (Sprint 16 — driver, era HCaptchaVerifier)
 ImageProcessingService · MemberPhotoService · MemberPhotoStore   (Sprint 9B)
 PerformerStoryService · PerformerStoryStore · StoryVisibilityService   (Sprint 9C)
 Asaas/ (AsaasHttpClient, FakeAsaasClient) · Kyc/ (DiditKycClient, KycHttpClient,
@@ -4000,7 +4034,7 @@ DeleteExpiredStories        (Sprint 9C — `stories:purge`, de hora em hora;
 
 ```
 app · asaas · auth · broadcasting · cache · chat · chat_filters · cors · database
-documents · filesystems · geo · hcaptcha · image · inertia · interest · kyc · logging
+documents · filesystems · geo · captcha · image · inertia · interest · kyc · logging
 mail · queue · reverb · sanctum · services · session · waitlist · ziggy
 ```
 

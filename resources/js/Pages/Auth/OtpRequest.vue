@@ -5,20 +5,20 @@ import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
-import HCaptcha from '@/Components/HCaptcha.vue'
+import Captcha from '@/Components/Captcha.vue'
 
 // Desligado (o padrão) o widget nem monta, e o servidor não exige o campo.
-const hcaptcha = usePage().props.hcaptcha ?? { enabled: false, sitekey: null }
+const captchaConfig = usePage().props.captcha ?? { enabled: false, provider: null, sitekey: null }
 const captcha = ref(null)
 
 const form = useForm({
     email: '',
-    'h-captcha-response': '',
+    captcha_token: '',
 })
 
 function submit() {
     form.post(route('otp.request'), {
-        // O token do hCaptcha é de uso único: se o servidor recusar (teto de
+        // O token do captcha é de uso único: se o servidor recusar (teto de
         // envios), rearma o widget para a próxima tentativa não falhar no
         // captcha em vez de na regra.
         onError: () => captcha.value?.reset(),
@@ -52,14 +52,15 @@ function submit() {
                             :error="form.errors.email"
                         />
 
-                        <div v-if="hcaptcha.enabled">
-                            <HCaptcha
+                        <div v-if="captchaConfig.enabled">
+                            <Captcha
                                 ref="captcha"
-                                :sitekey="hcaptcha.sitekey"
-                                v-model="form['h-captcha-response']"
+                                :provider="captchaConfig.provider"
+                                :sitekey="captchaConfig.sitekey"
+                                v-model="form.captcha_token"
                             />
-                            <p v-if="form.errors['h-captcha-response']" class="pt-1 text-xs text-danger">
-                                {{ form.errors['h-captcha-response'] }}
+                            <p v-if="form.errors.captcha_token" class="pt-1 text-xs text-danger">
+                                {{ form.errors.captcha_token }}
                             </p>
                         </div>
 

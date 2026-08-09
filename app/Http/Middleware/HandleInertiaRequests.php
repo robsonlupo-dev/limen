@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Captcha\CaptchaManager;
 use App\Services\DiscreteModeService;
 use App\Services\PrivacyPerkService;
 use Illuminate\Http\Request;
@@ -90,19 +91,17 @@ class HandleInertiaRequests extends Middleware
             // ANTES de o membro chegar ao catálogo. Reusá-la faria o tutorial
             // nunca aparecer para quem entrou pelo funil normal.
             'tutorialSeen' => (bool) $request->cookie('limen_tutorial_seen'),
-            // hCaptcha. Só a chave PÚBLICA (a secreta nunca sai do servidor), e
-            // só quando ligado — desligado, a tela não recebe nem o sitekey e o
+            // Captcha (hCaptcha ou Turnstile, conforme CAPTCHA_PROVIDER). Só o
+            // provider + a chave PÚBLICA (a secreta nunca sai do servidor), e só
+            // quando ligado — com `none`, a tela não recebe sitekey e o
             // componente do widget nem monta, então nenhuma requisição sai para
-            // hcaptcha.com.
+            // terceiro. O CaptchaManager é a dona única da escolha do provedor.
             //
             // Compartilhado globalmente, mas isso NÃO significa carregado
-            // globalmente: quem decide buscar o SDK é o componente HCaptcha.vue,
+            // globalmente: quem decide buscar o SDK é o componente Captcha.vue,
             // que só existe nas telas de login e cadastro. O script de terceiro
             // não pode entrar no app.blade.php — ver docs/PIXEL_AUDIT.md.
-            'hcaptcha' => [
-                'enabled' => (bool) config('hcaptcha.enabled'),
-                'sitekey' => config('hcaptcha.enabled') ? config('hcaptcha.sitekey') : null,
-            ],
+            'captcha' => app(CaptchaManager::class)->sharedProps(),
             // Feature flags de dark launch (Sprint 15). Compartilhadas para o front
             // decidir entre renderizar a feature (live/chamada) ou o placeholder "Em
             // breve" (PR #144). É só o BOOLEANO — a autoridade real continua sendo o

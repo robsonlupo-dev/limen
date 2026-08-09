@@ -2,13 +2,13 @@
 
 namespace App\Http\Requests\Auth;
 
-use App\Rules\HCaptchaValid;
+use App\Rules\CaptchaValid;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * Pedido de código OTP — compartilhado pelas DUAS portas (web e API), como o
  * LoginRequest. Numa rota web a falha de validação vira Inertia/redirect; em
- * `api/*` vira 422 JSON automaticamente (shouldRenderJsonWhen). O hCaptcha entra
+ * `api/*` vira 422 JSON automaticamente (shouldRenderJsonWhen). O captcha entra
  * aqui uma vez e vale nas duas portas de request — pôr num controller deixaria a
  * outra aberta.
  *
@@ -27,13 +27,13 @@ class RequestOtpRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email'],
-            // No-op enquanto HCAPTCHA_ENABLED=false — ver HCaptchaValid::rules().
-            HCaptchaValid::FIELD => HCaptchaValid::rules(),
+            // No-op enquanto CAPTCHA_PROVIDER=none — ver CaptchaValid::rules().
+            CaptchaValid::FIELD => CaptchaValid::rules(),
         ];
     }
 
     public function messages(): array
     {
-        return HCaptchaValid::messages();
+        return CaptchaValid::messages();
     }
 }

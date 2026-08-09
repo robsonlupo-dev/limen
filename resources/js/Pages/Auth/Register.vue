@@ -5,7 +5,7 @@ import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
-import HCaptcha from '@/Components/HCaptcha.vue'
+import Captcha from '@/Components/Captcha.vue'
 import PerformerOnboardingWizard from '@/Components/Onboarding/PerformerOnboardingWizard.vue'
 
 const props = defineProps({
@@ -35,11 +35,11 @@ const form = useForm({
     accept_terms: false,
     lgpd_consent: false,
     preferred_world: '',
-    'h-captcha-response': '',
+    captcha_token: '',
 })
 
 // Desligado (o padrão) o widget nem monta, e o servidor não exige o campo.
-const hcaptcha = usePage().props.hcaptcha ?? { enabled: false, sitekey: null }
+const captchaConfig = usePage().props.captcha ?? { enabled: false, provider: null, sitekey: null }
 const captcha = ref(null)
 
 function submit() {
@@ -195,14 +195,15 @@ function submit() {
                             <p v-if="form.errors.lgpd_consent" class="text-xs text-danger ml-7">{{ form.errors.lgpd_consent }}</p>
                         </div>
 
-                        <div v-if="hcaptcha.enabled">
-                            <HCaptcha
+                        <div v-if="captchaConfig.enabled">
+                            <Captcha
                                 ref="captcha"
-                                :sitekey="hcaptcha.sitekey"
-                                v-model="form['h-captcha-response']"
+                                :provider="captchaConfig.provider"
+                                :sitekey="captchaConfig.sitekey"
+                                v-model="form.captcha_token"
                             />
-                            <p v-if="form.errors['h-captcha-response']" class="pt-1 text-xs text-danger">
-                                {{ form.errors['h-captcha-response'] }}
+                            <p v-if="form.errors.captcha_token" class="pt-1 text-xs text-danger">
+                                {{ form.errors.captcha_token }}
                             </p>
                         </div>
 

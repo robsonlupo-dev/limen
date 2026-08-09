@@ -3,8 +3,8 @@
 namespace App\Http\Requests\Web;
 
 use App\Models\PerformerProfile;
+use App\Rules\CaptchaValid;
 use App\Rules\CpfValido;
-use App\Rules\HCaptchaValid;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -88,16 +88,16 @@ class RegisterWebRequest extends FormRequest
             // "mulheres" in the catalog), required in the UI.
             'preferred_world' => ['nullable', Rule::in(PerformerProfile::WORLDS)],
 
-            // hCaptcha. Vale para os DOIS caminhos desta rota — o formulário de
+            // Captcha. Vale para os DOIS caminhos desta rota — o formulário de
             // membro e o wizard da performer, que postam no mesmo
-            // register.store. No-op com HCAPTCHA_ENABLED=false.
-            HCaptchaValid::FIELD => HCaptchaValid::rules(),
+            // register.store. No-op com CAPTCHA_PROVIDER=none.
+            CaptchaValid::FIELD => CaptchaValid::rules(),
         ];
     }
 
     public function messages(): array
     {
-        return array_merge(HCaptchaValid::messages(), [
+        return array_merge(CaptchaValid::messages(), [
             'birthdate.before_or_equal' => 'Você precisa ter pelo menos 18 anos para se cadastrar.',
             'password.regex' => 'A senha deve conter ao menos uma letra maiúscula e um número.',
             'accept_terms.accepted' => 'Você deve aceitar os termos de uso.',
