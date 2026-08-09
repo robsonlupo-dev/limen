@@ -2,9 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Web\Concerns\ResolvesCatalogMember;
 use App\Models\User;
-use App\Services\MemberCatalogService;
-use App\Support\FanAlias;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -21,6 +20,8 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class SendInterestFromCatalogRequest extends FormRequest
 {
+    use ResolvesCatalogMember;
+
     public function authorize(): bool
     {
         return true; // a regra de alvo mora em resolvedMember(); performer-active é da rota
@@ -44,25 +45,6 @@ class SendInterestFromCatalogRequest extends FormRequest
      */
     public function resolvedMember(): User
     {
-        $profile = $this->user()->performerProfile;
-
-        // Só performer VERIFICADA envia (regra do PO, como as outras portas). 404
-        // e não 403: resposta indistinguível das demais recusas.
-        abort_unless($profile && $profile->is_verified, 404);
-
-        $memberId = FanAlias::resolveHandle(
-            $profile->id,
-            app(MemberCatalogService::class)->visibleMemberIds(),
-            (string) $this->validated('member_handle'),
-        );
-
-        abort_unless($memberId, 404);
-
-        // Reconfere o estado da conta neste POST (banido/encerrado entre o render
-        // e o clique). Mesmo 404.
-        return User::where('id', $memberId)
-            ->where('role', 'consumer')
-            ->where('status', 'active')
-            ->firstOrFail();
+        return $this->resolveCatalogMember((string) $this->validated('member_handle'));
     }
 }

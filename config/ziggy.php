@@ -54,6 +54,8 @@ return [
         // Catálogo de membros para a performer (Sprint 16)
         'performer.members',
         'performer.members.interest',
+        'performer.members.heart',
+        'performer.members.message',
 
         // Denúncia (compliance)
         'report.store',
@@ -222,6 +224,9 @@ return [
         'interests.index',
         'interests.unlock',
         'interests.opt-out',
+
+        // "Performers interessadas em você" (corações recebidos)
+        'consumer.hearts.index',
 
         // Fotos efêmeras do membro (envio, compartilhamento, revogação, leitura)
         'member.photos.store',

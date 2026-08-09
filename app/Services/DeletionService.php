@@ -304,6 +304,13 @@ class DeletionService
             $summary['saved_searches'] = $this->purgeSavedSearches($user);
             $summary['member_notes'] = $this->purgeMemberNotes($user);
             $summary['member_notes_written'] = $this->purgeMemberNotesByPerformer($user);
+            // CORAÇÃO (motor de engajamento do catálogo): os corações RECEBIDOS pelo
+            // membro (por member_id) e os DADOS pela performer (por perfil), mais o
+            // contador diário de mensagens dela. FKs restrictOnDelete não disparam
+            // (soft-delete dos dois lados); DELETE explícito nos dois sentidos.
+            $summary['performer_hearts_received'] = $this->purgePerformerHearts($user);
+            $summary['performer_hearts_sent'] = $this->purgePerformerHeartsByPerformer($user);
+            $summary['performer_message_quotas'] = $this->purgePerformerMessageQuotas($user);
             // Chamadas privadas 1:1 (Sprint 15): o histórico de sessões FEITAS pelo
             // membro (por member_id) e RECEBIDAS pela performer (por perfil). Sem
             // conteúdo/bytes — só metadados (preço, minutos, horário); nada a
@@ -659,6 +666,51 @@ class DeletionService
         }
 
         return DB::table('member_notes')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * CORAÇÃO — os corações RECEBIDOS pelo membro que encerra (motor de
+     * engajamento do catálogo). DELETE real por `member_id`: a FK
+     * `restrictOnDelete` de `performer_hearts` nunca dispara (os dois lados são
+     * soft-delete/anonimização, item 11 do CLAUDE.md), e não há retenção que varra
+     * depois. É o mapa de "quais performers me curtiram" — dado comportamental do
+     * titular, sem valor fiscal/legal a preservar.
+     */
+    private function purgePerformerHearts(User $user): int
+    {
+        return DB::table('performer_hearts')->where('member_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro sentido: os corações que a PERFORMER que encerra deu a membros. Por
+     * `performer_profile_id`, análogo a `purgeMemberNotesByPerformer` — roda ANTES
+     * do `anonymizePerformerProfile`, enquanto o perfil ainda resolve, e consulta
+     * pela coluna, não pela relação.
+     */
+    private function purgePerformerHeartsByPerformer(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('performer_hearts')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Contador diário de mensagens grátis da performer que encerra. Só metadados de
+     * franquia (perfil, dia, contagem) — nada de membro. Por perfil, como acima.
+     */
+    private function purgePerformerMessageQuotas(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('performer_message_quotas')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**

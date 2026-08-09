@@ -20,8 +20,12 @@ trait RedirectsToHome
             return 'catalog';
         }
 
+        // A home da performer ativa é o CATÁLOGO DE MEMBROS (a vitrine onde ela
+        // navega e engaja), simétrico ao catálogo que o membro vê ao logar. O
+        // painel (`performer.dashboard`) segue acessível pela nav. Performer ainda
+        // em KYC vai para o onboarding, como antes.
         return $user->status === 'active'
-            ? 'performer.dashboard'
+            ? 'performer.members'
             : 'performer.onboarding';
     }
 }

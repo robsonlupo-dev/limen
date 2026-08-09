@@ -38,6 +38,8 @@ class MemberCatalogService
 
     private const PER_PAGE = 24;
 
+    public function __construct(private PerformerHeartService $hearts) {}
+
     /**
      * Query base dos membros VISÍVEIS. Fonte única — a lista e a resolução de
      * handle passam por aqui, então nunca divergem.
@@ -87,14 +89,21 @@ class MemberCatalogService
             ->paginate($perPage)
             ->withQueryString();
 
-        // Estado de "interesse já enviado" em UMA query para a página inteira
-        // (não N): dentro do cooldown, o botão vira "Interesse enviado".
+        // Estados por card em DUAS queries para a página inteira (não N):
+        //  - `interest_sent`: dentro do cooldown do Interesse Controlado pago;
+        //  - `hearted`: a performer já deu coração a este membro.
         $memberIds = $paginator->getCollection()->pluck('id')->all();
         $recent = $this->recentInterestMemberIds($performerProfile, $memberIds);
+        $hearted = $this->hearts->heartedMemberIds($performerProfile, $memberIds);
 
         $paginator->setCollection(
             $paginator->getCollection()->map(
-                fn (User $member) => $this->mask($performerProfile, $member, in_array($member->id, $recent, true)),
+                fn (User $member) => $this->mask(
+                    $performerProfile,
+                    $member,
+                    in_array($member->id, $recent, true),
+                    in_array($member->id, $hearted, true),
+                ),
             )
         );
 
@@ -125,7 +134,7 @@ class MemberCatalogService
      *
      * @return array<string, mixed>
      */
-    private function mask(PerformerProfile $performerProfile, User $member, bool $interestSent): array
+    private function mask(PerformerProfile $performerProfile, User $member, bool $interestSent, bool $hearted): array
     {
         return [
             'fan_alias_label' => FanAlias::label($performerProfile->id, $member->id, 'Membro #'),
@@ -137,6 +146,8 @@ class MemberCatalogService
             // Invisível (presença não exposta). Sinal = last_login_at.
             'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),
             'interest_sent' => $interestSent,
+            // A performer já curtiu este membro? O card já vem com o coração cheio.
+            'hearted' => $hearted,
         ];
     }
 

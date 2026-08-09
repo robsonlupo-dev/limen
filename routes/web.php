@@ -24,6 +24,7 @@ use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardCo
 use App\Http\Controllers\Web\Consumer\FavoriteController;
 use App\Http\Controllers\Web\Consumer\FeedController;
 use App\Http\Controllers\Web\Consumer\GiftController;
+use App\Http\Controllers\Web\Consumer\HeartsController as ConsumerHeartsController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\LiveViewController;
 use App\Http\Controllers\Web\Consumer\MemberPhotoController;
@@ -55,6 +56,7 @@ use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
 use App\Http\Controllers\Web\Performer\MemberCatalogController;
+use App\Http\Controllers\Web\Performer\MemberEngagementController;
 use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
@@ -649,6 +651,24 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.members.interest')
             ->can('performer-active');
 
+        // Motor de engajamento do catálogo (a home da performer): CORAÇÃO e
+        // MENSAGEM. As duas resolvem o alvo contra os membros visíveis à performer
+        // (ResolvesCatalogMember, a mesma fonte da lista) — o par 404/sucesso não
+        // vira oráculo. Só performer verificada (can('performer-active')).
+
+        // Coração: grátis e ilimitado — o único freio é este throttle anti-flood.
+        Route::post('/performer/membros/coracao', [MemberEngagementController::class, 'heart'])
+            ->middleware(['role:performer', 'throttle:60,1'])
+            ->name('performer.members.heart')
+            ->can('performer-active');
+
+        // Mensagem personalizada: franquia diária grátis (o teto de negócio vive no
+        // ChatService); este throttle é só anti-flood por minuto.
+        Route::post('/performer/membros/mensagem', [MemberEngagementController::class, 'message'])
+            ->middleware(['role:performer', 'throttle:20,1'])
+            ->name('performer.members.message')
+            ->can('performer-active');
+
         // Foto efêmera recebida de um membro (Sprint 9B). Dentro do grupo
         // `documents.accepted`, que por sua vez está sob `auth`+`2fa`: a rota
         // nasce nos dois gates, como manda o CLAUDE.md. `can('performer-active')`
@@ -895,6 +915,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::patch('/interesses/opt-out', [ConsumerInterestController::class, 'optOut'])
             ->middleware('throttle:30,1')
             ->name('interests.opt-out');
+
+        // "Performers interessadas em você" — corações RECEBIDOS pelo membro
+        // (motor de engajamento do catálogo de membros). Grátis e com a identidade
+        // da performer visível, o oposto do Interesse pago/anônimo acima. Ver
+        // PerformerHeartService.
+        Route::get('/interessadas', [ConsumerHeartsController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.hearts.index');
 
         // Perfil do membro: interesses + "o que estou buscando". Separado de
         // /configuracoes de propósito — lá é privacidade e conta, aqui é
