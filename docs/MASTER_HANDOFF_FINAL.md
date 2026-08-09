@@ -115,7 +115,8 @@
 23. [Aceite de documentos da performer](#23-aceite-de-documentos-da-performer)
 24. [LGPD — Hard Delete e sistema de Report](#24-lgpd--hard-delete-e-sistema-de-report)
 25. [Rotas, CI/CD, deploy e ambiente](#25-rotas-cicd-deploy-e-ambiente)
-- [**Features desenhadas, não implementadas**](#features-desenhadas-não-implementadas) — inclui **Agendamento de chamada** (design fechado)
+- [**Features desenhadas, não implementadas**](#features-desenhadas-não-implementadas) — vazia; o único item (**Agendamento de chamada**) foi ENTREGUE no PR #170
+- [**Agendamento de chamada — ENTREGUE (PR #170)**](#agendamento-de-chamada--entregue-pr-170-featscheduled-call-v1)
 - [**MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS**](#modelo-de-monetização-limen--decisões-fechadas)
 - [Apêndice A — Backlog e próximos passos](#apêndice-a--backlog-e-próximos-passos)
 - [Apêndice B — Limitações conhecidas (não redescobrir)](#apêndice-b--limitações-conhecidas-não-redescobrir)
@@ -131,8 +132,8 @@
 
 | Métrica | Valor | Fonte |
 |---|---|---|
-| Suíte de testes | **1866 testes, 15354 asserts** (verde no CI; local 1865 passam — a única falha é a antiga view 451 do GeoBlock, que compila no `npm run build`/CI) | `php artisan test` (~210 s) |
-| Migrations | **121** (+6 no Sprint 16: csam, notification_preferences, visible_to_performers, enum de source `catalog`, previous_slugs, suporte a vídeo em `performer_content`) | `ls database/migrations/*.php \| wc -l` |
+| Suíte de testes | **1894 testes, 15458 asserts** (verde no CI; local 1893 passam — a única falha é a antiga view 451 do GeoBlock, que compila no `npm run build`/CI) — +28 no PR #170 (agendamento de chamada) | `php artisan test` (~210 s) |
+| Migrations | **124** (+3 no PR #170: `call_reservations`, strike+slot em `performer_profiles`, enum de `entry_type` do agendamento; +6 no Sprint 16: csam, notification_preferences, visible_to_performers, enum de source `catalog`, previous_slugs, suporte a vídeo em `performer_content`) | `ls database/migrations/*.php \| wc -l` |
 | Rotas registradas | **223** | `php artisan route:list` |
 | `Route::` nomeadas em `routes/web.php` | 175 | `grep` |
 | Rotas HTTP em `routes/api.php` | 42 (o OTP e o **catálogo de presentes** têm porta de API; **feed, catálogo de membros, dashboard admin, foto, story, notas, boost, convite, buscas salvas, photo permissions, ENVIO de presente e TODA a superfície de live/chamada/group continuam só web**) | `grep` |
@@ -1167,14 +1168,17 @@ Som de notificação, PanicButton, e a convenção de design tokens `limen-*`).
 > Seção para specs **fechadas pelo PO** cujo **código ainda não existe**. Não é
 > backlog solto (Apêndice A) nem inventário do que roda (§ 1) — é o desenho pronto
 > para virar sprint. Ao pegar um item daqui, **releia a spec inteira antes de
-> codar** e rode o subagente de segurança (é feature sensível: paga, com sala de
-> vídeo e des-anonimização por chamada).
+> codar** e rode o subagente de segurança.
+>
+> **Vazia no momento.** O único item que morava aqui — **Agendamento de chamada** —
+> foi ENTREGUE (PR #170) e promovido para a seção própria logo abaixo.
 
-### Agendamento de chamada — ENTREGUE (`feat/scheduled-call-v1`)
+## Agendamento de chamada — ENTREGUE (PR #170, `feat/scheduled-call-v1`)
 
-**Estado: ENTREGUE.** Implementado na branch `feat/scheduled-call-v1` (backend +
-frontend + testes + revisão de segurança). A spec abaixo (fechada pelo PO) foi
-seguida à risca; este bloco resume o que ficou no código.
+**Estado: ENTREGUE — PR #170 mergeado na `main` (`db007b3`).** Backend + frontend +
+28 testes (`ScheduledCallTest`) + revisão de segurança (subagente, **sem
+bloqueadores**). A spec (fechada pelo PO, mantida abaixo como registro do desenho)
+foi seguida à risca; este bloco resume o que ficou no código.
 
 > **Resumo da entrega.** Tabela DEDICADA `call_reservations` (não é overload de
 > `call_sessions`); `CallReservationService` é a dona única do ciclo de vida e da
@@ -1201,6 +1205,15 @@ seguida à risca; este bloco resume o que ficou no código.
 > (performer só vê FanAlias), segredo do room_name e Hard Delete dois-sentidos
 > todos confirmados; os 🟡 (janela SQL do buffer, eager-load do cron, audit do
 > strike) foram aplicados.
+>
+> **Primeiro mount da chamada 1:1 na UI.** Os componentes `CallRequest` (pedir a
+> chamada) e `PrivateCall` (sala de vídeo) do PR #140 existiam mas **nunca tinham
+> sido montados em página alguma** — a chamada on-demand não era alcançável na UI.
+> Este PR os monta pela **PRIMEIRA VEZ**, no perfil da performer (`Catalog/Show.vue`),
+> ao lado do "Agendar chamada": aceite → busca o token (`call.token-refresh`) → abre
+> a `<PrivateCall>`. Ou seja, a **chamada privada on-demand passou a ser acessível
+> pelo perfil da performer** neste PR, além do agendamento. Botões: **"Chamada
+> privada"** (agora) e **"Agendar chamada"** (depósito + fila).
 >
 > Migrations: `2026_08_14_000001_create_call_reservations_table`,
 > `..._000002_add_noshow_strike_to_performer_profiles` (+`call_slot_minutes`),
@@ -1786,9 +1799,9 @@ HCAPTCHA_ENABLED=false php artisan test
 > Pest re-roda `migrate:fresh` a cada teste e o processo *parece travar*. Para
 > ver a exceção real, rode `php artisan migrate:fresh` sozinho.
 
-> A suíte tem **1866 testes** e leva **~3,5min** (`55de8cd`). Em foreground isso
+> A suíte tem **1894 testes** e leva **~3,5min** (`db007b3`). Em foreground isso
 > estoura o timeout de 120s de uma chamada de shell; rode em background e aguarde a
-> notificação de conclusão. Baseline verde local: **1865 passam, 1 falha** (a antiga
+> notificação de conclusão. Baseline verde local: **1893 passam, 1 falha** (a antiga
 > view 451 do GeoBlock, que não compila neste clone de dev; verde no CI).
 
 ### 3.2 Lint (Pint)

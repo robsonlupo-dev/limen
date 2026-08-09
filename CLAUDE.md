@@ -294,15 +294,30 @@ Read receipts atualizado: todos os assinantes (Explorador a FC), não apenas Pre
 
 Nada de M.13 está implementado até o PR #130. O bloco de monetização acima (seção "Modelo de monetização — DECISÕES FECHADAS", antes desta emenda) (pacotes, chat, descontos, inclusos) fica superado por M.13 — ambos presentes, M.13 tem precedência.
 
+**`entry_type` do agendamento de chamada (PR #170, `feat/scheduled-call-v1`).** Três
+tipos novos no enum do ledger append-only (migration própria, princípio nº 2 — nunca
+`UPDATE` de saldo), somados aos de live/chamada do Sprint 15
+(`spend_live`/`live_credit`/`spend_call`/`call_credit`):
+- **`spend_call_reservation`** — débito do depósito do membro no ato do agendamento
+  (trava os tokens; preço/min congelado na reserva).
+- **`call_reservation_refund`** — crédito 100% ao membro (cancel grátis, reserva não
+  confirmada, no-show da performer). É devolução, não ganho: **NUNCA respeita teto**
+  (M.13.9, fora de `cap_respecting_entry_types`) e **fora** do `payout.earning_entry_types`.
+- **`call_noshow_credit`** — crédito 100/0 à performer no no-show do MEMBRO
+  (compensação pela reserva do horário; `applied_rate=100`). É **ganho sacável** →
+  entra no `payout.earning_entry_types`.
+A entrada bem-sucedida (minuto 1 pago pelo depósito) reusa `call_credit` (70/30) do
+PR #140 — sem tipo novo.
+
 ## Estado atual
 
-> **Estado atual** (branch `feat/scheduled-call-v1` sobre `main` `3328390`): **1894
-> testes, 15458 asserts** (1893 passam local — a única falha é a antiga da view 451
-> do GeoBlock, que não recorre depois do `npm run build`, que compila a view — ver §
-> "Ambiente de dev"). **124 migrations, ~180 rotas web + 42 rotas API.** O
-> **Agendamento de chamada** (`feat/scheduled-call-v1`, +28 testes) está entregue
-> sobre `main` `3328390` (Sprint 16 fechou em `55de8cd`; o merge de docs #169 levou
-> `main` a `3328390`) — ver § "Agendamento de chamada". **Base original**
+> **Estado atual** (`main`, `db007b3`): **1894 testes, 15458 asserts** (1893 passam
+> local — a única falha é a antiga da view 451 do GeoBlock, que não recorre depois do
+> `npm run build`, que compila a view — ver § "Ambiente de dev"). **124 migrations,
+> ~180 rotas web + 42 rotas API.** O **Agendamento de chamada** (PR #170,
+> `feat/scheduled-call-v1`, +28 testes) foi mergeado na `main` (`db007b3`) — ver §
+> "Agendamento de chamada". (Sprint 16 fechou em `55de8cd`; o merge de docs #169
+> levou `main` a `3328390`, e o #170 a `db007b3`.) **Base original**
 > (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
@@ -998,16 +1013,26 @@ por `User::notificationSoundPreferences()` como **todos ON** (o "{} default" da 
 vale por construção). Toggles por tipo (message/tip/live). Coluna fora do `$fillable`
 (mesma disciplina de `discrete_mode`/2FA); a troca passa por endpoint dedicado.
 
-## Agendamento de chamada — `feat/scheduled-call-v1` (evolução do PR #140)
+## Agendamento de chamada — `feat/scheduled-call-v1` (PR #170, evolução do PR #140)
 
-Evolução da chamada 1:1: em vez de pedir a chamada AGORA, o **membro agenda**
-performer + data/hora e o sistema **trava um depósito** (o preço de 1 min,
-congelado). Dona única: `app/Services/CallReservationService.php` (nenhuma outra
-classe move o depósito de uma reserva). Config das janelas/buffer/teto em
+**ENTREGUE (PR #170, `main` `db007b3`).** Evolução da chamada 1:1: em vez de pedir a
+chamada AGORA, o **membro agenda** performer + data/hora e o sistema **trava um
+depósito** (o preço de 1 min, congelado). **Dona única: `app/Services/CallReservationService.php`**
+— reserva, trava, refund, no-show e strike passam SÓ por ela (nenhuma outra classe
+move o depósito de uma reserva). Controller próprio (membro e performer) + **job de
+cron `reservations:process`** (a cada minuto). Config das janelas/buffer/teto em
 `config/scheduled_call.php`; a economia (rate `call_noshow`=100, allowlist de payout)
-segue em `config/monetization.php`. **Tudo sob `feature:call` (dark launch — sobe
-DESLIGADO com o resto da chamada).** Spec completa e decisões do PO em
-`docs/MASTER_HANDOFF_FINAL.md`, § "Agendamento de chamada".
+segue em `config/monetization.php`. **Tudo sob a flag `FEATURE_CALL_ENABLED` — a MESMA
+do PR #140 (dark launch: sobe DESLIGADO em produção; liberar é `.env`, sem deploy).**
+Spec completa e decisões do PO em `docs/MASTER_HANDOFF_FINAL.md`, § "Agendamento de
+chamada".
+
+- **Primeiro mount da chamada 1:1 na UI (neste PR).** Os componentes `CallRequest` e
+  `PrivateCall` do PR #140 existiam mas **nunca tinham sido montados em página
+  alguma**. O PR #170 os monta pela PRIMEIRA VEZ no perfil da performer
+  (`Catalog/Show.vue`): os botões **"Chamada privada"** (on-demand, aceite → token →
+  `<PrivateCall>`) e **"Agendar chamada"** (depósito + fila) ficam lado a lado. A
+  chamada privada on-demand só passou a ser ACESSÍVEL pela UI aqui.
 
 - **Tabela DEDICADA `call_reservations`** (NÃO é overload de `call_sessions` — o
   ciclo de vida reserva→confirmação→janela→no-show é outro). Quando os dois entram,
@@ -1501,6 +1526,6 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD='<ver .env>' \
   HCAPTCHA_ENABLED=false php artisan test
 ```
-  Resultado esperado (Sprint 16, `55de8cd`): **1865 passam, 1 falha** de **1866
-  testes / 15354 asserts** (o `GeoBlockTest` da view 451, falha documentada só neste
-  clone de dev; verde no CI).
+  Resultado esperado (`main` `db007b3`, pós-PR #170): **1893 passam, 1 falha** de
+  **1894 testes / 15458 asserts** (o `GeoBlockTest` da view 451, falha documentada só
+  neste clone de dev; verde no CI).
