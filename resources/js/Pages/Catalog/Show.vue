@@ -15,6 +15,7 @@ import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import ContentGallery from '@/Components/ContentGallery.vue'
 import ComingSoon from '@/Components/ComingSoon.vue'
+import ScheduleCallModal from '@/Components/ScheduleCallModal.vue'
 import { stateLabel } from '@/lib/performerAttributes'
 
 const props = defineProps({
@@ -156,6 +157,19 @@ function onTipSent(data) {
                 <div v-if="!features.live_enabled || !features.call_enabled" class="mt-4 flex flex-wrap gap-3">
                     <ComingSoon v-if="!features.live_enabled" icon="camera" label="Assistir live" />
                     <ComingSoon v-if="!features.call_enabled" icon="phone" label="Chamada privada" />
+                </div>
+
+                <!-- Agendar chamada (feat/scheduled-call-v1): só para o MEMBRO, com a
+                     chamada ligada e a performer aceitando (preço definido). Trava um
+                     depósito; o resto do fluxo é a fila em "Minhas chamadas". -->
+                <div
+                    v-if="canFavorite && features.call_enabled && performer.call_price_per_minute"
+                    class="mt-4 flex flex-wrap gap-3"
+                >
+                    <ScheduleCallModal
+                        :performer-profile-id="performer.profile_id"
+                        :price-per-minute="performer.call_price_per_minute"
+                    />
                 </div>
 
                 <!-- "Disponível para conversa" (Sprint 11), com destaque. Some

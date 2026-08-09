@@ -15,7 +15,11 @@ import { postJson } from '@/lib/http'
  * financeiro (M.13.10): para ela o componente é o mesmo, sem banners de saldo.
  */
 const props = defineProps({
-    callId: { type: Number, required: true },
+    // 0 = ainda não conhecido. Na chamada AGENDADA (feat/scheduled-call-v1) a
+    // performer entra na sala ANTES de a call_session existir; o call_id chega por
+    // broadcast quando o membro entra, e o pai atualiza esta prop. refresh()/end()
+    // ficam sem efeito de rede até ela ser conhecida (a janela pré-membro é < TTL).
+    callId: { type: Number, default: 0 },
     token: { type: String, required: true },
     wsUrl: { type: String, required: true },
     // Só o lado do MEMBRO recebe estes — a performer não vê saldo/preço.
@@ -119,6 +123,10 @@ async function heartbeat() {
 }
 
 async function refresh() {
+    // Sem call_id ainda (performer esperando o membro na chamada agendada): não há o
+    // que renovar por rota. A janela pré-membro é curta (< TTL); quando o membro
+    // entra, o call_id chega por broadcast e a próxima renovação já o usa.
+    if (!props.callId) return
     try {
         await postJson(route('call.token-refresh', props.callId))
     } catch (e) {
@@ -142,7 +150,11 @@ async function endCall() {
     // Encerramento voluntário por este lado.
     status.value = 'ending'
     stopBillingTimers()
-    try { await postJson(route('call.end', props.callId)) } catch (e) { /* idempotente */ }
+    // Sem call_id (performer saindo antes de o membro entrar): só desconecta local —
+    // não há sessão para encerrar por rota; o cron marca no-show do membro.
+    if (props.callId) {
+        try { await postJson(route('call.end', props.callId)) } catch (e) { /* idempotente */ }
+    }
     await finish()
 }
 

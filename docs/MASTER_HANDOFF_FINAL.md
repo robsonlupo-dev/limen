@@ -1170,9 +1170,46 @@ Som de notificação, PanicButton, e a convenção de design tokens `limen-*`).
 > codar** e rode o subagente de segurança (é feature sensível: paga, com sala de
 > vídeo e des-anonimização por chamada).
 
-### Agendamento de chamada — DESIGN FECHADO, código PENDENTE
+### Agendamento de chamada — ENTREGUE (`feat/scheduled-call-v1`)
 
-**Estado: DESIGN FECHADO pelo PO, código PENDENTE (nenhuma linha em `main`).**
+**Estado: ENTREGUE.** Implementado na branch `feat/scheduled-call-v1` (backend +
+frontend + testes + revisão de segurança). A spec abaixo (fechada pelo PO) foi
+seguida à risca; este bloco resume o que ficou no código.
+
+> **Resumo da entrega.** Tabela DEDICADA `call_reservations` (não é overload de
+> `call_sessions`); `CallReservationService` é a dona única do ciclo de vida e da
+> contabilidade do depósito. Reusa 100% o motor do PR #140: quando os dois entram,
+> nasce uma `call_sessions type=private` e os minutos 2+ são cobrados pelas rotas
+> existentes (`call.heartbeat`/`token-refresh`/`end`). O 1º minuto é pago pelo
+> depósito (crédito `call_credit` 70/30, sem novo débito). Três `entry_type` novos
+> no ledger append-only: `spend_call_reservation` (débito/trava), `call_reservation_refund`
+> (refund 100% ao membro — nunca respeita teto, fora do payout) e `call_noshow_credit`
+> (no-show do membro → depósito 100% à performer, `applied_rate=100`, ganho sacável).
+> Idempotência por `deposit_settled` sob `lockForUpdate`. Cron `reservations:process`
+> a cada minuto: confirmação vencida (cancel+refund), no-shows (performer: refund+
+> strike; membro: depósito à performer), avisos T-5min e T-3min do fim do slot.
+> Strike da performer em `performer_profiles.noshow_strike_count`; 3 → review no
+> dashboard admin (`AdminMetricsService::strikeReviewPerformers`) + audit
+> `reservation.performer_noshow_strike` (subject = performer, zero PII de membro).
+> Duração do slot em `performer_profiles.call_slot_minutes` (default 15, config).
+> UI: modal de agendar no perfil (membro), telas `Consumer/ScheduledCalls` e
+> `Performer/ScheduledCalls`, `<ReservationNotice>` no `AppLayout` (aviso não-modal
+> T-5min + "performer entrou" com contador de 2min, divide o canal `user.{id}` com
+> o `MessageToast`). Tudo sob `feature:call` (dark launch — sobe DESLIGADO).
+> **Revisão de segurança rodada** (subagente): sem 🔴 — ledger append-only,
+> idempotência do depósito, saldo nunca negativo, anti-oráculo 404, M.13.10
+> (performer só vê FanAlias), segredo do room_name e Hard Delete dois-sentidos
+> todos confirmados; os 🟡 (janela SQL do buffer, eager-load do cron, audit do
+> strike) foram aplicados.
+>
+> Migrations: `2026_08_14_000001_create_call_reservations_table`,
+> `..._000002_add_noshow_strike_to_performer_profiles` (+`call_slot_minutes`),
+> `..._000003_add_reservation_entry_types_to_token_ledger`. Suíte:
+> `tests/Feature/ScheduledCallTest.php` (28 testes). Config em
+> `config/scheduled_call.php` (janelas/buffer/teto) + `config/monetization.php`
+> (rate `call_noshow`=100 e allowlist de payout).
+
+Spec original (mantida como registro do desenho fechado pelo PO):
 
 Evolução da **chamada privada 1:1** (PR #140, Sprint 15): em vez de pedir a chamada
 agora e depender de a performer estar online, o **membro agenda** performer + data/
