@@ -6,6 +6,7 @@ import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import PanicButton from '@/Components/PanicButton.vue'
 import MessageToast from '@/Components/MessageToast.vue'
+import ReservationNotice from '@/Components/ReservationNotice.vue'
 
 defineProps({
     title: String,
@@ -22,6 +23,9 @@ const canModerate = computed(() => isAdmin.value || page.props.auth.user?.role =
 // Espelha o gate 'performer-active' (AppServiceProvider): performer ainda em
 // onboarding não vê links que o gate recusaria com 403.
 const isActivePerformer = computed(() => isPerformer.value && page.props.auth.user?.status === 'active')
+// Feature flags (Sprint 15 dark launch). O agendamento vive sob feature:call, então
+// os links só aparecem com a chamada ligada — como os botões de live/chamada.
+const features = computed(() => page.props.features ?? {})
 const dashboardRoute = computed(() =>
     isActivePerformer.value ? route('performer.dashboard') : route('performer.onboarding'),
 )
@@ -104,6 +108,15 @@ function logout() {
                         >
                             Saques
                         </Link>
+                        <!-- Fila de chamadas agendadas (feat/scheduled-call-v1),
+                             sob feature:call como o resto da chamada. -->
+                        <Link
+                            v-if="features.call_enabled"
+                            :href="route('performer.reservations.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Agendamentos
+                        </Link>
                     </template>
                     <!-- isPerformer e não isActivePerformer: a performer em KYC
                          já tem documento e selfie na conta — é a janela em que
@@ -165,6 +178,15 @@ function logout() {
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
                             Carteira
+                        </Link>
+                        <!-- Minhas chamadas agendadas (feat/scheduled-call-v1),
+                             sob feature:call. -->
+                        <Link
+                            v-if="features.call_enabled"
+                            :href="route('reservations.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Chamadas
                         </Link>
                         <Link
                             :href="route('subscribe.index')"
@@ -235,6 +257,11 @@ function logout() {
         <!-- Toast global de mensagem recebida (Sprint 15). Listener em qualquer
              página autenticada; escuta o canal user.{id} e nunca mostra o corpo. -->
         <MessageToast />
+
+        <!-- Avisos não-intrusivos do agendamento de chamada (feat/scheduled-call-v1):
+             T-5min, "performer entrou" com contador de 2min, no-show/refund. Divide
+             o canal user.{id} com o MessageToast sem derrubá-lo. -->
+        <ReservationNotice />
 
         <!-- Logout confirmation -->
         <Modal :show="showLogoutConfirm" max-width="sm" @close="showLogoutConfirm = false">

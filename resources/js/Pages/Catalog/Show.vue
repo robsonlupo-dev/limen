@@ -15,7 +15,11 @@ import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import ContentGallery from '@/Components/ContentGallery.vue'
 import ComingSoon from '@/Components/ComingSoon.vue'
+import ScheduleCallModal from '@/Components/ScheduleCallModal.vue'
+import CallRequest from '@/Components/CallRequest.vue'
+import PrivateCall from '@/Components/PrivateCall.vue'
 import { stateLabel } from '@/lib/performerAttributes'
+import { postJson } from '@/lib/http'
 
 const props = defineProps({
     performer: { type: Object, required: true },
@@ -56,8 +60,28 @@ const workModeLabels = {
 // /favoritos/{slug} exige), então o botão só aparece para ele.
 const page = usePage()
 const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
+const myUserId = computed(() => page.props.auth?.user?.id ?? 0)
 // Feature flags (Sprint 15). Off em produção → placeholders "Em breve".
 const features = computed(() => page.props.features ?? {})
+
+// Chamada 1:1 sob demanda (PR #140). O <CallRequest> pede e aguarda o aceite pelo
+// canal user.{id}; no aceite, buscamos o token inicial (call.token-refresh) e
+// abrimos a <PrivateCall>. Os minutos 2+ (e o próprio token-refresh de 5min) já
+// vivem dentro dela.
+const activeCall = ref(null)
+
+async function onCallAccepted(callId) {
+    try {
+        const { token, wsUrl } = await postJson(route('call.token-refresh', callId))
+        activeCall.value = { callId, token, wsUrl, pricePerMinute: props.performer.call_price_per_minute }
+    } catch (e) {
+        // Aceita mas o token falhou (sessão já caiu/saldo): não abre a sala.
+    }
+}
+
+function onCallEnded() {
+    activeCall.value = null
+}
 
 const showTipModal = ref(false)
 const showReportModal = ref(false)
@@ -156,6 +180,26 @@ function onTipSent(data) {
                 <div v-if="!features.live_enabled || !features.call_enabled" class="mt-4 flex flex-wrap gap-3">
                     <ComingSoon v-if="!features.live_enabled" icon="camera" label="Assistir live" />
                     <ComingSoon v-if="!features.call_enabled" icon="phone" label="Chamada privada" />
+                </div>
+
+                <!-- Chamada 1:1: agora (CallRequest) e agendada (ScheduleCallModal).
+                     Só para o MEMBRO, com a chamada ligada e a performer aceitando
+                     (preço definido). A de agora pede e abre a sala no aceite; a
+                     agendada trava um depósito e vai para "Minhas chamadas". -->
+                <div
+                    v-if="canFavorite && features.call_enabled && performer.call_price_per_minute"
+                    class="mt-4 flex flex-wrap gap-3"
+                >
+                    <CallRequest
+                        :performer-profile-id="performer.profile_id"
+                        :price-per-minute="performer.call_price_per_minute"
+                        :my-user-id="myUserId"
+                        @accepted="onCallAccepted"
+                    />
+                    <ScheduleCallModal
+                        :performer-profile-id="performer.profile_id"
+                        :price-per-minute="performer.call_price_per_minute"
+                    />
                 </div>
 
                 <!-- "Disponível para conversa" (Sprint 11), com destaque. Some
@@ -301,5 +345,18 @@ function onTipSent(data) {
             @close="showTipModal = false"
             @sent="onTipSent"
         />
+
+        <!-- Sala da chamada 1:1 aceita (PR #140). Cobre a tela; o 1º minuto já foi
+             cobrado no aceite, e a cobrança/renovação seguem dentro da <PrivateCall>. -->
+        <div v-if="activeCall" class="fixed inset-0 z-50 bg-black">
+            <PrivateCall
+                :call-id="activeCall.callId"
+                :token="activeCall.token"
+                :ws-url="activeCall.wsUrl"
+                role="member"
+                :price-per-minute="activeCall.pricePerMinute"
+                @ended="onCallEnded"
+            />
+        </div>
     </AppLayout>
 </template>

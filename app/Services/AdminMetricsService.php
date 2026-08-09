@@ -6,6 +6,7 @@ use App\Models\CallSession;
 use App\Models\LiveSession;
 use App\Models\Payment;
 use App\Models\Payout;
+use App\Models\PerformerProfile;
 use App\Models\TokenLedger;
 use App\Models\User;
 use Carbon\Carbon;
@@ -170,6 +171,28 @@ class AdminMetricsService
                     ? sprintf('%02d/%d', $payout->period_month, $payout->period_year)
                     : 'On-demand',
                 'requested_at' => $payout->created_at,
+            ]);
+    }
+
+    /**
+     * Performers no limiar de strikes de no-show (feat/scheduled-call-v1): 3 strikes
+     * → review humano (não banimento automático). SÓ dados da performer (stage_name
+     * + contagem) — nenhuma PII de membro (o strike não guarda quem era o membro).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function strikeReviewPerformers(): Collection
+    {
+        $threshold = (int) config('scheduled_call.strike_review_threshold');
+
+        return PerformerProfile::query()
+            ->where('noshow_strike_count', '>=', $threshold)
+            ->orderByDesc('noshow_strike_count')
+            ->get()
+            ->map(fn (PerformerProfile $profile) => [
+                'id' => $profile->id,
+                'performer' => $profile->stage_name ?? ('Performer #'.$profile->id),
+                'strikes' => (int) $profile->noshow_strike_count,
             ]);
     }
 

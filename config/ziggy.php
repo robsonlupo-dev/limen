@@ -206,6 +206,18 @@ return [
         'group.leave',
         'group.upgrade.request',
 
+        // Agendamento de chamada (feat/scheduled-call-v1): membro agenda/lista/
+        // cancela/entra; performer confirma/recusa/entra. Consumidas por fetch, e as
+        // duas telas (index) navegadas por Inertia.
+        'reservations.index',
+        'reservations.store',
+        'reservations.cancel',
+        'reservations.enter',
+        'performer.reservations.index',
+        'performer.reservations.confirm',
+        'performer.reservations.decline',
+        'performer.reservations.enter',
+
         // Consumer interests (Interesse Controlado)
         'interests.index',
         'interests.unlock',

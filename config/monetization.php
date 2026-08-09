@@ -85,6 +85,10 @@ return [
         'gift' => ['rate' => 75, 'effective_from' => '2026-08-03'],
         'live' => ['rate' => 70, 'effective_from' => '2026-08-03'],
         'call' => ['rate' => 70, 'effective_from' => '2026-08-03'],
+        // Agendamento de chamada (feat/scheduled-call-v1): no no-show do MEMBRO o
+        // depósito vira 100% da performer (compensação pelo horário reservado, não
+        // minuto de serviço) — split 100/0, applied_rate=100 congelado na linha.
+        'call_noshow' => ['rate' => 100, 'effective_from' => '2026-08-14'],
     ],
 
     /*
@@ -143,6 +147,10 @@ return [
             // emitido até o PR de serving (cobrança por bloco/minuto).
             'live_credit',
             'call_credit',
+            // Agendamento de chamada (feat/scheduled-call-v1): no no-show do membro
+            // o depósito vira ganho da performer (100/0) — sacável, como call_credit.
+            // `call_reservation_refund` NÃO entra: é devolução ao membro, não ganho.
+            'call_noshow_credit',
         ],
     ],
 

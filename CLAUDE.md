@@ -296,10 +296,13 @@ Nada de M.13 está implementado até o PR #130. O bloco de monetização acima (
 
 ## Estado atual
 
-> **Estado atual** (`main`, `55de8cd`, Sprint 16 FECHADO): **1866 testes, 15354
-> asserts** (1865 passam local — a única falha é a antiga da view 451 do GeoBlock,
-> que não recorre depois do `npm run build`, que compila a view — ver § "Ambiente
-> de dev"). **121 migrations, ~170 rotas web + 42 rotas API.** **Base original**
+> **Estado atual** (branch `feat/scheduled-call-v1` sobre `main` `3328390`): **1894
+> testes, 15458 asserts** (1893 passam local — a única falha é a antiga da view 451
+> do GeoBlock, que não recorre depois do `npm run build`, que compila a view — ver §
+> "Ambiente de dev"). **124 migrations, ~180 rotas web + 42 rotas API.** O
+> **Agendamento de chamada** (`feat/scheduled-call-v1`, +28 testes) está entregue
+> sobre `main` `3328390` (Sprint 16 fechou em `55de8cd`; o merge de docs #169 levou
+> `main` a `3328390`) — ver § "Agendamento de chamada". **Base original**
 > (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
@@ -994,6 +997,74 @@ não aceita default literal em JSON). `NULL ≡ "nunca escolheu"`, resolvido na 
 por `User::notificationSoundPreferences()` como **todos ON** (o "{} default" da spec
 vale por construção). Toggles por tipo (message/tip/live). Coluna fora do `$fillable`
 (mesma disciplina de `discrete_mode`/2FA); a troca passa por endpoint dedicado.
+
+## Agendamento de chamada — `feat/scheduled-call-v1` (evolução do PR #140)
+
+Evolução da chamada 1:1: em vez de pedir a chamada AGORA, o **membro agenda**
+performer + data/hora e o sistema **trava um depósito** (o preço de 1 min,
+congelado). Dona única: `app/Services/CallReservationService.php` (nenhuma outra
+classe move o depósito de uma reserva). Config das janelas/buffer/teto em
+`config/scheduled_call.php`; a economia (rate `call_noshow`=100, allowlist de payout)
+segue em `config/monetization.php`. **Tudo sob `feature:call` (dark launch — sobe
+DESLIGADO com o resto da chamada).** Spec completa e decisões do PO em
+`docs/MASTER_HANDOFF_FINAL.md`, § "Agendamento de chamada".
+
+- **Tabela DEDICADA `call_reservations`** (NÃO é overload de `call_sessions` — o
+  ciclo de vida reserva→confirmação→janela→no-show é outro). Quando os dois entram,
+  nasce uma `call_sessions type=private` (ligada por `call_session_id`) e os
+  **minutos 2+ são 100% o motor do PR #140** (`call.heartbeat`/`token-refresh`/`end`,
+  `MinuteBiller`, 70/30). O **1º minuto é pago pelo depósito**: crédito `call_credit`
+  70/30 à performer, **sem novo débito** (o membro já pagou no `spend_call_reservation`).
+- **Ledger append-only (princípio nº 2), 3 `entry_type` novos** (migration no enum,
+  nunca `UPDATE` de saldo): **`spend_call_reservation`** (débito/trava do depósito),
+  **`call_reservation_refund`** (refund 100% ao membro — **nunca respeita teto** M.13.9,
+  **fora** do payout: é devolução, não ganho), **`call_noshow_credit`** (no-show do
+  MEMBRO → depósito 100% à performer, `applied_rate=100`, **ganho sacável**).
+- **Idempotência do depósito por `deposit_settled`** sob `lockForUpdate`: todo
+  movimento one-time (refund / no-show / minuto-1) só ocorre com `deposit_settled=false`
+  e o marca `true`. O cron (a cada minuto), duplo-submit e a corrida
+  memberEnter↔cron **nunca** duplicam saldo nem refundam E creditam o mesmo depósito
+  (o lock da linha serializa; quem perde relê o status e sai).
+- **Ciclo:** reserva `pending` (débito+trava, sob lock do perfil p/ buffer e da linha
+  do membro p/ teto de 5) → performer **confirma** (manual) ou **recusa** (refund) →
+  T-5min aviso aos dois → **performer entra primeiro** (abre a sala LiveKit; a
+  `call_session` ainda não existe) → membro tem **2min** para entrar → membro entra:
+  nasce a `call_session`, minuto-1 pelo depósito, e a performer recebe o `call_id`
+  por broadcast (`reservation.call_started`) para renovar/encerrar pelas rotas do #140.
+- **Janela de confirmação/cancelamento = T-2h** (ou **T-30min** se agendado com <2h),
+  o MESMO instante para "performer confirma até" e "membro cancela grátis até"
+  (`CallReservation::commitmentDeadline()`). Não confirmar → cron cancela+refund
+  (silêncio = devolução, garantia do membro). Cancelar depois de T-2h numa confirmada
+  = no-show do membro (depósito à performer).
+- **No-show:** performer confirma e não entra → refund + **strike** (`performer_profiles.noshow_strike_count`,
+  fora do `$fillable`); **3 strikes → review de admin** (dashboard, `AdminMetricsService::strikeReviewPerformers`,
+  **sem PII de membro**) + audit `reservation.performer_noshow_strike` (subject = a
+  performer, zero linkagem de membro — disciplina do audit preservado no Hard Delete).
+  A janela do membro é `max(scheduled_at, performer_entered_at)+2min` — performer
+  entrando cedo NÃO força no-show do membro.
+- **Slot flexível:** `performer_profiles.call_slot_minutes` (default 15, config; escrito
+  pelo `CallService::updateSettings`). Se há PRÓXIMO agendamento na fila, o slot é teto
+  DURO (`max_duration_minutes` da call_session) e a performer é avisada T-3min do fim
+  (`reservation.slot_warning`, o membro não vê); senão a chamada é flexível (teto geral
+  da performer). Buffer de 5min entre slots da mesma performer (`hasSlotConflict`,
+  filtrado por janela no SQL).
+- **M.13.10 / anti-oráculo:** a performer vê o membro **só por FanAlias**
+  (`CallReservationPresenter`, broadcasts) — nunca id/tier/saldo/nome. Reserva de
+  terceiro/inexistente/estado incompatível → o MESMO 404 (`CallReservationException::notFound`),
+  autorização de dono no service sob lock (não no route-binding — armadilha do
+  SubstituteBindings). `room_name` é `$hidden` e nunca sai em resposta/log/prop.
+- **Hard Delete** varre `call_reservations` **nos dois sentidos** (do membro por
+  `member_id`, da performer por `performer_profile_id`; a FK cascade não dispara —
+  soft-delete). O ledger fica (append-only).
+- **Cron `reservations:process`** (a cada minuto, `withoutOverlapping`): confirmação
+  vencida, no-shows, aviso T-5min, aviso T-3min do slot. Broadcasts despachados DEPOIS
+  da transação (precedente do CallService — não `afterCommit`, que não roda sob
+  RefreshDatabase).
+- **UI:** modal "Agendar chamada" no perfil (`ScheduleCallModal`, só membro, com preço
+  visível), telas `Consumer/ScheduledCalls` (lista + cancelar + entrar) e
+  `Performer/ScheduledCalls` (fila + confirmar/recusar + entrar), `<ReservationNotice>`
+  no `AppLayout` (aviso não-modal T-5min + "performer entrou" com contador de 2min;
+  divide o canal `user.{id}` com o `MessageToast` — `stopListening`, nunca `Echo.leave`).
 
 ## PanicButton — 3 saídas redundantes (Sprint 6, reforçado no Sprint 16)
 

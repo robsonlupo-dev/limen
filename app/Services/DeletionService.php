@@ -318,6 +318,14 @@ class DeletionService
             // lado da performer sai por cascade quando a sessão group dela é
             // apagada em `purgeCallSessionsToOwnProfile`.
             $summary['call_session_participations'] = $this->purgeCallSessionParticipants($user);
+            // Agendamentos de chamada (feat/scheduled-call-v1): as reservas FEITAS
+            // pelo membro (por member_id) e RECEBIDAS pela performer (por perfil). A
+            // FK cascade não dispara (users/perfil são soft-delete). Só metadados
+            // (horário, depósito, status); o ledger (spend_call_reservation/refund/
+            // noshow/credit) FICA (append-only), como as chamadas. O call_session_id
+            // já vira null quando a call_session ligada é apagada acima (nullOnDelete).
+            $summary['call_reservations'] = $this->purgeCallReservations($user);
+            $summary['call_reservations_received'] = $this->purgeCallReservationsToOwnProfile($user);
             // Pedidos/concessões de acesso a fotos privadas FEITOS pelo membro
             // (Sprint 13). O lado da PERFORMER (grants apontando para as fotos
             // dela) sai por cascade quando `purgePerformerPhotos` faz DELETE real
@@ -692,6 +700,33 @@ class DeletionService
     private function purgeCallSessionParticipants(User $user): int
     {
         return DB::table('call_session_participants')->where('member_id', $user->id)->delete();
+    }
+
+    /**
+     * Agendamentos de chamada FEITOS pelo membro (feat/scheduled-call-v1). DELETE
+     * real por `member_id`: a FK `cascadeOnDelete` não dispara (users é soft-delete/
+     * anonimização — item 11 do CLAUDE.md). O ledger do depósito/refund/no-show
+     * permanece (append-only). Mesma disciplina de purgeCallSessions.
+     */
+    private function purgeCallReservations(User $user): int
+    {
+        return DB::table('call_reservations')->where('member_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro sentido: as reservas RECEBIDAS pelo perfil da performer que encerra.
+     * Sai por `performer_profile_id`, ANTES do anonymizePerformerProfile (enquanto
+     * o perfil ainda resolve). Mesma disciplina de purgeCallSessionsToOwnProfile.
+     */
+    private function purgeCallReservationsToOwnProfile(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('call_reservations')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**

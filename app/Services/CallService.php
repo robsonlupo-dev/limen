@@ -518,7 +518,7 @@ class CallService
      * (os campos ficam fora do $fillable). Valida o piso/passo como 2ª linha (o
      * Form Request é a 1ª) — a policy dos números é a config.
      */
-    public function updateSettings(User $performerUser, ?int $pricePerMinute, ?int $maxDurationMinutes): void
+    public function updateSettings(User $performerUser, ?int $pricePerMinute, ?int $maxDurationMinutes, ?int $slotMinutes = null): void
     {
         if ($pricePerMinute !== null) {
             $floor = (int) config('monetization.call_min_price_per_minute');
@@ -531,6 +531,10 @@ class CallService
         $performerUser->performerProfile->forceFill([
             'call_price_per_minute' => $pricePerMinute,
             'call_max_duration_minutes' => $maxDurationMinutes,
+            // Duração-padrão do slot de AGENDAMENTO (feat/scheduled-call-v1). NULL =
+            // usa o default de config/scheduled_call.php. A validação de faixa é do
+            // Form Request (a 1ª linha); aqui a escrita segue a autoridade do service.
+            'call_slot_minutes' => $slotMinutes,
         ])->save();
     }
 

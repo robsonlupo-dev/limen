@@ -218,6 +218,14 @@ class CatalogController extends Controller
                 'rate_public' => $profile->rate_public,
                 'rate_private' => $profile->rate_private,
                 'rate_camera' => $profile->rate_camera,
+                // Preço/min da chamada (feat/scheduled-call-v1): null = não aceita
+                // chamadas → o botão "Agendar chamada" não aparece. É o preço DELA,
+                // mostrado ao membro para decidir; nada sensível.
+                'call_price_per_minute' => $profile->call_price_per_minute,
+                // profile_id para o POST reservations.store ({profile}). O resource
+                // público omite o `id` de propósito; o media já expõe o profile_id em
+                // URL assinada, então isto não vaza nada novo.
+                'profile_id' => $profile->id,
             ]
         );
 

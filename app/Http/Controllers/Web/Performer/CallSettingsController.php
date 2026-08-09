@@ -25,6 +25,7 @@ class CallSettingsController extends Controller
                 $request->user(),
                 $request->pricePerMinute(),
                 $request->maxDurationMinutes(),
+                $request->slotMinutes(),
             );
         } catch (CallException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], $e->status);
@@ -36,6 +37,7 @@ class CallSettingsController extends Controller
             'ok' => true,
             'call_price_per_minute' => $profile->call_price_per_minute,
             'call_max_duration_minutes' => $profile->call_max_duration_minutes,
+            'call_slot_minutes' => $profile->call_slot_minutes,
         ]);
     }
 }
