@@ -66,15 +66,16 @@ it('mantem tambem o disco flutuante opaco na camada de topo (fallback do UAT 63)
         ->and($src)->toContain('text-[#6f6a62]');
 });
 
-it('mantem o link discreto mas legivel (muted com pilula, hover de perigo)', function () {
-    // "Discreto mas legível" (pedido do PO): tom `muted` que se lê no header, com
-    // uma pílula de borda fina que o marca como controle intencional, e o hover
-    // puxando para `danger` — saída de emergência sem gritar. Guarda contra dois
-    // exageros opostos: virar berrante ou sumir de novo por falta de contraste.
+it('mantem o link prominente com borda dourada e rotulo legivel', function () {
+    // Prominência (pedido do PO, ago/2026): o link deixou de ser o controle
+    // "discreto" (muted/border-frame) e virou uma pílula com borda dourada
+    // `limen-gold` visível e rótulo legível `text-limen-gold`, com o hover puxando
+    // para `danger` — localizável rápido numa emergência. Guarda contra regredir
+    // para o tom apagado que o UAT reprovou (o membro não achava a saída).
     $src = File::get(resource_path(PANIC));
 
-    expect($src)->toContain('text-muted')
-        ->and($src)->toMatch('/\bborder-frame\//')
+    expect($src)->toContain('border-limen-gold')
+        ->and($src)->toContain('text-limen-gold')
         ->and($src)->toContain('hover:text-danger');
 });
 

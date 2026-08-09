@@ -226,11 +226,15 @@ function logout() {
                     >
                         Admin
                     </a>
-                    <span class="text-cream">{{ page.props.auth.user?.name }}</span>
-                    <!-- Saída rápida (todos os tiers). Link de texto ao lado do
-                         nome — ver PanicButton.vue. O duplo-Escape mora no mesmo
-                         componente e vale mesmo se esta barra sair da tela. -->
-                    <PanicButton />
+                    <!-- Nome em cima, Saída rápida ABAIXO (pedido do PO, ago/2026):
+                         empilhados numa coluna para o Panic Button ser localizável
+                         rápido, não mais um controle discreto ao lado do nome. O
+                         duplo-Escape e o disco flutuante moram no mesmo componente e
+                         valem mesmo se esta barra sair da tela. -->
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="text-cream">{{ page.props.auth.user?.name }}</span>
+                        <PanicButton />
+                    </div>
                     <button
                         class="hover:text-cream transition-colors"
                         @click="showLogoutConfirm = true"

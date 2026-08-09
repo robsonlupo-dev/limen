@@ -120,15 +120,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
          botões estarem cobertos.
 
       Ao mexer no visual, preserve as três — cada uma existe porque as outras falham
-      num cenário. Discreto mas legível: o link é `muted` com pílula (hover `danger`);
-      o disco é opaco (`bg-surface`) com aro dourado, glifo discreto (`#6f6a62`, pedido
-      do PO) — quem ganha contraste é o disco, não o X (regressão do UAT cenário 63).
+      num cenário. O link é PROMINENTE (pedido do PO, ago/2026): pílula com borda
+      dourada `limen-gold` visível e rótulo legível (`text-limen-gold`), com ícone de
+      saída e hover puxando para `danger` — localizável rápido numa emergência, não
+      mais o controle discreto de antes. O disco é opaco (`bg-surface`) com aro
+      dourado, glifo discreto (`#6f6a62`, pedido do PO) — quem ganha contraste no
+      canto é o disco, não o X (regressão do UAT cenário 63); o link ganha contraste
+      no fluxo do header.
     -->
     <button
         type="button"
         aria-label="Panic Button — saída rápida: sai da Limen e vai para outro site"
         title="Saída rápida"
-        class="inline-flex items-center gap-1.5 rounded border border-frame/70 px-2 py-1 text-xs text-muted transition-colors hover:text-danger hover:border-danger/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/60"
+        class="inline-flex items-center gap-1.5 rounded-md border border-limen-gold/70 px-2.5 py-1 text-xs font-medium text-limen-gold transition-colors hover:border-danger/60 hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/60"
         @click="escape"
     >
         <svg
