@@ -3160,6 +3160,35 @@ visitou" para o membro** — o dado do sentido inverso nem é coletado.
 
 **Dependência dura:** catálogo de membros como home mergeado primeiro (é onde a
 performer navega membros — a superfície que passaria a gerar o registro).
+**Status da dependência:** ENTREGUE em branch (ver A.0.5) — falta só o merge.
+
+### A.0.5 Catálogo de membros como HOME + motor de engajamento — ENTREGUE (branch, PR pendente)
+
+Branch `feat/member-catalog-home-engagement` (3 commits: backend, frontend, panic;
++13 testes → 1907/15501; revisão de segurança sem 🔴). É o pré-requisito que a A.0.4
+(visitas bidirecionais) esperava. Detalhe completo no CLAUDE.md, §§ "Catálogo de
+membros como HOME + motor de engajamento" e "PanicButton". Resumo:
+
+- **Home da performer = catálogo de membros.** Login e logo levam a `performer.members`
+  (`RedirectsToHome`, AppLayout `homeRoute`); "Membros" saiu da nav (volta pelo logo);
+  o painel segue em "Meu Painel". Tela redesenhada na estética maison (espelha
+  `Catalog/Index.vue`, `<MemberCard>`, tokens `limen-*`). Privacidade do #165 intacta.
+- **CORAÇÃO** — interesse GRÁTIS e ilimitado, tabela dedicada `performer_hearts`
+  (`PerformerHeartService`). O membro vê quem o curtiu COM a identidade da performer
+  (não anônima) em `/interessadas`, sem pagar. Fora do ledger.
+- **MENSAGEM PERSONALIZADA** — texto livre, franquia diária grátis por performer
+  (`performer_message_quotas`, `config/member_engagement.php`, 15/dia).
+  `ChatService::sendCatalogMessage` cria a conversa + 1ª mensagem; o membro vê QUE
+  recebeu e DE QUEM, mas o corpo fica bloqueado até abrir o chat pago (reusa
+  `ChatAccessService` — economia M.13.1; a performer não paga, só o membro paga para
+  LER). Substitui o Interesse pago/anônimo do catálogo (que segue em
+  seguidores/visitantes).
+- **PanicButton** mais prominente (borda `limen-gold`, empilhado abaixo do nome) —
+  achado do UAT; as 3 saídas e o `z-[10001]` do disco intactos.
+- **Invariantes:** alvo resolvido pela MESMA fonte da lista (`ResolvesCatalogMember` →
+  `MemberCatalogService::visibleMemberIds`, anti-oráculo); corpo atrás do paywall;
+  franquia à prova de corrida; M.13.10 mantido; Hard Delete varre corações (2 sentidos)
+  + contador.
 
 ### A.1 Go-live (pré-produção)
 
