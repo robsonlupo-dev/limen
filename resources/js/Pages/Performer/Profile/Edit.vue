@@ -6,6 +6,8 @@ import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PhotoGalleryManager from '@/Components/PhotoGalleryManager.vue'
 import ImageCropper from '@/Components/ImageCropper.vue'
+import CityAutocomplete from '@/Components/Catalog/CityAutocomplete.vue'
+import { patchJson } from '@/lib/http'
 import {
     TAG_GROUPS,
     MAX_TAGS,
@@ -146,6 +148,26 @@ function removeLocation(index) {
     // "exatamente uma principal" é do servidor, mas a tela não deve deixar zero.
     if (wasPrimary && locationsForm.locations.length > 0) {
         locationsForm.locations[0].is_primary = true
+    }
+}
+
+// ── Opt-in "encontrável por cidade" (item 4) ─────────────────────────────────
+// A cidade continua NÃO sendo exibida; este toggle só consente que ela FILTRE a
+// busca do catálogo. Endpoint dedicado (PATCH), fora do save do perfil — mesma
+// natureza do toggle de disponibilidade.
+const findableByCity = ref(Boolean(props.profile.findable_by_city))
+const findableSaving = ref(false)
+
+async function toggleFindableByCity() {
+    if (findableSaving.value) return
+    findableSaving.value = true
+    try {
+        const data = await patchJson(route('performer.findable-by-city.toggle'), {
+            findable: !findableByCity.value,
+        })
+        findableByCity.value = data.findable_by_city
+    } finally {
+        findableSaving.value = false
     }
 }
 
@@ -597,8 +619,8 @@ function save() {
                         />
                     </svg>
                     <p class="text-xs leading-relaxed text-muted">
-                        Apenas seu estado aparece no catálogo. A cidade fica guardada e não é publicada em
-                        lugar nenhum.
+                        Apenas seu estado aparece no catálogo. Sua cidade nunca é exibida — ela só passa a
+                        filtrar a busca se você ligar a opção abaixo.
                     </p>
                 </div>
 
@@ -632,7 +654,13 @@ function save() {
 
                     <div class="flex flex-col gap-1.5">
                         <label class="text-sm font-medium text-cream">Cidade</label>
-                        <Input v-model="loc.city" type="text" maxlength="100" placeholder="Opcional" />
+                        <CityAutocomplete
+                            :model-value="loc.city"
+                            :uf="loc.state || null"
+                            aria-label="Cidade"
+                            placeholder="Opcional"
+                            @update:model-value="(v) => (loc.city = v)"
+                        />
                     </div>
 
                     <label class="flex items-center gap-1.5 text-xs text-muted pb-2.5">
@@ -668,6 +696,37 @@ function save() {
                     <Button type="submit" variant="primary" :loading="locationsForm.processing">
                         Salvar localizações
                     </Button>
+                </div>
+
+                <!-- Opt-in "encontrável por cidade" (item 4). Default OFF. Consentimento
+                     explícito: liga o filtro por cidade da busca. A cidade continua
+                     sem aparecer no perfil/card — muda só a descoberta. -->
+                <div
+                    class="flex items-start justify-between gap-4 rounded-lg border px-4 py-3"
+                    :class="findableByCity ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface-2'"
+                >
+                    <div class="space-y-1">
+                        <p class="text-sm font-medium text-cream">Encontrável por cidade</p>
+                        <p class="text-xs leading-relaxed text-muted">
+                            Membros podem te encontrar filtrando o catálogo pela sua cidade. Sua cidade
+                            continua não aparecendo no perfil — só passa a filtrar a busca. Desligado por padrão.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="findableByCity"
+                        aria-label="Encontrável por cidade"
+                        :disabled="findableSaving"
+                        class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+                        :class="findableByCity ? 'bg-gold' : 'bg-frame'"
+                        @click="toggleFindableByCity"
+                    >
+                        <span
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                            :class="findableByCity ? 'translate-x-6' : 'translate-x-1'"
+                        />
+                    </button>
                 </div>
             </form>
         </div>

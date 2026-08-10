@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
+import CityAutocomplete from '@/Components/Catalog/CityAutocomplete.vue'
 import { postJson, deleteJson } from '@/lib/http'
 import {
     FILTERABLE_TAG_GROUPS,
@@ -55,6 +56,9 @@ const form = reactive({
     level: props.filters.level || '',
     tier: props.filters.tier || '',
     state: props.filters.state || '',
+    // Cidade (item 4): só filtra quem consentiu (findable_by_city no backend).
+    // Nome livre por baixo; o autocomplete sugere valores canônicos do IBGE.
+    city: props.filters.city || '',
     sort: props.filters.sort || 'rating_avg',
     tags: [...(props.filters.tags ?? [])],
     languages: [...(props.filters.languages ?? [])],
@@ -102,9 +106,12 @@ function apply() {
             has_photo: form.has_photo ? 1 : undefined,
             level: form.level || undefined,
             tier: form.tier || undefined,
-            // Só a UF vira faceta. Não existe filtro por cidade e não deve
-            // existir: `city` é dado interno (ver PerformerPublicResource).
+            // UF sempre. CIDADE (item 4) só alcança quem consentiu ser
+            // encontrável por cidade (findable_by_city) — nunca EXIBE a cidade,
+            // só filtra a busca. Mandamos os dois: a UF desambigua homônimos
+            // dentro do scopeInCity. Ver PerformerCatalogService::applyFilters.
             state: form.state || undefined,
+            city: form.city || undefined,
             sort: form.sort !== 'rating_avg' ? form.sort : undefined,
             tags: form.tags.length ? form.tags : undefined,
             languages: form.languages.length ? form.languages : undefined,
@@ -160,6 +167,7 @@ function clearFilters() {
         level: '',
         tier: '',
         state: '',
+        city: '',
         sort: 'rating_avg',
         tags: [],
         languages: [],
@@ -171,6 +179,31 @@ function clearFilters() {
     apply()
 }
 
+// Cidade escolhida no autocomplete: fixa a cidade E a UF do município (a UF
+// desambigua homônimos no servidor e mantém o dropdown de Estado coerente).
+function onCitySelect({ name, uf }) {
+    form.city = name
+    if (uf) form.state = uf
+    apply()
+}
+
+// O texto da cidade mudou (digitação/limpeza) sem uma escolha: se esvaziou,
+// remove a faceta de cidade e reaplica. Enquanto digita (sem selecionar) não
+// dispara busca no catálogo — o apply vem no select ou na limpeza.
+function onCityInput(value) {
+    if (!value) {
+        form.city = ''
+        apply()
+    }
+}
+
+// Trocar a UF no dropdown invalida uma cidade escolhida (São Paulo não fica no
+// RJ): limpa a cidade para não mandar um par cidade+UF impossível.
+function onStateChange() {
+    if (form.city) form.city = ''
+    apply()
+}
+
 const activeCount = computed(() => {
     let n = 0
     if (form.search) n++
@@ -179,7 +212,10 @@ const activeCount = computed(() => {
     if (form.has_photo) n++
     if (form.level) n++
     if (form.tier) n++
-    if (form.state) n++
+    // Cidade IMPLICA a UF (ela vem com a UF do município escolhido), então conta
+    // como UMA faceta de localização, não duas.
+    if (form.city) n++
+    else if (form.state) n++
     if (form.sort !== 'rating_avg') n++
     if (form.drinks) n++
     if (form.smokes) n++
@@ -209,6 +245,7 @@ function activeFilters() {
     if (form.level) f.level = form.level
     if (form.tier) f.tier = form.tier
     if (form.state) f.state = form.state
+    if (form.city) f.city = form.city
     if (form.sort !== 'rating_avg') f.sort = form.sort
     if (form.tags.length) f.tags = [...form.tags]
     if (form.languages.length) f.languages = [...form.languages]
@@ -255,6 +292,7 @@ function applySaved(filters) {
         level: filters.level || '',
         tier: filters.tier || '',
         state: filters.state || '',
+        city: filters.city || '',
         sort: filters.sort || 'rating_avg',
         tags: [...(filters.tags ?? [])],
         languages: [...(filters.languages ?? [])],
@@ -456,25 +494,39 @@ async function deleteSaved(id) {
                     </div>
                 </section>
 
-                <!-- Estado. Dropdown com as mesmas 27 UFs do formulário de
-                     edição (STATES é a fonte única). Sem faceta de cidade. -->
+                <!-- Localização. UF (dropdown das 27 UFs, STATES é a fonte única)
+                     + CIDADE por autocomplete do IBGE. A cidade só encontra quem
+                     consentiu ser encontrável por cidade (findable_by_city no
+                     servidor); ela nunca é exibida, só filtra a busca. -->
                 <section class="border-b border-frame py-3">
                     <button type="button" class="flex w-full items-center justify-between py-1" @click="toggleSection('estado')">
-                        <span class="text-xs uppercase tracking-wide text-muted">Estado</span>
+                        <span class="text-xs uppercase tracking-wide text-muted">Localização</span>
                         <span class="text-muted text-xs">{{ sections.estado ? '−' : '+' }}</span>
                     </button>
-                    <div v-if="sections.estado" class="pt-2">
+                    <div v-if="sections.estado" class="space-y-2 pt-2">
                         <select
                             v-model="form.state"
                             aria-label="Estado"
                             class="w-full rounded-lg border border-frame bg-surface px-3 py-2 text-sm text-cream focus:outline-none focus:border-gold"
-                            @change="apply"
+                            @change="onStateChange"
                         >
                             <option value="">Todos os estados</option>
                             <option v-for="uf in STATES" :key="uf.value" :value="uf.value">
                                 {{ uf.label }}
                             </option>
                         </select>
+
+                        <CityAutocomplete
+                            :model-value="form.city"
+                            :uf="form.state || null"
+                            aria-label="Cidade"
+                            placeholder="Cidade (opcional)"
+                            @update:model-value="onCityInput"
+                            @select="onCitySelect"
+                        />
+                        <p class="text-[11px] leading-snug text-muted">
+                            Filtra só performers que escolheram ser encontradas por cidade.
+                        </p>
                     </div>
                 </section>
 
