@@ -156,6 +156,11 @@ class PerformerProfile extends Model
         // Fora do $fillable também: a escrita só acontece no BoostService, por
         // forceFill, depois do débito no ledger — nunca de um payload de massa.
         'boosted_until',
+        // Opt-in "encontrável por cidade" (filtro de cidade consentido). $hidden
+        // porque nem o flag precisa vazar em resource público — a tela da própria
+        // performer recebe o valor por prop explícita (como isAvailable). Fora do
+        // $fillable: escrito só pelo endpoint dedicado por forceFill.
+        'findable_by_city',
     ];
 
     protected function casts(): array
@@ -184,6 +189,7 @@ class PerformerProfile extends Model
             'call_max_duration_minutes' => 'integer',
             'call_slot_minutes' => 'integer',
             'noshow_strike_count' => 'integer',
+            'findable_by_city' => 'boolean',
         ];
     }
 
@@ -325,6 +331,33 @@ class PerformerProfile extends Model
                     ->whereDoesntHave('locations')
                     ->where('state', $state));
         });
+    }
+
+    /**
+     * Filtro de cidade CONSENTIDO (item 4 da fila). Ao contrário do scopeInState,
+     * este só alcança quem OPTOU por ser encontrável por cidade
+     * (`findable_by_city = true`) — o consentimento é o portão. Quem não optou
+     * NUNCA entra no resultado, então a cidade continua interna para ela.
+     *
+     * Casa pela `city_normalized` (acento-insensível), e quando a UF vem junto
+     * (o autocomplete manda a UF do município escolhido) desambigua homônimos —
+     * 232 nomes de cidade se repetem entre estados. SEM fallback para o cache da
+     * coluna do perfil: findability por cidade exige linha em performer_locations
+     * (a tabela de busca), e sem opt-in não há o que casar de qualquer modo.
+     *
+     * @param  Builder<PerformerProfile>  $query
+     * @return Builder<PerformerProfile>
+     */
+    public function scopeInCity(Builder $query, string $cityNormalized, ?string $state = null): Builder
+    {
+        return $query->where('performer_profiles.findable_by_city', true)
+            ->whereHas('locations', function (Builder $inner) use ($cityNormalized, $state) {
+                $inner->where('city_normalized', $cityNormalized);
+
+                if ($state !== null) {
+                    $inner->where('state', $state);
+                }
+            });
     }
 
     /**

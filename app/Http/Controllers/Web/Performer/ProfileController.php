@@ -69,6 +69,10 @@ class ProfileController extends Controller
                     'city' => $l->city,
                     'is_primary' => $l->is_primary,
                 ])->all(),
+                // Opt-in "encontrável por cidade" (item 4). Estado do toggle nesta
+                // MESMA tela (a única em que a cidade aparece). É dado dela sobre a
+                // própria conta — nada de membro.
+                'findable_by_city' => $profile->findable_by_city,
                 'avatar_url' => $profile->avatar_path
                     ? URL::temporarySignedRoute('performer.media', now()->addMinutes(60), [
                         'profile_id' => $profile->id,

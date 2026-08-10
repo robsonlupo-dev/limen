@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\PerformerLocationException;
 use App\Models\PerformerLocation;
 use App\Models\PerformerProfile;
+use App\Support\BrazilianCities;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -81,6 +82,10 @@ class PerformerLocationService
                 $row->performer_profile_id = $profile->getKey();
                 $row->is_primary = $isPrimary;
                 $row->position = $position;
+                // Chave de busca acento-insensível do filtro de cidade consentido.
+                // Derivada aqui (não é dado de request) e igual à normalização do
+                // BrazilianCities — o front normaliza do mesmo jeito antes de casar.
+                $row->city_normalized = $city !== null ? BrazilianCities::normalize($city) : null;
                 $row->save();
 
                 if ($isPrimary) {

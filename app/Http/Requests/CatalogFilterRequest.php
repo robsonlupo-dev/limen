@@ -55,9 +55,13 @@ class CatalogFilterRequest extends FormRequest
             'available' => $this->boolean('available'),
             'has_photo' => $this->boolean('has_photo'),
             'tier' => $this->input('tier'),
-            // UF, validada por Rule::in(STATES) nas rules(). Não há entrada de
-            // cidade aqui e não deve haver: `city` não é dado público.
+            // UF, validada por Rule::in(STATES) nas rules(). A CIDADE (item 4)
+            // entra como texto e só filtra quem consentiu (findable_by_city) —
+            // ela nunca é exibida; ver PerformerCatalogService::applyFilters e
+            // scopeInCity. Sem privacidade regredida: performer que não optou se
+            // comporta como hoje (cidade 100% interna).
             'state' => $this->input('state'),
+            'city' => $this->input('city'),
             'tags' => (array) $this->input('tags', []),
             'languages' => (array) $this->input('languages', []),
             'drinks' => $this->input('drinks'),
