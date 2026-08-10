@@ -102,6 +102,45 @@ class PerformerHeartService
     }
 
     /**
+     * Quantos corações RECEBIDOS ainda não vistos pelo membro — o número da
+     * bolinha ao lado de "Interessadas" na nav. Novo = `created_at` posterior ao
+     * watermark `hearts_seen_at` do membro (null = nunca abriu a tela, tudo conta).
+     *
+     * Espelha o MESMO recorte de `listForMember`: só corações de performer DE PÉ
+     * (perfil verificado, conta ativa). Sem isso o contador diria "1" para um
+     * coração que a lista não mostra (performer suspensa/em KYC) — a bolinha e a
+     * tela discordariam.
+     */
+    public function unseenCountForMember(User $member): int
+    {
+        return PerformerHeart::query()
+            ->where('member_id', $member->id)
+            ->when(
+                $member->hearts_seen_at !== null,
+                fn ($q) => $q->where('created_at', '>', $member->hearts_seen_at),
+            )
+            ->whereHas('performerProfile', fn ($q) => $q
+                ->where('is_verified', true)
+                ->whereHas('user', fn ($u) => $u->where('status', 'active')))
+            ->count();
+    }
+
+    /**
+     * Assenta o watermark de "corações vistos" em `now()` — zera o contador da
+     * nav. Chamado quando o membro ABRE a tela de corações. Idempotente e barato:
+     * grava só a coluna, sem bumpar `updated_at` nem disparar observers (mesma
+     * disciplina do heartbeat de last_active_at). Muta a instância em mãos para o
+     * mesmo request (a nav é reavaliada DEPOIS do controller) já ler zero.
+     */
+    public function markSeenForMember(User $member): void
+    {
+        $member->hearts_seen_at = now();
+        $member->timestamps = false;
+        $member->saveQuietly();
+        $member->timestamps = true;
+    }
+
+    /**
      * Lista "Performers interessadas em você" do MEMBRO. A performer NÃO é anônima
      * aqui — é o produto do coração: o membro vê nome artístico, slug e avatar
      * (identidade pública do catálogo, nada de PII). Só performers de pé (perfil

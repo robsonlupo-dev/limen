@@ -26,6 +26,10 @@ const isActivePerformer = computed(() => isPerformer.value && page.props.auth.us
 // Feature flags (Sprint 15 dark launch). O agendamento vive sob feature:call, então
 // os links só aparecem com a chamada ligada — como os botões de live/chamada.
 const features = computed(() => page.props.features ?? {})
+// Contadores de não-vistos da nav (feat/activity-badges): bolinhas ao lado de
+// "Mensagens" (os dois papéis) e "Interessadas" (só membro). Vêm resolvidos do
+// backend (NavBadgeService) respeitando o paywall do chat; o front só desenha.
+const navCounts = computed(() => page.props.nav_counts ?? { messages: 0, hearts: 0 })
 const dashboardRoute = computed(() =>
     isActivePerformer.value ? route('performer.dashboard') : route('performer.onboarding'),
 )
@@ -105,6 +109,11 @@ function logout() {
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
                             Mensagens
+                            <span
+                                v-if="navCounts.messages > 0"
+                                class="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-limen-gold px-1.5 py-0.5 text-[10px] font-semibold leading-none text-limen-bg"
+                                aria-label="mensagens não lidas"
+                            >{{ navCounts.messages > 99 ? '99+' : navCounts.messages }}</span>
                         </Link>
                         <Link
                             :href="route('performer.payouts.index')"
@@ -171,6 +180,11 @@ function logout() {
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
                             Interessadas
+                            <span
+                                v-if="navCounts.hearts > 0"
+                                class="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-limen-gold px-1.5 py-0.5 text-[10px] font-semibold leading-none text-limen-bg"
+                                aria-label="novos corações"
+                            >{{ navCounts.hearts > 99 ? '99+' : navCounts.hearts }}</span>
                         </Link>
                         <!-- Bookmark privado — a performer não é avisada. Fica
                              na nav do MEMBRO e não tem espelho na da performer. -->
@@ -185,6 +199,11 @@ function logout() {
                             class="text-gold/80 hover:text-gold transition-colors no-underline"
                         >
                             Mensagens
+                            <span
+                                v-if="navCounts.messages > 0"
+                                class="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-limen-gold px-1.5 py-0.5 text-[10px] font-semibold leading-none text-limen-bg"
+                                aria-label="mensagens não lidas"
+                            >{{ navCounts.messages > 99 ? '99+' : navCounts.messages }}</span>
                         </Link>
                         <Link
                             :href="route('wallet.index')"

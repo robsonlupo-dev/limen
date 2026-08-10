@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Support\ActivitySlot;
+use App\Support\NewBadge;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\URL;
@@ -80,6 +81,12 @@ class PerformerPublicResource extends JsonResource
             // rótulo — a tela oculta a faixa quando is_live, para não repetir o
             // sinal em duas formas.
             'activity_label' => ActivitySlot::for($this->user?->last_active_at),
+            // Selo "Nova" (feat/activity-badges): BOOLEANO derivado do `created_at`
+            // do perfil, nunca a data — mesma disciplina do `is_boosted`. Só
+            // performer verificada entra no catálogo, então "entrou nos últimos 7
+            // dias" ≈ está na vitrine há pouco. NewBadge é a dona única da janela;
+            // o selo apaga sozinho na leitura ao vencer os 7 dias.
+            'is_new' => NewBadge::isNew($this->created_at),
             'rating_avg' => $this->rating_avg,
             'rating_count' => $this->rating_count,
             // Faixa, nunca o número exato: ver PerformerProfile::followersCountLabel().

@@ -7,6 +7,7 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\ActivitySlot;
 use App\Support\FanAlias;
+use App\Support\NewBadge;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -84,7 +85,7 @@ class MemberCatalogService
     public function page(PerformerProfile $performerProfile, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $paginator = $this->visibleQuery()
-            ->select('users.id', 'users.last_login_at', 'users.invisible_status')
+            ->select('users.id', 'users.last_login_at', 'users.invisible_status', 'users.created_at')
             ->orderByDesc('users.id')
             ->paginate($perPage)
             ->withQueryString();
@@ -145,6 +146,13 @@ class MemberCatalogService
             // Faixa grossa, nunca relógio; suprimida para quem tem Status
             // Invisível (presença não exposta). Sinal = last_login_at.
             'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),
+            // Selo "Novo" (feat/activity-badges): BOOLEANO derivado do `created_at`
+            // da conta, nunca a data. A janela de 7 dias é mais grossa que a faixa
+            // de atividade, então não data a criação ao minuto; e o catálogo já
+            // ordena por id desc (mais novos no topo), então o selo só rotula o que
+            // a posição implica. NÃO é suprimido por Status Invisível — é idade de
+            // conta, não presença. NewBadge é a dona única da janela.
+            'is_new' => NewBadge::isNew($member->created_at),
             'interest_sent' => $interestSent,
             // A performer já curtiu este membro? O card já vem com o coração cheio.
             'hearted' => $hearted,

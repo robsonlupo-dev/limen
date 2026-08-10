@@ -28,7 +28,7 @@ const isSelect = computed(() => props.performer.tier === 'select')
         <!-- Canto superior esquerdo: AO VIVO tem precedência; senão, story não
              visto (para o membro logado que chega por link direto; visitante
              deslogado recebe false do servidor). -->
-        <div class="absolute top-3 left-3 z-10">
+        <div class="absolute top-3 left-3 z-10 flex flex-col items-start gap-1.5">
             <span
                 v-if="performer.is_live"
                 role="img"
@@ -48,6 +48,14 @@ const isSelect = computed(() => props.performer.tier === 'select')
                     <img v-if="performer.avatar_url" :src="performer.avatar_url" :alt="performer.stage_name" loading="lazy" class="h-full w-full object-cover" />
                     <span v-else class="font-serif text-sm text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
                 </span>
+            </span>
+            <!-- Selo "Nova" (feat/activity-badges): entrada recente, BOOLEANO
+                 derivado (is_new), nunca a data. Dourado, empilhado abaixo. -->
+            <span
+                v-if="performer.is_new"
+                class="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-limen-gold ring-1 ring-limen-gold/50 backdrop-blur-sm"
+            >
+                Nova
             </span>
         </div>
 

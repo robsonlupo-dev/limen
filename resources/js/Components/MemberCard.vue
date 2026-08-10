@@ -12,7 +12,7 @@
  * tier ou saldo do membro. Não há o que vazar no DevTools.
  */
 const props = defineProps({
-    // { fan_alias_label, member_handle, avatar_url, activity_label, hearted }
+    // { fan_alias_label, member_handle, avatar_url, activity_label, is_new, hearted }
     member: { type: Object, required: true },
     hearted: { type: Boolean, default: false },
     hearting: { type: Boolean, default: false },
@@ -37,6 +37,17 @@ const emit = defineEmits(['heart', 'message'])
                 <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.7-8 6v2h16v-2c0-3.3-3.6-6-8-6z" />
             </svg>
         </div>
+
+        <!-- Selo "Novo" (feat/activity-badges): conta criada nos últimos 7 dias.
+             BOOLEANO derivado do servidor (is_new), nunca a data — idade de conta,
+             não presença (por isso NÃO é suprimido por Status Invisível). Dourado
+             e discreto, canto superior esquerdo. -->
+        <span
+            v-if="member.is_new"
+            class="absolute top-3 left-3 z-20 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-limen-gold ring-1 ring-limen-gold/50 backdrop-blur-sm"
+        >
+            Novo
+        </span>
 
         <!-- Scrim para legibilidade da barra inferior. -->
         <div class="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#100d0a] via-[#100d0a]/70 to-transparent" />

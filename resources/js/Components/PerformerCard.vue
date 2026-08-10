@@ -228,8 +228,10 @@ onBeforeUnmount(stopPreview)
 
         <!-- Canto superior esquerdo: AO VIVO tem precedência; senão, story não
              visto vira mini-avatar com aro dourado. Os dois são IRMÃOS do link
-             (o mini-avatar navega por conta própria). -->
-        <div class="absolute top-3 left-3 z-20">
+             (o mini-avatar navega por conta própria). O selo "Nova" empilha ABAIXO
+             deles (feat/activity-badges) — sinal de entrada recente, discreto e
+             dourado (nunca limen-live, que é exclusivo do "ao vivo"). -->
+        <div class="absolute top-3 left-3 z-20 flex flex-col items-start gap-1.5">
             <span
                 v-if="showLive"
                 role="img"
@@ -255,6 +257,15 @@ onBeforeUnmount(stopPreview)
                     <span v-else class="font-serif text-sm text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
                 </span>
             </Link>
+            <!-- Selo "Nova": entrada recente (≤7 dias), BOOLEANO derivado do
+                 servidor (is_new), nunca a data. Dourado e discreto, empilhado
+                 abaixo do sinal de tempo real. -->
+            <span
+                v-if="performer.is_new"
+                class="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-limen-gold ring-1 ring-limen-gold/50 backdrop-blur-sm"
+            >
+                Nova
+            </span>
         </div>
 
         <!-- Chip MAISON: discreto, canto superior direito. Irmão do link. -->
