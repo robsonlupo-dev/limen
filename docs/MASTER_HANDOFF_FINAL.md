@@ -3190,6 +3190,42 @@ membros como HOME + motor de engajamento" e "PanicButton". Resumo:
   franquia à prova de corrida; M.13.10 mantido; Hard Delete varre corações (2 sentidos)
   + contador.
 
+### A.0.6 Sinais de atividade nos catálogos — ENTREGUE (branch, PR pendente)
+
+Branch `feat/activity-badges` (a partir de `67f88a0`; +10 testes → 1917/15612;
+revisão de segurança sem 🔴). **Item 2 da fila de melhorias:** dar ao catálogo a
+sensação de "site vivo" (inspiração Seeking — "New member", contadores de interação),
+tudo em cima de dado que JÁ existe. Detalhe completo no CLAUDE.md, § "Sinais de
+atividade nos catálogos". Resumo:
+
+- **Selo "Nova/Novo" (≤7 dias)** nos DOIS catálogos (performer e membro). BOOLEANO
+  derivado `is_new`, **nunca o timestamp** (disciplina do `is_boosted`). Dona única da
+  janela: `App\Support\NewBadge` (7 dias, rolante). Performer: a partir do `created_at`
+  do perfil (`PerformerPublicResource`); membro: `users.created_at`
+  (`MemberCatalogService::mask`). Pílula dourada discreta (`limen-gold`), empilhada no
+  canto superior esquerdo abaixo do sinal de tempo real; some sozinha na leitura ao
+  vencer. O "Novo" do membro não é suprimido por Status Invisível (é idade de conta,
+  não presença).
+- **Contadores de não-vistos na nav** — bolinhas ao lado de "Mensagens" (os dois
+  papéis) e "Interessadas" (membro). Dona única `App\Services\NavBadgeService` →
+  `{messages, hearts}`, prop LAZY `nav_counts` (avaliado no render → abrir a seção que
+  zera já devolve zero na mesma resposta):
+  - **mensagens** (`ChatService::unreadCountFor`): não lidas do outro participante,
+    **respeitando o paywall do chat** (performer sempre lê; membro só conta conversa com
+    `chat_access` pleno vigente). Irmão-agregado da contagem por-conversa do
+    `ChatController::index`; zera por conversa ao abrir (`show()` marca `read_at`).
+  - **corações** (`PerformerHeartService::unseenCountForMember`): recebidos com
+    `created_at` estritamente após o watermark `users.hearts_seen_at`; só o membro;
+    espelha o recorte de `listForMember` (performer verificada + ativa). Zera ao abrir
+    `/interessadas` (`markSeenForMember`). Watermark `$hidden`/fora do `$fillable`,
+    nulo no Hard Delete.
+- **"Online agora" (~5 min) NÃO foi implementado — decisão do PO.** Colidiria com
+  invariantes LOCKED (o `ActivitySlot` cobre só até "hoje" e exclui "agora" de
+  propósito; o único tempo real é `is_live`, a bolinha verde; o catálogo de membros não
+  expõe presença de membro à performer). Não reintroduzir sem nova decisão de PO.
+- **Migration nova:** `2026_08_15_000001_add_hearts_seen_at_to_users` (watermark de
+  corações vistos). Nenhuma outra mudança de schema.
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),

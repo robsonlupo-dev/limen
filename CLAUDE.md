@@ -323,7 +323,17 @@ PR #140 — sem tipo novo.
 > 15501 asserts, PR pendente):** o **catálogo de membros virou a HOME da performer**
 > e ganhou o **motor de engajamento coração + mensagem** — ver §§ "Catálogo de
 > membros como home" e "Motor de engajamento". Sobe DESLIGADO de nada (não tem flag —
-> é reescrita de superfície existente + duas tabelas novas). **Base original**
+> é reescrita de superfície existente + duas tabelas novas). O #173 mergeou na
+> `main` (`67f88a0`).
+>
+> **Em branch (`feat/activity-badges`, a partir de `67f88a0`, +10 testes → 1917
+> testes / 15612 asserts, PR pendente):** **sinais de atividade nos catálogos** —
+> selo "Nova/Novo" (janela de 7 dias, `NewBadge`) nos dois catálogos + contadores de
+> não-vistos na nav (mensagens não lidas respeitando o paywall + corações recebidos,
+> `NavBadgeService`/`nav_counts`). **"Online agora" NÃO entrou** (decisão do PO —
+> colide com a granularidade "hoje" do `ActivitySlot` e a não-exposição de presença
+> do membro). Uma migration nova (`hearts_seen_at`, watermark de corações vistos). Ver
+> § "Sinais de atividade nos catálogos". **Base original**
 > (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
@@ -1043,6 +1053,55 @@ Invariantes travadas (revisão de segurança rodada, sem 🔴):
   + o contador (`purgePerformerMessageQuotas`). FKs `restrictOnDelete` não disparam
   (soft-delete) — DELETE explícito.
 
+## Sinais de atividade nos catálogos — `feat/activity-badges` (PR pendente)
+
+Para o site "parecer vivo" (inspirado no "New member"/contadores do Seeking), duas
+superfícies novas, ambas em cima de dado que JÁ existe — **sem** rastrear presença
+nova. **Item 2 da fila de melhorias.**
+
+- **[SELO "Nova/Novo"] entrada recente (≤7 dias).** BOOLEANO derivado `is_new`,
+  **nunca o timestamp** — mesma disciplina do `is_boosted`/`is_available`.
+  **Dona única da janela: `app/Support/NewBadge.php`** (`WINDOW_DAYS = 7`, rolante),
+  consumida pelo `PerformerPublicResource` (a partir do `created_at` do perfil — só
+  performer verificada entra no catálogo, então "entrou" ≈ está na vitrine há pouco)
+  e pelo `MemberCatalogService::mask` (a partir do `users.created_at`). O selo apaga
+  sozinho na LEITURA ao vencer, sem job. Card: pílula dourada discreta (`limen-gold`,
+  **nunca `limen-live`**), empilhada no canto superior esquerdo abaixo do sinal de
+  tempo real (AO VIVO/story). O "Novo" do membro **NÃO** é suprimido por Status
+  Invisível — é idade de conta, não presença; e o catálogo já ordena por id desc
+  (mais novos no topo), então o selo só rotula o que a posição implica.
+
+- **[CONTADOR DE NÃO-VISTOS na nav] bolinhas ao lado de "Mensagens" e "Interessadas".**
+  **Dona única: `app/Services/NavBadgeService::for(User)`** → `{messages, hearts}`,
+  exposto como prop **LAZY** `nav_counts` do `HandleInertiaRequests` (closure avaliada
+  no render, DEPOIS do controller — abrir a seção que zera o watermark já devolve a
+  bolinha zerada na MESMA resposta). Cada número reusa a regra que já tem dona:
+  - **mensagens** (`ChatService::unreadCountFor`): não lidas = mensagem do OUTRO
+    participante sem `read_at`, dos DOIS papéis. **Respeita o paywall do chat** — a
+    performer sempre lê; o membro só conta conversas com `chat_access` pleno vigente
+    (o `hasFullAccess()` em SQL). Sem isso a nav diria "3" e a lista de mensagens 0
+    (que zera a contagem atrás do cadeado, `ChatController::index`) — o par viraria a
+    contagem-atrás-do-paywall que o index recusa de propósito. É o irmão-agregado da
+    contagem POR conversa do index; os dois têm que concordar. Zera POR conversa ao
+    abrir (`show()` marca `read_at`) — não há "marcar tudo lido".
+  - **corações** (`PerformerHeartService::unseenCountForMember`): recebidos com
+    `created_at` **estritamente após** o watermark `users.hearts_seen_at` (`>`, então
+    coração no mesmo segundo da visita é "já visto"). SÓ para o membro (coração é
+    performer→membro; a performer não tem "recebidos"). Espelha o recorte de
+    `listForMember` (performer verificada + ativa), senão a bolinha e a tela
+    discordariam. Zera ao abrir `/interessadas` (`markSeenForMember` assenta o
+    watermark em `now()`).
+  - **`hearts_seen_at`**: `$hidden` e fora do `$fillable` (escrita só no service);
+    nunca sai como timestamp, só o CONTADOR derivado. Nulo no Hard Delete
+    (`anonymizeUser`), como o `last_active_at`.
+
+- **"Online agora" (~5 min) NÃO foi implementado — decisão do PO.** Colidiria com
+  invariantes LOCKED: o `ActivitySlot` cobre resolução só até "hoje" e exclui o "agora"
+  de propósito (o único tempo real é `is_live`, a bolinha verde), e o catálogo de
+  membros não expõe presença de membro à performer (ordena por id desc de propósito;
+  o contrato `is_invisible` do `HandleInertiaRequests`). **Não reintroduzir** um
+  indicador de presença ao minuto sem nova decisão de PO.
+
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 
 Toda imagem no upload passa por hash perceptual conferido contra uma lista local.
@@ -1605,4 +1664,6 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   **1894 testes / 15458 asserts** (o `GeoBlockTest` da view 451, falha documentada só
   neste clone de dev; verde no CI). Na branch
   `feat/member-catalog-home-engagement` (+13 testes): **1906 passam, 1 falha** (a
-  mesma do GeoBlock) de **1907 testes / 15501 asserts**.
+  mesma do GeoBlock) de **1907 testes / 15501 asserts**. Na branch
+  `feat/activity-badges` (a partir do #173 mergeado, +10 testes): **1916 passam, 1
+  falha** (a mesma do GeoBlock) de **1917 testes / 15612 asserts**.

@@ -85,6 +85,12 @@ class User extends Authenticatable implements MustVerifyEmail
         // não revelar (mesma disciplina do painel de visitantes). Fora do
         // $fillable também: quem escreve é só o TrackPerformerActivity.
         'last_active_at',
+        // Watermark de "corações vistos" (feat/activity-badges). Nunca sai como
+        // timestamp — só o CONTADOR de não-vistos derivado dele (nav_counts.hearts).
+        // Fora do $fillable: quem escreve é só o PerformerHeartService ao abrir a
+        // tela de corações. Escondê-lo aqui impede o instante de pegar carona num
+        // prop de Inertia genérico, como o last_active_at acima.
+        'hearts_seen_at',
     ];
 
     protected function casts(): array
@@ -102,6 +108,9 @@ class User extends Authenticatable implements MustVerifyEmail
             // "Última atividade" (Sprint 10). Datetime para o ActivitySlot
             // comparar janelas; nunca serializado (é $hidden).
             'last_active_at' => 'datetime',
+            // Watermark de "corações vistos" (feat/activity-badges). Datetime para
+            // comparar com o created_at do coração; nunca serializado (é $hidden).
+            'hearts_seen_at' => 'datetime',
             'password' => 'hashed',
             // 2FA TOTP. Cifrado em repouso pela APP_KEY: um dump do banco não
             // pode render segundo fator. Rotacionar a APP_KEY invalida os dois

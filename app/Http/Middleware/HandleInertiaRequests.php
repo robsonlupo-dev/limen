@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\DiscreteModeService;
+use App\Services\NavBadgeService;
 use App\Services\PrivacyPerkService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -112,6 +113,16 @@ class HandleInertiaRequests extends Middleware
                 'live_enabled' => (bool) config('features.live_enabled'),
                 'call_enabled' => (bool) config('features.call_enabled'),
             ],
+            // Contadores de "não vistos" da nav (feat/activity-badges): bolinhas ao
+            // lado de "Mensagens" e "Interessadas". CLOSURE de propósito — o Inertia
+            // avalia props-closure no RENDER, depois do controller, então uma tela
+            // que zera o watermark ao abrir (HeartsController marca hearts_seen_at;
+            // ChatController::show marca read_at) já devolve a bolinha zerada nesta
+            // mesma resposta. Só para usuário logado; a autoridade de leitura segue
+            // no backend (o número respeita o paywall do chat). Ver NavBadgeService.
+            'nav_counts' => $user
+                ? fn () => app(NavBadgeService::class)->for($request->user())
+                : ['messages' => 0, 'hearts' => 0],
         ]);
     }
 }

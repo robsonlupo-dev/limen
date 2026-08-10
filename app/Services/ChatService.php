@@ -269,6 +269,52 @@ class ChatService
     }
 
     /**
+     * Total de mensagens NÃO lidas endereçadas ao usuário — o número da bolinha ao
+     * lado de "Mensagens" na nav, para os DOIS papéis. Não lida = mensagem do
+     * OUTRO participante ainda sem read_at.
+     *
+     * Respeita o MESMO paywall do index()/show(): a performer sempre lê; o membro
+     * só conta conversas com ACESSO pleno vigente (chat_access status != deleted e
+     * expires_at futuro — o hasFullAccess() do ChatAccess, aqui em SQL). Sem isso,
+     * a nav diria "3" enquanto a lista de mensagens mostra 0 atrás do cadeado — o
+     * par viraria a contagem-atrás-do-paywall que o index() recusa de propósito.
+     *
+     * É o irmão-agregado da contagem POR conversa do ChatController::index: os dois
+     * têm que concordar na regra (outro participante + sem read_at + só quando
+     * legível). Message respeita SoftDeletes, então mensagem retida não conta.
+     */
+    public function unreadCountFor(User $user): int
+    {
+        $viewerIsPerformer = $user->role === 'performer' && $user->performerProfile !== null;
+
+        if (! $viewerIsPerformer && $user->role !== 'consumer') {
+            return 0;
+        }
+
+        return Message::query()
+            ->whereNull('read_at')
+            ->where('sender_id', '!=', $user->id)
+            ->whereHas('conversation', function ($conversation) use ($user, $viewerIsPerformer) {
+                if ($viewerIsPerformer) {
+                    $conversation->where('performer_profile_id', $user->performerProfile->id);
+
+                    return;
+                }
+
+                $conversation->where('member_id', $user->id)
+                    ->whereExists(function ($sub) use ($user) {
+                        $sub->select(DB::raw(1))
+                            ->from('chat_access')
+                            ->whereColumn('chat_access.performer_profile_id', 'conversations.performer_profile_id')
+                            ->where('chat_access.member_id', $user->id)
+                            ->where('chat_access.status', '!=', 'deleted')
+                            ->where('chat_access.expires_at', '>', now());
+                    });
+            })
+            ->count();
+    }
+
+    /**
      * Barra a mensagem que casa com a lista de termos proibidos.
      *
      * Roda ANTES de qualquer checagem de participação, acesso ou opt-out — de

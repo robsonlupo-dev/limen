@@ -1573,6 +1573,11 @@ class DeletionService
             // rastro temporal que o encerramento apaga — some junto. A faixa
             // pública derivada dele passa a ser null (nada a exibir).
             'last_active_at' => null,
+            // Watermark de "corações vistos" (feat/activity-badges): rastro
+            // temporal do próprio titular, sem lastro fiscal/legal — some junto,
+            // como o last_active_at. Os corações RECEBIDOS já saem em
+            // purgePerformerHearts; este é só a marca d'água.
+            'hearts_seen_at' => null,
             'deletion_token_hash' => null,
             'deletion_token_expires_at' => null,
         ])->save();

@@ -25,8 +25,17 @@ class HeartsController extends Controller
 
     public function index(Request $request): Response
     {
+        $performers = $this->hearts->listForMember($request->user())->all();
+
+        // Abrir a tela ZERA o contador de não-vistos da nav: assenta o watermark
+        // em now() DEPOIS de montar a lista. A nav (nav_counts) é um prop lazy do
+        // Inertia, avaliado no render — ou seja, depois deste método —, então a
+        // bolinha já sai zerada nesta mesma resposta. Mesma mecânica do read_at
+        // marcado ao abrir uma conversa.
+        $this->hearts->markSeenForMember($request->user());
+
         return Inertia::render('Consumer/Hearts/Index', [
-            'performers' => $this->hearts->listForMember($request->user())->all(),
+            'performers' => $performers,
         ]);
     }
 }
