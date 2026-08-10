@@ -338,16 +338,27 @@ PR #140 — sem tipo novo.
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
 >
-> **Em branch (`feat/city-autocomplete-filter`, rebaseada sobre a `main` pós-#176
-> `17ba83e`, +14 testes → 1950 testes / 15802 asserts, PR pendente):** **filtro de cidade
+> **Em branch (`feat/city-autocomplete-filter`, mergeada na `main` pós-#177
+> `191d384`, +14 testes → 1950 testes / 15802 asserts):** **filtro de cidade
 > CONSENTIDO no catálogo de performers** (item 4 da fila) — autocomplete do IBGE
 > (~5.570 municípios embutidos em `public/data/ibge-municipios.json`, self-hosted,
 > zero asset externo) + opt-in `findable_by_city` (default OFF). A cidade da
 > performer **continua interna** (só UF é pública); ela só passa a FILTRAR a busca
 > para quem ligou o opt-in, e **nunca é exibida**. Ver § "Filtro de cidade
-> consentido". Revisão de segurança rodada, **sem 🔴/🟡**. Suíte: 1949 passam, 1
-> falha (a mesma do GeoBlock). NÃO toca o catálogo de MEMBROS (membro não expõe
-> cidade — decisão de privacidade preservada).
+> consentido". Revisão de segurança rodada, **sem 🔴/🟡**. NÃO toca o catálogo de
+> MEMBROS (membro não expõe cidade — decisão de privacidade preservada).
+>
+> **Em branch (`feat/bidirectional-visits`, a partir da `main` pós-#177 `191d384`,
+> +19 testes, PR pendente):** **visitas bidirecionais** (item 5 da fila) — o sentido
+> INVERSO das visitas: a performer abre o "perfil" de um membro no catálogo dela e o
+> membro vê **"Quem visitou seu perfil"** (`/quem-me-visitou`) com a identidade
+> PÚBLICA da performer (sem FanAlias, sem piso, sem paywall — performer é pública).
+> Tabela nova `member_profile_visits` (separada de `profile_visits`, que fica
+> intocada); `ProfileVisitService` ESTENDIDO (não duplicado). O sentido antigo
+> (membro→performer, com FanAlias/Ghost Mode/piso/k) não regride; Ghost Mode não se
+> aplica ao inverso (quem é exposto é a performer). v1 sem monetização. Revisão de
+> segurança **sem 🔴/🟡**. Ver § "Visitas bidirecionais". NÃO toca o catálogo de
+> performers nem mobile.
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1110,6 +1121,66 @@ Invariantes travadas (revisão de segurança rodada, sem 🔴):
   (`purgePerformerHearts`) e DADOS pela performer (`purgePerformerHeartsByPerformer`)
   + o contador (`purgePerformerMessageQuotas`). FKs `restrictOnDelete` não disparam
   (soft-delete) — DELETE explícito.
+
+## Visitas bidirecionais — `feat/bidirectional-visits` (item 5 da fila, PR pendente)
+
+**Item 5 da fila.** O sistema de visitas era unidirecional — **membro → performer**
+(`profile_visits`, `ProfileVisitService::record()`; a performer vê "visitantes
+recentes" no painel, sob FanAlias/piso/k-anonimato). Esta feature adiciona o
+**sentido inverso — performer → membro**: a performer abre o "perfil" de um membro
+no catálogo dela (a home), a visita é registrada, e o **membro vê "Quem visitou seu
+perfil"** (`/quem-me-visitou`, `consumer.visitors.index`). Dona única da regra
+segue sendo o `ProfileVisitService` — **ESTENDIDO, não duplicado**. Revisão de
+segurança rodada.
+
+- **Tabela SEPARADA `member_profile_visits`** (`performer_profile_id` = quem
+  visitou, `member_id` = quem foi visitado, `visited_at`), NÃO uma coluna de direção
+  em `profile_visits`. Aquela tabela carrega o piso de anonimato, o k por faixa e a
+  mitigação de sybil — invariantes travadas cujo shape é o do membro→performer;
+  misturar o inverso ali arriscaria regredir aquele produto. O sentido antigo fica
+  **100% intocado** (o `record()` e o `panelFor()` não mudaram).
+- **Assimetria deliberada de privacidade (o ponto da feature).** Quem é exposto no
+  sentido novo é a **PERFORMER — pública**: o membro vê a identidade REAL dela
+  (nome artístico, slug, avatar por rota assinada), **sem FanAlias, sem piso, sem k,
+  sem paywall** (`memberVisitorsPanelFor`). É o mesmo contrato da lista de corações
+  recebidos (`PerformerHeartService::listForMember`). **Ghost Mode/Modo Discreto NÃO
+  se aplicam a este sentido** — são perks que escondem o MEMBRO da performer, e aqui
+  o membro não é exposto a ninguém: é o inbound DELE. Um membro Black pode ser
+  visitado e vê a visita normalmente. **M.13.10 é irrelevante aqui** (não há tier de
+  performer que o membro não possa ver).
+- **A performer NUNCA vê PII do membro.** O registro é `POST performer.members.visit`
+  (`role:performer` + `throttle:60,1` + `can('performer-active')`), resolve o alvo
+  pelo trait **`ResolvesCatalogMember`** — a MESMA fonte da lista do catálogo e das
+  outras ações (coração/mensagem/interesse) —, então **o par 404/sucesso não vira
+  oráculo** de quem a lista esconde, e nunca se registra visita a um membro que a
+  performer não podia ver. A resposta é **204 vazio**: gravou ou caiu na dedup, é a
+  mesma resposta (mesma disciplina de `record()` — a página não muda conforme a
+  visita foi ou não gravada).
+- **Dedup de 30min** (a MESMA `DEDUPE_MINUTES` do sentido atual): reabrir o perfil
+  não gera linha nova nem dá ao membro um cronômetro do tempo que a performer passou
+  ali. **Guard de borda** no service: só grava visita a membro `consumer`+`active`
+  (o catálogo já filtra; é a rede redundante). `member_id`/`performer_profile_id`
+  vêm das entidades do request, fora do `$fillable`.
+- **A lista do membro traz UMA linha por performer** (a visita mais recente,
+  agrupada no banco), só de **performers de pé** (perfil verificado + conta ativa —
+  visita de performer depois suspensa/em KYC some, como um coração dela sumiria),
+  ordenada por recência, com o horário em **FAIXA** ("Hoje" / `d/m/Y`), nunca
+  relógio. Janela de leitura limitada à retenção de 7 dias.
+- **v1 SEM monetização.** A lista sai completa para todo membro (é segura — performer
+  pública). Gate por tier ("monetizar quem-visitou") é decisão futura de PO, outro PR
+  (registrado no backlog).
+- **GC e Hard Delete nos dois sentidos.** `purgeExpired()` (`visits:purge`) foi
+  estendido para varrer TAMBÉM `member_profile_visits` fora dos 7 dias. O Hard Delete
+  leva as visitas **recebidas** pelo membro (`purgeMemberProfileVisits`, por
+  `member_id`) E as **feitas** pela performer (`purgeMemberProfileVisitsByPerformer`,
+  por `performer_profile_id`) — as FKs `cascadeOnDelete` nunca disparam (os dois
+  lados são soft-delete), como em `profile_visits`.
+- **UI:** o card do catálogo de membros (`<MemberCard>`) ganhou o gesto "abrir
+  perfil" (corpo do card clicável; as ações coração/mensagem param a propagação),
+  que abre um **modal de perfil** (só o que o card já mostra — FanAlias, atividade,
+  selo Novo; a privacidade NÃO regride) e **dispara a visita** (fire-and-forget). A
+  tela do membro `Consumer/Visitors/Index.vue` espelha a de corações; link "Quem me
+  visitou" na nav do membro. **Não toca o catálogo de performers nem mobile.**
 
 ## Sinais de atividade nos catálogos — `feat/activity-badges` (PR pendente)
 
