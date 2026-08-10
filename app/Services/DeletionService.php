@@ -342,6 +342,12 @@ class DeletionService
             $summary['member_interests'] = $this->purgeMemberInterests($user);
             $summary['profile_visits'] = $this->purgeProfileVisits($user);
             $summary['profile_visits_received'] = $this->purgeVisitsToOwnProfile($user);
+            // Visitas bidirecionais (A.0.4), sentido performer→membro: as
+            // RECEBIDAS por este membro (o mapa de quem o olhou) e as FEITAS por
+            // esta performer (o histórico de navegação dela por membros). Nenhuma
+            // sai por cascade — os dois lados são soft-delete/anonimização.
+            $summary['member_profile_visits_received'] = $this->purgeMemberProfileVisits($user);
+            $summary['member_profile_visits_made'] = $this->purgeMemberProfileVisitsByPerformer($user);
             $summary['member_photos'] = $this->purgeMemberPhotos($user);
             $summary['member_photos_preserved'] = $this->preservedMemberPhotoCount($user);
             $summary['member_photo_access_received'] = $this->purgePhotoAccessToOwnProfile($user);
@@ -1053,6 +1059,44 @@ class DeletionService
         }
 
         return DB::table('profile_visits')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Visitas bidirecionais (A.0.4), sentido performer→membro: as RECEBIDAS por
+     * este membro — o mapa de quais performers olharam o perfil dele.
+     *
+     * É a lista que alimenta a tela "quem visitou seu perfil" do titular. Como o
+     * `member_profile_visits` só é populado no sentido performer→membro, para um
+     * membro há só o lado RECEBIDO aqui (o lado FEITO é sempre vazio — membro não
+     * visita membro). Não sai pela FK `cascadeOnDelete` porque `anonymizeUser()`
+     * é soft-delete (item 11 do CLAUDE.md), e a retenção de 7 dias só varreria
+     * depois — o Hard Delete pede que suma agora.
+     */
+    private function purgeMemberProfileVisits(User $user): int
+    {
+        return DB::table('member_profile_visits')->where('member_id', $user->id)->delete();
+    }
+
+    /**
+     * O outro sentido: as visitas que a PERFORMER que encerra FEZ a perfis de
+     * membros — o histórico de navegação dela pelo catálogo de membros.
+     *
+     * É PII de terceiros correlacionável (quais membros esta performer olhou, e
+     * quando) pendurada num perfil que deixou de existir. Análogo exato de
+     * purgeVisitsToOwnProfile(): não sai por purgeMemberProfileVisits (aquele é
+     * por `member_id`) nem pela FK (soft-delete dos dois lados). Consulta pela
+     * coluna, não pela relação, para não depender do cache de relações numa
+     * re-execução do job — e roda enquanto o perfil ainda resolve.
+     */
+    private function purgeMemberProfileVisitsByPerformer(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('member_profile_visits')->where('performer_profile_id', $profileId)->delete();
     }
 
     /**

@@ -25,6 +25,7 @@ use App\Http\Controllers\Web\Consumer\FavoriteController;
 use App\Http\Controllers\Web\Consumer\FeedController;
 use App\Http\Controllers\Web\Consumer\GiftController;
 use App\Http\Controllers\Web\Consumer\HeartsController as ConsumerHeartsController;
+use App\Http\Controllers\Web\Consumer\ProfileVisitorsController as ConsumerProfileVisitorsController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
 use App\Http\Controllers\Web\Consumer\LiveViewController;
 use App\Http\Controllers\Web\Consumer\MemberPhotoController;
@@ -678,6 +679,17 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.members.message')
             ->can('performer-active');
 
+        // Visita ao perfil de um membro (visitas bidirecionais, A.0.4). A
+        // performer abre o perfil; o membro depois vê "quem visitou seu perfil".
+        // Mesma resolução de alvo das outras portas (ResolvesCatalogMember) — a
+        // lista e a ação concordam por construção. Throttle largo: abrir vários
+        // perfis em sequência é uso normal; a dedup de 30min do service evita
+        // linhas repetidas.
+        Route::post('/performer/membros/visita', [MemberEngagementController::class, 'visit'])
+            ->middleware(['role:performer', 'throttle:60,1'])
+            ->name('performer.members.visit')
+            ->can('performer-active');
+
         // Foto efêmera recebida de um membro (Sprint 9B). Dentro do grupo
         // `documents.accepted`, que por sua vez está sob `auth`+`2fa`: a rota
         // nasce nos dois gates, como manda o CLAUDE.md. `can('performer-active')`
@@ -932,6 +944,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/interessadas', [ConsumerHeartsController::class, 'index'])
             ->middleware('throttle:60,1')
             ->name('consumer.hearts.index');
+
+        // "Quem visitou seu perfil" — as performers que visitaram o membro
+        // (visitas bidirecionais, A.0.4). Performer é pública: a identidade dela
+        // aparece normal (nome/slug/avatar), nenhum membro é exposto. v1 sem
+        // paywall. Ver ProfileVisitService::memberVisitorsPanelFor.
+        Route::get('/quem-me-visitou', [ConsumerProfileVisitorsController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.visitors.index');
 
         // Perfil do membro: interesses + "o que estou buscando". Separado de
         // /configuracoes de propósito — lá é privacidade e conta, aqui é

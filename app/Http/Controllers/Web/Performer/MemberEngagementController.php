@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Web\Performer;
 
 use App\Exceptions\ChatException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\RecordMemberVisitRequest;
 use App\Http\Requests\SendCatalogMessageRequest;
 use App\Http\Requests\SendHeartRequest;
 use App\Services\ChatService;
 use App\Services\PerformerHeartService;
+use App\Services\ProfileVisitService;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -25,7 +27,27 @@ class MemberEngagementController extends Controller
     public function __construct(
         private PerformerHeartService $hearts,
         private ChatService $chatService,
+        private ProfileVisitService $visits,
     ) {}
+
+    /**
+     * Registra a visita da performer ao perfil de um membro (visitas
+     * bidirecionais, A.0.4). Disparado quando a performer ABRE o perfil de um
+     * membro no catálogo — o membro depois vê "quem visitou seu perfil".
+     *
+     * Corpo estável e sempre 204: gravou ou caiu na dedup de 30min, a resposta é
+     * a mesma. A performer não decide nada com o resultado, e a página não muda
+     * conforme a visita foi ou não gravada — mesma disciplina de record().
+     */
+    public function visit(RecordMemberVisitRequest $request): JsonResponse
+    {
+        $member = $request->resolvedMember();
+        $profile = $request->user()->performerProfile;
+
+        $this->visits->recordPerformerVisit($profile, $member);
+
+        return response()->json([], 204);
+    }
 
     public function heart(SendHeartRequest $request): JsonResponse
     {

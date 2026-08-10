@@ -18,11 +18,22 @@ const props = defineProps({
     hearting: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['heart', 'message'])
+const emit = defineEmits(['heart', 'message', 'view'])
 </script>
 
 <template>
     <div class="group relative aspect-[3/4] overflow-hidden rounded-xl bg-limen-surface-2 ring-1 ring-limen-line transition-all duration-200 hover:ring-limen-gold/40">
+        <!-- Abrir o perfil do membro: o corpo do card é o alvo do clique (as ações
+             coração/mensagem ficam por cima e param a propagação). Abrir registra
+             a visita (o membro depois vê "quem visitou seu perfil"). É um <button>
+             que preenche o card para dar teclado/foco sem virar link. -->
+        <button
+            type="button"
+            class="absolute inset-0 z-10 cursor-pointer"
+            :aria-label="`Ver perfil de ${member.fan_alias_label}`"
+            @click="emit('view')"
+        ></button>
+
         <!-- Foto do membro se houver; senão placeholder neutro (silhueta), nunca
              uma métrica. Hoje é sempre a silhueta (membro não tem avatar). -->
         <img
@@ -61,7 +72,7 @@ const emit = defineEmits(['heart', 'message'])
                 :aria-label="hearted ? 'Curtido' : 'Curtir'"
                 :disabled="hearting"
                 class="grid h-9 w-9 place-items-center rounded-full bg-black/45 text-limen-gold ring-1 ring-limen-gold/40 backdrop-blur-sm transition-colors hover:bg-black/65 hover:ring-limen-gold/70 disabled:opacity-60"
-                @click="emit('heart')"
+                @click.stop="emit('heart')"
             >
                 <svg
                     class="h-[18px] w-[18px]"
@@ -82,7 +93,7 @@ const emit = defineEmits(['heart', 'message'])
                 type="button"
                 aria-label="Enviar mensagem"
                 class="grid h-9 w-9 place-items-center rounded-full bg-black/45 text-limen-gold ring-1 ring-limen-gold/40 backdrop-blur-sm transition-colors hover:bg-black/65 hover:ring-limen-gold/70"
-                @click="emit('message')"
+                @click.stop="emit('message')"
             >
                 <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.9-5.5A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
