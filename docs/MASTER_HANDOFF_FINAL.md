@@ -3227,6 +3227,27 @@ atividade nos catálogos". Resumo:
 - **Migration nova:** `2026_08_15_000001_add_hearts_seen_at_to_users` (watermark de
   corações vistos). Nenhuma outra mudança de schema.
 
+### A.0.7 Teaser da mensagem bloqueada — ENTREGUE (branch, PR pendente)
+
+Branch `feat/message-preview-teaser` (rebaseada sobre a `main` pós-#175; +11 testes
+→ 1936; security review feita, sem 🔴 — um 🟡 do broadcast em carência foi CORRIGIDO). **Item 3 da fila de
+melhorias.** Detalhe completo no CLAUDE.md, § "Teaser da mensagem bloqueada". Resumo:
+
+- **Problema:** bloqueio total do corpo até o membro pagar (M.13.1) converte menos —
+  sem gancho de curiosidade. **Solução intermediária:** mostrar as primeiras ~3
+  palavras em claro + "desbloqueie para ler"; o resto continua pago. **A economia não
+  muda** (mesmo gate de chat 1-2 tk); só o preview.
+- **Invariante crítica:** o corte é **SERVER-SIDE**. O membro sem acesso NUNCA recebe
+  o corpo completo em payload nenhum (borrar via CSS vazaria no DevTools). Dona única:
+  `App\Support\MessageTeaser` + `config/message_teaser.php` (`words`, default 3).
+- **Piso de segurança:** o teaser nunca revela a mensagem inteira — em curta mostra no
+  máximo metade das palavras; 1 palavra → só um pedaço dela. `config.words` é teto.
+- **Superfícies (uma dona):** `ChatController::index` (preview da lista),
+  `ChatController::show` (campo `teaser` no banner, sem vazar a contagem),
+  `ChatService::broadcastListUpdate` (broadcast → lista em tempo real + toast).
+  `NewMessage` ganhou `locked` (distingue gancho de mensagem legível). Front:
+  `Chat/Index.vue`, `MessageToast.vue`, `Chat/Show.vue` — nenhum recebe o corpo.
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),

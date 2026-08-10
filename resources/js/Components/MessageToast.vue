@@ -9,11 +9,13 @@ import { useNotificationSound } from '@/composables/useNotificationSound'
  * popup no canto inferior direito — foto/alias do remetente + "Enviou uma
  * mensagem" + "Ler mensagem". Estilo Seeking.
  *
- * Privacidade: NUNCA mostra o corpo. O `sender_name`/`sender_avatar_url` já vêm
- * mascarados do backend (à performer, FanAlias label + avatar nulo — nunca o
- * nome/foto reais do membro). Só aparece para uma mensagem NOVA da outra parte
- * (`increments_unread`) e some quando o membro já está NA conversa daquele
- * remetente (não notifica o que ele está lendo).
+ * Privacidade: o `sender_name`/`sender_avatar_url` já vêm mascarados do backend
+ * (à performer, FanAlias label + avatar nulo — nunca o nome/foto reais do membro).
+ * O `preview` respeita o paywall NO SERVIDOR: quem lê recebe o trecho normal, quem
+ * não pagou recebe só o GANCHO (teaser cortado no backend — nunca o corpo
+ * completo). Sem preview, cai em "Enviou uma mensagem". Só aparece para uma
+ * mensagem NOVA da outra parte (`increments_unread`) e some quando o membro já está
+ * NA conversa daquele remetente (não notifica o que ele está lendo).
  */
 const page = usePage()
 const { play } = useNotificationSound()
@@ -47,6 +49,9 @@ function onNewMessage(e) {
         conversationId: e.conversation_id,
         name: e.sender_name ?? 'Nova mensagem',
         avatar: e.sender_avatar_url ?? null,
+        // Gancho paywallado (teaser) ou trecho legível — o backend já decidiu qual.
+        preview: e.preview ?? null,
+        locked: !!e.locked,
         timer: setTimeout(() => dismiss(id), AUTO_DISMISS_MS),
     })
 
@@ -118,7 +123,10 @@ onBeforeUnmount(() => {
 
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-sm font-semibold" style="color: #C9A84C">{{ toast.name }}</p>
-                    <p class="text-xs" style="color: #F5F0E8">Enviou uma mensagem</p>
+                    <!-- Gancho da mensagem quando há (teaser cortado no servidor p/
+                         quem não pagou; trecho normal p/ quem lê). Sem preview, o
+                         genérico. `truncate` evita estourar o toast. -->
+                    <p class="truncate text-xs" style="color: #F5F0E8">{{ toast.preview || 'Enviou uma mensagem' }}</p>
                     <button
                         type="button"
                         class="mt-1 text-xs font-medium underline-offset-2 hover:underline"

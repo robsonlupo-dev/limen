@@ -1102,6 +1102,48 @@ nova. **Item 2 da fila de melhorias.**
   o contrato `is_invisible` do `HandleInertiaRequests`). **Não reintroduzir** um
   indicador de presença ao minuto sem nova decisão de PO.
 
+## Teaser da mensagem bloqueada — `feat/message-preview-teaser` (PR pendente)
+
+**Item 3 da fila de melhorias.** Antes, a mensagem que a performer manda ao membro
+(o motor de engajamento do #173, e todo chat pré-desbloqueio) ficava 100% bloqueada
+até o membro pagar a abertura do chat (M.13.1). Bloqueio total converte menos — o
+membro não tem gancho de curiosidade. Agora ele vê as **primeiras palavras** em
+claro + "desbloqueie para ler"; o resto continua pago. **A economia NÃO muda** — o
+gate de chat (1-2 tk, M.13.1) é o mesmo; só o preview.
+
+- **O corte é SERVER-SIDE, e isso é a invariante crítica.** O membro que não pagou
+  **nunca** recebe o corpo completo em payload nenhum. Mandar o corpo inteiro e
+  borrar via CSS deixaria o texto legível no DevTools — então é o BACKEND que corta
+  e só o trecho trafega. Dona única do corte: **`app/Support/MessageTeaser::for()`**;
+  número de palavras em **`config/message_teaser.php`** (`words`, default 3,
+  ajustável sem deploy).
+- **Piso de segurança: o teaser nunca revela a mensagem inteira.** `config.words` é
+  um TETO. Em mensagem curta mostra no máximo **metade** das palavras (`intdiv(total,
+  2)`): 3 palavras → 1, 2 → 1, 4 → 2. Mensagem de **1 palavra** mostra só um pedaço
+  dela (metade dos caracteres) + reticências — nunca a palavra inteira. Corpo
+  vazio/só espaços/null → `null` (o chamador cai no cadeado sem gancho).
+- **Três superfícies, uma dona:** `ChatController::index` (preview da lista),
+  `ChatController::show` (campo `teaser` no banner do paywall — teaser da ÚLTIMA
+  mensagem via `value('body')`, **sem vazar a CONTAGEM**, que segue paginador vazio
+  atrás do paywall) e `ChatService::broadcastListUpdate` (o `preview` do broadcast →
+  lista em tempo real + toast). Regra nova de teaser entra no MessageTeaser, nunca
+  copiada numa superfície.
+- **`NewMessage` ganhou `locked`** (bool): distingue GANCHO (teaser, membro sem
+  acesso) de mensagem legível. Sem ele, o front inferia "bloqueado" de `preview ===
+  null` — e agora o preview do bloqueado é o teaser (não-null). A performer (lê
+  sempre) e o membro com acesso pleno recebem `locked=false` + preview completo.
+- **O broadcast chaveia em `locked`, NÃO em `can_read`.** Na CARÊNCIA (grace) o
+  `can_read` é true mas o corpo é retido em todo lugar (index usa `hasFullAccess` →
+  teaser; show devolve `body=null`). Usar `can_read` mandaria os 60 chars do preview
+  ao membro em grace — mais do que o teaser que o resto da superfície concede. Chavear
+  em `locked` (false só com acesso pleno) alinha broadcast/lista/toast ao index/show.
+  (Achado da revisão de segurança; coberto por teste.)
+- **Front:** `Chat/Index.vue` usa `e.locked` e mostra "teaser · desbloqueie para
+  ler"; `MessageToast.vue` passou a exibir o `preview` (teaser/legível, já
+  paywallado no servidor) em vez do genérico "Enviou uma mensagem"; `Chat/Show.vue`
+  mostra o `teaser` no banner de desbloqueio. Nenhum deles recebe o corpo — o corte
+  já veio pronto do backend.
+
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 
 Toda imagem no upload passa por hash perceptual conferido contra uma lista local.

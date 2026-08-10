@@ -75,19 +75,24 @@ it('broadcasts NewMessage to both participants with a paywalled preview', functi
     [$member, $conversation, $interest] = chatUnlockedPair($performer);
 
     // A performer manda a 1ª mensagem. O membro (sem Círculo nem janela paga)
-    // NÃO pode ler → preview null (cadeado). A performer lê sempre → preview.
+    // NÃO pode ler → só o GANCHO (teaser cortado no servidor), nunca o corpo. A
+    // performer lê sempre → preview completo.
     app(ChatService::class)->performerMessageFromInterest($performer, $interest, 'Olá, tudo bem?');
 
     // Destinatário performer: preview com corpo; não incrementa não-lidas (é ela quem manda).
     Event::assertDispatched(NewMessage::class, fn ($e) => $e->recipientUserId === $performer->user_id
         && $e->conversationId === $conversation->id
         && $e->preview === 'Olá, tudo bem?'
+        && $e->locked === false
         && $e->incrementsUnread === false);
 
-    // Destinatário membro: SEM corpo (paywall) e incrementa não-lidas.
+    // Destinatário membro: só o GANCHO (locked=true), nunca o corpo completo, e
+    // incrementa não-lidas. 'Olá, tudo bem?' (3 palavras) → metade = 1 palavra.
     Event::assertDispatched(NewMessage::class, fn ($e) => $e->recipientUserId === $member->id
         && $e->conversationId === $conversation->id
-        && $e->preview === null
+        && $e->preview === 'Olá,…'
+        && $e->locked === true
+        && ! str_contains((string) $e->preview, 'tudo')
         && $e->incrementsUnread === true);
 });
 
@@ -451,7 +456,7 @@ it('shows unread count and a readable preview to a member with active access', f
             ->where('conversations.data.0.locked', false));
 });
 
-it('withholds the list preview and unread count from a member without access', function () {
+it('shows only the server-cut teaser (not the body) and withholds unread count from a member without access', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
     app(ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
@@ -459,7 +464,8 @@ it('withholds the list preview and unread count from a member without access', f
     $this->actingAs($member)
         ->get(route('chat.index'))
         ->assertInertia(fn ($page) => $page
-            ->where('conversations.data.0.last_message_preview', null)
+            // Uma palavra → só um PEDAÇO dela ('seg…'), nunca a palavra inteira.
+            ->where('conversations.data.0.last_message_preview', 'seg…')
             ->where('conversations.data.0.locked', true)
             // Não vaza nem a contagem atrás do paywall.
             ->where('conversations.data.0.unread_count', 0));

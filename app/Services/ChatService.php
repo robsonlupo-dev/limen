@@ -14,6 +14,7 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\ChatContentFilter;
 use App\Support\FanAlias;
+use App\Support\MessageTeaser;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
@@ -432,16 +433,27 @@ class ChatService
 
         $member = $conversation->member;
         if ($member !== null) {
-            $memberCanRead = $this->chatAccessService->accessState($conversation, $member)['can_read'];
+            // Chaveia em `locked`, NÃO em `can_read`. Na CARÊNCIA (grace) o
+            // can_read é true mas o corpo é retido em todo lugar (index usa
+            // hasFullAccess → teaser; show devolve body=null) — usar can_read aqui
+            // mandaria o preview de 60 chars ao membro em grace, mais do que o
+            // teaser que o resto da superfície concede. `locked` (false só com
+            // acesso pleno) alinha o broadcast ao index/show. (Achado da revisão.)
+            $memberLocked = $this->chatAccessService->accessState($conversation, $member)['locked'];
 
+            // Travado (nunca pagou, expirado OU carência): o membro recebe o GANCHO
+            // (teaser cortado no servidor), nunca o corpo completo. A lista/toast
+            // mostram o teaser + "desbloqueie para ler" (locked=true). Com acesso
+            // pleno, o preview normal e locked=false.
             event(new NewMessage(
                 recipientUserId: $member->id,
                 conversationId: $conversation->id,
                 occurredAt: $occurredAt,
                 incrementsUnread: $message->sender_id !== $member->id,
-                preview: $memberCanRead ? $preview : null,
+                preview: $memberLocked ? MessageTeaser::for($message->body) : $preview,
                 senderName: $profile->stage_name,
                 senderAvatarUrl: $this->performerAvatarUrl($profile),
+                locked: $memberLocked,
             ));
         }
     }

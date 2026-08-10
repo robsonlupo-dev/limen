@@ -10,6 +10,9 @@ const props = defineProps({
     conversation: { type: Object, required: true },
     messages: { type: Object, required: true }, // paginator: { data, current_page, last_page, total }
     access: { type: Object, required: true }, // { state, can_send, can_read, locked, days_remaining, expires_at }
+    // Gancho da última mensagem (teaser cortado no SERVIDOR) quando a leitura está
+    // travada — nunca o corpo completo. null quando destravado ou sem mensagem.
+    teaser: { type: String, default: null },
     accessCost: { type: Number, required: true },
     balance: { type: Number, required: true },
     // { can_share, photos: [{ id, expires_slot, shared_with }] }. Para a
@@ -191,6 +194,12 @@ watch(() => props.messages.data.length, scrollToBottom)
                 class="mt-4 rounded-xl border border-gold/30 bg-gradient-to-br from-gold/10 to-transparent p-4 space-y-3"
             >
                 <p class="text-sm text-cream">{{ bannerCopy }}</p>
+                <!-- Gancho: primeiras palavras da última mensagem (cortadas no
+                     servidor) + convite ao desbloqueio. Só quando há teaser. -->
+                <p v-if="teaser" class="rounded-lg bg-background/40 px-3 py-2 text-sm italic text-cream/90">
+                    “{{ teaser }}”
+                    <span class="not-italic text-gold/80">desbloqueie para ler o restante</span>
+                </p>
                 <p class="text-xs text-muted">
                     {{ accessCost }} tokens dão 30 dias de acesso. Seu saldo: <span class="text-gold">{{ balance }}</span> tokens.
                 </p>
