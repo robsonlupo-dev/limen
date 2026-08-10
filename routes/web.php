@@ -51,6 +51,7 @@ use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\BoostController;
 use App\Http\Controllers\Web\Performer\CallSettingsController;
 use App\Http\Controllers\Web\Performer\DashboardController;
+use App\Http\Controllers\Web\Performer\FindableByCityController;
 use App\Http\Controllers\Web\Performer\GroupShowController as PerformerGroupShowController;
 use App\Http\Controllers\Web\Performer\DocumentAcceptanceController;
 use App\Http\Controllers\Web\Performer\FollowersController;
@@ -492,6 +493,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::patch('/performer/disponibilidade', [AvailabilityController::class, 'toggle'])
             ->middleware(['role:performer', 'throttle:10,1'])
             ->name('performer.availability.toggle');
+
+        // Opt-in "encontrável por cidade" (item 4 da fila): consente que a cidade
+        // (interna) passe a FILTRAR a busca do catálogo — nunca a EXIBE. Mesmos
+        // gates e razão do toggle de disponibilidade (benigno, no-op sem perfil
+        // no catálogo), `role:performer` + throttle. Default OFF.
+        Route::patch('/performer/encontravel-por-cidade', [FindableByCityController::class, 'toggle'])
+            ->middleware(['role:performer', 'throttle:10,1'])
+            ->name('performer.findable-by-city.toggle');
 
         // Boost pago (Sprint 11): a performer gasta tokens para destacar o perfil
         // no topo do catálogo. Já sob `auth`+`2fa`+`documents.accepted` dos

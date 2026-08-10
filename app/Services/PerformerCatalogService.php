@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\PerformerProfile;
 use App\Models\PerformerProfilePreviousSlug;
+use App\Support\BrazilianCities;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
@@ -59,9 +60,16 @@ class PerformerCatalogService
             'tier' => ['nullable', Rule::in(PerformerProfile::TIERS)],
             'has_photo' => ['nullable', 'boolean'],
 
-            // Localização (Sprint 9): filtra por UF e só por UF. Não existe
-            // faceta de cidade e não deve existir — `city` não é dado público.
+            // Localização: filtra por UF sempre; por CIDADE só quando a performer
+            // consentiu (opt-in `findable_by_city`, item 4 da fila). O filtro de
+            // cidade NUNCA expõe a cidade — ela só afeta a busca de quem optou.
+            // A cidade é o NOME do município (o autocomplete manda o valor do
+            // IBGE); casa pela `city_normalized` no scopeInCity. Sem validar
+            // contra a lista aqui de propósito: nome fora do IBGE simplesmente
+            // não casa (não há filtro legítimo perdido), e validar custaria
+            // carregar a lista no caminho quente da listagem pública.
             'state' => ['nullable', Rule::in(PerformerProfile::STATES)],
+            'city' => ['nullable', 'string', 'max:120'],
 
             'height_min' => [
                 'nullable', 'integer',
@@ -154,8 +162,21 @@ class PerformerCatalogService
         // fallback para o cache `state` da coluna. Quem não preencheu simplesmente
         // não casa: o campo é opt-in, e filtrar por SP é pedir quem se declarou em
         // SP. Sem filtro, todo mundo continua aparecendo.
-        if (! empty($filters['state']) && in_array($filters['state'], PerformerProfile::STATES, true)) {
-            $query->inState($filters['state']);
+        //
+        // Cidade (item 4 da fila): mais estreita que a UF e CONSENTIDA. Quando a
+        // performer optou por ser encontrável por cidade (`findable_by_city`), o
+        // scopeInCity casa pela `city_normalized`. A cidade tem precedência sobre
+        // a UF (ela IMPLICA a UF — o autocomplete manda a UF do município junto,
+        // e ela desambigua homônimos), então não empilhamos scopeInState por cima.
+        $city = is_string($filters['city'] ?? null) ? BrazilianCities::normalize($filters['city']) : '';
+        $state = (! empty($filters['state']) && in_array($filters['state'], PerformerProfile::STATES, true))
+            ? $filters['state']
+            : null;
+
+        if ($city !== '') {
+            $query->inCity($city, $state);
+        } elseif ($state !== null) {
+            $query->inState($state);
         }
 
         if (! empty($filters['drinks']) && in_array($filters['drinks'], PerformerProfile::DRINKS, true)) {

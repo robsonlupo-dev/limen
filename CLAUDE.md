@@ -337,6 +337,17 @@ PR #140 — sem tipo novo.
 > (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
 > **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
+>
+> **Em branch (`feat/city-autocomplete-filter`, rebaseada sobre a `main` pós-#176
+> `17ba83e`, +14 testes → 1950 testes / 15802 asserts, PR pendente):** **filtro de cidade
+> CONSENTIDO no catálogo de performers** (item 4 da fila) — autocomplete do IBGE
+> (~5.570 municípios embutidos em `public/data/ibge-municipios.json`, self-hosted,
+> zero asset externo) + opt-in `findable_by_city` (default OFF). A cidade da
+> performer **continua interna** (só UF é pública); ela só passa a FILTRAR a busca
+> para quem ligou o opt-in, e **nunca é exibida**. Ver § "Filtro de cidade
+> consentido". Revisão de segurança rodada, **sem 🔴/🟡**. Suíte: 1949 passam, 1
+> falha (a mesma do GeoBlock). NÃO toca o catálogo de MEMBROS (membro não expõe
+> cidade — decisão de privacidade preservada).
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -965,6 +976,53 @@ performers; o inverso não existe e não deve passar a existir). Dona única:
   (quando há faceta ativa) com modal de nome, e um dropdown "Buscas salvas" que
   aplica ao clicar e apaga por item. A lista chega como prop do `CatalogController`
   (mesma fonte do endpoint `saved-searches.index`), recarregada após salvar/apagar.
+
+## Filtro de cidade consentido — `feat/city-autocomplete-filter` (item 4 da fila, PR pendente)
+
+**Item 4 da fila de melhorias.** Autocomplete de município no filtro do catálogo de
+performers (estilo Seeking): o membro digita, escolhe uma cidade do IBGE e filtra.
+**O item pedia "os dois catálogos"; o PO decidиu (Opção 2) por um filtro CONSENTIDO
+só de performers** — porque a cidade da performer é dado INTERNO travado (§ da
+localização: só UF é público, `city` nunca é exibida, `PerformerLocationTest`), e o
+catálogo de MEMBROS não expõe cidade nenhuma (`MemberCatalogService::mask` = FanAlias
++ faixa de atividade). Então: **filtro de cidade só no catálogo de performers, e só
+alcança quem OPTOU por ser encontrável por cidade.**
+
+- **Base do IBGE SELF-HOSTED, zero asset externo.** Os ~5.570 municípios (nome + UF)
+  vivem em **`public/data/ibge-municipios.json`** (dado público oficial, commitado). O
+  front busca por **fetch RELATIVO** (`/data/ibge-municipios.json`, client-side,
+  memoizado — não bate no servidor a cada tecla), o backend lê o MESMO arquivo por
+  **`App\Support\BrazilianCities`**. Uma fonte só, sem cópia para divergir.
+  `ExternalAssetPolicyTest` verde (o pattern dele só casa `//host`/`http://`, não `/data/…`).
+- **Opt-in `performer_profiles.findable_by_city` (default OFF) é o PORTÃO.** A cidade
+  já digitada pela performer só passa a FILTRAR a busca se ela ligar o toggle — e
+  **continua não sendo EXIBIDA em lugar nenhum** (nem card, nem API, nem Show; só a
+  tela em que ela mesma edita). Quem não opta se comporta EXATAMENTE como hoje: cidade
+  100% interna, invisível ao filtro. Fora do `$fillable` + `$hidden`, escrito só por
+  `forceFill` no endpoint dedicado (disciplina de `discrete_mode`/`available_for_chat_at`).
+  Toggle: `PATCH /performer/encontravel-por-cidade` (`FindableByCityController`,
+  `role:performer` + `throttle:10,1`, `FailsValidationAsJson` para 422 JSON), UI no
+  editor de localização com copy de consentimento explícita.
+- **`scopeInCity` é a dona única do filtro, e o consentimento é a 1ª cláusula:**
+  `where('findable_by_city', true)->whereHas('locations', city_normalized=... [+ state])`.
+  **SEM fallback para o cache `state`/`city` do perfil** (ao contrário do `scopeInState`):
+  findability por cidade exige linha em `performer_locations` E opt-in. Em
+  `applyFilters` a cidade tem PRECEDÊNCIA e **não empilha `scopeInState`** — não há
+  caminho por `state` que traga um não-consentidor.
+- **`performer_locations.city_normalized`** é a chave de busca acento-insensível
+  (mantida pelo `PerformerLocationService::setLocations`, backfill na migration, fora
+  do `$fillable`). A UF vem junto do município escolhido e **desambigua homônimos**
+  (232 nomes se repetem entre UFs). Normalização PHP (`Str::ascii`) e JS (NFD+strip)
+  espelhadas — mudou de um lado, muda do outro (`BrazilianCities::normalize` ↔
+  `normalizeCity` em `resources/js/lib/brazilianCities.js`).
+- **Sem oráculo novo:** o "match/no-match" para um município só revela quem CONSENTIU
+  ser encontrado por cidade — o produto que ela escolheu. A cidade não volta no
+  payload. **Hard Delete** leva `performer_locations` (com `city_normalized`) junto
+  (`purgePerformerLocations`, DELETE real). Revisão de segurança rodada, **sem 🔴/🟡**.
+- **UI:** `<CityAutocomplete>` (client-side, prefixo+contém, acento-insensível, ≤10
+  sugestões, escopo por UF quando há) montado no `FilterPanel` (as duas portas do
+  catálogo de performers) e no editor de localização (para a cidade gravada ser
+  canônica). O catálogo de MEMBROS (`Members.vue`) **NÃO** recebe filtro de cidade.
 
 ## Catálogo de membros para a performer — Sprint 16 (PR #165, superfície INVERTIDA)
 

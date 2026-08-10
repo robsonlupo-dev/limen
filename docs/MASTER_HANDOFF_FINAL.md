@@ -3247,6 +3247,32 @@ melhorias.** Detalhe completo no CLAUDE.md, § "Teaser da mensagem bloqueada". R
   `ChatService::broadcastListUpdate` (broadcast → lista em tempo real + toast).
   `NewMessage` ganhou `locked` (distingue gancho de mensagem legível). Front:
   `Chat/Index.vue`, `MessageToast.vue`, `Chat/Show.vue` — nenhum recebe o corpo.
+### A.0.8 Filtro de cidade CONSENTIDO — ENTREGUE (branch `feat/city-autocomplete-filter`, PR pendente)
+
+**Item 4 da fila.** Autocomplete de município (IBGE) no filtro do catálogo. Rebaseada
+sobre a `main` pós-#176 (`17ba83e`); +14 testes → **1950/15802** (1949 passam, 1 falha
+= a antiga do GeoBlock). Revisão de segurança rodada, **sem 🔴/🟡**. Detalhe completo
+no CLAUDE.md, § "Filtro de cidade consentido".
+Resumo e a DECISÃO DE PRODUTO que o define:
+
+- **O item pedia "os dois catálogos"; o PO decidiu (Opção 2) por filtro CONSENTIDO só
+  de performers.** A cidade da performer é dado INTERNO travado (só UF é pública,
+  `PerformerLocationTest`), e o catálogo de MEMBROS não expõe cidade. Um filtro de
+  cidade genérico regrediria a privacidade: o CONJUNTO-resultado "performers em <município>"
+  desanonimiza por eliminação (município pequeno → 1 pessoa), a classe de risco que o
+  produto inteiro combate. Solução: só entra no resultado quem **optou** por ser
+  encontrável por cidade.
+- **Base IBGE self-hosted** (`public/data/ibge-municipios.json`, ~5.570, fetch relativo
+  client-side; `App\Support\BrazilianCities` no backend; ExternalAssetPolicyTest verde).
+- **Opt-in `performer_profiles.findable_by_city` (default OFF)**, fora do `$fillable`,
+  toggle dedicado (`PATCH /performer/encontravel-por-cidade`). A cidade **nunca é
+  exibida** — só filtra a busca de quem consentiu. `scopeInCity` gateia em
+  `findable_by_city=true` sem fallback pela coluna-cache; tem precedência sobre o filtro
+  de UF. `performer_locations.city_normalized` (acento-insensível, desambigua homônimos
+  pela UF). Hard Delete varre a localização junto.
+- **Catálogo de MEMBROS intocado** (membro não expõe cidade — invariante preservada).
+- **UI:** `<CityAutocomplete>` no `FilterPanel` (duas portas do catálogo de performers)
+  e no editor de localização (cidade gravada vira canônica).
 
 ### A.1 Go-live (pré-produção)
 

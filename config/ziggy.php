@@ -85,6 +85,8 @@ return [
         'performer.notes.destroy',
         // "Disponível para conversa" (Sprint 11): toggle do dashboard
         'performer.availability.toggle',
+        // Opt-in "encontrável por cidade" (item 4): toggle do editor de localização
+        'performer.findable-by-city.toggle',
         // Boost pago (Sprint 11): destaca o perfil no topo do catálogo
         'performer.boost',
         // Live pública GRÁTIS (Sprint 15): estúdio da performer (LiveRoom.vue) +
