@@ -186,6 +186,16 @@ function logout() {
                                 aria-label="novos corações"
                             >{{ navCounts.hearts > 99 ? '99+' : navCounts.hearts }}</span>
                         </Link>
+                        <!-- "Quem visitou seu perfil" (visitas bidirecionais): as
+                             performers que passaram pelo perfil do membro. A
+                             performer é pública, então aparece com a identidade
+                             real — nenhum membro é exposto aqui. -->
+                        <Link
+                            :href="route('consumer.visitors.index')"
+                            class="text-gold/80 hover:text-gold transition-colors no-underline"
+                        >
+                            Quem me visitou
+                        </Link>
                         <!-- Bookmark privado — a performer não é avisada. Fica
                              na nav do MEMBRO e não tem espelho na da performer. -->
                         <Link

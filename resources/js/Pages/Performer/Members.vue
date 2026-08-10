@@ -39,6 +39,27 @@ const toastMessage = ref('')
 // Modal de mensagem personalizada.
 const msg = reactive({ open: false, member: null, body: '', sending: false, error: '' })
 
+// Modal de "perfil" do membro (visitas bidirecionais). Abrir registra a visita —
+// o membro depois vê "quem visitou seu perfil". O membro não tem mais dado que o
+// card mostra (a privacidade não regride): o modal é o gesto de "abrir o perfil"
+// e o ponto de partida das ações.
+const detail = reactive({ open: false, member: null })
+
+function openDetail(member) {
+    detail.member = member
+    detail.open = true
+
+    // Fire-and-forget: a visita é lateral à navegação. A dedup de 30min vive no
+    // servidor, então reabrir não gera linha nova; erros (404 de membro que saiu
+    // da lista, 429) não afetam a tela — o perfil abre de qualquer forma.
+    postJson(route('performer.members.visit'), { member_handle: member.member_handle }).catch(() => {})
+}
+
+function messageFromDetail() {
+    detail.open = false
+    openMessage(detail.member)
+}
+
 function isHearted(member) {
     return heartedByHandle[member.member_handle] ?? member.hearted
 }
@@ -145,6 +166,7 @@ async function sendMessage() {
                         :hearting="heartingHandle === member.member_handle"
                         @heart="sendHeart(member)"
                         @message="openMessage(member)"
+                        @view="openDetail(member)"
                     />
                 </div>
 
@@ -202,6 +224,47 @@ async function sendMessage() {
                 </p>
                 <div class="flex justify-end">
                     <Button variant="ghost" size="sm" @click="msg.open = false">Fechar</Button>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- "Perfil" do membro (visitas bidirecionais). Mostra só o que o card já
+             mostra — FanAlias, atividade, selo Novo — porque a privacidade do
+             membro não regride: a performer nunca vê nome/e-mail/tier/saldo. É o
+             gesto de "abrir o perfil" (que registra a visita) e o ponto de partida
+             das ações grátis. -->
+        <Modal :show="detail.open" max-width="sm" @close="detail.open = false">
+            <div v-if="detail.member" class="space-y-5">
+                <div class="flex items-center gap-4">
+                    <div class="grid h-16 w-16 place-items-center rounded-full bg-limen-surface-2 ring-1 ring-limen-line">
+                        <svg class="h-9 w-9 text-limen-ink-mute/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.7-8 6v2h16v-2c0-3.3-3.6-6-8-6z" />
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <h2 class="truncate font-serif text-2xl text-limen-ink">{{ detail.member.fan_alias_label }}</h2>
+                        <p v-if="detail.member.activity_label" class="text-sm text-limen-ink-soft">{{ detail.member.activity_label }}</p>
+                        <span
+                            v-if="detail.member.is_new"
+                            class="mt-1 inline-block rounded-full bg-limen-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-limen-gold ring-1 ring-limen-gold/50"
+                        >Novo</span>
+                    </div>
+                </div>
+
+                <p class="text-sm text-limen-ink-soft">
+                    Curta ou mande uma mensagem — ele decide se abre a conversa.
+                </p>
+
+                <div class="flex items-center justify-end gap-3">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        :disabled="isHearted(detail.member) || heartingHandle !== null"
+                        @click="sendHeart(detail.member)"
+                    >
+                        {{ isHearted(detail.member) ? 'Curtido' : 'Curtir' }}
+                    </Button>
+                    <Button size="sm" @click="messageFromDetail">Mensagem</Button>
                 </div>
             </div>
         </Modal>

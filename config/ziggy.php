@@ -56,6 +56,7 @@ return [
         'performer.members.interest',
         'performer.members.heart',
         'performer.members.message',
+        'performer.members.visit',
 
         // Denúncia (compliance)
         'report.store',
@@ -229,6 +230,7 @@ return [
 
         // "Performers interessadas em você" (corações recebidos)
         'consumer.hearts.index',
+        'consumer.visitors.index',
 
         // Fotos efêmeras do membro (envio, compartilhamento, revogação, leitura)
         'member.photos.store',

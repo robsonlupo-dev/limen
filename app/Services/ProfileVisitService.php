@@ -2,13 +2,16 @@
 
 namespace App\Services;
 
+use App\Models\MemberProfileVisit;
 use App\Models\PerformerProfile;
 use App\Models\ProfileVisit;
 use App\Models\User;
 use App\Support\FanAlias;
 use App\Support\LifestyleTier;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 
 class ProfileVisitService
 {
@@ -116,6 +119,145 @@ class ProfileVisitService
         $visit->save();
 
         return $visit;
+    }
+
+    /**
+     * Registra o SENTIDO INVERSO: a performer abriu o perfil de um membro no
+     * catálogo dela (A.0.4, visitas bidirecionais). O membro verá "quem visitou
+     * seu perfil" — memberVisitorsPanelFor().
+     *
+     * Por que este caminho NÃO herda os guards de record():
+     *  - NÃO checa Ghost Mode / Modo Discreto: aqueles perks protegem o MEMBRO
+     *    de ser listado PARA A PERFORMER (record() é membro→performer). Aqui quem
+     *    é exposto é a PERFORMER — pública, sem esse perk. Ausência de linha não é
+     *    produto de privacidade nenhum neste sentido.
+     *  - O visitante é a performer; o `record()` acima retorna cedo para
+     *    não-consumer justamente para não coletar este lado por engano. Este
+     *    método é a coleta explícita e separada dele.
+     *
+     * Guard de borda: só grava visita a MEMBRO de pé (consumer ativo). A
+     * performer só alcança membros pelo catálogo, que já filtra isso
+     * (MemberCatalogService) — esta é a defesa redundante, não a primária.
+     *
+     * Dedup de 30min (a MESMA janela do sentido atual): F5 no perfil não vira uma
+     * linha nova por recarga nem dá ao membro um cronômetro do tempo que a
+     * performer passou ali.
+     *
+     * O retorno é só para teste — nenhum chamador decide nada com ele.
+     */
+    public function recordPerformerVisit(PerformerProfile $performerProfile, User $member): ?MemberProfileVisit
+    {
+        // Defesa de borda: não coletamos visita a quem não é membro ativo.
+        if ($member->role !== 'consumer' || $member->status !== 'active') {
+            return null;
+        }
+
+        $now = now();
+
+        $recent = MemberProfileVisit::where('performer_profile_id', $performerProfile->id)
+            ->where('member_id', $member->id)
+            ->where('visited_at', '>=', $now->copy()->subMinutes(self::DEDUPE_MINUTES))
+            ->exists();
+
+        if ($recent) {
+            return null;
+        }
+
+        $visit = new MemberProfileVisit(['visited_at' => $now]);
+        // Sempre das entidades do request autenticado, nunca do payload.
+        $visit->performer_profile_id = $performerProfile->id;
+        $visit->member_id = $member->id;
+        $visit->save();
+
+        return $visit;
+    }
+
+    /**
+     * "Quem visitou seu perfil" — as PERFORMERS que visitaram este membro.
+     *
+     * Assimetria deliberada com panelFor(): a performer é PÚBLICA, então o membro
+     * vê a identidade REAL dela (nome artístico, slug, avatar por rota assinada) —
+     * sem FanAlias, sem piso de anonimato, sem k por faixa. É o mesmo contrato da
+     * lista de corações recebidos (PerformerHeartService::listForMember): quem se
+     * expõe aqui é a performer, com a identidade pública do catálogo, nada de PII
+     * e nada de tier (M.13.10 é irrelevante neste sentido — não há tier de
+     * performer que o membro não possa ver).
+     *
+     * Uma linha por performer (a visita mais recente): "quem passou por aqui", não
+     * "quantas vezes voltou". Só performers de pé (perfil verificado, conta ativa),
+     * como os corações: a visita de uma performer que depois foi suspensa/encerrou
+     * não aparece.
+     *
+     * Sem piso e sem k porque não há o que anonimizar: o alvo da exposição é
+     * pública por natureza. É seguro mostrar a lista inteira a todo membro (a
+     * monetização — gate por tier — é decisão futura de PO, não entra na v1).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function memberVisitorsPanelFor(User $member): Collection
+    {
+        // Uma linha por performer, com a visita mais recente. Agrupado no banco:
+        // trazer a janela inteira para desduplicar em memória seria caro num
+        // membro visitado por muitas performers.
+        $latest = MemberProfileVisit::where('member_id', $member->id)
+            ->where('visited_at', '>=', now()->subDays(self::RETENTION_DAYS))
+            ->groupBy('performer_profile_id')
+            ->orderByDesc(DB::raw('MAX(visited_at)'))
+            ->orderByDesc(DB::raw('MAX(id)'))
+            ->get([
+                DB::raw('performer_profile_id'),
+                DB::raw('MAX(visited_at) as visited_at'),
+            ]);
+
+        if ($latest->isEmpty()) {
+            return collect();
+        }
+
+        // Só performers de pé, com a identidade pública. Uma query para o lote.
+        $profiles = PerformerProfile::query()
+            ->whereIn('id', $latest->pluck('performer_profile_id'))
+            ->where('is_verified', true)
+            ->whereHas('user', fn ($q) => $q->where('status', 'active'))
+            ->get(['id', 'stage_name', 'slug', 'avatar_path'])
+            ->keyBy('id');
+
+        return $latest
+            ->map(function (object $row) use ($profiles): ?array {
+                $profile = $profiles->get((int) $row->performer_profile_id);
+
+                // Performer suspensa/encerrada/em KYC entre a visita e a leitura:
+                // some da lista, como um coração dela sumiria.
+                if ($profile === null) {
+                    return null;
+                }
+
+                // Fuso de EXIBIÇÃO, como slot(): `visited_at` está em UTC, e
+                // `isToday()`/`format()` sem converter rotulariam uma visita perto
+                // da meia-noite de São Paulo no dia errado.
+                $visitedAt = Carbon::parse($row->visited_at)->setTimezone(self::DISPLAY_TIMEZONE);
+
+                return [
+                    'stage_name' => $profile->stage_name,
+                    'slug' => $profile->slug,
+                    // Avatar por rota assinada e expirável, chaveada pelo id do
+                    // perfil (nunca user_id) — mesma regra do PerformerHeartService
+                    // e do PerformerPublicResource.
+                    'avatar_url' => $profile->avatar_path
+                        ? URL::temporarySignedRoute(
+                            'performer.media',
+                            now()->addMinutes(60),
+                            ['profile_id' => $profile->id, 'type' => 'avatar'],
+                        )
+                        : null,
+                    // Faixa, nunca relógio — a mesma disciplina de horário do resto
+                    // do projeto. Só a data quando fora do dia corrente.
+                    'visited_slot' => $visitedAt->isToday()
+                        ? 'Hoje'
+                        : $visitedAt->format('d/m/Y'),
+                ];
+            })
+            ->filter()
+            ->values();
     }
 
     /**
@@ -452,9 +594,19 @@ class ProfileVisitService
         return ProfileVisit::where('visitor_id', $visitor->id)->delete();
     }
 
-    /** Expurgo por retenção. Ver RETENTION_DAYS. */
+    /**
+     * Expurgo por retenção — os DOIS sentidos (`visits:purge`). Ver RETENTION_DAYS.
+     *
+     * A mesma janela de 7 dias vale para membro→performer e para o sentido novo
+     * performer→membro: nenhuma das listas tem finalidade que justifique guardar
+     * o mapa de interesses além disso (LGPD, princípio da necessidade). Retorna o
+     * total apagado — o command só loga a contagem.
+     */
     public function purgeExpired(): int
     {
-        return ProfileVisit::where('visited_at', '<', now()->subDays(self::RETENTION_DAYS))->delete();
+        $cutoff = now()->subDays(self::RETENTION_DAYS);
+
+        return ProfileVisit::where('visited_at', '<', $cutoff)->delete()
+            + MemberProfileVisit::where('visited_at', '<', $cutoff)->delete();
     }
 }
