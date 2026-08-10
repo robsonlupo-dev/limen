@@ -16,11 +16,13 @@ use App\Services\TokenService;
 it('does not leak the last-message preview to a subscriber without a paid chat line', function () {
     // Regressão do ALTO 1 da revisão: o index() tinha um 2º paywall por
     // activeSubscription. Sem atalho, o assinante SEM janela paga vê cadeado —
-    // nada de preview nem contagem de não-lidas.
+    // só o GANCHO (teaser), nunca o corpo completo, e sem contagem de não-lidas.
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
     Subscription::factory()->create(['user_id' => $member->id]); // assinante, sem linha
 
+    // Mensagem de uma palavra: o teaser mostra só um PEDAÇO dela ('seg…'), nunca
+    // a palavra inteira — o corte é server-side.
     app(ChatService::class)->sendMessage($conversation, $performer->user, 'segredo');
 
     $this->actingAs($member->fresh())
@@ -29,7 +31,7 @@ it('does not leak the last-message preview to a subscriber without a paid chat l
         ->assertInertia(fn ($page) => $page
             ->component('Chat/Index')
             ->where('conversations.data.0.locked', true)
-            ->where('conversations.data.0.last_message_preview', null)
+            ->where('conversations.data.0.last_message_preview', 'seg…')
             ->where('conversations.data.0.unread_count', 0));
 });
 

@@ -39,6 +39,11 @@ class NewMessage implements ShouldBroadcast
         public ?string $preview,
         public string $senderName,
         public ?string $senderAvatarUrl,
+        // Preview é um GANCHO (teaser cortado no servidor), não o corpo legível?
+        // O membro sem acesso recebe o teaser + locked=true; a lista mostra
+        // "desbloqueie para ler" em vez de tratar o preview como mensagem lida.
+        // A performer (lê sempre) e o membro com acesso recebem locked=false.
+        public bool $locked = false,
     ) {}
 
     /**
@@ -64,6 +69,8 @@ class NewMessage implements ShouldBroadcast
             'occurred_at' => $this->occurredAt,
             'increments_unread' => $this->incrementsUnread,
             'preview' => $this->preview,
+            // Gancho vs. mensagem legível (ver construtor).
+            'locked' => $this->locked,
             // Para o toast (PR #144). Nunca o corpo; nunca o id/nome real do membro
             // no lado da performer (senderName já vem como FanAlias label lá).
             'sender_name' => $this->senderName,

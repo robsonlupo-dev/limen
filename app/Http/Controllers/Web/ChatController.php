@@ -17,6 +17,7 @@ use App\Services\ChatService;
 use App\Services\MemberPhotoService;
 use App\Services\TokenCreditPolicy;
 use App\Services\TokenService;
+use App\Support\MessageTeaser;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -100,10 +101,17 @@ class ChatController extends Controller
                         ->where('sender_id', '!=', $user->id)
                         ->count()
                     : 0,
-                'last_message_preview' => ($canRead && $last)
-                    ? str($last->body)->limit(60)->value()
+                // Com leitura: preview normal (60 chars). Sem leitura: o GANCHO
+                // cortado no servidor (MessageTeaser) — as primeiras palavras em
+                // claro, o resto fica para o desbloqueio. O corpo completo NUNCA
+                // trafega para quem não pagou; é o backend que corta.
+                'last_message_preview' => $last
+                    ? ($canRead
+                        ? str($last->body)->limit(60)->value()
+                        : MessageTeaser::for($last->body))
                     : null,
-                // Há mensagem, mas sem leitura: a UI mostra cadeado no lugar do preview.
+                // Há mensagem, mas sem leitura: a UI mostra o gancho + "desbloqueie
+                // para ler" (antes era só cadeado). `locked` distingue os dois.
                 'locked' => ! $canRead && $c->last_message_at !== null,
                 'performer' => [
                     'stage_name' => $c->performerProfile->stage_name,
@@ -183,6 +191,17 @@ class ChatController extends Controller
                 ]);
         }
 
+        // Gancho do paywall: quando a leitura está travada (grace/expired/none), o
+        // membro vê as primeiras palavras da ÚLTIMA mensagem cortadas no servidor —
+        // o mesmo teaser da lista. `value('body')` traz só a coluna da última linha
+        // (nunca a CONTAGEM atrás do paywall — o §152 acima devolve paginador vazio
+        // de propósito). `null` quando destravado (o corpo já aparece) ou quando não
+        // há mensagem legível (ex.: expirado com histórico soft-deletado).
+        $teaser = null;
+        if ($state['locked']) {
+            $teaser = MessageTeaser::for($conversation->messages()->latest('id')->value('body'));
+        }
+
         return Inertia::render('Chat/Show', [
             'conversation' => [
                 'id' => $conversation->id,
@@ -197,6 +216,7 @@ class ChatController extends Controller
                 ],
             ],
             'messages' => $messages,
+            'teaser' => $teaser,
             'access' => $state,
             'photoSharing' => $this->photoSharingProps($request, $conversation, $state),
             'accessCost' => $this->creditPolicy->chatCost($request->user()),

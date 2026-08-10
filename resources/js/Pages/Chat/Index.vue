@@ -48,14 +48,12 @@ onMounted(() => {
                 return
             }
             conv.last_message_at = e.occurred_at
-            if (e.preview === null || e.preview === undefined) {
-                // Sem leitura plena: cadeado no lugar do preview (paywall).
-                conv.last_message_preview = null
-                conv.locked = true
-            } else {
-                conv.last_message_preview = e.preview
-                conv.locked = false
-            }
+            // `locked` distingue GANCHO (teaser cortado no servidor) de mensagem
+            // legível: sem leitura, e.preview já vem como teaser e e.locked=true;
+            // com leitura, preview normal e locked=false. O corpo completo nunca
+            // chega aqui para quem não pagou — o corte é server-side.
+            conv.last_message_preview = e.preview ?? null
+            conv.locked = !!e.locked
             if (e.increments_unread) conv.unread_count = (conv.unread_count ?? 0) + 1
             // Lista ordenada por last_message_at desc → a conversa sobe p/ o topo.
             items.value = [conv, ...items.value.filter((c) => c.id !== conv.id)]
@@ -95,7 +93,14 @@ onBeforeUnmount(() => {
                             </div>
                             <div class="flex items-center justify-between gap-2 mt-0.5">
                                 <p class="text-sm text-muted truncate">
-                                    <span v-if="c.locked" class="text-gold/70">🔒 Renove para ler</span>
+                                    <!-- Bloqueada COM gancho: primeiras palavras em
+                                         claro + convite ao desbloqueio. Sem gancho
+                                         (sem corpo): só o cadeado. -->
+                                    <template v-if="c.locked && c.last_message_preview">
+                                        <span class="text-cream/90">{{ c.last_message_preview }}</span>
+                                        <span class="text-gold/70"> · desbloqueie para ler</span>
+                                    </template>
+                                    <span v-else-if="c.locked" class="text-gold/70">🔒 Renove para ler</span>
                                     <span v-else-if="c.last_message_preview">{{ c.last_message_preview }}</span>
                                     <span v-else class="italic">Sem mensagens</span>
                                 </p>
