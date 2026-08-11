@@ -119,6 +119,14 @@ class ProcessVoiceIntro implements ShouldQueue
         Audit::log('voice_intro.failed', $intro, [
             'reason' => $e instanceof VoiceProcessingException ? $e->reason : 'unknown',
         ]);
+
+        // Avisa a performer da FALHA TÉCNICA (mensagem distinta da recusa de
+        // conteúdo — só convida a reenviar). Guarda contra perfil/usuário ausente.
+        $user = $intro->performerProfile?->user;
+
+        if ($user !== null && $user->email !== null) {
+            SendVoiceIntroFailedEmail::dispatch($user);
+        }
     }
 
     private function cleanupRaw(VoiceIntroStore $store): void

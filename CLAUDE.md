@@ -1397,13 +1397,31 @@ segurança rodada.
   dona** (`performer.voice-intro.audio`): qualquer status COM bytes (ela ouve a
   própria pendente/recusada), gate `performer-active`, só a PRÓPRIA (query por
   `performer_profile_id` dela).
+- **Notificação de mudança de status por e-mail (`feat/voice-intro-polish`).** A
+  performer é AVISADA quando o áudio muda de estado — sem isso a feature morria em
+  silêncio (ela achava "no ar" e estava recusada). Reusa o padrão do KYC (Job
+  `ShouldQueue` → `Mailable` → view blade), **não** inventa mecanismo novo. Três
+  e-mails, três significados distintos: **aprovado** (`SendVoiceIntroApprovedEmail` →
+  `VoiceIntroApprovedMail`, "está no ar"); **recusado** (`SendVoiceIntroRejectedEmail`,
+  disparado do `reject()` do serviço, ancora a recusa nos **Termos/Contrato** +
+  mostra o `reject_reason` do moderador + convida a regravar — é recusa de CONTEÚDO);
+  **falha técnica** (`SendVoiceIntroFailedEmail`, disparado do `markFailed()` do JOB,
+  mensagem DELIBERADAMENTE distinta — "houve um problema ao processar, tente de novo",
+  **não** cita Termos, não é recusa). **Sem `afterCommit` de propósito:** `approve()`/
+  `reject()` não rodam em transação (o controller chama direto) e `afterCommit` não
+  dispara sob `RefreshDatabase` — mesma convenção do dispatch do upload. Disparo só na
+  transição real: moderação no-op (intro não-`pending`) **não** notifica.
 - **UI:** botão dourado de play (`<VoiceIntroPlayer>`) ao lado do nome em
   `Catalog/Show` e `Performers/Show` (só quando `voice_intro_url` presente = há
   aprovada — injetada pelos controllers, FORA do resource para o card não carregar a
   URL). Ícone discreto "tem áudio" no card (`has_voice_intro`, BOOLEANO derivado via
   `hasApprovedVoiceIntro`, barato no catálogo por `withCount` no `scopePublicCatalog`;
   dourado, nunca `limen-live`). Tela de gestão `Performer/VoiceIntro/Edit` (MediaRecorder
-  **e** upload de arquivo, status + motivo de recusa, aviso de consentimento). Fila
+  **e** upload de arquivo, status + motivo de recusa, aviso de consentimento). O bloco
+  **"Antes de gravar"** orienta (não trava): a voz é o **convite/isca** para atrair
+  (despertar curiosidade), é **pública/identificável** (opt-in consciente), **não** é
+  canal de contato (telefone/redes/encontro → não é aprovado), e passa por **análise**
+  antes de publicar — travado por `tests/Unit/VoiceIntroGuidanceTest.php`. Fila
   `Moderacao/VoiceIntros/Index` com player. Links: "Áudios" na nav (moderador),
   "Apresentação de voz" no painel da performer.
 - **Hard Delete varre a intro** (`purgePerformerVoiceIntro` por perfil + bytes em

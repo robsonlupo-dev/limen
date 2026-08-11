@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Exceptions\VoiceProcessingException;
 use App\Jobs\ProcessVoiceIntro;
+use App\Jobs\SendVoiceIntroApprovedEmail;
+use App\Jobs\SendVoiceIntroRejectedEmail;
 use App\Models\PerformerProfile;
 use App\Models\PerformerVoiceIntro;
 use App\Models\User;
@@ -174,6 +176,11 @@ class PerformerVoiceIntroService
 
         // Audit da AÇÃO do moderador — id + decisão, nada do áudio.
         Audit::log('voice_intro.approved', $intro, ['moderator_id' => $moderator->id]);
+
+        // Avisa a performer que a voz está no ar. Sem afterCommit de propósito:
+        // approve() não roda em transação (o controller chama direto), e afterCommit
+        // não dispara sob RefreshDatabase — mesma convenção do dispatch do upload.
+        $this->notifyPerformer($intro, fn (User $u) => SendVoiceIntroApprovedEmail::dispatch($u));
     }
 
     /**
@@ -195,5 +202,26 @@ class PerformerVoiceIntroService
         ])->save();
 
         Audit::log('voice_intro.rejected', $intro, ['moderator_id' => $moderator->id]);
+
+        // Avisa a performer da recusa (com o motivo) e a convida a regravar. A
+        // mensagem ancora a recusa nos Termos — é recusa de CONTEÚDO, distinta da
+        // falha técnica (que é notificada pelo job). Sem afterCommit (ver approve()).
+        $this->notifyPerformer($intro, fn (User $u) => SendVoiceIntroRejectedEmail::dispatch($u, $reason));
+    }
+
+    /**
+     * Despacha uma notificação à performer dona da intro, resolvendo o User pelo
+     * perfil. Guarda contra perfil/usuário ausente (não deveria acontecer numa
+     * intro pendente, mas não vale disparar e-mail sem destinatário).
+     *
+     * @param  callable(User): void  $dispatch
+     */
+    private function notifyPerformer(PerformerVoiceIntro $intro, callable $dispatch): void
+    {
+        $user = $intro->performerProfile?->user;
+
+        if ($user !== null && $user->email !== null) {
+            $dispatch($user);
+        }
     }
 }

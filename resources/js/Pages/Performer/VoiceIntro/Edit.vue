@@ -177,12 +177,15 @@ onBeforeUnmount(() => {
                 </p>
             </div>
 
-            <!-- Aviso de consentimento explícito: a voz é identificável, e a análise
-                 humana é obrigatória. Isto NÃO fica só nos Termos. -->
+            <!-- Orientação (não trava): a voz é ISCA para atrair, não canal de
+                 contato. Consentimento consciente + análise humana obrigatória —
+                 isto NÃO fica só nos Termos. Tom sóbrio: a plataforma orienta. -->
             <div class="rounded-xl border border-gold/30 bg-gold/5 p-5 text-sm text-cream/90 space-y-2">
                 <p class="font-medium text-gold">Antes de gravar</p>
-                <p>Sua voz é <strong>identificável</strong>. Ao publicar, ela fica audível para qualquer visitante do seu perfil.</p>
-                <p>Todo áudio passa por <strong>análise</strong> antes de aparecer — só vai ao ar depois de aprovado. Não combine encontros nem passe contato por áudio.</p>
+                <p>Sua apresentação de voz é o <strong>convite</strong> para o membro querer te conhecer. Use-a para despertar curiosidade e mostrar sua personalidade.</p>
+                <p>Ela é <strong>pública</strong>: qualquer visitante do seu perfil pode ouvir. Sua voz é <strong>identificável</strong>.</p>
+                <p>Não use a voz para passar contato (telefone, redes sociais) ou combinar encontro — para conversar, o membro vai até o seu chat. Áudios com esse conteúdo não são aprovados.</p>
+                <p>Todo áudio passa por <strong>análise</strong> antes de publicar. Se não estiver de acordo com os termos, será recusado e você poderá gravar outro.</p>
             </div>
 
             <!-- Estado atual da intro -->
