@@ -87,15 +87,18 @@ it('o handle é opaco e mais largo que o alias de exibição', function () {
     // member_id do POST por ele sem reabrir a enumeração.
     expect($handle)->toHaveLength(16)->toMatch('/^[0-9a-f]{16}$/');
 
-    // Opacidade: o handle não pode SER nem começar com o id cru (nem em decimal
-    // nem em hex). `->not->toContain('42')` era frágil — '42' aparece por acaso
-    // como substring de qualquer digest hex (mesma classe do falso positivo do
-    // '137' no AnonimityFloorTest). A garantia real é não igualar/derivar do id.
-    expect($handle)->not->toBe((string) 42)          // member_id decimal
-        ->not->toBe(dechex(42))                       // member_id hex ('2a')
-        ->not->toBe((string) 7)                       // performer_id decimal
-        ->not->toStartWith(dechex(42))                // não deriva do id em hex
-        ->not->toStartWith((string) 42);
+    // Opacidade = não reverte / não deriva do id, NÃO "não contém os dígitos X".
+    // As checagens posicionais (`->not->toStartWith(dechex(42))` / `(string) 42`)
+    // eram frágeis pela MESMA razão do `->not->toContain('42')` que já haviam
+    // trocado: '2a'/'42' aparecem por acaso como prefixo de ~1/256 dos digests hex
+    // (mesma classe do falso positivo do '137' no AnonimityFloorTest). A invariante
+    // real do HMAC é:
+    //   - DETERMINÍSTICO: o mesmo par (performer, member) sempre dá o mesmo handle;
+    //   - DEPENDE DE AMBOS os ids: mudar member_id OU performer_id muda o handle
+    //     inteiro — ele não é constante nem o id cru, e ids distintos não colidem.
+    expect(FanAlias::handle(7, 42))->toBe($handle)                    // determinístico
+        ->and(FanAlias::handle(7, 43))->not->toBe($handle)           // muda com o member_id
+        ->and(FanAlias::handle(8, 42))->not->toBe($handle);          // muda com o performer_id
 });
 
 it('handles não colidem entre pares distintos', function () {

@@ -113,11 +113,19 @@ it('derives an opaque live-viewer identity that is stable per live, distinct acr
     $a2 = $svc->liveParticipantIdentity(10, 777);
     // Distinta ENTRE lives (session 11): some a frequência de retorno do "fã".
     $b = $svc->liveParticipantIdentity(11, 777);
+    // Distinta ENTRE membros na MESMA live (member 778): a identity DEPENDE do
+    // membro (não é constante), mas por um hash opaco — o id não é recuperável.
+    $c = $svc->liveParticipantIdentity(10, 778);
 
+    // A invariante é "opaco + não correlaciona + não reverte", NÃO "não contém os
+    // dígitos do id": procurar '777' dentro do hash falhava por acaso (o dígito
+    // aparece em ~metade dos digests hex de 16 chars) sem bug real. O que garante a
+    // opacidade é o formato hex de largura fixa (o id cru '777' teria 3 chars) mais
+    // determinismo + dependência do par (session, member).
     expect($a1)->toMatch('/^lv_[0-9a-f]{16}$/')
-        ->and($a1)->toBe($a2)                 // estável no refresh
-        ->and($a1)->not->toBe($b)             // não correlaciona entre lives
-        ->and($a1)->not->toContain('777');    // nunca o id cru do membro
+        ->and($a1)->toBe($a2)                 // determinístico: estável no refresh
+        ->and($a1)->not->toBe($b)             // muda com a live — não correlaciona
+        ->and($a1)->not->toBe($c);            // muda com o membro — depende do id, sem vazá-lo
 });
 
 // ── Room names imprevisíveis ─────────────────────────────────────────────────
