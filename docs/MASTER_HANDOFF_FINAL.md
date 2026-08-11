@@ -3289,6 +3289,49 @@ gerava registro; não havia tela "quem me visitou" para o membro.
 (`purgeMemberProfileVisits` por `member_id`, `purgeMemberProfileVisitsByPerformer`
 por `performer_profile_id`) — as FKs cascade não disparam (soft-delete).
 
+### A.0.10 Microinterações premium — ENTREGUE (branch `feat/micro-interactions`, PR pendente)
+
+Branch a partir da `main` `f6597d3`; +3 testes (estáticos); build compila;
+`ExternalAssetPolicyTest` verde. **Camada puramente VISUAL** para o site "sentir
+caro" — nada de lógica, ledger ou privacidade. Detalhe completo no CLAUDE.md, §
+"Microinterações premium".
+
+**Princípios (LOCKED):**
+- **CSS puro, zero biblioteca** (sem GSAP/Three.js), **zero asset externo** (nenhum
+  `url()`; bundle não cresce de forma relevante — a folha é ~3 KB).
+- **GPU-only:** só `transform`/`opacity`/`box-shadow`; nunca `width/height/top/left`.
+- **`prefers-reduced-motion: reduce` desliga TUDO** (bloco único; inclui os
+  `animate-spin/pulse/ping` do Tailwind). **Mobile intocado:** o lift dos cards está
+  atrás de `(hover:hover) and (pointer:fine)`.
+- **Só tokens `limen-*`** — sombras são preto/dourado com alfa, não cor nova.
+  `limen-live` continua EXCLUSIVO do "ao vivo".
+
+**Dona única:** `resources/css/micro-interactions.css` (classes `mi-*`), importada
+por `resources/css/app.css`. Travada por `tests/Unit/MicroInteractionsTest.php`
+(existência, guard de reduced-motion, ausência de `url()`, import no app.css).
+
+**O que entrou, item a item:**
+- [x] **Cards** (`.mi-card` em PerformerCard/PublicPerformerCard/MemberCard): hover
+      `translateY(-4px)` + sombra (~200ms), só desktop.
+- [x] **Botões** (`.mi-press` em Button.vue/FavoriteButton/ações do MemberCard):
+      `scale(0.98)` no `:active`. CTA dourado (`Button` primary) ganha `.mi-glow`
+      (lift + brilho). FollowButton/landing herdam via `Button.vue`.
+- [x] **Coração** (`.mi-pop`, favoritar E interesse): "pop" `1→1.3→1` (~300ms) ao
+      MARCAR — reinicia a animação via reflow quando o prop confirma `false→true`.
+- [x] **Fade de página** (`.mi-page-enter` no `<main>` das duas layouts): as layouts
+      re-montam a cada navegação, então o fade dispara sozinho (~150ms) sem router.
+- [x] **Loading de seção** (`LoadingBar.vue`/`.mi-loading-bar`): barra dourada
+      indeterminada; trocou o spinner do `StoryViewer`. (A barra global de navegação
+      já era a do Inertia.) O spinner compacto dentro do `Button` foi mantido.
+- [x] **Erro de formulário** (`<transition name="mi-error">` no `Input.vue`): slide +
+      fade (~150ms).
+- [x] **Anel "ao vivo" do `NowStrip`** (item 7): o pulso de respiração **já existia**
+      (com guard de reduced-motion) — mantido, não reintroduzido.
+
+**Fora de escopo (registrado):** responsividade/mobile do gesto de hover (não se
+aplica ao toque, por design) e page-transition via wiring de router Inertia (o fade
+por re-mount cobre o pedido sem risco).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),

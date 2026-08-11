@@ -359,6 +359,15 @@ PR #140 — sem tipo novo.
 > aplica ao inverso (quem é exposto é a performer). v1 sem monetização. Revisão de
 > segurança **sem 🔴/🟡**. Ver § "Visitas bidirecionais". NÃO toca o catálogo de
 > performers nem mobile.
+>
+> **Em branch (`feat/micro-interactions`, a partir da `main` `f6597d3`, +3 testes,
+> PR pendente):** **microinterações premium** — camada puramente VISUAL (CSS puro,
+> zero biblioteca, zero asset externo) para o site "sentir caro": lift dos cards no
+> hover, micro-pulso tátil dos botões, "pop" do coração ao marcar, fade entre
+> páginas, barra dourada de loading e slide do erro de formulário. Tudo desligado
+> sob `prefers-reduced-motion` e sem tocar mobile/lógica/privacidade. Dona única:
+> `resources/css/micro-interactions.css` (classes `mi-*`). Ver § "Microinterações
+> premium". `ExternalAssetPolicyTest` verde; build compila.
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1272,6 +1281,52 @@ gate de chat (1-2 tk, M.13.1) é o mesmo; só o preview.
   paywallado no servidor) em vez do genérico "Enviou uma mensagem"; `Chat/Show.vue`
   mostra o `teaser` no banner de desbloqueio. Nenhum deles recebe o corpo — o corte
   já veio pronto do backend.
+
+## Microinterações premium — `feat/micro-interactions` (PR pendente)
+
+Camada **puramente visual** para o site "sentir caro" — CSS puro, **zero
+biblioteca** (sem GSAP/Three.js) e **zero asset externo** (`ExternalAssetPolicyTest`
+verde). Regra de ouro: a animação guia o usuário ou reforça a marca, senão não
+existe. Não toca lógica de negócio, ledger, privacidade nem mobile-layout — só
+adiciona classes. **Dona única das regras: `resources/css/micro-interactions.css`**
+(importada por `app.css`), classes prefixadas `mi-*` para não colidir com Tailwind
+nem com os tokens `limen-*`.
+
+- **GPU-only:** anima só `transform`/`opacity`/`box-shadow` — NUNCA
+  `width/height/top/left` (forçam layout, engasgam no mobile). Sombras são preto/
+  dourado TRANSLÚCIDO (o token `limen-gold` com alfa), **não cor nova**.
+- **`prefers-reduced-motion: reduce` desliga TUDO** num bloco único no fim da
+  folha — inclui os utilitários `animate-spin/pulse/ping` do Tailwind, que o
+  framework não desativa sozinho. Travado por `MicroInteractionsTest` (existência
+  da folha, guard de reduced-motion, ausência de `url()`, import no `app.css`).
+- **Cards do catálogo (`.mi-card` em PerformerCard/PublicPerformerCard/MemberCard):**
+  hover `translateY(-4px)` + sombra que cresce (~200ms). **Só em `(hover:hover) and
+  (pointer:fine)`** — no toque o card fica idêntico ao de hoje, sem `:hover` grudado.
+- **Botões (`.mi-press`, `Button.vue` + FavoriteButton + ações do MemberCard):**
+  micro-pulso `scale(0.98)` no `:active` (~120ms), sensação tátil (vale no tap).
+  O CTA dourado (`Button` variant `primary`) ganha `.mi-glow` — lift `-1px` + brilho
+  dourado no hover (só desktop). FollowButton/landing herdam por usar `Button.vue`.
+- **Coração (`.mi-pop`, favoritar E interesse):** "pop" `scale 1→1.3→1` (~300ms,
+  estilo Instagram) ao MARCAR (não ao desmarcar). O componente reinicia a animação
+  no ícone (remove classe → reflow → readiciona) quando o prop `saved`/`hearted`
+  vira `false→true` — o estado real chega depois do reload, então dispara na
+  confirmação, não no clique otimista.
+- **Fade de página (`.mi-page-enter` no `<main>` das duas layouts):** as layouts
+  NÃO são persistentes (re-montam a cada navegação Inertia), então um `animation:
+  fade-in` de 150ms no `<main>` dispara sozinho em toda troca de página — sem
+  fiação de router, imune a regressão. (A barra de progresso global do Inertia em
+  `app.js` já era dourada.)
+- **Loading de seção (`LoadingBar.vue` / `.mi-loading-bar`):** barra fina dourada
+  indeterminada em vaivém, no lugar do disco genérico. Trocou o spinner do
+  `StoryViewer`; a barra de NAVEGAÇÃO segue sendo a do Inertia. O spinner compacto
+  DENTRO do `Button` foi mantido de propósito (uma barra num botão de 40px é pior
+  ergonomia que o disco de cor corrente).
+- **Erro de formulário (`<transition name="mi-error">` no `Input.vue`):** a
+  mensagem desliza de cima com fade (~150ms) em vez de piscar. Cobre os forms de
+  auth que usam o `Input` compartilhado.
+- **Anel "ao vivo" do `NowStrip` (item 7):** o pulso de respiração `now-live-pulse`
+  (1.8s, opacity/scale sutil, já com guard de reduced-motion) **já existia** — foi
+  mantido, não reintroduzido. `limen-live` segue EXCLUSIVO do estado ao vivo.
 
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 
