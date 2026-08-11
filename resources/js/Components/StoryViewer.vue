@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import LoadingBar from '@/Components/LoadingBar.vue'
 
 // Visualizador fullscreen dos Stories (Sprint 13), tipo Instagram: barra de
 // progresso por segmento, timer de 5s com pausa ao segurar, tap esquerdo/direito
@@ -228,7 +229,7 @@ function segmentWidth(i) {
                         @error="onImageError"
                     />
 
-                    <div v-if="!imageLoaded && !imageError" class="h-10 w-10 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    <LoadingBar v-if="!imageLoaded && !imageError" width="6rem" />
 
                     <div v-if="imageError" class="px-8 text-center text-sm text-white/70">
                         Este story não está mais disponível.
