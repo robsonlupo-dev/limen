@@ -1389,10 +1389,44 @@ bytes só por controller com **Content-Type FIXO `audio/mpeg` + nosniff + no-sto
 - Hard Delete varre a intro (linha + bytes). GC `voice:purge-orphan-raw` (horário).
   Zero asset externo. Não toca mobile-layout nem outras features.
 
+### Polimento pós-auditoria — notificação de status + orientação de gravação (`feat/voice-intro-polish`)
+
+Uma auditoria (só leitura) do #180 achou dois buracos, corrigidos nesta branch (sem
+tocar em outra feature nem em mobile; `+5 testes`).
+
+- **A performer não ficava sabendo da mudança de status — a feature morria em
+  silêncio.** Áudio recusado ficava recusado sem aviso; ela achava "no ar" e não
+  estava. Agora há **notificação por e-mail em toda transição**, reusando o padrão do
+  KYC (Job `ShouldQueue` → `Mailable` → view blade em `resources/views/emails/voice/`),
+  **sem mecanismo novo**:
+  - **Aprovado** → `SendVoiceIntroApprovedEmail`/`VoiceIntroApprovedMail` ("sua voz
+    está no ar").
+  - **Recusado** → `SendVoiceIntroRejectedEmail`/`VoiceIntroRejectedMail`, disparado do
+    `reject()` do serviço. **Ancora a recusa nos Termos/Contrato de Performance** +
+    mostra o `reject_reason` do moderador + convida a gravar outra. É recusa de
+    **CONTEÚDO**.
+  - **Falha técnica** → `SendVoiceIntroFailedEmail`/`VoiceIntroFailedMail`, disparado do
+    `markFailed()` do JOB. Mensagem **deliberadamente distinta** da recusa ("houve um
+    problema ao processar, tente novamente"), **não** cita Termos — não é recusa de
+    conteúdo, é falha de pipeline.
+  - **Sem `afterCommit` de propósito:** `approve()`/`reject()` não rodam em transação (o
+    controller chama direto) e `afterCommit` não dispara sob `RefreshDatabase` — mesma
+    convenção do dispatch do upload. Moderação no-op (intro não-`pending`) **não**
+    notifica. Guard contra perfil/usuário ausente antes de despachar.
+- **A tela de gravação não orientava sobre o que a moderação vai cobrar.** O bloco
+  **"Antes de gravar"** foi reescrito com o enquadramento **isca, não canal de
+  contato**: a voz é o **convite** para o membro querer conhecer (despertar
+  curiosidade, mostrar personalidade); é **pública/identificável** (opt-in consciente);
+  **não** serve para passar contato (telefone/redes) nem combinar encontro — "para
+  conversar, o membro vai até o seu chat", e áudio com esse conteúdo **não é aprovado**;
+  todo áudio passa por **análise** antes de publicar. Tom sóbrio (a plataforma orienta,
+  não dirige conteúdo). Travado por `tests/Unit/VoiceIntroGuidanceTest.php`.
+
 ### Ainda em aberto (follow-up de PO, não bloqueia)
 - Denúncia de áudio JÁ aprovado (hoje o modelo é pré-publicação; não há fila de
   denúncia sobre intro no ar). Re-moderação após aprovação. Near-match/PhotoDNA não se
   aplica (áudio).
+- Notificação hoje é **e-mail** (padrão KYC). Sino/toast in-app é follow-up de produto.
 
 ---
 

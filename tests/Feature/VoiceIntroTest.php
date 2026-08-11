@@ -2,6 +2,9 @@
 
 use App\Exceptions\VoiceProcessingException;
 use App\Jobs\ProcessVoiceIntro;
+use App\Jobs\SendVoiceIntroApprovedEmail;
+use App\Jobs\SendVoiceIntroFailedEmail;
+use App\Jobs\SendVoiceIntroRejectedEmail;
 use App\Models\PerformerProfile;
 use App\Models\PerformerVoiceIntro;
 use App\Models\User;
@@ -309,6 +312,60 @@ it('a moderação é no-op sobre uma intro que não está pending (idempotência
 
     app(PerformerVoiceIntroService::class)->reject($intro, voiceModerator(), 'tarde demais');
     expect($intro->fresh()->status)->toBe('approved'); // não regride
+});
+
+// ─── Notificação à performer na mudança de status (feat/voice-intro-polish) ────
+
+it('aprovar NOTIFICA a performer que a voz está no ar', function () {
+    Queue::fake();
+    Storage::fake(VoiceIntroStore::DISK);
+    $profile = voicePerformer();
+    $intro = voiceIntroRow($profile, 'pending');
+
+    app(PerformerVoiceIntroService::class)->approve($intro, voiceModerator());
+
+    Queue::assertPushed(SendVoiceIntroApprovedEmail::class, fn ($job) => $job->user->is($profile->user));
+    Queue::assertNotPushed(SendVoiceIntroRejectedEmail::class);
+});
+
+it('recusar NOTIFICA a performer com o motivo e o convite a regravar', function () {
+    Queue::fake();
+    Storage::fake(VoiceIntroStore::DISK);
+    $profile = voicePerformer();
+    $intro = voiceIntroRow($profile, 'pending');
+
+    app(PerformerVoiceIntroService::class)->reject($intro, voiceModerator(), 'Cita contato externo.');
+
+    Queue::assertPushed(SendVoiceIntroRejectedEmail::class, fn ($job) => $job->user->is($profile->user) && $job->reason === 'Cita contato externo.');
+    Queue::assertNotPushed(SendVoiceIntroApprovedEmail::class);
+});
+
+it('a moderação no-op (não pending) NÃO notifica a performer', function () {
+    Queue::fake();
+    Storage::fake(VoiceIntroStore::DISK);
+    $intro = voiceIntroRow(voicePerformer(), 'approved');
+
+    app(PerformerVoiceIntroService::class)->reject($intro, voiceModerator(), 'tarde demais');
+
+    Queue::assertNotPushed(SendVoiceIntroRejectedEmail::class);
+});
+
+it('a FALHA técnica do job NOTIFICA a performer (mensagem distinta de recusa)', function () {
+    Queue::fake();
+    Storage::fake(VoiceIntroStore::DISK);
+    $profile = voicePerformer();
+    $intro = voiceIntroRow($profile, 'processing', withBytes: false);
+    $rawPath = 'tmp/'.$profile->id.'/'.Str::random(10);
+    Storage::disk(VoiceIntroStore::DISK)->put($rawPath, 'raw');
+
+    $voice = Mockery::mock(VoiceProcessingService::class);
+    $voice->shouldReceive('sanitize')->once()->andThrow(VoiceProcessingException::encodeFailed());
+
+    (new ProcessVoiceIntro($intro->id, $rawPath))->handle($voice, app(VoiceIntroStore::class));
+
+    Queue::assertPushed(SendVoiceIntroFailedEmail::class, fn ($job) => $job->user->is($profile->user));
+    // Falha técnica NÃO é recusa de conteúdo — não dispara o e-mail de recusa.
+    Queue::assertNotPushed(SendVoiceIntroRejectedEmail::class);
 });
 
 it('o moderador OUVE o áudio pendente pelo endpoint dedicado', function () {
