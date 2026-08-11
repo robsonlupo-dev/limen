@@ -246,6 +246,15 @@ function logout() {
                     >
                         Moderação
                     </Link>
+                    <!-- Fila de moderação das intros de voz (feat/voice-intro).
+                         Link Inertia — tela Vue sob /moderacao/*. -->
+                    <Link
+                        v-if="canModerate"
+                        :href="route('moderacao.voice-intros.index')"
+                        class="text-gold/80 hover:text-gold transition-colors no-underline"
+                    >
+                        Áudios
+                    </Link>
                     <!-- Admin: só admin. <a> e não <Link> — o back-office /admin/*
                          é Blade puro, fora do Inertia. -->
                     <a

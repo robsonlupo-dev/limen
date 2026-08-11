@@ -1331,6 +1331,71 @@ congelado** em `applied_rate`, **tokens inteiros**.
 
 ---
 
+## Intro de voz da performer — `feat/voice-intro` (PR pendente)
+
+**PRIMEIRO áudio do projeto** (greenfield — auditoria confirmou que não havia nada
+de áudio). A performer grava/envia um clipe curto (**≤20s, ≤5MB**) no perfil; é isca
+de engajamento — o membro ouve e fica curioso. **GRÁTIS** de ouvir (membro OU
+visitante deslogado), fora do ledger. **OPT-IN**, com aviso explícito de que a voz é
+identificável. Dona única: `app/Services/PerformerVoiceIntroService.php`. **UMA por
+performer** (tabela `performer_voice_intros`, UNIQUE — regravar SUBSTITUI). Revisão
+de segurança rodada, **sem 🔴/🟡**. `+28 testes` (2000 testes / 15960 asserts).
+
+### Decisões de PO (locked)
+- **≤20s**, **grátis** para qualquer membro/visitante ouvir no perfil (isca, não pago).
+- **Opt-in**, nunca obrigatório.
+- **Moderação humana OBRIGATÓRIA**: o áudio **não vai ao ar direto** — fila de
+  moderação, um humano ouve e aprova antes de publicar (`pending → approved/rejected`).
+  **Motivo:** áudio dribla o filtro de texto do chat — por voz a performer poderia
+  negociar encontro/passar contato (risco art. 228). **Anti-CSAM não se aplica a
+  áudio; a moderação humana é o controle.**
+
+### Ciclo de status
+`processing` (job de ffmpeg rodando) → `pending` (sanitizado, aguardando humano) →
+`approved` (no ar) / `rejected` (recusado com motivo). `failed` = falha técnica do
+job (distinta da recusa humana, como o vídeo #167). **Só `approved` é servível** — o
+serving público 404 para todo o resto. O job marca `pending`, **nunca `approved`
+sozinho** — não há caminho de publicação sem aprovação humana (travado por teste).
+
+### Pipeline de sanitização (`VoiceProcessingService` — SEPARADO do vídeo)
+Job assíncrono `ProcessVoiceIntro`: re-encode para **MP3 mono normalizado** do stream
+DECODIFICADO, mapeando **só o 1º áudio** (`-map 0:a:0 -vn -dn -sn`), **strip de TODO
+metadado** (`-map_metadata -1 -write_id3v2 0 -write_id3v1 0 -fflags +bitexact` — mata
+ID3/GPS/device/timestamps e a tag "encoder"), `loudnorm`. O arquivo servido deixa de
+ser o enviado. **Fail-closed:** ffmpeg ausente → recusa o upload. Config próprio
+`config/voice.php` (20s/5MB/MP3 128k). Gate de duração por ffprobe no upload (422),
+deferido ao job para webm sem duração no header (reconfere no MP3, **rejeita, não
+trunca**).
+
+### Serving e disco
+Disco privado `performer_voice_intros` (`serve => false`), sob `storage/app/private`
+(permanente, entra no backup — o OPOSTO de story/foto efêmera). Áudio EM CLARO (1:N),
+bytes só por controller com **Content-Type FIXO `audio/mpeg` + nosniff + no-store**,
+**sem URL assinada** (autorização por request). `response()->file()` dá Range/seek.
+- **Público** (`voice-intro.audio`, sem auth): só `approved` + performer de pé.
+- **Preview da dona** (`performer.voice-intro.audio`): qualquer status COM bytes, só a
+  própria (deriva o perfil do usuário, não aceita id).
+- **Moderador** (`moderacao.voice-intros.audio`, sob `moderator.access` + `throttle:30,1`).
+
+### Superfícies
+- Fila `/moderacao/apresentacoes-de-voz` (`Moderacao/VoiceIntros/Index`) com player,
+  aprovar/recusar (motivo obrigatório na recusa). Sem PII de membro (conteúdo da
+  performer). `moderated_by/at/status` por `forceFill`.
+- Gestão `Performer/VoiceIntro/Edit` (MediaRecorder **e** upload de arquivo, status +
+  motivo de recusa, consentimento). Link no painel da performer.
+- Botão dourado `<VoiceIntroPlayer>` no perfil (`Catalog/Show`, `Performers/Show`) só
+  quando há aprovada. Ícone "tem áudio" no card (`has_voice_intro`, booleano derivado,
+  `withCount` no `scopePublicCatalog`).
+- Hard Delete varre a intro (linha + bytes). GC `voice:purge-orphan-raw` (horário).
+  Zero asset externo. Não toca mobile-layout nem outras features.
+
+### Ainda em aberto (follow-up de PO, não bloqueia)
+- Denúncia de áudio JÁ aprovado (hoje o modelo é pré-publicação; não há fila de
+  denúncia sobre intro no ar). Re-moderação após aprovação. Near-match/PhotoDNA não se
+  aplica (áudio).
+
+---
+
 ## Sprint 15 — Fechado
 
 > **FECHADO — tag `v1.0-sprint15` (`bf1c3dd`).** Oito entregas mergeadas

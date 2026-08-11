@@ -13,6 +13,7 @@ use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\PerformerContent;
 use App\Models\PerformerStory;
+use App\Models\PerformerVoiceIntro;
 use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Database\Eloquent\Collection;
@@ -363,6 +364,11 @@ class DeletionService
             $summary['content_unlocks'] = $this->purgeContentUnlocks($user);
             $summary['performer_content'] = $this->purgePerformerContent($user);
             $summary['performer_content_preserved'] = $this->preservedContentCount($user);
+            // Intro de voz (feat/voice-intro): uma linha por perfil. Bytes saem em
+            // deleteFiles(); a linha some (DELETE real). Sem preservação por
+            // denúncia — a moderação é PRÉ-publicação, não há fila de denúncia
+            // apontando para intro de voz.
+            $summary['performer_voice_intro'] = $this->purgePerformerVoiceIntro($user);
             $summary['content_hash_checks'] = $this->purgeContentHashChecks($user);
             $summary['performer_locations'] = $this->purgePerformerLocations($user);
             // Slugs antigos do redirect de rename (UAT fix): carregam o nome
@@ -506,6 +512,16 @@ class DeletionService
                 // varredura acima. (O content_hash preservado é do MP4, não do poster.)
                 if ($thumb = $piece->thumbnail_path) {
                     $paths[] = ['disk' => ContentStore::DISK, 'path' => $thumb];
+                }
+            }
+
+            // Intro de voz (feat/voice-intro): áudio EM CLARO da própria performer,
+            // some no encerramento como avatar/galeria/conteúdo. UMA por perfil; a
+            // FK cascadeOnDelete NÃO dispara (o perfil sai por soft-delete —
+            // item 11), então este é o último varredor que enxerga o caminho.
+            foreach (PerformerVoiceIntro::where('performer_profile_id', $profile->id)->get() as $intro) {
+                if ($path = $intro->path) {
+                    $paths[] = ['disk' => VoiceIntroStore::DISK, 'path' => $path];
                 }
             }
         }
@@ -1414,6 +1430,24 @@ class DeletionService
 
         // DELETE real: o cascade de `content_unlocks.performer_content_id` DISPARA.
         return DB::table('performer_content')->whereIn('id', $deletableIds)->delete();
+    }
+
+    /**
+     * Intro de voz (feat/voice-intro): uma linha por perfil, áudio da própria
+     * performer. DELETE real das linhas — a FK cascadeOnDelete NÃO dispara porque
+     * `anonymizePerformerProfile` só soft-deleta o perfil (item 11). Bytes já
+     * saíram em deleteFiles(). Sem preservação por denúncia (moderação é
+     * pré-publicação).
+     */
+    private function purgePerformerVoiceIntro(User $user): int
+    {
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+
+        if ($profileId === null) {
+            return 0;
+        }
+
+        return DB::table('performer_voice_intros')->where('performer_profile_id', $profileId)->delete();
     }
 
     /** Peças preservadas por denúncia em aberto — contadas para a prova. */

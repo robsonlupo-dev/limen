@@ -141,3 +141,7 @@ Schedule::command('live-previews:purge')->hourly()->withoutOverlapping(10);
 // GC dos uploads de vídeo crus órfãos (Sprint 16): job descartado sem executar
 // deixa até 500 MB em tmp/. De hora em hora; só disco privado, nenhum dado servido.
 Schedule::command('content:purge-orphan-raw')->hourly()->withoutOverlapping(10);
+
+// GC dos uploads de áudio crus órfãos (feat/voice-intro): mesma natureza do de
+// vídeo — job descartado deixa o cru em tmp/. De hora em hora; só disco privado.
+Schedule::command('voice:purge-orphan-raw')->hourly()->withoutOverlapping(10);

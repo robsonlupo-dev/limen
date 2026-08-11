@@ -112,6 +112,13 @@ return [
         'performer.content.index',
         'performer.content.store',
         'performer.content.destroy',
+        // Intro de voz (feat/voice-intro): a tela de gestão envia/remove por fetch
+        // e o link do painel usa route(). O serving (performer.voice-intro.audio,
+        // voice-intro.audio público, moderacao.voice-intros.audio) NÃO entra: são
+        // URLs injetadas pelo servidor, como o serving de conteúdo.
+        'performer.voice-intro.edit',
+        'performer.voice-intro.store',
+        'performer.voice-intro.destroy',
         // Localizações da performer (Sprint 13): a tela de edição dá PUT aqui
         // (porta dedicada, separada do save do perfil).
         'performer.locations.update',
@@ -268,6 +275,10 @@ return [
         'moderacao.reports.index',
         'moderacao.reports.show',
         'moderacao.reports.update',
+        // Fila de moderação das intros de voz (feat/voice-intro). A tela lista e
+        // aprova/recusa; o serving do áudio é URL injetada pelo servidor.
+        'moderacao.voice-intros.index',
+        'moderacao.voice-intros.update',
         // Visualizador da prova retida: a tela de detalhe monta o src da <img> e
         // o fetch do corpo da mensagem por route().
         'moderacao.evidence.photo',

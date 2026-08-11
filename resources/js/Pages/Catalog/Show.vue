@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import CurationSeal from '@/Components/CurationSeal.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
+import VoiceIntroPlayer from '@/Components/VoiceIntroPlayer.vue'
 import FollowButton from '@/Components/FollowButton.vue'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
 import Button from '@/Components/Button.vue'
@@ -140,6 +141,15 @@ function onTipSent(data) {
                         <h1 class="font-serif text-4xl text-limen-ink">{{ performer.stage_name }}</h1>
                         <VerifiedBadge v-if="performer.is_verified" :category="performer.category" />
                         <CurationSeal :tier="performer.tier" />
+                        <!-- Intro de voz aprovada (feat/voice-intro): botão dourado
+                             de play ao lado do nome. `voice_intro_url` só vem
+                             preenchida quando há intro aprovada (serving público
+                             grátis) — sem ela, nada aqui. -->
+                        <VoiceIntroPlayer
+                            v-if="performer.voice_intro_url"
+                            :url="performer.voice_intro_url"
+                            :label="`apresentação de ${performer.stage_name}`"
+                        />
                     </div>
 
                     <div class="flex items-center gap-3">

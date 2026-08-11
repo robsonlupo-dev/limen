@@ -184,6 +184,27 @@ return [
             'report' => false,
         ],
 
+        // Intro de voz da performer (feat/voice-intro). Áudio EM CLARO (sem Crypt —
+        // 1:N como o Story/Content: uma performer, muitos ouvintes), bytes só pelo
+        // VoiceIntroStore com Content-Type FIXO no servidor (produzimos o MP3),
+        // nunca URL de disco. E, como a galeria/conteúdo, é PERMANENTE (fica no
+        // perfil até a performer trocar): fica sob `storage/app/private`, que o
+        // `docs/backup.sh` (allowlist) tarballa — o OPOSTO de story/foto efêmera.
+        //
+        // O upload CRU vive em `tmp/` neste mesmo disco enquanto o job assíncrono
+        // não processa (o temporário do PHP some no fim do request); o GC
+        // `voice:purge-orphan-raw` varre os órfãos, como o do vídeo.
+        //
+        // `serve => false` + `throw => false` como os demais privados: o Store
+        // CONFERE o retorno de put/delete e lança ele mesmo.
+        'performer_voice_intros' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/performer-voice-intros'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

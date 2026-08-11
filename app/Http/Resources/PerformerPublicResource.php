@@ -87,6 +87,12 @@ class PerformerPublicResource extends JsonResource
             // dias" ≈ está na vitrine há pouco. NewBadge é a dona única da janela;
             // o selo apaga sozinho na leitura ao vencer os 7 dias.
             'is_new' => NewBadge::isNew($this->created_at),
+            // Intro de voz aprovada (feat/voice-intro): BOOLEANO derivado, nunca o
+            // status cru. O card mostra um ícone discreto "tem áudio"; a URL de
+            // serving NÃO entra aqui (é injetada só nas telas de perfil pelos
+            // controllers), para o payload da listagem ficar enxuto. Barato no
+            // catálogo (withCount do scopePublicCatalog); ver hasApprovedVoiceIntro.
+            'has_voice_intro' => $this->hasApprovedVoiceIntro(),
             'rating_avg' => $this->rating_avg,
             'rating_count' => $this->rating_count,
             // Faixa, nunca o número exato: ver PerformerProfile::followersCountLabel().

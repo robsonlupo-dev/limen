@@ -441,6 +441,21 @@ async function decideAccess(req, approve) {
                 <span class="shrink-0 text-sm text-gold">Gerenciar &rarr;</span>
             </Link>
 
+            <!-- Intro de voz (feat/voice-intro): grava uma mensagem curta para o
+                 perfil. Só performer ativa — a rota exige performer-active. Passa
+                 por análise antes de ir ao ar. -->
+            <Link
+                v-if="canPublishStories"
+                :href="route('performer.voice-intro.edit')"
+                class="flex items-center justify-between rounded-xl border border-frame bg-surface p-5 no-underline hover:border-gold/40 transition-colors"
+            >
+                <div class="space-y-1">
+                    <p class="font-serif text-lg text-cream">Apresentação de voz</p>
+                    <p class="text-sm text-muted">Grave uma mensagem curta (até 20s) para atrair quem visita seu perfil.</p>
+                </div>
+                <span class="shrink-0 text-sm text-gold">Gerenciar &rarr;</span>
+            </Link>
+
             <!-- Tips table -->
             <div class="space-y-3">
                 <h2 class="font-serif text-xl text-cream">Últimas gorjetas</h2>

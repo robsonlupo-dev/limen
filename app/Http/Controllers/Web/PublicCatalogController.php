@@ -118,6 +118,13 @@ class PublicCatalogController extends Controller
 
         $performer = (new PerformerPublicResource($profile))->resolve($request);
 
+        // Intro de voz (feat/voice-intro): a URL do serving público SÓ quando há
+        // intro APROVADA — null esconde o botão de play. Fora do resource (que
+        // serve a listagem), como no catálogo autenticado. Público toca sem login.
+        $performer['voice_intro_url'] = $profile->hasApprovedVoiceIntro()
+            ? route('voice-intro.audio', $profile)
+            : null;
+
         $stageName = $profile->stage_name;
         $description = $profile->bio
             ? str($profile->bio)->stripTags()->limit(155)->value()

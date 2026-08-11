@@ -226,6 +226,13 @@ class CatalogController extends Controller
                 // público omite o `id` de propósito; o media já expõe o profile_id em
                 // URL assinada, então isto não vaza nada novo.
                 'profile_id' => $profile->id,
+                // Intro de voz (feat/voice-intro): a URL do serving público SÓ
+                // quando há intro APROVADA — null esconde o botão de play. Fica
+                // fora do resource (que serve a listagem) para o card não carregar
+                // a URL; aqui é a tela de perfil, que precisa dela para tocar.
+                'voice_intro_url' => $profile->hasApprovedVoiceIntro()
+                    ? route('voice-intro.audio', $profile)
+                    : null,
             ]
         );
 

@@ -259,6 +259,11 @@ class PerformerProfile extends Model
             // perfil numa página de 24 cards. Vitrine pública legítima — ao
             // contrário do favorito, o número de fotos é da própria performer.
             ->withCount('photos')
+            // Selo "tem áudio" (feat/voice-intro): conta a intro APROVADA (0 ou 1,
+            // é UNIQUE) numa subquery agregada — o card só precisa do booleano
+            // derivado (hasApprovedVoiceIntro), não da linha, e isto evita o N+1
+            // numa página de 24 cards. Mesma disciplina do withCount('photos').
+            ->withCount(['voiceIntro as voice_intro_approved_count' => fn (Builder $q) => $q->where('status', PerformerVoiceIntro::STATUS_APPROVED)])
             ->whereHas('user', fn (Builder $q) => $q->where('status', 'active'))
             ->where('is_verified', true)
             ->whereNotNull('slug')
@@ -520,6 +525,34 @@ class PerformerProfile extends Model
     public function primaryLocation(): HasOne
     {
         return $this->hasOne(PerformerLocation::class)->where('is_primary', true);
+    }
+
+    /**
+     * Intro de voz (feat/voice-intro): UMA por performer (UNIQUE). Qualquer status
+     * — quem filtra por `approved` é o serving/resource.
+     */
+    public function voiceIntro(): HasOne
+    {
+        return $this->hasOne(PerformerVoiceIntro::class);
+    }
+
+    /**
+     * Tem intro de voz APROVADA? BOOLEANO derivado para o card/perfil, nunca o
+     * status cru. Barato no catálogo: o scopePublicCatalog carrega o
+     * `voice_intro_approved_count` por withCount (uma subquery agregada, sem N+1);
+     * fora do scope (lookup por slug de UM perfil) cai no exists() — uma query só.
+     */
+    public function hasApprovedVoiceIntro(): bool
+    {
+        if (array_key_exists('voice_intro_approved_count', $this->attributes)) {
+            return (int) $this->attributes['voice_intro_approved_count'] > 0;
+        }
+
+        if ($this->relationLoaded('voiceIntro')) {
+            return $this->voiceIntro?->status === PerformerVoiceIntro::STATUS_APPROVED;
+        }
+
+        return $this->voiceIntro()->where('status', PerformerVoiceIntro::STATUS_APPROVED)->exists();
     }
 
     /**
