@@ -283,7 +283,7 @@ function logout() {
         </div>
 
         <!-- Content -->
-        <main class="flex-1">
+        <main class="mi-page-enter flex-1">
             <slot />
         </main>
 

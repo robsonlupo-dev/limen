@@ -1,0 +1,148 @@
+/*
+ * Microinterações premium — feat/micro-interactions.
+ *
+ * Camada PURAMENTE VISUAL: CSS transitions/keyframes, zero biblioteca (sem GSAP,
+ * sem lib de animação), zero asset externo — nenhum `url()`, nenhum host
+ * (ExternalAssetPolicyTest). Regra de ouro: a animação guia o usuário ou reforça
+ * a marca — senão não existe. Luxo é sutileza, nada chamativo.
+ *
+ * Só anima transform/opacity/box-shadow (composições de GPU) — NUNCA
+ * width/height/top/left, que forçam layout e engasgam no mobile. Tudo desligado
+ * sob `prefers-reduced-motion: reduce` (bloco no fim — acessibilidade).
+ *
+ * Prefixo `mi-*` (micro-interaction) para não colidir com utilitários do
+ * Tailwind nem com os design tokens `limen-*`. As cores saem dos tokens
+ * (limen-gold #d6b872); as sombras são preto/dourado TRANSLÚCIDO — não é cor
+ * nova, é o token com alfa.
+ *
+ * Arquivo de CSS autoral (não utilitário gerado): sempre embarca no bundle, sem
+ * risco de purge do Tailwind. Importado por resources/css/app.css.
+ */
+
+/* ── 1. Card do catálogo: elevação física no hover ──────────────────────────
+   translateY(-4px) + sombra que cresce suave. Só em ponteiro fino COM hover real
+   (desktop): no toque (mobile) o card fica exatamente como está — sem :hover
+   grudado, sem lift preso após o tap. */
+@media (hover: hover) and (pointer: fine) {
+    .mi-card {
+        transition: transform 200ms ease-out, box-shadow 200ms ease-out;
+    }
+    .mi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 14px 32px -14px rgba(0, 0, 0, 0.65);
+    }
+}
+
+/* ── 2. Botões: micro-pulso tátil ao clicar ─────────────────────────────────
+   scale(0.98) no :active, volta a 1.0 rápido. Sensação de material que cede.
+   Vale em toque também (o :active dispara no tap) — é feedback, não hover. */
+.mi-press {
+    transition: transform 120ms ease-out;
+}
+.mi-press:active {
+    transform: scale(0.98);
+}
+
+/* ── 2b. CTA dourado: leve lift + brilho no hover ───────────────────────────
+   Só desktop (hover real). O brilho é o próprio limen-gold com alfa. */
+@media (hover: hover) and (pointer: fine) {
+    .mi-glow {
+        transition: transform 160ms ease-out, box-shadow 160ms ease-out,
+            background-color 200ms ease-out;
+    }
+    .mi-glow:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 22px -8px rgba(214, 184, 114, 0.55);
+    }
+}
+
+/* ── 3. Coração (favoritar / interesse): "pop" ao marcar ────────────────────
+   scale 1.0 → 1.3 → 1.0, como o Instagram. O componente adiciona a classe no
+   instante da marcação e a remove no animationend. */
+.mi-pop {
+    animation: mi-pop 300ms ease-out;
+}
+@keyframes mi-pop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+/* ── 4. Entrada de página: fade suave a cada navegação ──────────────────────
+   As layouts (AppLayout/GuestLayout) NÃO são persistentes — re-montam a cada
+   navegação Inertia. Uma animação de fade-in no <main> dispara sozinha em toda
+   troca de página, sem fiação de router. Barato e imune a regressão. */
+.mi-page-enter {
+    animation: mi-fade-in 150ms ease-out;
+}
+@keyframes mi-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ── 5. Barra de carregamento dourada (troca o spinner de seção) ────────────
+   Barra fina indeterminada (limen-gold) em vaivém, em vez do disco genérico.
+   A barra global de navegação do Inertia (app.js `progress`) já é dourada; esta
+   é para carregamento de SEÇÃO (ex.: viewer de story). */
+.mi-loading-bar {
+    position: relative;
+    overflow: hidden;
+    height: 2px;
+    width: 100%;
+    border-radius: 9999px;
+    background: rgba(214, 184, 114, 0.18); /* limen-gold @ 18% */
+}
+.mi-loading-bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    border-radius: inherit;
+    background: var(--color-limen-gold);
+    animation: mi-loading-slide 1.1s ease-in-out infinite;
+}
+@keyframes mi-loading-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+}
+
+/* ── 6. Erros de formulário: slide + fade (Vue <transition name="mi-error">) ─
+   A mensagem desliza de cima com fade em vez de piscar de repente. */
+.mi-error-enter-active,
+.mi-error-leave-active {
+    transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+.mi-error-enter-from,
+.mi-error-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+
+/* ── Acessibilidade: desliga TUDO sob prefers-reduced-motion: reduce ─────────
+   Inclui os utilitários de animação do Tailwind (animate-spin/pulse/ping), que
+   o framework não desativa sozinho — quem pediu menos movimento no sistema não
+   vê nada girando/pulsando. O anel "ao vivo" do NowStrip já tem o próprio guard. */
+@media (prefers-reduced-motion: reduce) {
+    .mi-card,
+    .mi-press,
+    .mi-glow,
+    .mi-pop,
+    .mi-page-enter,
+    .mi-loading-bar::after,
+    .mi-error-enter-active,
+    .mi-error-leave-active {
+        transition: none !important;
+        animation: none !important;
+    }
+    .mi-card:hover,
+    .mi-glow:hover,
+    .mi-press:active {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+    .animate-spin,
+    .animate-pulse,
+    .animate-ping {
+        animation: none !important;
+    }
+}

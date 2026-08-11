@@ -11,6 +11,8 @@
  * FanAlias label + handle, faixa de atividade e nada mais. Nunca nome, e-mail,
  * tier ou saldo do membro. Não há o que vazar no DevTools.
  */
+import { ref, watch } from 'vue'
+
 const props = defineProps({
     // { fan_alias_label, member_handle, avatar_url, activity_label, is_new, hearted }
     member: { type: Object, required: true },
@@ -19,10 +21,25 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['heart', 'message', 'view'])
+
+// "Pop" ao CURTIR (não ao descurtir): o estado real chega pelo prop `hearted`
+// depois que o pai confirma. Ao virar false→true, reinicia a animação no ícone
+// (remove classe, força reflow, readiciona) — necessário para retriggar.
+const heartIcon = ref(null)
+watch(
+    () => props.hearted,
+    (now, prev) => {
+        if (now && !prev && heartIcon.value) {
+            heartIcon.value.classList.remove('mi-pop')
+            void heartIcon.value.offsetWidth
+            heartIcon.value.classList.add('mi-pop')
+        }
+    },
+)
 </script>
 
 <template>
-    <div class="group relative aspect-[3/4] overflow-hidden rounded-xl bg-limen-surface-2 ring-1 ring-limen-line transition-all duration-200 hover:ring-limen-gold/40">
+    <div class="mi-card group relative aspect-[3/4] overflow-hidden rounded-xl bg-limen-surface-2 ring-1 ring-limen-line transition-all duration-200 hover:ring-limen-gold/40">
         <!-- Abrir o perfil do membro: o corpo do card é o alvo do clique (as ações
              coração/mensagem ficam por cima e param a propagação). Abrir registra
              a visita (o membro depois vê "quem visitou seu perfil"). É um <button>
@@ -71,10 +88,12 @@ const emit = defineEmits(['heart', 'message', 'view'])
                 type="button"
                 :aria-label="hearted ? 'Curtido' : 'Curtir'"
                 :disabled="hearting"
-                class="grid h-9 w-9 place-items-center rounded-full bg-black/45 text-limen-gold ring-1 ring-limen-gold/40 backdrop-blur-sm transition-colors hover:bg-black/65 hover:ring-limen-gold/70 disabled:opacity-60"
+                class="mi-press grid h-9 w-9 place-items-center rounded-full bg-black/45 text-limen-gold ring-1 ring-limen-gold/40 backdrop-blur-sm transition-colors hover:bg-black/65 hover:ring-limen-gold/70 disabled:opacity-60"
                 @click.stop="emit('heart')"
             >
                 <svg
+                    ref="heartIcon"
+                    @animationend="$event.currentTarget.classList.remove('mi-pop')"
                     class="h-[18px] w-[18px]"
                     viewBox="0 0 24 24"
                     :fill="hearted ? 'currentColor' : 'none'"
@@ -92,7 +111,7 @@ const emit = defineEmits(['heart', 'message', 'view'])
             <button
                 type="button"
                 aria-label="Enviar mensagem"
-                class="grid h-9 w-9 place-items-center rounded-full bg-black/45 text-limen-gold ring-1 ring-limen-gold/40 backdrop-blur-sm transition-colors hover:bg-black/65 hover:ring-limen-gold/70"
+                class="mi-press grid h-9 w-9 place-items-center rounded-full bg-black/45 text-limen-gold ring-1 ring-limen-gold/40 backdrop-blur-sm transition-colors hover:bg-black/65 hover:ring-limen-gold/70"
                 @click.stop="emit('message')"
             >
                 <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

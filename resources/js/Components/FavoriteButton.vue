@@ -1,4 +1,5 @@
 <script setup>
+import { ref, watch } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 
 /**
@@ -31,6 +32,21 @@ function toggle() {
     })
 }
 
+// "Pop" ao MARCAR (não ao desmarcar): o estado real chega pelo prop `saved`
+// depois do partial reload. Ao virar false→true, reinicia a animação no ícone
+// (remove a classe, força reflow, readiciona) — retriggar sem isso não repete.
+const iconEl = ref(null)
+watch(
+    () => props.saved,
+    (now, prev) => {
+        if (now && !prev && iconEl.value) {
+            iconEl.value.classList.remove('mi-pop')
+            void iconEl.value.offsetWidth
+            iconEl.value.classList.add('mi-pop')
+        }
+    },
+)
+
 // O rótulo acessível diz o que o clique FAZ, não o estado atual — é o que um
 // leitor de tela precisa de um controle, e o `aria-pressed` já carrega o estado.
 </script>
@@ -43,10 +59,12 @@ function toggle() {
         :aria-label="saved ? 'Remover dos salvos' : 'Salvar perfil'"
         :aria-pressed="saved"
         :disabled="form.processing"
-        class="grid h-9 w-9 place-items-center rounded-full bg-background/70 backdrop-blur-sm ring-1 ring-frame/60 text-cream transition-all duration-200 hover:bg-background/90 hover:ring-gold/50 disabled:opacity-60"
+        class="mi-press grid h-9 w-9 place-items-center rounded-full bg-background/70 backdrop-blur-sm ring-1 ring-frame/60 text-cream transition-all duration-200 hover:bg-background/90 hover:ring-gold/50 disabled:opacity-60"
         @click.stop.prevent="toggle"
     >
         <svg
+            ref="iconEl"
+            @animationend="$event.currentTarget.classList.remove('mi-pop')"
             class="h-[18px] w-[18px] transition-colors"
             :class="saved ? 'text-gold' : 'text-cream/70'"
             viewBox="0 0 24 24"
@@ -67,13 +85,15 @@ function toggle() {
         type="button"
         :aria-pressed="saved"
         :disabled="form.processing"
-        class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all duration-200 disabled:opacity-60"
+        class="mi-press inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all duration-200 disabled:opacity-60"
         :class="saved
             ? 'border-gold/50 bg-gold/10 text-gold hover:bg-gold/15'
             : 'border-frame text-cream hover:border-gold/40 hover:text-gold'"
         @click="toggle"
     >
         <svg
+            ref="iconEl"
+            @animationend="$event.currentTarget.classList.remove('mi-pop')"
             class="h-4 w-4"
             viewBox="0 0 24 24"
             :fill="saved ? 'currentColor' : 'none'"

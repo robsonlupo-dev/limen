@@ -1,5 +1,6 @@
 @import './fonts.css';
 @import 'tailwindcss';
+@import './micro-interactions.css';
 
 @source '../../resources/js/**/*.vue';
 @source '../../storage/framework/views/*.php';

@@ -94,6 +94,8 @@ const inputType = computed(() =>
                 </svg>
             </button>
         </div>
-        <p v-if="error" class="text-xs text-danger">{{ error }}</p>
+        <transition name="mi-error">
+            <p v-if="error" class="text-xs text-danger">{{ error }}</p>
+        </transition>
     </div>
 </template>
