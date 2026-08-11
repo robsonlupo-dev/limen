@@ -19,7 +19,7 @@ const isSelect = computed(() => props.performer.tier === 'select')
 <template>
     <Link
         :href="profileHref"
-        class="group relative block aspect-[3/4] overflow-hidden rounded-xl bg-limen-surface-2 no-underline transition-all duration-200"
+        class="mi-card group relative block aspect-[3/4] overflow-hidden rounded-xl bg-limen-surface-2 no-underline transition-all duration-200"
         :class="isMaison
             ? 'ring-1 ring-limen-gold/80 shadow-[0_0_22px_-10px_rgba(214,184,114,0.5)]'
             : 'ring-1 ring-limen-line hover:ring-limen-gold/40'"

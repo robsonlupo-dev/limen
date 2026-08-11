@@ -192,7 +192,7 @@ onBeforeUnmount(stopPreview)
 
 <template>
     <div
-        class="group relative overflow-hidden rounded-xl bg-limen-surface-2 transition-all duration-200"
+        class="mi-card group relative overflow-hidden rounded-xl bg-limen-surface-2 transition-all duration-200"
         :class="[
             featured ? 'aspect-[16/10]' : 'aspect-[3/4]',
             isMaison
