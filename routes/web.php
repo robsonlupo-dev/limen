@@ -48,6 +48,7 @@ use App\Http\Controllers\Web\LegalDocumentsController;
 use App\Http\Controllers\Web\LinksController;
 use App\Http\Controllers\Web\Moderation\EvidenceController;
 use App\Http\Controllers\Web\Moderation\ModerationController;
+use App\Http\Controllers\Web\Moderation\VoiceIntroModerationController;
 use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\BoostController;
 use App\Http\Controllers\Web\Performer\CallSettingsController;
@@ -64,6 +65,7 @@ use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
 use App\Http\Controllers\Web\Performer\PerformerContentController;
 use App\Http\Controllers\Web\Performer\PerformerLiveController;
+use App\Http\Controllers\Web\Performer\VoiceIntroController;
 use App\Http\Controllers\Web\Performer\PerformerLocationController;
 use App\Http\Controllers\Web\Performer\PhotoController as PerformerPhotoController;
 use App\Http\Controllers\Web\Performer\ProfileController as PerformerProfileController;
@@ -72,6 +74,7 @@ use App\Http\Controllers\Web\Performer\SentInterestsController;
 use App\Http\Controllers\Web\Performer\StoryController as PerformerStoryController;
 use App\Http\Controllers\Web\Performer\TwoFactorController;
 use App\Http\Controllers\Web\PublicCatalogController;
+use App\Http\Controllers\Web\VoiceIntroPublicController;
 use App\Http\Controllers\Web\NotificationPreferencesController;
 use App\Http\Controllers\Web\UserPreferencesController;
 use App\Http\Controllers\Web\WaitlistController;
@@ -166,6 +169,16 @@ Route::get('/performer/fotos/{photo}/imagem', [PerformerPhotoController::class, 
     ->middleware('throttle:120,1')
     ->whereNumber('photo')
     ->name('performer.gallery.image');
+
+// Serving PÚBLICO da intro de voz APROVADA (feat/voice-intro). Público como o
+// avatar/galeria: qualquer visitante — logado ou não — ouve a isca no perfil, sem
+// paywall e sem token. Só serve `approved` de performer de pé (o controller
+// enforça); processing/pending/rejected/failed dão 404. Passa pela camada de
+// bytes (Content-Type FIXO + nosniff), nunca por URL de disco (`serve => false`).
+Route::get('/performers/{profile}/apresentacao-de-voz', [VoiceIntroPublicController::class, 'audio'])
+    ->middleware('throttle:120,1')
+    ->whereNumber('profile')
+    ->name('voice-intro.audio');
 
 // Auth (guest only)
 Route::middleware('guest')->group(function () {
@@ -277,7 +290,24 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
         Route::get('/evidencia/mensagem/{message}', [EvidenceController::class, 'message'])
             ->whereNumber('message')
             ->name('moderacao.evidence.message');
+
+        // Serving do áudio da intro de voz para o moderador OUVIR na fila
+        // (feat/voice-intro). Sob o mesmo `throttle:30,1` da prova retida — lê
+        // bytes e é sensível. Toca qualquer status COM bytes (a fila só lista
+        // pending, mas o serving não presume o status, para não divergir).
+        Route::get('/apresentacoes-de-voz/{intro}/audio', [VoiceIntroModerationController::class, 'audio'])
+            ->whereNumber('intro')
+            ->name('moderacao.voice-intros.audio');
     });
+
+    // Fila de moderação das intros de voz (feat/voice-intro). Áudio sanitizado
+    // aguardando aprovação humana ANTES de ir ao ar — o controle contra negociação
+    // de encontro/contato por voz que dribla o filtro de texto do chat.
+    Route::get('/apresentacoes-de-voz', [VoiceIntroModerationController::class, 'index'])
+        ->name('moderacao.voice-intros.index');
+    Route::patch('/apresentacoes-de-voz/{intro}', [VoiceIntroModerationController::class, 'update'])
+        ->whereNumber('intro')
+        ->name('moderacao.voice-intros.update');
 });
 
 // Authenticated area
@@ -776,6 +806,32 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->middleware('throttle:20,1')
                 ->whereNumber('content')
                 ->name('performer.content.destroy')
+                ->can('performer-active');
+
+            // Intro de voz (feat/voice-intro). Só performer ATIVA grava/envia; o
+            // áudio é higienizado por ffmpeg num job e DEPOIS moderado por humano
+            // (fila /moderacao/*). A performer vê o status aqui, nunca publica
+            // direto. UMA por performer — regravar substitui a anterior.
+            Route::get('/performer/apresentacao-de-voz', [VoiceIntroController::class, 'edit'])
+                ->middleware('throttle:60,1')
+                ->name('performer.voice-intro.edit')
+                ->can('performer-active');
+
+            Route::post('/performer/apresentacao-de-voz', [VoiceIntroController::class, 'store'])
+                ->middleware('throttle:10,1')
+                ->name('performer.voice-intro.store')
+                ->can('performer-active');
+
+            Route::delete('/performer/apresentacao-de-voz', [VoiceIntroController::class, 'destroy'])
+                ->middleware('throttle:20,1')
+                ->name('performer.voice-intro.destroy')
+                ->can('performer-active');
+
+            // Preview da PRÓPRIA intro (qualquer status com bytes) — a dona sempre
+            // ouve a própria, inclusive pendente/recusada. Não é o serving público.
+            Route::get('/performer/apresentacao-de-voz/audio', [VoiceIntroController::class, 'audio'])
+                ->middleware('throttle:120,1')
+                ->name('performer.voice-intro.audio')
                 ->can('performer-active');
 
             // Galeria de fotos do perfil (Sprint 10). Mesmos gates da edição de

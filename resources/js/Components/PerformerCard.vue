@@ -266,6 +266,20 @@ onBeforeUnmount(stopPreview)
             >
                 Nova
             </span>
+            <!-- "Tem áudio" (feat/voice-intro): ícone discreto para quem tem intro
+                 de voz APROVADA (has_voice_intro, BOOLEANO derivado). Dourado como
+                 os demais selos, nunca limen-live. Empilha abaixo do "Nova". -->
+            <span
+                v-if="performer.has_voice_intro"
+                role="img"
+                aria-label="Tem apresentação de voz"
+                class="inline-flex items-center rounded-full bg-black/45 px-1.5 py-1 text-limen-gold ring-1 ring-limen-gold/50 backdrop-blur-sm"
+            >
+                <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
+                    <path d="M17 11a1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 0 0 10 0z" />
+                </svg>
+            </span>
         </div>
 
         <!-- Chip MAISON: discreto, canto superior direito. Irmão do link. -->

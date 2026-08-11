@@ -368,6 +368,21 @@ PR #140 — sem tipo novo.
 > sob `prefers-reduced-motion` e sem tocar mobile/lógica/privacidade. Dona única:
 > `resources/css/micro-interactions.css` (classes `mi-*`). Ver § "Microinterações
 > premium". `ExternalAssetPolicyTest` verde; build compila.
+>
+> **Em branch (`feat/voice-intro`, a partir da `main` `16ce24a`, +28 testes → 2000
+> testes / 15960 asserts, PR pendente):** **intro de voz da performer** — PRIMEIRO
+> áudio do projeto (greenfield). A performer grava/envia um clipe ≤20s no perfil
+> (isca de engajamento, GRÁTIS de ouvir, opt-in). O áudio é higienizado por ffmpeg
+> num job (MP3 mono, strip de TODO metadado — pipeline PRÓPRIO, `VoiceProcessingService`,
+> separado do vídeo) e **NÃO vai ao ar sem MODERAÇÃO HUMANA**: `processing → pending
+> → approved/rejected` (`failed` = erro técnico); só `approved` é servível. Motivo
+> (PO): áudio dribla o filtro de texto do chat — risco de negociar encontro/contato
+> por voz (art. 228); anti-CSAM não se aplica a áudio, o humano é o gate. Fila em
+> `/moderacao/apresentacoes-de-voz`. Disco privado `performer_voice_intros`, serving
+> por request (Content-Type fixo + nosniff, sem URL assinada). Hard Delete + GC
+> `voice:purge-orphan-raw`. Zero asset externo. Revisão de segurança **sem 🔴/🟡**.
+> Ver § "Intro de voz da performer". Suíte verde no MySQL (a única falha é a antiga
+> do GeoBlock 451 deste clone de dev).
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1327,6 +1342,80 @@ nem com os tokens `limen-*`.
 - **Anel "ao vivo" do `NowStrip` (item 7):** o pulso de respiração `now-live-pulse`
   (1.8s, opacity/scale sutil, já com guard de reduced-motion) **já existia** — foi
   mantido, não reintroduzido. `limen-live` segue EXCLUSIVO do estado ao vivo.
+
+## Intro de voz da performer — `feat/voice-intro` (PR pendente)
+
+**PRIMEIRO áudio do projeto** (greenfield — não havia nada de áudio até aqui). A
+performer grava/envia um clipe curto (**≤20s**) no perfil; é isca de engajamento — o
+membro ouve e fica curioso. **GRÁTIS** para qualquer um ouvir (membro OU visitante
+deslogado); não move token, fora do ledger. **OPT-IN** (nunca obrigatório) com aviso
+explícito de que a voz é identificável. Dona única do ciclo:
+`app/Services/PerformerVoiceIntroService.php`; tabela `performer_voice_intros` (**UMA
+por performer**, UNIQUE em `performer_profile_id` — regravar SUBSTITUI). Revisão de
+segurança rodada.
+
+- **MODERAÇÃO HUMANA OBRIGATÓRIA — é o controle central, não um detalhe.** O áudio
+  **NÃO vai ao ar direto**. Ciclo de status: `processing` (job de ffmpeg) →
+  `pending` (aguardando humano) → `approved`/`rejected` (decisão do moderador);
+  `failed` é falha técnica do job (distinta da recusa humana, como o vídeo #167).
+  **Só `approved` é servível** — o serving público 404 para todo o resto. **Motivo
+  (decisão de PO):** áudio dribla o filtro de texto do chat — por voz a performer
+  poderia negociar encontro/passar contato (**risco art. 228**). **Anti-CSAM não se
+  aplica a áudio; o humano é o gate.** O job marca `pending`, **nunca `approved`
+  sozinho** — não existe caminho de publicação sem aprovação humana (travado por
+  teste).
+- **Fila em `/moderacao/apresentacoes-de-voz`** (`moderator.access` — moderador OU
+  admin, a MESMA porta da fila de denúncias). O moderador OUVE por endpoint dedicado
+  throttlado (`moderacao.voice-intros.audio`, os bytes nunca entram na prop da
+  página) e aprova/**recusa com motivo obrigatório** (`ModerateVoiceIntroRequest`,
+  `required_if:status,rejected`). `moderated_by`/`moderated_at`/`status` por
+  `forceFill` no serviço, autoridade do servidor. **Sem PII de membro** — a intro é
+  conteúdo da PERFORMER (identidade pública verificada), não há membro no fluxo.
+- **Sanitização por ffmpeg — `VoiceProcessingService` (SEPARADO do vídeo).** Job
+  assíncrono `ProcessVoiceIntro` (`processing`): re-encode para **MP3 mono
+  normalizado** a partir do stream decodificado, mapeando **só o 1º áudio**
+  (`-map 0:a:0 -vn -dn -sn` — derruba vídeo/capa/data/subtitle, vetores de metadado
+  num `.m4a`), **strip de TODO metadado** (`-map_metadata -1 -write_id3v2 0
+  -write_id3v1 0 -fflags +bitexact` — mata ID3/GPS/device/timestamps e a tag
+  "encoder"), `loudnorm`. O arquivo servido deixa de ser o enviado. **Fail-closed:**
+  ffmpeg ausente → `assertAvailable` lança e o upload é RECUSADO (não se aceita áudio
+  sem sanitização). Config PRÓPRIO `config/voice.php` (20s/5MB/MP3), não o de vídeo.
+  Codecs conferidos no servidor (libmp3lame presente).
+- **Gate de duração (≤20s) + tamanho (≤5MB) ANTES do processamento caro.** Tamanho:
+  Form Request (`max`). Duração: ffprobe no upload → 422 `too_long`. Gravação de
+  navegador (webm de MediaRecorder) às vezes não traz duração no header →
+  `probeDurationSeconds` devolve `null` e o gate é **deferido ao job**, que reconfere
+  sobre o MP3 já processado e **REJEITA (`failed too_long`), nunca trunca**. Arquivo
+  não-mídia (renomeado) → `unreadable` (422).
+- **Serving por disco privado `performer_voice_intros`** (`serve => false`), áudio
+  **EM CLARO** sem Crypt (1:N como Story/Content), bytes só pela camada de controller
+  com **Content-Type FIXO `audio/mpeg` + nosniff + no-store** (nós produzimos o MP3),
+  **nunca URL assinada** (autorização por request; approval/atividade podem mudar —
+  URL assinada viraria bearer token). `response()->file()` dá Range/seek. Disco sob
+  `storage/app/private` (permanente, entra no backup allowlist — o OPOSTO de
+  story/foto efêmera). `content_hash` (SHA-256 dos bytes processados, prova) e `path`
+  são `$hidden`; `$fillable` vazio (disciplina de PerformerContent/2FA).
+- **Serving público** (`voice-intro.audio`, `/performers/{profile}/apresentacao-de-voz`,
+  sem auth — isca pública): só `approved` **E** performer de pé (verificada + conta
+  ativa + não soft-deletada); qualquer outro estado/performer → 404. **Preview da
+  dona** (`performer.voice-intro.audio`): qualquer status COM bytes (ela ouve a
+  própria pendente/recusada), gate `performer-active`, só a PRÓPRIA (query por
+  `performer_profile_id` dela).
+- **UI:** botão dourado de play (`<VoiceIntroPlayer>`) ao lado do nome em
+  `Catalog/Show` e `Performers/Show` (só quando `voice_intro_url` presente = há
+  aprovada — injetada pelos controllers, FORA do resource para o card não carregar a
+  URL). Ícone discreto "tem áudio" no card (`has_voice_intro`, BOOLEANO derivado via
+  `hasApprovedVoiceIntro`, barato no catálogo por `withCount` no `scopePublicCatalog`;
+  dourado, nunca `limen-live`). Tela de gestão `Performer/VoiceIntro/Edit` (MediaRecorder
+  **e** upload de arquivo, status + motivo de recusa, aviso de consentimento). Fila
+  `Moderacao/VoiceIntros/Index` com player. Links: "Áudios" na nav (moderador),
+  "Apresentação de voz" no painel da performer.
+- **Hard Delete varre a intro** (`purgePerformerVoiceIntro` por perfil + bytes em
+  `collectFilePaths`) — a FK `cascadeOnDelete` NÃO dispara (perfil é soft-delete,
+  item 11). **GC `voice:purge-orphan-raw`** (horário) varre os crus órfãos em `tmp/`,
+  como o do vídeo.
+- **Zero asset externo** (`ExternalAssetPolicyTest` verde): player em SVG/`<audio>`
+  inline, sem lib. **Não toca mobile-layout nem outras features.**
 
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 
