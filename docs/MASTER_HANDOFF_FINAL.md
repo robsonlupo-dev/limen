@@ -1331,7 +1331,7 @@ congelado** em `applied_rate`, **tokens inteiros**.
 
 ---
 
-## Intro de voz da performer — `feat/voice-intro` (PR pendente)
+## Intro de voz da performer — `feat/voice-intro` (PR #180, mergeado na `main` `92ba2c7`)
 
 **PRIMEIRO áudio do projeto** (greenfield — auditoria confirmou que não havia nada
 de áudio). A performer grava/envia um clipe curto (**≤20s, ≤5MB**) no perfil; é isca
@@ -3082,7 +3082,17 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 
 ## Apêndice A — Backlog e próximos passos
 
-### A.0 Sprint 13 — ENTREGUE
+> **Convenção de cabeçalho (adotada 11/08/2026 — leia antes de adicionar seção).**
+> Estas seções usam **título descritivo estável** (por feature ou por sprint), **não
+> numeração sequencial `A.0.N`**. A numeração sequencial era frágil: cada branch
+> adicionava a próxima seção `A.0.N`, e duas branches criadas em paralelo colidiam no
+> MESMO número ao mergear — foi o que forçou o renumber "A.0.4 → A.0.9" no fecho da
+> fila de melhorias. Título descritivo único não colide (duas branches paralelas
+> escrevem cabeçalhos diferentes), então **ao adicionar seção nova ao handoff, use um
+> título descritivo único (o nome da feature), nunca o "próximo número"**. As entradas
+> abaixo foram convertidas; os antigos rótulos `A.0.x` foram removidos.
+
+### Sprint 13 — ENTREGUE
 
 O backlog do Sprint 13 foi implementado (PRs #125–#129, ver "Sprint 13 —
 Fechado"). Marcado aqui para não ser relido como pendente:
@@ -3097,7 +3107,7 @@ Fechado"). Marcado aqui para não ser relido como pendente:
 - [x] **Permissões de fotos** — pública/privada + grant por FanAlias (PR #128).
 - [x] **Feed UI consumindo `stories.feed`** — carrossel no catálogo (PR #129).
 
-### A.0.1 Sprint 14 — ENTREGUE
+### Sprint 14 — ENTREGUE
 
 O backlog do Sprint 14 — a **implementação do modelo de monetização M.13** — foi
 implementado (PRs #130–#137, ver "Sprint 14 — Fechado"). Cada tipo novo de gasto/
@@ -3123,7 +3133,7 @@ como pendente:
 - [x] **Desconto de tokens por tier** sobre a compra de pacotes — entregue no
       PR #131 (a config M.13.3 é a autoridade de cobrança).
 
-### A.0.2 Sprint 15 — ENTREGUE
+### Sprint 15 — ENTREGUE
 
 O backlog do Sprint 15 — o **vídeo em tempo real (LiveKit)** — foi implementado
 (PRs #138–#145, ver "Sprint 15 — Fechado"). Os `entry_type` `spend_live`/
@@ -3152,7 +3162,7 @@ pendente:
       LiveKit via WebRTC/DTLS-SRTP, backend só emite tokens (ver "Sprint 15 —
       Fechado").
 
-### A.0.3 Sprint 16 — FECHADO (PRs #151–#166, `37d8cec`)
+### Sprint 16 — FECHADO (PRs #151–#166, `37d8cec`)
 
 Estado item a item (ver "Sprint 16 — Fechado" para o detalhe por PR):
 
@@ -3188,19 +3198,11 @@ para a performer (#165), anti-CSAM MVP (#161), dashboard admin de receita
 > **O "Toast notification estilo Seeking" já foi entregue** (PR #144). Se aparecer
 > em lista antiga de backlog, está feito.
 
-### A.0.4 Visitas bidirecionais — RENUMERADO → ver A.0.9
-
-**Renumerado para A.0.9** no rebase sobre a `main` pós-#177 (`191d384`), para não
-colidir com a numeração que os PRs já mergeados (#173–#177) consolidaram. Este slot
-era o placeholder "DESENHADO, PENDENTE" da feature; o writeup da ENTREGA vive agora
-em **A.0.9 Visitas bidirecionais**, ao final da lista A.0.x. Nada além do número
-mudou.
-
-### A.0.5 Catálogo de membros como HOME + motor de engajamento — ENTREGUE (branch, PR pendente)
+### Catálogo de membros como HOME + motor de engajamento — ENTREGUE (PR #173, `67f88a0`)
 
 Branch `feat/member-catalog-home-engagement` (3 commits: backend, frontend, panic;
-+13 testes → 1907/15501; revisão de segurança sem 🔴). É o pré-requisito que a A.0.9
-(visitas bidirecionais) esperava. Detalhe completo no CLAUDE.md, §§ "Catálogo de
++13 testes → 1907/15501; revisão de segurança sem 🔴). É o pré-requisito que as
+visitas bidirecionais esperavam. Detalhe completo no CLAUDE.md, §§ "Catálogo de
 membros como HOME + motor de engajamento" e "PanicButton". Resumo:
 
 - **Home da performer = catálogo de membros.** Login e logo levam a `performer.members`
@@ -3224,7 +3226,7 @@ membros como HOME + motor de engajamento" e "PanicButton". Resumo:
   franquia à prova de corrida; M.13.10 mantido; Hard Delete varre corações (2 sentidos)
   + contador.
 
-### A.0.6 Sinais de atividade nos catálogos — ENTREGUE (branch, PR pendente)
+### Sinais de atividade nos catálogos — ENTREGUE (PR #175, `f3ec9b1`)
 
 Branch `feat/activity-badges` (a partir de `67f88a0`; +10 testes → 1917/15612;
 revisão de segurança sem 🔴). **Item 2 da fila de melhorias:** dar ao catálogo a
@@ -3260,7 +3262,7 @@ atividade nos catálogos". Resumo:
 - **Migration nova:** `2026_08_15_000001_add_hearts_seen_at_to_users` (watermark de
   corações vistos). Nenhuma outra mudança de schema.
 
-### A.0.7 Teaser da mensagem bloqueada — ENTREGUE (branch, PR pendente)
+### Teaser da mensagem bloqueada — ENTREGUE (PR #176, `17ba83e`)
 
 Branch `feat/message-preview-teaser` (rebaseada sobre a `main` pós-#175; +11 testes
 → 1936; security review feita, sem 🔴 — um 🟡 do broadcast em carência foi CORRIGIDO). **Item 3 da fila de
@@ -3280,7 +3282,7 @@ melhorias.** Detalhe completo no CLAUDE.md, § "Teaser da mensagem bloqueada". R
   `ChatService::broadcastListUpdate` (broadcast → lista em tempo real + toast).
   `NewMessage` ganhou `locked` (distingue gancho de mensagem legível). Front:
   `Chat/Index.vue`, `MessageToast.vue`, `Chat/Show.vue` — nenhum recebe o corpo.
-### A.0.8 Filtro de cidade CONSENTIDO — ENTREGUE (branch `feat/city-autocomplete-filter`, PR pendente)
+### Filtro de cidade CONSENTIDO — ENTREGUE (PR #177, `191d384`)
 
 **Item 4 da fila.** Autocomplete de município (IBGE) no filtro do catálogo. Rebaseada
 sobre a `main` pós-#176 (`17ba83e`); +14 testes → **1950/15802** (1949 passam, 1 falha
@@ -3307,14 +3309,13 @@ Resumo e a DECISÃO DE PRODUTO que o define:
 - **UI:** `<CityAutocomplete>` no `FilterPanel` (duas portas do catálogo de performers)
   e no editor de localização (cidade gravada vira canônica).
 
-### A.0.9 Visitas bidirecionais — ENTREGUE (branch `feat/bidirectional-visits`, PR pendente)
+### Visitas bidirecionais — ENTREGUE (PR #178, `f6597d3`)
 
-**Item 5 da fila.** (Antes era o placeholder A.0.4; renumerado para A.0.9 no rebase
-sobre a `main` pós-#177 para não colidir com A.0.5–A.0.8.) Entregue a partir da
-`main` pós-#177 (`191d384`); +19 testes; revisão de segurança **sem 🔴/🟡** (um 🟢 de
-fuso na faixa de data foi CORRIGIDO). Detalhe completo no CLAUDE.md, § "Visitas
-bidirecionais". A dependência dura (catálogo de membros como home, A.0.5) já está
-mergeada na `main` (#173, `67f88a0`).
+**Item 5 da fila.** Branch `feat/bidirectional-visits`, a partir da `main` pós-#177
+(`191d384`); +19 testes; revisão de segurança **sem 🔴/🟡** (um 🟢 de fuso na faixa de
+data foi CORRIGIDO). Detalhe completo no CLAUDE.md, § "Visitas bidirecionais". A
+dependência dura (catálogo de membros como home) já está mergeada na `main` (#173,
+`67f88a0`).
 
 **O que existia (auditado, ponto de partida):** o sistema de visitas era
 **unidirecional — membro → performer** (`profile_visits`, `ProfileVisitService::record()`,
@@ -3354,9 +3355,9 @@ gerava registro; não havia tela "quem me visitou" para o membro.
 (`purgeMemberProfileVisits` por `member_id`, `purgeMemberProfileVisitsByPerformer`
 por `performer_profile_id`) — as FKs cascade não disparam (soft-delete).
 
-### A.0.10 Microinterações premium — ENTREGUE (branch `feat/micro-interactions`, PR pendente)
+### Microinterações premium — ENTREGUE (PR #179, `16ce24a`)
 
-Branch a partir da `main` `f6597d3`; +3 testes (estáticos); build compila;
+Branch `feat/micro-interactions` a partir da `main` `f6597d3`; +3 testes (estáticos); build compila;
 `ExternalAssetPolicyTest` verde. **Camada puramente VISUAL** para o site "sentir
 caro" — nada de lógica, ledger ou privacidade. Detalhe completo no CLAUDE.md, §
 "Microinterações premium".
@@ -3396,6 +3397,59 @@ por `resources/css/app.css`. Travada por `tests/Unit/MicroInteractionsTest.php`
 **Fora de escopo (registrado):** responsividade/mobile do gesto de hover (não se
 aplica ao toque, por design) e page-transition via wiring de router Inertia (o fade
 por re-mount cobre o pedido sem risco).
+
+### Captcha — driver switchável hCaptcha/Turnstile — ENTREGUE (PR #174, `04ea58b`)
+
+Branch `feat/cloudflare-turnstile`. O que era só hCaptcha (Sprint 9) virou **driver
+abstrato** com dois provedores intercambiáveis por config. **Motivo:** o trial Pro do
+hCaptcha acaba em 11/08/2026 (cairia para o free e seus limites); o Turnstile é
+gratuito e sem eles. Detalhe completo no CLAUDE.md, § "Captcha". Resumo:
+
+- **Um interruptor:** `CAPTCHA_PROVIDER=none|hcaptcha|turnstile`. Sobe DESLIGADO
+  (`none`, no-op total — campo não exigido, widget não monta, zero byte a terceiro).
+  Ponte de compat: `HCAPTCHA_ENABLED=true` legado ainda seleciona o hCaptcha.
+- **Dona única da ESCOLHA:** `App\Services\Captcha\CaptchaManager` (resolve o driver do
+  `config/captcha.php`); a lógica de siteverify + fail-open é compartilhada em
+  `RemoteCaptchaDriver` (contratos server-side de hCaptcha e Turnstile são idênticos).
+- **Dona única do CONTRATO nas portas:** `App\Rules\CaptchaValid` (era `HCaptchaValid`),
+  campo NEUTRO `captcha_token`, consumida por Login/Register/OTP. Rota de auth nova entra
+  pela regra, não reimplementa o captcha.
+- **Front:** `Captcha.vue` (era `HCaptcha.vue`); as duas URLs de SDK são LITERAIS (uma
+  por provedor) para a `ExternalAssetPolicyTest` enxergá-las. Segurança do provedor
+  único preservada (segredo nunca ao front, `remoteip` nunca ao siteverify, fail-open,
+  token de uso único). **Conformidade bloqueia ATIVAÇÃO, não merge:** o provedor
+  escolhido entra em política de privacidade + registro de subprocessadores + DPA antes
+  de sair de `none` em produção.
+
+### Intro de voz da performer — ENTREGUE (PR #180, `92ba2c7`)
+
+Branch `feat/voice-intro`; +28 testes → **2000/15960**; revisão de segurança **sem
+🔴/🟡**. **PRIMEIRO áudio do projeto** (greenfield). Detalhe completo no CLAUDE.md, §
+"Intro de voz da performer" e na § "Intro de voz da performer" do corpo deste doc.
+Resumo:
+
+- **Isca de engajamento GRÁTIS de ouvir, opt-in.** A performer grava/envia um clipe
+  ≤20s no perfil (membro OU visitante deslogado ouve; não move token, fora do ledger).
+  Uma por performer (UNIQUE `performer_profile_id`; regravar SUBSTITUI).
+- **MODERAÇÃO HUMANA OBRIGATÓRIA — controle central.** Ciclo `processing → pending →
+  approved/rejected` (`failed` = erro técnico); **só `approved` é servível**. **Motivo
+  (PO):** áudio dribla o filtro de texto do chat — por voz a performer poderia negociar
+  encontro/passar contato (**risco art. 228**); anti-CSAM não se aplica a áudio, o humano
+  é o gate. Fila `/moderacao/apresentacoes-de-voz` (`moderator.access`), recusa com motivo
+  obrigatório. O job marca `pending`, nunca `approved` sozinho (travado por teste).
+- **Sanitização ffmpeg — `VoiceProcessingService` (SEPARADO do vídeo).** Job
+  `ProcessVoiceIntro`: re-encode MP3 mono do stream decodificado (`-map 0:a:0 -vn -dn
+  -sn`), strip de TODO metadado (ID3/GPS/device), `loudnorm`. Fail-closed sem ffmpeg.
+  Config próprio `config/voice.php` (20s/5MB/MP3). Gate de duração ≤20s por ffprobe no
+  upload; webm sem duração no header → deferido ao job, que reconfere e REJEITA (nunca
+  trunca).
+- **Serving por disco privado `performer_voice_intros`**, áudio EM CLARO (1:N, sem
+  Crypt), bytes só pela camada de controller com Content-Type FIXO `audio/mpeg` +
+  nosniff + no-store, **nunca URL assinada** (autorização por request). Público só
+  `approved` + performer de pé; preview da dona em qualquer status com bytes. `content_hash`
+  e `path` `$hidden`.
+- **Hard Delete varre a intro** (`purgePerformerVoiceIntro` + bytes); **GC
+  `voice:purge-orphan-raw`** (horário). Zero asset externo. Não toca mobile-layout.
 
 ### A.1 Go-live (pré-produção)
 

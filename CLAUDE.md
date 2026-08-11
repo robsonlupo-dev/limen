@@ -65,6 +65,12 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
   tema legado) continuam onde já estavam, mas tela nova entra em `limen-*`.
 - Commits pequenos, em inglês, no imperativo ("add token ledger migration").
 - 1 PR por entrega. Testes verdes antes de marcar como pronto.
+- **Ao adicionar seção nova ao handoff (`docs/MASTER_HANDOFF_FINAL.md`), use um
+  título descritivo único (nome da feature ou data), NUNCA número sequencial
+  (`A.0.N`).** A numeração sequencial colide quando duas branches criadas em paralelo
+  adicionam a "próxima" seção com o mesmo número — foi o que forçou o renumber
+  "A.0.4 → A.0.9". Título descritivo não colide. (Ver a nota de convenção no topo do
+  Apêndice A do handoff.)
 
 ## Fluxo de trabalho
 - O Product Owner (Robson) abre issues no GitHub para bugs e mudanças.
@@ -311,78 +317,68 @@ PR #140 — sem tipo novo.
 
 ## Estado atual
 
-> **Estado atual** (`main`, `db007b3`): **1894 testes, 15458 asserts** (1893 passam
+> **Estado atual** (`main`, `92ba2c7`): **2000 testes, 15960 asserts** (1999 passam
 > local — a única falha é a antiga da view 451 do GeoBlock, que não recorre depois do
-> `npm run build`, que compila a view — ver § "Ambiente de dev"). **124 migrations,
-> ~180 rotas web + 42 rotas API.** O **Agendamento de chamada** (PR #170,
-> `feat/scheduled-call-v1`, +28 testes) foi mergeado na `main` (`db007b3`) — ver §
-> "Agendamento de chamada". (Sprint 16 fechou em `55de8cd`; o merge de docs #169
-> levou `main` a `3328390`, e o #170 a `db007b3`.)
+> `npm run build`, que compila a view — ver § "Ambiente de dev"). **130 migrations,
+> ~205 rotas web + 42 rotas API.** A **fila de melhorias** (itens 2–5) e o polimento
+> premium foram **consolidados na `main`** nesta sessão — sete PRs mergeados em
+> sequência a partir do fecho do Agendamento de chamada (`db007b3` → docs #169 →
+> catálogo-de-membros-home #173 `67f88a0` → os sete abaixo). O detalhe completo vive
+> em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
+> `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa. **Base original**
+> (PR #69, `229d852`): 556 testes, 2614.
 >
-> **Em branch (`feat/member-catalog-home-engagement`, +13 testes → 1907 testes /
-> 15501 asserts, PR pendente):** o **catálogo de membros virou a HOME da performer**
-> e ganhou o **motor de engajamento coração + mensagem** — ver §§ "Catálogo de
-> membros como home" e "Motor de engajamento". Sobe DESLIGADO de nada (não tem flag —
-> é reescrita de superfície existente + duas tabelas novas). O #173 mergeou na
-> `main` (`67f88a0`).
+> **Consolidado na `main` nesta sessão (todos MERGEADOS, `92ba2c7`):**
 >
-> **Em branch (`feat/activity-badges`, a partir de `67f88a0`, +10 testes → 1917
-> testes / 15612 asserts, PR pendente):** **sinais de atividade nos catálogos** —
-> selo "Nova/Novo" (janela de 7 dias, `NewBadge`) nos dois catálogos + contadores de
-> não-vistos na nav (mensagens não lidas respeitando o paywall + corações recebidos,
-> `NavBadgeService`/`nav_counts`). **"Online agora" NÃO entrou** (decisão do PO —
-> colide com a granularidade "hoje" do `ActivitySlot` e a não-exposição de presença
-> do membro). Uma migration nova (`hearts_seen_at`, watermark de corações vistos). Ver
-> § "Sinais de atividade nos catálogos". **Base original**
-> (PR #69, `229d852`): 556 testes, 2614. O detalhe completo vive em
-> **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
-> `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa.
+> - **Turnstile — driver de captcha switchável** (PR #174, `04ea58b`): o que era só
+>   hCaptcha virou `CAPTCHA_PROVIDER=none|hcaptcha|turnstile` (`config/captcha.php`,
+>   `App\Services\Captcha\*`, regra `CaptchaValid`, `Captcha.vue`). Sobe DESLIGADO
+>   (`none`, no-op). Motivado pelo fim do trial Pro do hCaptcha (11/08/2026). Ver §
+>   "Captcha".
+> - **Sinais de atividade nos catálogos** (PR #175, `f3ec9b1`, +10 testes): selo
+>   "Nova/Novo" (janela de 7 dias, `NewBadge`, BOOLEANO derivado) nos dois catálogos +
+>   contadores de não-vistos na nav (`NavBadgeService`/`nav_counts` — mensagens não
+>   lidas respeitando o paywall + corações recebidos via watermark `hearts_seen_at`).
+>   **"Online agora" NÃO entrou** (decisão do PO — colide com a granularidade "hoje" do
+>   `ActivitySlot` e a não-exposição de presença do membro). Ver § "Sinais de atividade
+>   nos catálogos".
+> - **Teaser da mensagem bloqueada** (PR #176, `17ba83e`, +11 testes): corte
+>   **SERVER-SIDE** das primeiras ~3 palavras da mensagem paga (o membro sem acesso
+>   nunca recebe o corpo completo — borrar via CSS vazaria no DevTools). Dona única
+>   `App\Support\MessageTeaser` + `config/message_teaser.php`. A economia (gate M.13.1)
+>   não muda; só o preview. Ver § "Teaser da mensagem bloqueada".
+> - **Filtro de cidade CONSENTIDO no catálogo de performers** (PR #177, `191d384`,
+>   +14 testes, item 4 da fila): autocomplete do IBGE (~5.570 municípios em
+>   `public/data/ibge-municipios.json`, self-hosted, zero asset externo) + opt-in
+>   `findable_by_city` (default OFF). A cidade da performer **continua interna** (só UF
+>   é pública); ela só passa a FILTRAR a busca de quem ligou o opt-in, e **nunca é
+>   exibida**. NÃO toca o catálogo de MEMBROS. Ver § "Filtro de cidade consentido".
+> - **Visitas bidirecionais** (PR #178, `f6597d3`, +19 testes, item 5 da fila): o
+>   sentido INVERSO das visitas (performer → membro) — a performer abre o "perfil" de
+>   um membro e o membro vê **"Quem visitou seu perfil"** (`/quem-me-visitou`) com a
+>   identidade PÚBLICA da performer (sem FanAlias, sem piso, sem paywall). Tabela nova
+>   `member_profile_visits` (separada de `profile_visits`); `ProfileVisitService`
+>   ESTENDIDO. Ghost Mode não se aplica ao inverso. v1 sem monetização. Ver § "Visitas
+>   bidirecionais".
+> - **Microinterações premium** (PR #179, `16ce24a`, +3 testes): camada puramente
+>   VISUAL (CSS puro, zero biblioteca, zero asset externo) — lift dos cards, micro-pulso
+>   dos botões, "pop" do coração, fade de página, barra dourada de loading, slide do
+>   erro de formulário. Tudo desligado sob `prefers-reduced-motion`, sem tocar
+>   mobile/lógica/privacidade. Dona única `resources/css/micro-interactions.css`. Ver §
+>   "Microinterações premium".
+> - **Intro de voz da performer** (PR #180, `92ba2c7`, +28 testes): PRIMEIRO áudio do
+>   projeto (greenfield). Clipe ≤20s no perfil, GRÁTIS de ouvir, opt-in. Higienizado por
+>   ffmpeg (MP3 mono, strip de TODO metadado — `VoiceProcessingService`, separado do
+>   vídeo) e **NÃO vai ao ar sem MODERAÇÃO HUMANA** (`processing → pending →
+>   approved/rejected`; só `approved` é servível). Motivo (PO): áudio dribla o filtro de
+>   texto do chat — risco art. 228; anti-CSAM não se aplica a áudio, o humano é o gate.
+>   Fila `/moderacao/apresentacoes-de-voz`, disco privado, serving por request. Ver §
+>   "Intro de voz da performer".
 >
-> **Em branch (`feat/city-autocomplete-filter`, mergeada na `main` pós-#177
-> `191d384`, +14 testes → 1950 testes / 15802 asserts):** **filtro de cidade
-> CONSENTIDO no catálogo de performers** (item 4 da fila) — autocomplete do IBGE
-> (~5.570 municípios embutidos em `public/data/ibge-municipios.json`, self-hosted,
-> zero asset externo) + opt-in `findable_by_city` (default OFF). A cidade da
-> performer **continua interna** (só UF é pública); ela só passa a FILTRAR a busca
-> para quem ligou o opt-in, e **nunca é exibida**. Ver § "Filtro de cidade
-> consentido". Revisão de segurança rodada, **sem 🔴/🟡**. NÃO toca o catálogo de
-> MEMBROS (membro não expõe cidade — decisão de privacidade preservada).
->
-> **Em branch (`feat/bidirectional-visits`, a partir da `main` pós-#177 `191d384`,
-> +19 testes, PR pendente):** **visitas bidirecionais** (item 5 da fila) — o sentido
-> INVERSO das visitas: a performer abre o "perfil" de um membro no catálogo dela e o
-> membro vê **"Quem visitou seu perfil"** (`/quem-me-visitou`) com a identidade
-> PÚBLICA da performer (sem FanAlias, sem piso, sem paywall — performer é pública).
-> Tabela nova `member_profile_visits` (separada de `profile_visits`, que fica
-> intocada); `ProfileVisitService` ESTENDIDO (não duplicado). O sentido antigo
-> (membro→performer, com FanAlias/Ghost Mode/piso/k) não regride; Ghost Mode não se
-> aplica ao inverso (quem é exposto é a performer). v1 sem monetização. Revisão de
-> segurança **sem 🔴/🟡**. Ver § "Visitas bidirecionais". NÃO toca o catálogo de
-> performers nem mobile.
->
-> **Em branch (`feat/micro-interactions`, a partir da `main` `f6597d3`, +3 testes,
-> PR pendente):** **microinterações premium** — camada puramente VISUAL (CSS puro,
-> zero biblioteca, zero asset externo) para o site "sentir caro": lift dos cards no
-> hover, micro-pulso tátil dos botões, "pop" do coração ao marcar, fade entre
-> páginas, barra dourada de loading e slide do erro de formulário. Tudo desligado
-> sob `prefers-reduced-motion` e sem tocar mobile/lógica/privacidade. Dona única:
-> `resources/css/micro-interactions.css` (classes `mi-*`). Ver § "Microinterações
-> premium". `ExternalAssetPolicyTest` verde; build compila.
->
-> **Em branch (`feat/voice-intro`, a partir da `main` `16ce24a`, +28 testes → 2000
-> testes / 15960 asserts, PR pendente):** **intro de voz da performer** — PRIMEIRO
-> áudio do projeto (greenfield). A performer grava/envia um clipe ≤20s no perfil
-> (isca de engajamento, GRÁTIS de ouvir, opt-in). O áudio é higienizado por ffmpeg
-> num job (MP3 mono, strip de TODO metadado — pipeline PRÓPRIO, `VoiceProcessingService`,
-> separado do vídeo) e **NÃO vai ao ar sem MODERAÇÃO HUMANA**: `processing → pending
-> → approved/rejected` (`failed` = erro técnico); só `approved` é servível. Motivo
-> (PO): áudio dribla o filtro de texto do chat — risco de negociar encontro/contato
-> por voz (art. 228); anti-CSAM não se aplica a áudio, o humano é o gate. Fila em
-> `/moderacao/apresentacoes-de-voz`. Disco privado `performer_voice_intros`, serving
-> por request (Content-Type fixo + nosniff, sem URL assinada). Hard Delete + GC
-> `voice:purge-orphan-raw`. Zero asset externo. Revisão de segurança **sem 🔴/🟡**.
-> Ver § "Intro de voz da performer". Suíte verde no MySQL (a única falha é a antiga
-> do GeoBlock 451 deste clone de dev).
+> Todos com revisão de segurança rodada (sem 🔴/🟡, salvo os 🟡/🟢 já corrigidos
+> registrados nas §§ respectivas). A **dependência dura** das visitas bidirecionais — o
+> catálogo de membros como HOME + motor de engajamento coração/mensagem — mergeou antes,
+> no #173 (`67f88a0`); ver §§ "Catálogo de membros como HOME" e "Motor de engajamento".
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1012,7 +1008,7 @@ performers; o inverso não existe e não deve passar a existir). Dona única:
   aplica ao clicar e apaga por item. A lista chega como prop do `CatalogController`
   (mesma fonte do endpoint `saved-searches.index`), recarregada após salvar/apagar.
 
-## Filtro de cidade consentido — `feat/city-autocomplete-filter` (item 4 da fila, PR pendente)
+## Filtro de cidade consentido — `feat/city-autocomplete-filter` (item 4 da fila, PR #177, mergeado na `main`)
 
 **Item 4 da fila de melhorias.** Autocomplete de município no filtro do catálogo de
 performers (estilo Seeking): o membro digita, escolhe uma cidade do IBGE e filtra.
@@ -1087,7 +1083,7 @@ oráculo para reconstruir quem a lista esconde — disciplina do
 - **Só membro verificado e ativo** (`role=consumer`, `status=active`,
   `email_verified_at` não-nulo) — throwaway não é exposto à performer.
 
-## Catálogo de membros como HOME + motor de engajamento — `feat/member-catalog-home-engagement` (PR pendente)
+## Catálogo de membros como HOME + motor de engajamento — `feat/member-catalog-home-engagement` (PR #173, mergeado na `main`)
 
 Evolução do PR #165. **O catálogo de membros virou a HOME da performer** (antes era o
 painel): ao logar, a performer ativa cai em `performer.members`
@@ -1146,7 +1142,7 @@ Invariantes travadas (revisão de segurança rodada, sem 🔴):
   + o contador (`purgePerformerMessageQuotas`). FKs `restrictOnDelete` não disparam
   (soft-delete) — DELETE explícito.
 
-## Visitas bidirecionais — `feat/bidirectional-visits` (item 5 da fila, PR pendente)
+## Visitas bidirecionais — `feat/bidirectional-visits` (item 5 da fila, PR #178, mergeado na `main`)
 
 **Item 5 da fila.** O sistema de visitas era unidirecional — **membro → performer**
 (`profile_visits`, `ProfileVisitService::record()`; a performer vê "visitantes
@@ -1206,7 +1202,7 @@ segurança rodada.
   tela do membro `Consumer/Visitors/Index.vue` espelha a de corações; link "Quem me
   visitou" na nav do membro. **Não toca o catálogo de performers nem mobile.**
 
-## Sinais de atividade nos catálogos — `feat/activity-badges` (PR pendente)
+## Sinais de atividade nos catálogos — `feat/activity-badges` (PR #175, mergeado na `main`)
 
 Para o site "parecer vivo" (inspirado no "New member"/contadores do Seeking), duas
 superfícies novas, ambas em cima de dado que JÁ existe — **sem** rastrear presença
@@ -1255,7 +1251,7 @@ nova. **Item 2 da fila de melhorias.**
   o contrato `is_invisible` do `HandleInertiaRequests`). **Não reintroduzir** um
   indicador de presença ao minuto sem nova decisão de PO.
 
-## Teaser da mensagem bloqueada — `feat/message-preview-teaser` (PR pendente)
+## Teaser da mensagem bloqueada — `feat/message-preview-teaser` (PR #176, mergeado na `main`)
 
 **Item 3 da fila de melhorias.** Antes, a mensagem que a performer manda ao membro
 (o motor de engajamento do #173, e todo chat pré-desbloqueio) ficava 100% bloqueada
@@ -1297,7 +1293,7 @@ gate de chat (1-2 tk, M.13.1) é o mesmo; só o preview.
   mostra o `teaser` no banner de desbloqueio. Nenhum deles recebe o corpo — o corte
   já veio pronto do backend.
 
-## Microinterações premium — `feat/micro-interactions` (PR pendente)
+## Microinterações premium — `feat/micro-interactions` (PR #179, mergeado na `main`)
 
 Camada **puramente visual** para o site "sentir caro" — CSS puro, **zero
 biblioteca** (sem GSAP/Three.js) e **zero asset externo** (`ExternalAssetPolicyTest`
@@ -1343,7 +1339,7 @@ nem com os tokens `limen-*`.
   (1.8s, opacity/scale sutil, já com guard de reduced-motion) **já existia** — foi
   mantido, não reintroduzido. `limen-live` segue EXCLUSIVO do estado ao vivo.
 
-## Intro de voz da performer — `feat/voice-intro` (PR pendente)
+## Intro de voz da performer — `feat/voice-intro` (PR #180, mergeado na `main`)
 
 **PRIMEIRO áudio do projeto** (greenfield — não havia nada de áudio até aqui). A
 performer grava/envia um clipe curto (**≤20s**) no perfil; é isca de engajamento — o
@@ -1539,7 +1535,7 @@ ação:
 
 1. **Link de texto no header** (pedido do PO) — montado inline no fluxo do header,
    nomeado, para o membro achar a saída sem adivinhar. Um modal pode cobri-lo.
-   **Atualização (`feat/member-catalog-home-engagement`, PR pendente):** o link é
+   **Atualização (`feat/member-catalog-home-engagement`, PR #173, mergeado):** o link é
    agora **PROMINENTE e empilhado ABAIXO do nome** (nome em cima, "Panic Button"
    embaixo, numa coluna no header desktop), com **borda dourada `limen-gold`
    visível** e rótulo legível `text-limen-gold` (antes era `muted`/`border-frame`,
@@ -2026,10 +2022,9 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD='<ver .env>' \
   HCAPTCHA_ENABLED=false php artisan test
 ```
-  Resultado esperado (`main` `db007b3`, pós-PR #170): **1893 passam, 1 falha** de
-  **1894 testes / 15458 asserts** (o `GeoBlockTest` da view 451, falha documentada só
-  neste clone de dev; verde no CI). Na branch
-  `feat/member-catalog-home-engagement` (+13 testes): **1906 passam, 1 falha** (a
-  mesma do GeoBlock) de **1907 testes / 15501 asserts**. Na branch
-  `feat/activity-badges` (a partir do #173 mergeado, +10 testes): **1916 passam, 1
-  falha** (a mesma do GeoBlock) de **1917 testes / 15612 asserts**.
+  Resultado esperado (`main` `92ba2c7`, pós-PRs #173–#180): **1999 passam, 1 falha**
+  de **2000 testes / 15960 asserts** (o `GeoBlockTest` da view 451, falha documentada
+  só neste clone de dev; verde no CI). Este é o número consolidado da sessão de fecho
+  da fila de melhorias — Turnstile (#174), sinais de atividade (#175), teaser (#176),
+  filtro de cidade (#177), visitas bidirecionais (#178), microinterações (#179) e
+  intro de voz (#180), todos mergeados na `main`.
