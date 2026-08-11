@@ -13,11 +13,13 @@ defineProps({
         :type="type"
         :disabled="disabled || loading"
         :class="[
-            'inline-flex items-center justify-center font-sans font-medium tracking-wide transition-all duration-200 rounded-lg focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2',
+            'mi-press inline-flex items-center justify-center font-sans font-medium tracking-wide transition-all duration-200 rounded-lg focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2',
             size === 'sm' && 'px-4 py-2 text-sm',
             size === 'md' && 'px-6 py-3 text-sm',
             size === 'lg' && 'px-8 py-4 text-base',
-            variant === 'primary' && 'bg-gold text-background hover:bg-gold-light disabled:opacity-50 disabled:cursor-not-allowed',
+            // Micro-pulso tatil em todos (mi-press); lift/brilho dourado (mi-glow)
+            // so no CTA dourado, o gesto premium reservado a acao primaria.
+            variant === 'primary' && 'mi-glow bg-gold text-background hover:bg-gold-light disabled:opacity-50 disabled:cursor-not-allowed',
             variant === 'ghost' && 'border border-gold text-gold hover:bg-gold/10 disabled:opacity-50 disabled:cursor-not-allowed',
             variant === 'danger' && 'bg-danger text-cream hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed',
         ]"
