@@ -20,4 +20,14 @@ return [
     'live_enabled' => (bool) env('FEATURE_LIVE_ENABLED', false),
     'call_enabled' => (bool) env('FEATURE_CALL_ENABLED', false),
 
+    /*
+     * Pré-lançamento da landing. Default TRUE (ao contrário das flags de dark
+     * launch acima): o site está em pré-lançamento HOJE, então a raiz pública só
+     * captura e-mail — a landing esconde os botões de conta do header (Entrar /
+     * Criar conta) e não oferece cadastro. No lançamento, `LANDING_PRELAUNCH=false`
+     * traz os botões de volta (só o .env muda, sem rebuild do front). Afeta SÓ a
+     * landing: as outras telas guest sempre mostram os botões.
+     */
+    'landing_prelaunch' => (bool) env('LANDING_PRELAUNCH', true),
+
 ];

@@ -111,6 +111,11 @@ class HandleInertiaRequests extends Middleware
             'features' => [
                 'live_enabled' => (bool) config('features.live_enabled'),
                 'call_enabled' => (bool) config('features.call_enabled'),
+                // Pré-lançamento da landing: só o BOOLEANO (a landing esconde os
+                // botões de conta do header e não oferece cadastro). Volta a false
+                // no lançamento só pelo .env. Global por consistência com as flags
+                // acima; quem consome é apenas a Landing.
+                'landing_prelaunch' => (bool) config('features.landing_prelaunch'),
             ],
             // Contadores de "não vistos" da nav (feat/activity-badges): bolinhas ao
             // lado de "Mensagens" e "Interessadas". CLOSURE de propósito — o Inertia

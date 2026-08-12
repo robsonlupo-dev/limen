@@ -62,14 +62,27 @@ it('does not ship the heavy source PNGs alongside the WebP', function () {
     }
 });
 
-it('points the primary CTA at /cadastro and keeps the waitlist as a secondary path', function () {
+it('makes the waitlist the only landing CTA — no cadastro pre-launch', function () {
     $vue = file_get_contents(dirname(__DIR__, 2).'/resources/js/Pages/Landing.vue');
 
-    // CTA primário → /cadastro (registro).
-    expect($vue)->toContain("route('register')");
-    // CTA secundário → lista de espera (preservado como caminho alternativo).
+    // Pré-lançamento: o ÚNICO CTA é a lista de espera.
     expect($vue)->toContain("route('waitlist.store')")
         ->toContain('id="lista-de-espera"');
+    // O cadastro saiu da landing (o backend de /cadastro segue intacto; volta no
+    // lançamento). Nenhum link para route('register') na tela.
+    expect($vue)->not->toContain("route('register')");
+});
+
+it('hides the header account nav on the landing via the prelaunch flag', function () {
+    $vue = file_get_contents(dirname(__DIR__, 2).'/resources/js/Pages/Landing.vue');
+    $layout = file_get_contents(dirname(__DIR__, 2).'/resources/js/Layouts/GuestLayout.vue');
+
+    // A landing lê a flag global e a passa ao layout.
+    expect($vue)->toContain('features?.landing_prelaunch')
+        ->toContain(':hide-account-nav="prelaunch"');
+    // O layout esconde os botões de conta quando hideAccountNav é true.
+    expect($layout)->toContain('hideAccountNav')
+        ->toContain('v-if="!hideAccountNav"');
 });
 
 it('references landing media only by self-hosted relative /landing/ paths', function () {

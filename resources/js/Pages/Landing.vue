@@ -1,25 +1,31 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { useForm, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Button from '@/Components/Button.vue'
 
-// ── Landing cinematográfica ("feat/landing-cinematic") ───────────────────────
-// A raiz pública deixou de ser hero-maison e passou a ser a PORTA do clube: 5
-// cenas de tela cheia, scroll-storytelling, dourado e mistério. O CTA primário
-// leva a /cadastro (route('register')); a lista de espera fica como CTA
-// SECUNDÁRIO — uma banda abaixo das cenas, para quem prefere esperar o convite.
+// ── Landing cinematográfica — foco em lista de espera ("feat/landing-waitlist-focus") ─
+// O site está em PRÉ-LANÇAMENTO: a landing NÃO oferece cadastro ainda. As 5 cenas
+// (porta → arco → verificação → mistério → convite) convergem para UM único CTA —
+// "Entre na lista de espera" — que rola até o formulário de captura de e-mail. O
+// backend de /cadastro segue intacto; só saiu da landing (volta no lançamento).
 //
-// Toda a mídia é SELF-HOST (public/landing/*, WebP + um MP4 mudo) — nenhum
-// asset de terceiro, então ExternalAssetPolicyTest segue verde. As imagens têm
-// variante -mobile.webp (~800px) servida por <picture>; o vídeo de abertura só
-// carrega no desktop (mobile e reduced-motion caem na porta.webp estática).
+// Toda a mídia é SELF-HOST (public/landing/*, WebP + um MP4 mudo) — nenhum asset de
+// terceiro, então ExternalAssetPolicyTest segue verde. As imagens têm variante
+// -mobile.webp (~800px) servida por <picture>; o vídeo de abertura só carrega no
+// desktop (mobile e reduced-motion caem na porta.webp estática).
 
 // `referral` chega pelo /convite/{code} (ConviteController): alimenta o selo
 // "convidado por X" e sugere o papel na lista de espera (atribuição é via sessão).
 const props = defineProps({
     referral: { type: Object, default: null },
 })
+
+// Pré-lançamento (flag global `features.landing_prelaunch`, default true): a
+// landing esconde os botões de conta do header (só o logo) e o único caminho é a
+// lista de espera. No lançamento, `LANDING_PRELAUNCH=false` traz os botões — só o
+// .env muda, sem rebuild. Só a Landing consome a flag; as demais telas guest não.
+const prelaunch = computed(() => Boolean(usePage().props.features?.landing_prelaunch))
 
 // ── Camada cinematográfica ───────────────────────────────────────────────────
 // Resolvidos no cliente (Inertia SSR está off): desktop ganha o vídeo e o
@@ -31,22 +37,37 @@ const showOpeningVideo = ref(false)
 let io = null
 let rafId = null
 let parallaxEls = []
+let fadeEls = []
 
-// Parallax leve: desloca a camada de mídia por uma fração do offset ao centro
-// da viewport. A mídia é 130% da altura (inset -15%) para o deslocamento nunca
-// revelar borda. Roda só em desktop com movimento permitido.
-function runParallax() {
+// Um único laço de scroll (rAF) faz duas coisas quando o movimento é permitido:
+//  • parallax leve da mídia (só desktop) — desloca a camada por uma fração do
+//    offset ao centro; a mídia é 130% da altura (inset -15%) p/ nunca revelar borda;
+//  • fade dirigido por scroll da cena 2: o texto ganha opacidade conforme a CENA
+//    sobe na viewport — quase invisível ao entrar, pleno quando ela preenche a tela.
+function runScroll() {
     const vh = window.innerHeight
-    for (const el of parallaxEls) {
-        const rect = el.getBoundingClientRect()
-        const offset = rect.top + rect.height / 2 - vh / 2
-        el.style.transform = `translate3d(0, ${(offset * -0.08).toFixed(1)}px, 0)`
+
+    if (isDesktop.value) {
+        for (const el of parallaxEls) {
+            const rect = el.getBoundingClientRect()
+            const offset = rect.top + rect.height / 2 - vh / 2
+            el.style.transform = `translate3d(0, ${(offset * -0.08).toFixed(1)}px, 0)`
+        }
     }
+
+    for (const el of fadeEls) {
+        // Progresso da CENA (não do texto, que fica no terço inferior): 0 quando a
+        // cena entra pela base, 1 quando quase preenche a viewport.
+        const scene = el.closest('.scene')
+        const p = 1 - scene.getBoundingClientRect().top / (vh * 0.85)
+        el.style.opacity = Math.min(1, Math.max(0.06, p)).toFixed(2)
+    }
+
     rafId = null
 }
 
 function onScroll() {
-    if (rafId === null) rafId = requestAnimationFrame(runParallax)
+    if (rafId === null) rafId = requestAnimationFrame(runScroll)
 }
 
 onMounted(() => {
@@ -70,10 +91,14 @@ onMounted(() => {
     )
     document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el))
 
-    if (motionOk.value && isDesktop.value) {
-        parallaxEls = Array.from(document.querySelectorAll('[data-parallax]'))
+    if (motionOk.value) {
+        // Parallax só no desktop; o fade dirigido por scroll roda nos dois (é só
+        // opacidade, barato). Sob reduced-motion nada disso liga — o CSS deixa o
+        // texto da cena 2 em opacity:1.
+        parallaxEls = isDesktop.value ? Array.from(document.querySelectorAll('[data-parallax]')) : []
+        fadeEls = Array.from(document.querySelectorAll('[data-scroll-fade]'))
         window.addEventListener('scroll', onScroll, { passive: true })
-        runParallax()
+        runScroll()
     }
 })
 
@@ -83,10 +108,10 @@ onBeforeUnmount(() => {
     if (rafId !== null) cancelAnimationFrame(rafId)
 })
 
-// ── Lista de espera (CTA secundário) ─────────────────────────────────────────
-// Wizard de 2 passos, preservado da landing anterior: passo 1 é comum (papel +
-// e-mail + 18+), passo 2 ramifica por papel. Um único POST no fim — o servidor
-// re-valida por papel, então o wizard é conveniência de UX, não a verdade.
+// ── Lista de espera (ÚNICO CTA) ──────────────────────────────────────────────
+// Wizard de 2 passos: passo 1 é comum (papel + e-mail + 18+), passo 2 ramifica por
+// papel. Um único POST no fim — o servidor re-valida por papel, então o wizard é
+// conveniência de UX, não a verdade.
 const worlds = [
     { value: 'mulheres', label: 'Mulheres', glyph: '♀' },
     { value: 'homens', label: 'Homens', glyph: '♂' },
@@ -170,7 +195,7 @@ function onSubmit() {
 </script>
 
 <template>
-    <GuestLayout title="Limen — O portal do desejo, verificado e real">
+    <GuestLayout title="Limen — O portal do desejo, verificado e real" :hide-account-nav="prelaunch">
         <div class="landing-cinematic bg-limen-bg text-limen-ink">
             <!-- Selo de convite (só quando /convite/{code} atribui um referrer). -->
             <div
@@ -214,8 +239,11 @@ function onSubmit() {
                 </div>
             </section>
 
-            <!-- ── Cena 2 · O PORTAL ─────────────────────────────────────── -->
-            <section class="scene">
+            <!-- ── Cena 2 · O PORTAL ─────────────────────────────────────────
+                 O arco (portal.webp) fica em brilho pleno — só um gradiente na
+                 base escurece atrás do texto. "Cruze o limiar." aparece no terço
+                 inferior, ABAIXO do LIMEN da imagem, com fade dirigido por scroll. -->
+            <section class="scene scene--portal">
                 <div class="scene-media" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/portal-mobile.webp'" type="image/webp" />
@@ -227,8 +255,8 @@ function onSubmit() {
                         />
                     </picture>
                 </div>
-                <div class="scene-veil scene-veil--center" aria-hidden="true" />
-                <div class="scene-content scene-content--center" data-reveal>
+                <div class="scene-veil scene-veil--bottom" aria-hidden="true" />
+                <div class="scene-content scene-content--lower" data-scroll-fade>
                     <h2 class="scene-line">Cruze o limiar.</h2>
                 </div>
             </section>
@@ -285,43 +313,50 @@ function onSubmit() {
             </section>
 
             <!-- ── Cena 5 · O CONVITE ────────────────────────────────────
-                 Wordmark LIMEN dourado, tagline, CTA primário → /cadastro e o
-                 CTA secundário para a lista de espera. -->
+                 Wordmark LIMEN dourado (moldura.webp) full-bleed, tagline e o
+                 ÚNICO CTA: "Entre na lista de espera" (rola até o formulário). -->
             <section class="scene scene--dark scene--invite">
-                <div class="scene-media scene-media--contain" data-parallax>
+                <div class="scene-media" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/moldura-mobile.webp'" type="image/webp" />
                         <img
-                            class="scene-img scene-img--contain scene-img--moldura"
+                            class="scene-img"
                             :src="'/landing/moldura.webp'"
                             alt="A palavra LIMEN em letras douradas tridimensionais."
                             loading="lazy"
                         />
                     </picture>
                 </div>
-                <div class="scene-content scene-content--center scene-content--invite" data-reveal>
+                <div class="scene-veil scene-veil--bottom" aria-hidden="true" />
+                <div class="scene-content scene-content--invite" data-reveal>
                     <p class="invite-tagline">O portal do desejo, verificado e real.</p>
-                    <a :href="route('register')" class="invite-cta">Solicitar convite</a>
-                    <button type="button" class="invite-cta-secondary" @click="scrollToForm()">
-                        Ainda não? Entre na lista de espera
+                    <button type="button" class="invite-cta" @click="scrollToForm()">
+                        Entre na lista de espera
                     </button>
-                    <p class="invite-note">Entrada por verificação. Discrição de ponta a ponta.</p>
+                    <p class="invite-note">Lançamento em breve · entrada por convite</p>
                 </div>
             </section>
         </div>
 
-        <!-- ── Lista de espera (CTA secundário) ──────────────────────────────
-             Banda fora do fluxo cinematográfico: para quem prefere aguardar o
-             convite em vez de ir direto ao cadastro. -->
-        <section id="lista-de-espera" class="scroll-mt-24 bg-limen-bg px-6 py-24">
-            <div class="mx-auto max-w-lg">
-                <div data-reveal class="wl-card rounded-3xl border border-limen-line bg-limen-surface p-8 md:p-10">
+        <!-- ── Lista de espera (ÚNICO CTA da landing) ────────────────────────
+             Mesma identidade das cenas: mármore (moldura.webp) escurecido atrás
+             do formulário, que fica centralizado e com respiro. -->
+        <section id="lista-de-espera" class="wl-section">
+            <div class="wl-bg" aria-hidden="true">
+                <img class="wl-bg-img" :src="'/landing/moldura.webp'" alt="" loading="lazy" />
+                <div class="wl-bg-veil"></div>
+            </div>
+
+            <div class="wl-inner">
+                <div data-reveal class="wl-card rounded-3xl border border-limen-line bg-limen-surface/95 p-8 shadow-2xl backdrop-blur-sm md:p-10">
                     <template v-if="submitted">
-                        <div class="py-8 text-center">
+                        <div class="py-6 text-center">
                             <div class="mb-4 text-4xl text-limen-gold">✓</div>
-                            <h2 class="font-serif text-3xl text-limen-ink">Você está na lista</h2>
-                            <p class="mt-3 text-limen-ink-soft">
-                                Avisaremos você assim que o Limen abrir. Enquanto isso, mantenha o segredo. 🤫
+                            <h2 class="font-serif text-3xl text-limen-ink">Pronto! Você está na lista</h2>
+                            <p class="mx-auto mt-4 max-w-sm text-limen-ink-soft leading-relaxed">
+                                Fique de olho no seu e-mail — e <span class="text-limen-ink">confira a caixa de spam</span>.
+                                Marque nossa mensagem como <span class="text-limen-gold">“não é spam”</span> para não
+                                perder o aviso de lançamento.
                             </p>
                         </div>
                     </template>
@@ -329,8 +364,8 @@ function onSubmit() {
                     <template v-else>
                         <div class="mb-8 text-center">
                             <h2 class="font-serif text-3xl text-limen-ink md:text-4xl">Entre na lista de espera</h2>
-                            <p class="mt-3 text-limen-ink-soft">
-                                Prefere aguardar o convite? Deixe seu e-mail — sem spam, só o aviso quando abrirmos.
+                            <p class="mx-auto mt-3 max-w-sm text-limen-ink-soft">
+                                Deixe seu e-mail e seja avisado no lançamento. Sem spam — só o convite quando abrirmos.
                             </p>
                         </div>
 
@@ -551,8 +586,7 @@ function onSubmit() {
     object-fit: cover;
     display: block;
 }
-/* Cenas em que a imagem é o "objeto" (digital, moldura): centralizada e contida,
-   não recortada. */
+/* Cena 3 (digital): a imagem é o "objeto", centralizada e contida — não recortada. */
 .scene-media--contain {
     inset: 0;
     display: flex;
@@ -566,9 +600,6 @@ function onSubmit() {
     max-width: min(560px, 82vw);
     max-height: 62svh;
     object-fit: contain;
-}
-.scene-img--moldura {
-    max-width: min(680px, 88vw);
 }
 
 /* Cena 4: dois painéis lado a lado (desktop) / empilhados (mobile). */
@@ -614,6 +645,15 @@ function onSubmit() {
         rgba(10, 8, 6, 0.7)
     );
 }
+/* Só a base escurece — a imagem (arco / wordmark) fica em brilho pleno acima. */
+.scene-veil--bottom {
+    background: linear-gradient(
+        to bottom,
+        transparent 42%,
+        rgba(10, 8, 6, 0.5) 68%,
+        rgba(10, 8, 6, 0.85)
+    );
+}
 
 /* Conteúdo textual — sempre acima da mídia e do véu. */
 .scene-content {
@@ -633,6 +673,14 @@ function onSubmit() {
     left: 0;
     right: 0;
 }
+/* Terço inferior: texto ABAIXO do LIMEN da imagem, nunca cobrindo-o. */
+.scene-content--lower {
+    position: absolute;
+    bottom: 12svh;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+}
 
 .scene-line {
     font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
@@ -648,6 +696,11 @@ function onSubmit() {
     /* Surge ~1.5s depois da abertura entrar. `both` mantém invisível no atraso. */
     animation: hero-in 1.4s ease-out 1.5s both;
 }
+/* Cena 2: opacidade inicial é dirigida por scroll no JS; este é o fallback
+   (pré-JS e reduced-motion): texto plenamente visível. */
+[data-scroll-fade] {
+    opacity: 1;
+}
 
 .scroll-hint {
     margin-top: 2.5rem;
@@ -658,22 +711,29 @@ function onSubmit() {
     animation: hint-pulse 2.4s ease-in-out 2.6s infinite;
 }
 
-/* Cena do convite. */
+/* Cena do convite: tagline + CTA no terço inferior, sobre o wordmark full-bleed. */
 .scene-content--invite {
+    position: absolute;
+    bottom: 8svh;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
-    padding-bottom: 10svh;
+    gap: 1.4rem;
 }
 .invite-tagline {
     font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
     font-size: clamp(1.4rem, 4.5vw, 2.25rem);
     letter-spacing: 0.04em;
     color: var(--color-limen-ink, #f0e9dc);
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
 }
 .invite-cta {
     display: inline-block;
+    cursor: pointer;
+    border: none;
     border-radius: 9999px;
     background: var(--color-limen-gold, #d6b872);
     color: var(--color-limen-bg, #181410);
@@ -694,30 +754,51 @@ function onSubmit() {
     outline: 2px solid var(--color-limen-gold, #d6b872);
     outline-offset: 4px;
 }
-/* CTA secundário: link discreto para a lista de espera. */
-.invite-cta-secondary {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-limen-ink-soft, #a89a82);
-    font-size: 0.8rem;
-    letter-spacing: 0.08em;
-    text-decoration: underline;
-    text-underline-offset: 4px;
-    transition: color 0.25s ease;
-}
-.invite-cta-secondary:hover {
-    color: var(--color-limen-gold, #d6b872);
-}
-.invite-cta-secondary:focus-visible {
-    outline: 2px solid var(--color-limen-gold, #d6b872);
-    outline-offset: 4px;
-}
 .invite-note {
     font-size: 0.75rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--color-limen-ink-mute, #8a8175);
+    text-shadow: 0 1px 12px rgba(0, 0, 0, 0.7);
+}
+
+/* ── Seção da lista de espera: mesmo mármore das cenas, escurecido ─────────── */
+.wl-section {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100svh;
+    padding: 8svh 1.5rem;
+    overflow: hidden;
+    scroll-margin-top: 5rem;
+}
+.wl-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+.wl-bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+/* Escurece forte: o mármore vira textura, não distrai do formulário. */
+.wl-bg-veil {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(10, 8, 6, 0.92),
+        rgba(10, 8, 6, 0.88)
+    );
+}
+.wl-inner {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 32rem;
 }
 
 /* ── Reveal-on-scroll ─────────────────────────────────────────────────────── */
@@ -760,9 +841,17 @@ function onSubmit() {
         left: auto;
         right: 0;
     }
+    /* Mais respiro no desktop: texto da cena 2 e CTA da cena 5 sobem um pouco. */
+    .scene-content--lower {
+        bottom: 16svh;
+    }
+    .scene-content--invite {
+        bottom: 12svh;
+    }
 }
 
-/* Menos movimento: desliga parallax (via JS), animações e reveal. */
+/* Menos movimento: desliga parallax (via JS), animações e reveal. O texto da
+   cena 2 fica em opacity:1 pelo fallback de [data-scroll-fade] acima. */
 @media (prefers-reduced-motion: reduce) {
     .hero-line,
     .scroll-hint {

@@ -1430,14 +1430,18 @@ tocar em outra feature nem em mobile; `+5 testes`).
 
 ---
 
-## Landing cinematográfica — `feat/landing-cinematic` (PR pendente)
+## Landing cinematográfica — foco em lista de espera (`feat/landing-cinematic` #184 + `feat/landing-waitlist-focus`)
 
 A raiz pública `/` foi reescrita de hero-maison (PR #153) para uma **landing
 cinematográfica de "clube exclusivo"**: 5 cenas de tela cheia, scroll-storytelling,
 dourado e mistério. É a PORTA do clube — impressiona quem chega por convite. **Só a
 raiz pública muda; nenhuma tela interna (login, cadastro, catálogo) foi tocada.** O
-gate de marketing do Nginx permanece. A lista de espera **não sumiu** — virou CTA
-secundário (banda abaixo das cenas).
+gate de marketing do Nginx permanece.
+
+**A base mergeou na `main` como PR #184.** O bloco "ENTREGUE"/"Decisões" abaixo descreve
+essa base; a subseção **"Ajuste de pré-lançamento"** ao fim registra o que a branch
+`feat/landing-waitlist-focus` mudou depois (o CTA de cadastro saiu — só a lista de
+espera fica). Onde os dois conflitam, o pré-lançamento vence.
 
 ### ENTREGUE
 - **Reescrita de `resources/js/Pages/Landing.vue`** — 5 cenas full-bleed:
@@ -1489,6 +1493,45 @@ secundário (banda abaixo das cenas).
   desligados** sob `prefers-reduced-motion` (bloco único no CSS + guarda no JS). Tokens
   `limen-*`, Cormorant nos títulos, véu escuro atrás de todo texto, `alt` descritivo,
   foco visível no CTA.
+
+### Ajuste de pré-lançamento (`feat/landing-waitlist-focus`, PR pendente)
+
+O site está em PRÉ-LANÇAMENTO: a landing **não deve oferecer cadastro ainda**, só
+capturar e-mail. Mudanças sobre a base #184 (só o teste e a tela; nenhuma lógica de
+produção, `WaitlistTest`/suite verdes, +0 testes → 2014/16063):
+
+- **CTA de cadastro REMOVIDO; único CTA é a lista de espera.** O botão "Solicitar
+  convite" → `route('register')` saiu da cena do convite (e o link secundário também).
+  No lugar, um botão dourado "Entre na lista de espera" (`scrollToForm()`) rola para a
+  banda `#lista-de-espera`. **O backend de `/cadastro` fica INTACTO — só saiu da landing
+  (volta no lançamento).** `LandingCinematicAssetsTest` foi virado: agora exige a
+  ausência de `route('register')` na tela e a presença do waitlist.
+- **Cena 2 (arco) — fade dirigido por SCROLL + arco em brilho pleno.** "Cruze o limiar."
+  fica no **terço inferior, ABAIXO do LIMEN da imagem** (`scene-content--lower`), e a
+  opacidade é **ligada ao scroll** (`[data-scroll-fade]`: quase invisível ao entrar,
+  plena quando a cena preenche a viewport — calculado no laço rAF pela posição da CENA,
+  roda também no mobile). O arco não é mais escurecido por um véu central; só a BASE
+  escurece (`scene-veil--bottom`). Reduced-motion → texto em `opacity:1` (fallback CSS).
+- **Cena 5 (moldura) full-bleed.** O wordmark LIMEN passou de `object-contain` pequeno a
+  `object-cover` de tela cheia, como as outras cenas; tagline + CTA no terço inferior
+  sobre gradiente de legibilidade (`scene-veil--bottom`).
+- **Seção da lista de espera com identidade de mármore + aviso de spam.** A banda virou
+  `min-h-screen` com `moldura.webp` `object-cover` fortemente escurecido atrás do card
+  (antes: fundo liso); card centralizado, com respiro, `bg-limen-surface/95`. A tela de
+  **sucesso** agora instrui a **conferir a caixa de SPAM e marcar como "não é spam"**
+  para não perder o aviso de lançamento.
+- **Header da landing sem botões de conta.** No pré-lançamento o header mostra só o logo
+  LIMEN — **Entrar** e **Criar conta** somem. Flag `features.landing_prelaunch` (env
+  `LANDING_PRELAUNCH`, **default TRUE**), compartilhada como prop Inertia global; a
+  Landing a lê e passa ao `GuestLayout` via `:hide-account-nav="prelaunch"`. **Escopo é
+  só a landing:** o `GuestLayout` é compartilhado por 10 telas guest (Auth/\*,
+  Performers/\*, Entrada), e só a Landing passa a prop (default `false`), então as demais
+  seguem com os botões. No lançamento, `LANDING_PRELAUNCH=false` traz os botões (e o CTA
+  de cadastro) — **só o `.env`, sem rebuild**. `LandingCinematicTest` trava o contrato
+  flag→prop; um static test trava a fiação Landing→GuestLayout.
+- **Mantidas as cenas 1, 3 e 4** como estavam. Reduced-motion e mobile honrados
+  (posições de texto têm variante por media query). Nenhum asset novo — `moldura.webp` é
+  reusado como fundo da seção (cache do browser).
 
 ---
 
