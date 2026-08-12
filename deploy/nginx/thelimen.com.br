@@ -70,6 +70,17 @@ server {
         expires 30d;
         add_header Cache-Control "public";
     }
+    # Landing cinematográfica (feat/landing-cinematic). As 5 cenas carregam WebP
+    # (desktop + -mobile) e um MP4 mudo de public/landing/. Sem este bloco,
+    # /landing/*.webp e /landing/abertura.mp4 caem na catch-all `location /` e
+    # 302-eiam para / — as imagens da landing não carregam. `root` já é
+    # /var/www/limen/public, então try_files resolve o arquivo direto (sem alias).
+    location ^~ /landing/ {
+        try_files $uri =404;
+        access_log off;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
     location = /favicon.ico { try_files $uri =404; access_log off; log_not_found off; }
     location = /favicon.svg { try_files $uri =404; access_log off; log_not_found off; }
     location = /robots.txt  { try_files $uri =404; access_log off; log_not_found off; }
