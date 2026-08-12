@@ -91,6 +91,11 @@ function delPayout(User $performer, string $status): Payout
 // ---------------------------------------------------------------------------
 
 it('schedules deletion 30 days out and emails the holder', function () {
+    // Freeze time: the scheduled date is derived from now() when the deletion is
+    // requested and again in the assert; without freezing, crossing midnight
+    // between the two would flake the date comparison by a day.
+    $this->freezeTime();
+
     Mail::fake();
 
     $user = delMember();
