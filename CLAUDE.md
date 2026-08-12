@@ -380,20 +380,27 @@ PR #140 — sem tipo novo.
 > catálogo de membros como HOME + motor de engajamento coração/mensagem — mergeou antes,
 > no #173 (`67f88a0`); ver §§ "Catálogo de membros como HOME" e "Motor de engajamento".
 >
-> **Em branch (`feat/landing-cinematic`, a partir da `main` `5f374c8`, +9 testes →
-> 2014 testes / 16061 asserts, PR pendente):** a **raiz pública `/` virou uma landing
-> CINEMATOGRÁFICA** — a "porta do clube": 5 cenas de tela cheia com scroll-storytelling
+> **Landing CINEMATOGRÁFICA — MERGEADA (`feat/landing-cinematic`, PR #184):** a raiz
+> pública `/` virou a "porta do clube": 5 cenas de tela cheia com scroll-storytelling
 > (abertura em vídeo → portal → verificação → mistério → convite), dourado e mistério,
-> substituindo o hero-maison do PR #153. O **CTA primário leva a `/cadastro`**
-> (`route('register')`); a **lista de espera fica como CTA SECUNDÁRIO** — o wizard de 2
-> passos foi preservado numa banda `#lista-de-espera` abaixo das cenas (link "Ainda
-> não? Entre na lista de espera" na cena do convite), então `route('waitlist.store')` e
-> o `/convite/{code}` seguem no ar (o selo "convidado por X" ainda acende e sugere o
-> papel). Mídia 100% SELF-HOST em `public/landing/*` (WebP desktop+mobile <400KB
-> cada + 1 MP4 mudo ~0,9MB, otimizados por ffmpeg a partir dos PNGs de 2–7MB) — vídeo só
-> no desktop, `prefers-reduced-motion` e mobile caem na `porta.webp` estática, lazy-load
-> abaixo da dobra. `ExternalAssetPolicyTest` verde (tudo relativo `/landing/…`). Só a
-> raiz pública muda; nenhuma tela interna tocada. Ver § "Landing cinematográfica".
+> substituindo o hero-maison do PR #153. Mídia 100% SELF-HOST em `public/landing/*`
+> (WebP desktop+mobile <400KB cada + 1 MP4 mudo ~0,9MB, otimizados por ffmpeg a partir
+> dos PNGs de 2–7MB) — vídeo só no desktop, `prefers-reduced-motion` e mobile caem na
+> `porta.webp` estática, lazy-load abaixo da dobra. `ExternalAssetPolicyTest` verde
+> (tudo relativo `/landing/…`; o Nginx ganhou um `^~ /landing/` para servir os assets —
+> fix pós-merge). Só a raiz pública muda; nenhuma tela interna tocada.
+>
+> **Em branch (`feat/landing-waitlist-focus`, a partir da `main`, +0 testes → 2014
+> testes / 16063 asserts, PR pendente):** ajuste de **PRÉ-LANÇAMENTO** da landing. **A
+> landing não oferece mais cadastro** — o botão "Solicitar convite" → `/cadastro` saiu
+> da cena do convite e o **único CTA passa a ser "Entre na lista de espera"** (o backend
+> de `/cadastro` fica intacto; volta no lançamento). Além disso: cena 2 com **fade
+> dirigido por scroll** e arco em brilho pleno (texto no terço inferior, abaixo do
+> LIMEN); cena 5 (moldura) **full-bleed `object-cover`**; a seção da lista de espera
+> ganha **fundo de mármore escurecido** + **aviso de SPAM** na tela de sucesso ("confira
+> a caixa de spam · marque como não é spam"). Reduced-motion e mobile honrados.
+> `ExternalAssetPolicyTest` verde. Ver § "Landing cinematográfica — foco em lista de
+> espera".
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1446,14 +1453,21 @@ segurança rodada.
 - **Zero asset externo** (`ExternalAssetPolicyTest` verde): player em SVG/`<audio>`
   inline, sem lib. **Não toca mobile-layout nem outras features.**
 
-## Landing cinematográfica — `feat/landing-cinematic` (PR pendente)
+## Landing cinematográfica — foco em lista de espera (`feat/landing-cinematic` #184 + `feat/landing-waitlist-focus`)
 
 A raiz pública `/` deixou de ser o hero-maison + lista de espera (PR #153) e virou
 a **PORTA do clube**: uma landing cinematográfica de 5 cenas de tela cheia com
 scroll-storytelling — mistério, luxo, dourado. Impressiona quem chega por convite.
 **Só a raiz pública muda; nenhuma tela interna (login, cadastro, catálogo) é tocada.**
 Dona única da tela: `resources/js/Pages/Landing.vue` (reescrita); o `LandingController`
-só troca o cartão social. O gate de marketing do Nginx segue valendo.
+só troca o cartão social. O gate de marketing do Nginx segue valendo (o `^~ /landing/`
+serve os assets — ver § "Ambiente de dev").
+
+> **Duas entregas:** a base cinematográfica mergeou na `main` como **PR #184**
+> (`feat/landing-cinematic`). A branch **`feat/landing-waitlist-focus`** (a partir da
+> `main`, PR pendente) faz o ajuste de PRÉ-LANÇAMENTO: **a landing não oferece mais
+> cadastro** — o único CTA vira a lista de espera. Os itens abaixo já refletem o
+> estado pós-waitlist-focus; as diferenças estão marcadas.
 
 - **As 5 cenas (scroll-storytelling):** (1) ABERTURA — vídeo `abertura.mp4` em loop
   mudo full-bleed no desktop / `porta.webp` estática no mobile, texto "Alguns portais
@@ -1462,19 +1476,33 @@ só troca o cartão social. O gate de marketing do Nginx segue valendo.
   fundo escuro, "Verificado. Real. Discreto." (a impressão comunica "verificado" sem
   prometer número absoluto); (4) O MISTÉRIO — `silhueta.webp` + `mascara.webp` (lado a
   lado no desktop, empilhadas no mobile), "Um clube para poucos."; (5) O CONVITE —
-  `moldura.webp` (wordmark LIMEN) + tagline "O portal do desejo, verificado e real." +
-  o **único CTA** "Solicitar convite".
-- **CTA primário → `/cadastro`** (`route('register')`); **lista de espera é o CTA
-  SECUNDÁRIO.** Na cena do convite, abaixo do botão dourado, um link discreto "Ainda
-  não? Entre na lista de espera" (`scrollToForm()`) leva à banda `#lista-de-espera`
-  abaixo das cenas — o wizard de 2 passos da landing anterior (papel + e-mail + 18+ →
-  campos por papel), preservado e restilizado nos tokens `limen-*`, postando em
-  `route('waitlist.store')`. O **backend do waitlist e o `/convite/{code}` continuam
-  intactos** (rotas, admin, e-mails de nurture, atribuição por sessão). A prop
-  `referral` do `ConviteController` acende o selo "Você foi convidado por X" no topo da
-  cena 1 **e** sugere o papel no wizard (`suggestedRole`); a atribuição em si é via
-  sessão. `WaitlistTest` (que checa a prop `referral` compartilhada e posta em
-  `/interesse`) continua verde.
+  `moldura.webp` (wordmark LIMEN) **full-bleed `object-cover`** (waitlist-focus: antes
+  era `contain`/pequena) + tagline "O portal do desejo, verificado e real." + o **único
+  CTA** "Entre na lista de espera".
+- **PRÉ-LANÇAMENTO: o único CTA é a lista de espera** (waitlist-focus). O botão
+  "Solicitar convite" → `/cadastro` **saiu** da cena do convite; no lugar, o botão
+  dourado "Entre na lista de espera" (`scrollToForm()`) rola para a banda
+  `#lista-de-espera` abaixo das cenas — o wizard de 2 passos (papel + e-mail + 18+ →
+  campos por papel), nos tokens `limen-*`, postando em `route('waitlist.store')`. **O
+  backend de `/cadastro` fica INTACTO — só saiu da landing (volta no lançamento);
+  nenhum `route('register')` na tela** (travado por `LandingCinematicAssetsTest`). O
+  waitlist e o `/convite/{code}` seguem intactos (rotas, admin, nurture, atribuição por
+  sessão); a prop `referral` acende o selo "Você foi convidado por X" na cena 1 **e**
+  sugere o papel no wizard. Após enviar, a tela de sucesso avisa para **conferir a caixa
+  de SPAM e marcar como "não é spam"** (evita perder o aviso de lançamento).
+- **Cena 2 (arco) — fade dirigido por SCROLL + arco em brilho pleno** (waitlist-focus).
+  O texto "Cruze o limiar." fica no **terço inferior, ABAIXO do LIMEN da imagem** (nunca
+  cobrindo-o) e sua opacidade é **ligada ao scroll**: quase invisível quando a cena
+  entra pela base, plena quando ela preenche a viewport (`[data-scroll-fade]`, calculado
+  no laço `requestAnimationFrame` a partir da posição da CENA, roda também no mobile).
+  O arco **não é mais escurecido** por um véu central — só um gradiente na BASE
+  (`scene-veil--bottom`) escurece atrás do texto; a imagem fica em destaque. Sob
+  `prefers-reduced-motion` o texto fica em `opacity:1` (fallback CSS).
+- **Seção da lista de espera com identidade de mármore** (waitlist-focus). Antes era
+  fundo liso; agora a banda `#lista-de-espera` é `min-h-screen` com `moldura.webp`
+  `object-cover` **fortemente escurecido** (`wl-bg` + véu ~0,9) atrás do card, que fica
+  centralizado, com respiro e `bg-limen-surface/95`. `moldura.webp` reusa o mesmo asset
+  da cena 5 (cache do browser, um fetch só).
 - **Mídia 100% SELF-HOST, otimizada por ffmpeg** — invariante que mantém
   `ExternalAssetPolicyTest` verde (tudo é caminho relativo `/landing/…`, zero asset de
   terceiro). Os PNGs originais (2–7MB cada) e o MP4 (7,6MB) foram convertidos e
