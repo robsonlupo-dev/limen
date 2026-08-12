@@ -62,12 +62,14 @@ it('does not ship the heavy source PNGs alongside the WebP', function () {
     }
 });
 
-it('points the single landing CTA at /cadastro via route(register)', function () {
+it('points the primary CTA at /cadastro and keeps the waitlist as a secondary path', function () {
     $vue = file_get_contents(dirname(__DIR__, 2).'/resources/js/Pages/Landing.vue');
 
+    // CTA primário → /cadastro (registro).
     expect($vue)->toContain("route('register')");
-    // A landing não deve reintroduzir a antiga captura de lista de espera.
-    expect($vue)->not->toContain("waitlist.store");
+    // CTA secundário → lista de espera (preservado como caminho alternativo).
+    expect($vue)->toContain("route('waitlist.store')")
+        ->toContain('id="lista-de-espera"');
 });
 
 it('references landing media only by self-hosted relative /landing/ paths', function () {

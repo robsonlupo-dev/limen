@@ -384,10 +384,12 @@ PR #140 — sem tipo novo.
 > 2014 testes / 16061 asserts, PR pendente):** a **raiz pública `/` virou uma landing
 > CINEMATOGRÁFICA** — a "porta do clube": 5 cenas de tela cheia com scroll-storytelling
 > (abertura em vídeo → portal → verificação → mistério → convite), dourado e mistério,
-> substituindo o hero-maison + lista de espera do PR #153. O **único CTA leva a
-> `/cadastro`** (`route('register')`); a captura de lista de espera saiu da landing (o
-> backend do waitlist e o `/convite/{code}` seguem intactos — o selo "convidado por X"
-> ainda acende). Mídia 100% SELF-HOST em `public/landing/*` (WebP desktop+mobile <400KB
+> substituindo o hero-maison do PR #153. O **CTA primário leva a `/cadastro`**
+> (`route('register')`); a **lista de espera fica como CTA SECUNDÁRIO** — o wizard de 2
+> passos foi preservado numa banda `#lista-de-espera` abaixo das cenas (link "Ainda
+> não? Entre na lista de espera" na cena do convite), então `route('waitlist.store')` e
+> o `/convite/{code}` seguem no ar (o selo "convidado por X" ainda acende e sugere o
+> papel). Mídia 100% SELF-HOST em `public/landing/*` (WebP desktop+mobile <400KB
 > cada + 1 MP4 mudo ~0,9MB, otimizados por ffmpeg a partir dos PNGs de 2–7MB) — vídeo só
 > no desktop, `prefers-reduced-motion` e mobile caem na `porta.webp` estática, lazy-load
 > abaixo da dobra. `ExternalAssetPolicyTest` verde (tudo relativo `/landing/…`). Só a
@@ -1462,13 +1464,17 @@ só troca o cartão social. O gate de marketing do Nginx segue valendo.
   lado no desktop, empilhadas no mobile), "Um clube para poucos."; (5) O CONVITE —
   `moldura.webp` (wordmark LIMEN) + tagline "O portal do desejo, verificado e real." +
   o **único CTA** "Solicitar convite".
-- **O CTA leva a `/cadastro`** (`route('register')`), NÃO à lista de espera. A captura
-  de waitlist saiu da superfície da landing — mas o **backend do waitlist e o
-  `/convite/{code}` continuam intactos** (rotas, admin, e-mails de nurture, atribuição
-  por sessão). A prop `referral` do `ConviteController` segue chegando e acende o selo
-  discreto "Você foi convidado por X" no topo da cena 1 (a atribuição em si é via
-  sessão, não muda). É por isso que `WaitlistTest` (que checa a prop `referral`
-  compartilhada, não o formulário) continua verde.
+- **CTA primário → `/cadastro`** (`route('register')`); **lista de espera é o CTA
+  SECUNDÁRIO.** Na cena do convite, abaixo do botão dourado, um link discreto "Ainda
+  não? Entre na lista de espera" (`scrollToForm()`) leva à banda `#lista-de-espera`
+  abaixo das cenas — o wizard de 2 passos da landing anterior (papel + e-mail + 18+ →
+  campos por papel), preservado e restilizado nos tokens `limen-*`, postando em
+  `route('waitlist.store')`. O **backend do waitlist e o `/convite/{code}` continuam
+  intactos** (rotas, admin, e-mails de nurture, atribuição por sessão). A prop
+  `referral` do `ConviteController` acende o selo "Você foi convidado por X" no topo da
+  cena 1 **e** sugere o papel no wizard (`suggestedRole`); a atribuição em si é via
+  sessão. `WaitlistTest` (que checa a prop `referral` compartilhada e posta em
+  `/interesse`) continua verde.
 - **Mídia 100% SELF-HOST, otimizada por ffmpeg** — invariante que mantém
   `ExternalAssetPolicyTest` verde (tudo é caminho relativo `/landing/…`, zero asset de
   terceiro). Os PNGs originais (2–7MB cada) e o MP4 (7,6MB) foram convertidos e
