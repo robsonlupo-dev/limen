@@ -1520,6 +1520,15 @@ produção, `WaitlistTest`/suite verdes, +0 testes → 2014/16063):
   (antes: fundo liso); card centralizado, com respiro, `bg-limen-surface/95`. A tela de
   **sucesso** agora instrui a **conferir a caixa de SPAM e marcar como "não é spam"**
   para não perder o aviso de lançamento.
+- **Header da landing sem botões de conta.** No pré-lançamento o header mostra só o logo
+  LIMEN — **Entrar** e **Criar conta** somem. Flag `features.landing_prelaunch` (env
+  `LANDING_PRELAUNCH`, **default TRUE**), compartilhada como prop Inertia global; a
+  Landing a lê e passa ao `GuestLayout` via `:hide-account-nav="prelaunch"`. **Escopo é
+  só a landing:** o `GuestLayout` é compartilhado por 10 telas guest (Auth/\*,
+  Performers/\*, Entrada), e só a Landing passa a prop (default `false`), então as demais
+  seguem com os botões. No lançamento, `LANDING_PRELAUNCH=false` traz os botões (e o CTA
+  de cadastro) — **só o `.env`, sem rebuild**. `LandingCinematicTest` trava o contrato
+  flag→prop; um static test trava a fiação Landing→GuestLayout.
 - **Mantidas as cenas 1, 3 e 4** como estavam. Reduced-motion e mobile honrados
   (posições de texto têm variante por media query). Nenhum asset novo — `moldura.webp` é
   reusado como fundo da seção (cache do browser).

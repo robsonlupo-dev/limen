@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { useForm, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Button from '@/Components/Button.vue'
 
@@ -20,6 +20,12 @@ import Button from '@/Components/Button.vue'
 const props = defineProps({
     referral: { type: Object, default: null },
 })
+
+// Pré-lançamento (flag global `features.landing_prelaunch`, default true): a
+// landing esconde os botões de conta do header (só o logo) e o único caminho é a
+// lista de espera. No lançamento, `LANDING_PRELAUNCH=false` traz os botões — só o
+// .env muda, sem rebuild. Só a Landing consome a flag; as demais telas guest não.
+const prelaunch = computed(() => Boolean(usePage().props.features?.landing_prelaunch))
 
 // ── Camada cinematográfica ───────────────────────────────────────────────────
 // Resolvidos no cliente (Inertia SSR está off): desktop ganha o vídeo e o
@@ -189,7 +195,7 @@ function onSubmit() {
 </script>
 
 <template>
-    <GuestLayout title="Limen — O portal do desejo, verificado e real">
+    <GuestLayout title="Limen — O portal do desejo, verificado e real" :hide-account-nav="prelaunch">
         <div class="landing-cinematic bg-limen-bg text-limen-ink">
             <!-- Selo de convite (só quando /convite/{code} atribui um referrer). -->
             <div

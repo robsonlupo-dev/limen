@@ -390,17 +390,19 @@ PR #140 — sem tipo novo.
 > (tudo relativo `/landing/…`; o Nginx ganhou um `^~ /landing/` para servir os assets —
 > fix pós-merge). Só a raiz pública muda; nenhuma tela interna tocada.
 >
-> **Em branch (`feat/landing-waitlist-focus`, a partir da `main`, +0 testes → 2014
-> testes / 16063 asserts, PR pendente):** ajuste de **PRÉ-LANÇAMENTO** da landing. **A
+> **Em branch (`feat/landing-waitlist-focus`, a partir da `main`, +5 testes → 2017
+> testes / 16083 asserts, PR pendente):** ajuste de **PRÉ-LANÇAMENTO** da landing. **A
 > landing não oferece mais cadastro** — o botão "Solicitar convite" → `/cadastro` saiu
 > da cena do convite e o **único CTA passa a ser "Entre na lista de espera"** (o backend
-> de `/cadastro` fica intacto; volta no lançamento). Além disso: cena 2 com **fade
-> dirigido por scroll** e arco em brilho pleno (texto no terço inferior, abaixo do
-> LIMEN); cena 5 (moldura) **full-bleed `object-cover`**; a seção da lista de espera
-> ganha **fundo de mármore escurecido** + **aviso de SPAM** na tela de sucesso ("confira
-> a caixa de spam · marque como não é spam"). Reduced-motion e mobile honrados.
-> `ExternalAssetPolicyTest` verde. Ver § "Landing cinematográfica — foco em lista de
-> espera".
+> de `/cadastro` fica intacto; volta no lançamento). O **header da landing esconde
+> Entrar / Criar conta** (fica só o logo) via flag `features.landing_prelaunch` (default
+> TRUE) passada ao `GuestLayout` — escopo só na landing, reativa no lançamento só pelo
+> `.env`. Além disso: cena 2 com **fade dirigido por scroll** e arco em brilho pleno
+> (texto no terço inferior, abaixo do LIMEN); cena 5 (moldura) **full-bleed
+> `object-cover`**; a seção da lista de espera ganha **fundo de mármore escurecido** +
+> **aviso de SPAM** na tela de sucesso ("confira a caixa de spam · marque como não é
+> spam"). Reduced-motion e mobile honrados. `ExternalAssetPolicyTest` verde. Ver §
+> "Landing cinematográfica — foco em lista de espera".
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1503,6 +1505,17 @@ serve os assets — ver § "Ambiente de dev").
   `object-cover` **fortemente escurecido** (`wl-bg` + véu ~0,9) atrás do card, que fica
   centralizado, com respiro e `bg-limen-surface/95`. `moldura.webp` reusa o mesmo asset
   da cena 5 (cache do browser, um fetch só).
+- **Header da landing sem botões de conta no pré-lançamento** (waitlist-focus). Flag
+  `features.landing_prelaunch` (env `LANDING_PRELAUNCH`, **default TRUE** — diferente
+  das flags de dark launch, porque o pré-lançamento é o estado de HOJE), compartilhada
+  como prop Inertia global em `features.landing_prelaunch`. A **Landing** lê a flag e a
+  passa ao `GuestLayout` via `:hide-account-nav="prelaunch"`; o layout esconde **Entrar
+  / Criar conta** (fica só o logo LIMEN). **Escopo é só a landing** — o `GuestLayout` é
+  compartilhado por 10 telas guest (Auth/\*, Performers/\*, Entrada), e só a Landing
+  passa a prop (default `false`), então as demais telas seguem com os botões. No
+  lançamento, `LANDING_PRELAUNCH=false` traz os botões de volta (e junto voltará o CTA
+  de cadastro) — **só o `.env` muda, sem rebuild do front**. `LandingCinematicTest`
+  trava o contrato flag→prop (true por default, false quando a flag desliga).
 - **Mídia 100% SELF-HOST, otimizada por ffmpeg** — invariante que mantém
   `ExternalAssetPolicyTest` verde (tudo é caminho relativo `/landing/…`, zero asset de
   terceiro). Os PNGs originais (2–7MB cada) e o MP4 (7,6MB) foram convertidos e

@@ -47,3 +47,20 @@ it('server-renders the social card meta into the document head', function () {
         ->toContain('<meta property="og:description" content="O portal do desejo, verificado e real.">')
         ->toContain('<meta property="og:image" content="https://thelimen.com.br/landing/moldura.webp">');
 });
+
+// ─── Pré-lançamento: flag esconde os botões de conta do header da landing ─────
+// A landing lê `features.landing_prelaunch` (global) e passa a GuestLayout, que
+// esconde Entrar/Criar conta. O contrato testável no servidor é a PROP; o header
+// em si é client-side (SSR off). O flag driva a prop → reativa fácil no lançamento.
+
+it('shares landing_prelaunch=true by default so the landing hides the account nav', function () {
+    $this->get('/')->assertInertia(fn (Assert $page) => $page
+        ->where('features.landing_prelaunch', true));
+});
+
+it('flips landing_prelaunch to false when the flag is off (relaunch brings the buttons back)', function () {
+    config(['features.landing_prelaunch' => false]);
+
+    $this->get('/')->assertInertia(fn (Assert $page) => $page
+        ->where('features.landing_prelaunch', false));
+});

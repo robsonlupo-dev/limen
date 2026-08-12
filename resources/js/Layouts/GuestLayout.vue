@@ -8,6 +8,12 @@ import PanicButton from '@/Components/PanicButton.vue'
 
 defineProps({
     title: String,
+    // Pré-lançamento: quando true, o header esconde os botões de conta
+    // (Entrar / Criar conta) e fica só o logo. SÓ a landing passa isto (a
+    // partir da flag `features.landing_prelaunch`); as demais telas guest
+    // continuam com os botões. Volta a false no lançamento — só o .env muda,
+    // sem rebuild.
+    hideAccountNav: { type: Boolean, default: false },
 })
 
 const page = usePage()
@@ -43,13 +49,17 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
                          anterior. Visitante deslogado não recebe (logout seria
                          no-op). Ver PanicButton.vue. -->
                     <PanicButton v-if="isLoggedIn" />
-                    <Link :href="route('login')" class="hover:text-cream transition-colors">Entrar</Link>
-                    <Link
-                        :href="route('entrada')"
-                        class="border border-gold text-gold px-4 py-1.5 rounded-lg hover:bg-gold/10 transition-colors"
-                    >
-                        Criar conta
-                    </Link>
+                    <!-- Botões de conta escondidos no pré-lançamento da landing
+                         (hideAccountNav): o único caminho é a lista de espera. -->
+                    <template v-if="!hideAccountNav">
+                        <Link :href="route('login')" class="hover:text-cream transition-colors">Entrar</Link>
+                        <Link
+                            :href="route('entrada')"
+                            class="border border-gold text-gold px-4 py-1.5 rounded-lg hover:bg-gold/10 transition-colors"
+                        >
+                            Criar conta
+                        </Link>
+                    </template>
                 </nav>
             </div>
         </header>
