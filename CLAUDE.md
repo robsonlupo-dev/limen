@@ -379,6 +379,21 @@ PR #140 — sem tipo novo.
 > registrados nas §§ respectivas). A **dependência dura** das visitas bidirecionais — o
 > catálogo de membros como HOME + motor de engajamento coração/mensagem — mergeou antes,
 > no #173 (`67f88a0`); ver §§ "Catálogo de membros como HOME" e "Motor de engajamento".
+>
+> **Em branch (`feat/landing-cinematic`, a partir da `main` `5f374c8`, +9 testes →
+> 2014 testes / 16061 asserts, PR pendente):** a **raiz pública `/` virou uma landing
+> CINEMATOGRÁFICA** — a "porta do clube": 5 cenas de tela cheia com scroll-storytelling
+> (abertura em vídeo → portal → verificação → mistério → convite), dourado e mistério,
+> substituindo o hero-maison do PR #153. O **CTA primário leva a `/cadastro`**
+> (`route('register')`); a **lista de espera fica como CTA SECUNDÁRIO** — o wizard de 2
+> passos foi preservado numa banda `#lista-de-espera` abaixo das cenas (link "Ainda
+> não? Entre na lista de espera" na cena do convite), então `route('waitlist.store')` e
+> o `/convite/{code}` seguem no ar (o selo "convidado por X" ainda acende e sugere o
+> papel). Mídia 100% SELF-HOST em `public/landing/*` (WebP desktop+mobile <400KB
+> cada + 1 MP4 mudo ~0,9MB, otimizados por ffmpeg a partir dos PNGs de 2–7MB) — vídeo só
+> no desktop, `prefers-reduced-motion` e mobile caem na `porta.webp` estática, lazy-load
+> abaixo da dobra. `ExternalAssetPolicyTest` verde (tudo relativo `/landing/…`). Só a
+> raiz pública muda; nenhuma tela interna tocada. Ver § "Landing cinematográfica".
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1430,6 +1445,64 @@ segurança rodada.
   como o do vídeo.
 - **Zero asset externo** (`ExternalAssetPolicyTest` verde): player em SVG/`<audio>`
   inline, sem lib. **Não toca mobile-layout nem outras features.**
+
+## Landing cinematográfica — `feat/landing-cinematic` (PR pendente)
+
+A raiz pública `/` deixou de ser o hero-maison + lista de espera (PR #153) e virou
+a **PORTA do clube**: uma landing cinematográfica de 5 cenas de tela cheia com
+scroll-storytelling — mistério, luxo, dourado. Impressiona quem chega por convite.
+**Só a raiz pública muda; nenhuma tela interna (login, cadastro, catálogo) é tocada.**
+Dona única da tela: `resources/js/Pages/Landing.vue` (reescrita); o `LandingController`
+só troca o cartão social. O gate de marketing do Nginx segue valendo.
+
+- **As 5 cenas (scroll-storytelling):** (1) ABERTURA — vídeo `abertura.mp4` em loop
+  mudo full-bleed no desktop / `porta.webp` estática no mobile, texto "Alguns portais
+  não se anunciam." surgindo ~1,5s depois; (2) O PORTAL — `portal.webp`, "Cruze o
+  limiar."; (3) A VERIFICAÇÃO — `digital.webp` (impressão digital) centralizada em
+  fundo escuro, "Verificado. Real. Discreto." (a impressão comunica "verificado" sem
+  prometer número absoluto); (4) O MISTÉRIO — `silhueta.webp` + `mascara.webp` (lado a
+  lado no desktop, empilhadas no mobile), "Um clube para poucos."; (5) O CONVITE —
+  `moldura.webp` (wordmark LIMEN) + tagline "O portal do desejo, verificado e real." +
+  o **único CTA** "Solicitar convite".
+- **CTA primário → `/cadastro`** (`route('register')`); **lista de espera é o CTA
+  SECUNDÁRIO.** Na cena do convite, abaixo do botão dourado, um link discreto "Ainda
+  não? Entre na lista de espera" (`scrollToForm()`) leva à banda `#lista-de-espera`
+  abaixo das cenas — o wizard de 2 passos da landing anterior (papel + e-mail + 18+ →
+  campos por papel), preservado e restilizado nos tokens `limen-*`, postando em
+  `route('waitlist.store')`. O **backend do waitlist e o `/convite/{code}` continuam
+  intactos** (rotas, admin, e-mails de nurture, atribuição por sessão). A prop
+  `referral` do `ConviteController` acende o selo "Você foi convidado por X" no topo da
+  cena 1 **e** sugere o papel no wizard (`suggestedRole`); a atribuição em si é via
+  sessão. `WaitlistTest` (que checa a prop `referral` compartilhada e posta em
+  `/interesse`) continua verde.
+- **Mídia 100% SELF-HOST, otimizada por ffmpeg** — invariante que mantém
+  `ExternalAssetPolicyTest` verde (tudo é caminho relativo `/landing/…`, zero asset de
+  terceiro). Os PNGs originais (2–7MB cada) e o MP4 (7,6MB) foram convertidos e
+  **descartados** do repo; ficam só: WebP desktop (`min(1600px)`, `<400KB` cada) +
+  WebP mobile (`~800px`, `*-mobile.webp`) servidos por `<picture>` com `<source
+  media="(max-width:767px)">`, e `abertura.mp4` re-encodado (H.264 mudo, 1280px, CRF
+  25, `+faststart`, ~0,9MB). Um teste (`tests/Unit/LandingCinematicAssetsTest.php`)
+  trava a existência e o teto de peso de cada peça e falha se um PNG-fonte pesado
+  voltar ao repo.
+- **Performance e movimento:** vídeo de abertura **só no desktop** (`matchMedia
+  '(min-width:768px) and (pointer:fine)'`); mobile e `prefers-reduced-motion` caem na
+  `porta.webp` estática (o vídeo nem baixa). Imagens abaixo da dobra são `loading="lazy"`
+  (a porta/poster da 1ª dobra é `fetchpriority="high"`). Reveal-on-scroll via
+  `IntersectionObserver` (fade + subida, uma passada), **parallax leve** via um único
+  laço `requestAnimationFrame` de scroll — ambos **desligados** sob `prefers-reduced-
+  motion` (bloco único no fim do `<style scoped>` + guarda no JS). Tokens `limen-*`
+  (`limen-bg`/`limen-gold`/`limen-ink`), Cormorant nos títulos; véu/gradiente escuro
+  atrás de todo texto para legibilidade; `alt` descritivo, foco visível no CTA.
+- **URL de asset público é BOUND, não estática** (`:src="'/landing/x.webp'"`,
+  `:srcset`, `:poster`) — precedente do `PortalLogo.vue`. Atributo `src`/`srcset`
+  ESTÁTICO com caminho `/landing/…` faz o `@vitejs/plugin-vue` tentar resolvê-lo como
+  import de módulo e **quebra o `npm run build`**. Bind com string literal é o idioma
+  do projeto para arquivo de `public/`.
+- **Cartão social (`LandingController`):** `og:description` e `description` = a tagline
+  "O portal do desejo, verificado e real."; `og:image` = `…/landing/moldura.webp` (o
+  wordmark dourado é a prévia no WhatsApp/Google). Renderizado SERVER-SIDE pelo
+  `app.blade.php` a partir da prop `meta` (Inertia SSR está off — `<Head>` do cliente é
+  invisível ao scraper).
 
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 

@@ -1430,6 +1430,68 @@ tocar em outra feature nem em mobile; `+5 testes`).
 
 ---
 
+## Landing cinematográfica — `feat/landing-cinematic` (PR pendente)
+
+A raiz pública `/` foi reescrita de hero-maison (PR #153) para uma **landing
+cinematográfica de "clube exclusivo"**: 5 cenas de tela cheia, scroll-storytelling,
+dourado e mistério. É a PORTA do clube — impressiona quem chega por convite. **Só a
+raiz pública muda; nenhuma tela interna (login, cadastro, catálogo) foi tocada.** O
+gate de marketing do Nginx permanece. A lista de espera **não sumiu** — virou CTA
+secundário (banda abaixo das cenas).
+
+### ENTREGUE
+- **Reescrita de `resources/js/Pages/Landing.vue`** — 5 cenas full-bleed:
+  1. **ABERTURA** — vídeo `abertura.mp4` mudo em loop (desktop) / `porta.webp` estática
+     (mobile e reduced-motion); texto "Alguns portais não se anunciam." com fade-in ~1,5s.
+  2. **O PORTAL** — `portal.webp`, "Cruze o limiar."
+  3. **A VERIFICAÇÃO** — `digital.webp` (impressão digital dourada), "Verificado. Real.
+     Discreto." (a impressão comunica "verificado" sem prometer número absoluto).
+  4. **O MISTÉRIO** — `silhueta.webp` + `mascara.webp` (lado a lado no desktop,
+     empilhadas no mobile), "Um clube para poucos."
+  5. **O CONVITE** — `moldura.webp` (wordmark LIMEN) + tagline "O portal do desejo,
+     verificado e real." + **CTA primário** "Solicitar convite" → `/cadastro` + link
+     secundário "Ainda não? Entre na lista de espera" → banda `#lista-de-espera`.
+- **Lista de espera preservada como CTA secundário** — o wizard de 2 passos da landing
+  anterior (papel + e-mail + 18+ → campos por papel) foi mantido numa banda abaixo das
+  cenas, restilizado nos tokens `limen-*`, postando em `route('waitlist.store')`.
+- **`LandingController`** — cartão social: `og:description`/`description` = a tagline;
+  `og:image` = `…/landing/moldura.webp`. Server-side pelo `app.blade.php` (Inertia SSR
+  off).
+- **Otimização de mídia (ffmpeg)** — os assets vieram em PNG de 2–7MB + MP4 de 7,6MB
+  (~31MB no total). Convertidos e os fontes descartados; o diretório final pesa ~2,5MB:
+  WebP desktop (`min(1600px)`, qualidade 80, `<400KB` cada) + WebP mobile (`~800px`,
+  `*-mobile.webp`, qualidade 76), e `abertura.mp4` re-encodado H.264 mudo 1280px CRF 25
+  `+faststart` (~0,9MB).
+- **Testes** — `tests/Feature/LandingCinematicTest.php` (rota `/` → componente `Landing`,
+  redirect do logado, meta social server-side) + `tests/Unit/LandingCinematicAssetsTest.php`
+  (existência e teto de peso de cada asset, CTA aponta para `route('register')`, mídia só
+  por caminho relativo `/landing/…`, PNG-fonte não voltou). +9 testes → **2014 testes /
+  16061 asserts** (a única falha é a antiga do GeoBlock 451 deste clone de dev).
+
+### Decisões que não se deduzem do diff
+- **CTA primário → `/cadastro`; lista de espera é o CTA secundário.** O botão dourado é
+  `route('register')`; abaixo dele um link discreto rola até a banda `#lista-de-espera`
+  (wizard preservado, posta em `route('waitlist.store')`). O **backend do waitlist e o
+  `/convite/{code}` continuam intactos** (rotas, admin, nurture, atribuição por sessão).
+  A prop `referral` do `ConviteController` acende o selo "Você foi convidado por X" na
+  cena 1 **e** sugere o papel no wizard (`suggestedRole`). `WaitlistTest` (prop
+  `referral` compartilhada + POST em `/interesse`) segue verde.
+- **Zero asset externo (`ExternalAssetPolicyTest` verde).** Toda mídia é SELF-HOST em
+  `public/landing/*`, referenciada por caminho relativo. Nenhum CDN, nenhuma fonte de QR
+  ou vídeo de terceiro — o request da landing não leva IP/User-Agent para fora.
+- **URL de asset público é BOUND (`:src="'/landing/x.webp'"`), nunca estática** —
+  precedente do `PortalLogo.vue`. `src`/`srcset`/`poster` ESTÁTICO com `/landing/…` faz o
+  `@vitejs/plugin-vue` tentar resolvê-lo como import e **quebra o `npm run build`**.
+- **Performance/movimento.** Vídeo só no desktop (`matchMedia '(min-width:768px) and
+  (pointer:fine)'`); mobile/reduced-motion nem baixam o MP4. Imagens abaixo da dobra
+  `loading="lazy"`; a porta da 1ª dobra é `fetchpriority="high"`. Reveal via
+  `IntersectionObserver`, parallax leve via um laço `requestAnimationFrame` — **os dois
+  desligados** sob `prefers-reduced-motion` (bloco único no CSS + guarda no JS). Tokens
+  `limen-*`, Cormorant nos títulos, véu escuro atrás de todo texto, `alt` descritivo,
+  foco visível no CTA.
+
+---
+
 ## Sprint 15 — Fechado
 
 > **FECHADO — tag `v1.0-sprint15` (`bf1c3dd`).** Oito entregas mergeadas
