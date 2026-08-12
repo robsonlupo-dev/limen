@@ -92,6 +92,11 @@ it('da 7 dias de trial ao Founding Member na primeira assinatura', function () {
 // ─── 2. O adiamento chega ao Asaas ───────────────────────────────────────────
 
 it('envia nextDueDate 7 dias a frente ao Asaas quando e founder', function () {
+    // Congela o tempo: a criação e o assert derivam a data de `now()`
+    // separadamente; sem congelar, cruzar a meia-noite entre os dois daria um dia
+    // de diferença (mesma classe do flaky de expires_at por segundo).
+    $this->freezeTime();
+
     $user = User::factory()->create();
     waitlistEntryFor($user);
 
@@ -308,6 +313,10 @@ it('renovacao vencida fora do trial continua indo para past_due', function () {
 // ─── Janela de acesso durante o trial ────────────────────────────────────────
 
 it('o periodo pago do founder comeca no fim do trial, sem buraco de acesso', function () {
+    // Congela a base de tempo antes dos `travelTo` abaixo, para os asserts de
+    // data (next_due_date, current_period_end) não flakear na virada do dia.
+    $this->freezeTime();
+
     $user = User::factory()->create();
     waitlistEntryFor($user);
 

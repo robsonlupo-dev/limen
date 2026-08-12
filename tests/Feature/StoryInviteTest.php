@@ -96,11 +96,19 @@ function invFeedItem(array $feed, int $storyId): ?array
 // ─── Publicação ──────────────────────────────────────────────────────────────
 
 it('publica um story marcado como convite', function () {
+    // Tempo congelado: sem isso, o `now()` da criação e o do assert podem cair
+    // em segundos diferentes na virada do relógio e a comparação exata de
+    // `expires_at` falha por 1s (flaky). Mesmo padrão de StoryEndpointsTest e
+    // PerformerStoriesTest, que já congelam a publicação de 24h.
+    Carbon::setTestNow(Carbon::parse('2026-07-30 12:00:00'));
+
     $story = invPublish(chatPerformer());
 
     expect($story->is_invite)->toBeTrue()
         // Convite é um Story normal em tudo o mais: mesmo TTL de 24h.
         ->and($story->expires_at->timestamp)->toBe(now()->addHours(24)->timestamp);
+
+    Carbon::setTestNow();
 });
 
 it('publica story normal por padrão — is_invite false sem a marcação', function () {
