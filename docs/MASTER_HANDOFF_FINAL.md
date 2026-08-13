@@ -3674,6 +3674,38 @@ movimento". Resumo:
   `LandingCinematicAssetsTest`/`LandingCinematicTest` verdes; suíte MySQL verde (só o
   `GeoBlockTest` 451 falha, e só neste clone de dev). Sem testes novos (visual).
 
+### Landing — cena 5 (LIMEN): zoom de saída por scroll + contain no retrato — EM BRANCH (`feat/landing-scene5-zoom`)
+
+Build sobre a `fix/landing-motion-v2` (acima). Três ajustes na **cena do convite** (o
+wordmark LIMEN, `moldura.webp`). Dona única segue `resources/js/Pages/Landing.vue`;
+CSS/JS puro, **ZERO asset novo**; nenhuma tela interna tocada. Detalhe completo no
+`CLAUDE.md`, § "Landing cinematográfica", subseção "Cena 5 (LIMEN): zoom de saída por
+scroll + contain no retrato". Resumo:
+
+- **Bug do corte no retrato/mobile:** `moldura.webp` é LARGA; com `object-cover` em tela
+  ALTA o recorte lateral comia as letras (sobrava "MB"). Em retrato (`max-width:767px` OU
+  `orientation:portrait`) a cena 5 passa a **`object-fit:contain`** centralizada, com o
+  fundo escuro (`scene--dark`) fazendo o letterbox invisível; `inset:0` tira a folga de
+  -15%. **Desktop (paisagem) segue `cover`.** A banda `#lista-de-espera` NÃO muda (mármore
+  `cover` muito escurecido — textura, corte irrelevante).
+- **Texto abaixo das letras:** tagline + CTA foram para o **terço inferior** sobre véu de
+  base reforçado (`.scene--invite .scene-veil--bottom`), como o "Cruze o limiar." da cena
+  2. Como o zoom mexe só na imagem, o texto/CTA fica no tamanho normal e **segue clicável**.
+- **Zoom de saída por scroll (pedido do PO):** o cross-dissolve não cobria a última cena
+  (sem sucessora que empurre `p`). Dá-se ao palco uma **cauda extra**
+  (`stackVh = (N + ZOOM_TAIL) × 100`, ZOOM_TAIL = 1 viewport); no laço rAF **ÚNICO**,
+  `p` satura em `N-1` (dissolve completo) e **`zt` (0→1)** só existe na cauda. Aí a
+  **imagem** da cena 5 (`.scene-media`, origem central) escala **1.0 → 1.6** e a cena
+  **esmaece** a partir de `zt > 0.6`, revelando a waitlist. **Simétrico** (deriva da
+  posição). **Ken Burns REMOVIDO da cena 5** (`animation:none`; os dois brigariam) —
+  cenas 2/3/4 mantêm. Escala vale em **todas as telas** (mobile em `contain`), clipada
+  pelo `overflow` (sem rolagem horizontal). `will-change` só na cena em cena.
+  **`prefers-reduced-motion` desliga o zoom** por construção (JS retorna cedo: palco não
+  empilha, sem cauda) — cena 5 estática e legível.
+- **Testes:** `LandingCinematicTest`/`LandingCinematicAssetsTest`/`ExternalAssetPolicyTest`
+  verdes; `npm run build` limpo; suíte MySQL **2016/2017** (só o `GeoBlockTest` 451, dev
+  clone). Sem testes novos (a camada é visual/scroll — não observável sem navegador).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),
