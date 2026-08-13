@@ -317,13 +317,15 @@ PR #140 — sem tipo novo.
 
 ## Estado atual
 
-> **Estado atual** (`main`, `92ba2c7`): **2000 testes, 15960 asserts** (1999 passam
-> local — a única falha é a antiga da view 451 do GeoBlock, que não recorre depois do
+> **Estado atual** (`main`, `ae389c2`): **~2017 testes, 16083 asserts** (todos passam
+> local menos a antiga falha da view 451 do GeoBlock, que não recorre depois do
 > `npm run build`, que compila a view — ver § "Ambiente de dev"). **130 migrations,
-> ~205 rotas web + 42 rotas API.** A **fila de melhorias** (itens 2–5) e o polimento
-> premium foram **consolidados na `main`** nesta sessão — sete PRs mergeados em
-> sequência a partir do fecho do Agendamento de chamada (`db007b3` → docs #169 →
-> catálogo-de-membros-home #173 `67f88a0` → os sete abaixo). O detalhe completo vive
+> ~205 rotas web + 42 rotas API.** A **fila de melhorias** (itens 2–5), o polimento
+> premium e o **foco em lista de espera da landing (PR #187, `feat/landing-waitlist-focus`,
+> mergeado)** foram **consolidados na `main`** — a sequência de PRs a partir do fecho
+> do Agendamento de chamada (`db007b3` → docs #169 → catálogo-de-membros-home #173
+> `67f88a0` → os sete abaixo → landing cinematográfica #184 → waitlist-focus #187). O
+> detalhe completo vive
 > em **`docs/MASTER_HANDOFF_FINAL.md`** — esse é o doc a ler antes de pegar tarefa (o
 > `MASTER_HANDOFF_SPRINT6.md` é histórico). Este resumo só situa. **Base original**
 > (PR #69, `229d852`): 556 testes, 2614.
@@ -390,8 +392,8 @@ PR #140 — sem tipo novo.
 > (tudo relativo `/landing/…`; o Nginx ganhou um `^~ /landing/` para servir os assets —
 > fix pós-merge). Só a raiz pública muda; nenhuma tela interna tocada.
 >
-> **Em branch (`feat/landing-waitlist-focus`, a partir da `main`, +5 testes → 2017
-> testes / 16083 asserts, PR pendente):** ajuste de **PRÉ-LANÇAMENTO** da landing. **A
+> **Foco em lista de espera — MERGEADO (`feat/landing-waitlist-focus`, PR #187, +5
+> testes → ~2017 testes / 16083 asserts):** ajuste de **PRÉ-LANÇAMENTO** da landing. **A
 > landing não oferece mais cadastro** — o botão "Solicitar convite" → `/cadastro` saiu
 > da cena do convite e o **único CTA passa a ser "Entre na lista de espera"** (o backend
 > de `/cadastro` fica intacto; volta no lançamento). O **header da landing esconde
@@ -403,6 +405,16 @@ PR #140 — sem tipo novo.
 > **aviso de SPAM** na tela de sucesso ("confira a caixa de spam · marque como não é
 > spam"). Reduced-motion e mobile honrados. `ExternalAssetPolicyTest` verde. Ver §
 > "Landing cinematográfica — foco em lista de espera".
+>
+> **Em branch (`feat/landing-motion`, a partir da `main`, PR pendente):** camada de
+> **MOVIMENTO cinematográfico** sobre a landing (nenhum asset novo, nenhuma tela interna
+> tocada) — Ken Burns nas fotos, parallax mais expressivo com o texto em derivada,
+> reveal de texto em cascata (palavra a palavra), cross-dissolve entre cenas e um véu de
+> luz dourado sobre o mármore. Estende o laço rAF ÚNICO e o IntersectionObserver que já
+> existiam (nada de segundo listener de scroll); `will-change` promovido só na cena em
+> cena (observer de presença); `prefers-reduced-motion` e mobile honrados no bloco único.
+> Ver § "Landing cinematográfica — foco em lista de espera" (subseção "Camada de
+> movimento").
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1455,7 +1467,7 @@ segurança rodada.
 - **Zero asset externo** (`ExternalAssetPolicyTest` verde): player em SVG/`<audio>`
   inline, sem lib. **Não toca mobile-layout nem outras features.**
 
-## Landing cinematográfica — foco em lista de espera (`feat/landing-cinematic` #184 + `feat/landing-waitlist-focus`)
+## Landing cinematográfica — foco em lista de espera (`feat/landing-cinematic` #184 + `feat/landing-waitlist-focus` #187 + `feat/landing-motion`)
 
 A raiz pública `/` deixou de ser o hero-maison + lista de espera (PR #153) e virou
 a **PORTA do clube**: uma landing cinematográfica de 5 cenas de tela cheia com
@@ -1465,11 +1477,13 @@ Dona única da tela: `resources/js/Pages/Landing.vue` (reescrita); o `LandingCon
 só troca o cartão social. O gate de marketing do Nginx segue valendo (o `^~ /landing/`
 serve os assets — ver § "Ambiente de dev").
 
-> **Duas entregas:** a base cinematográfica mergeou na `main` como **PR #184**
-> (`feat/landing-cinematic`). A branch **`feat/landing-waitlist-focus`** (a partir da
-> `main`, PR pendente) faz o ajuste de PRÉ-LANÇAMENTO: **a landing não oferece mais
-> cadastro** — o único CTA vira a lista de espera. Os itens abaixo já refletem o
-> estado pós-waitlist-focus; as diferenças estão marcadas.
+> **Três entregas:** a base cinematográfica mergeou na `main` como **PR #184**
+> (`feat/landing-cinematic`). **`feat/landing-waitlist-focus`** (**PR #187, mergeado**)
+> fez o ajuste de PRÉ-LANÇAMENTO: **a landing não oferece mais cadastro** — o único CTA
+> vira a lista de espera. **`feat/landing-motion`** (a partir da `main`, PR pendente)
+> adiciona a **camada de movimento cinematográfico** (subseção "Camada de movimento" no
+> fim desta §). Os itens abaixo já refletem o estado pós-waitlist-focus; as diferenças
+> estão marcadas.
 
 - **As 5 cenas (scroll-storytelling):** (1) ABERTURA — vídeo `abertura.mp4` em loop
   mudo full-bleed no desktop / `porta.webp` estática no mobile, texto "Alguns portais
@@ -1544,6 +1558,59 @@ serve os assets — ver § "Ambiente de dev").
   wordmark dourado é a prévia no WhatsApp/Google). Renderizado SERVER-SIDE pelo
   `app.blade.php` a partir da prop `meta` (Inertia SSR está off — `<Head>` do cliente é
   invisível ao scraper).
+
+### Camada de movimento (`feat/landing-motion`)
+
+A landing estava bonita mas ESTÁTICA — só o vídeo da porta se movia. Esta camada dá
+"vida" a cada cena SEM parecer slideshow, e sem nenhum asset novo (CSS/JS puro, zero
+lib). **Regra dura de arquitetura: continua havendo UM ÚNICO laço `requestAnimationFrame`
+e UM listener de scroll** — o `runScroll()` lê o scroll uma vez por frame e distribui
+para tudo que depende dele. Nada de segundo listener nem rAF paralelo. O
+`IntersectionObserver` de reveal (uma passada) foi mantido; um SEGUNDO observer, de
+PRESENÇA em cena, foi acrescentado — ele NÃO é listener de scroll (é o padrão certo p/
+gate de `will-change`).
+
+- **Ken Burns (CSS por TEMPO, fora do laço de scroll):** zoom/pan lento e contínuo nas
+  fotos das cenas 2–5 + no mármore da banda de waitlist. Direção distinta por cena
+  (`ken-burns-a/b/c`; `alternate` volta suave, sem corte). **NUNCA no `<video>` da cena
+  1** — o seletor é `img.scene-img`, que isenta o vídeo mas **cobre o fallback estático
+  `porta.webp`** do mobile/reduced-motion. A impressão digital (cena 3, objeto contido)
+  só **respira** (escala, sem pan — pan a tiraria do centro). Sempre parte de escala
+  ≥ 1.04: com o `inset:-15%` da mídia, cobre a cena com folga e o pan de ±1–2% nunca
+  revela borda.
+- **Parallax mais expressivo, no laço existente:** a mídia sobe mais devagar que o
+  scroll (`MEDIA_SHIFT -0.1`, com TETO `±0.12·vh` p/ não descolar do `object-cover`) e o
+  **texto deriva no sentido oposto, mais devagar ainda** (`TEXT_SHIFT 0.05`,
+  `[data-parallax-text]` nas linhas de cena) — duas velocidades separam os planos.
+  **Só desktop** (no mobile o parallax vai a ZERO — fluidez primeiro).
+- **Reveal em CASCATA (evolução do IntersectionObserver):** palavra a palavra, fade +
+  subida, ~110ms de stagger via a custom property `--i` no CSS (transition-delay, sem
+  timer em JS). "Verificado. → Real. → Discreto." (cena 3) e "Um clube para poucos."
+  (cena 4). O container ganha `.reveal-stagger` (não anima; só as palavras animam).
+- **Cross-dissolve entre cenas (opacidade dirigida por scroll no laço):** o fundo da
+  cena que sai/entra escurece (`[data-dissolve]`, `#0a0806`), 0 no centro, subindo só na
+  banda externa (máx 0.5). Vive ABAIXO do texto (z-index) — **não reduz a legibilidade**
+  do que se está lendo — e **não briga** com o `[data-scroll-fade]` da cena 2 (é
+  elemento e propriedade separados). A transição entre cenas lê como fade-através-do-
+  escuro, não corte seco.
+- **Véu de luz (CSS por transform):** faixa de ouro TRANSLÚCIDA (`.light-sheen-band`,
+  `limen-gold` com alfa ~0.10) que desliza devagar sobre o mármore das cenas 2 e 5,
+  como reflexo. Anima só por `translate3d` (GPU); fica abaixo do texto e é fraca — luxo,
+  não festa — então não clareia os véus de contraste.
+- **GPU e memória:** anima só `transform`/`opacity` (nunca `width/height/top/left/filter`
+  contínuos). `will-change: transform` é promovido **só na cena `.is-onstage`** (o
+  observer de presença liga/desliga) — cinco camadas full-screen promovidas de uma vez
+  estouram a GPU do celular; o laço também só PROCESSA as cenas em cena.
+- **`prefers-reduced-motion: reduce` desliga tudo** no bloco ÚNICO já existente
+  (estendido, não duplicado): Ken Burns, véu de luz, reveal (container e palavras) e as
+  animações de tempo (`animation:none`; `!important` no kill de Ken Burns porque as
+  regras por-cena têm especificidade alta — é o override de acessibilidade). Parallax e
+  cross-dissolve já não ligam (o JS retorna cedo). Mobile: Ken Burns mais sutil (só
+  respira, 30s) e parallax zerado.
+- **Zero asset novo, `ExternalAssetPolicyTest`/`LandingCinematicAssetsTest`/
+  `LandingCinematicTest` verdes.** Nenhuma tela interna tocada; o vídeo da cena 1, o
+  reveal do "Cruze o limiar", o wizard da waitlist, o aviso de SPAM e o header só-logo
+  seguem intactos.
 
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 
@@ -2154,9 +2221,11 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   DB_DATABASE=limen_test DB_USERNAME=limen DB_PASSWORD='<ver .env>' \
   HCAPTCHA_ENABLED=false php artisan test
 ```
-  Resultado esperado (`main` `92ba2c7`, pós-PRs #173–#180): **1999 passam, 1 falha**
-  de **2000 testes / 15960 asserts** (o `GeoBlockTest` da view 451, falha documentada
-  só neste clone de dev; verde no CI). Este é o número consolidado da sessão de fecho
-  da fila de melhorias — Turnstile (#174), sinais de atividade (#175), teaser (#176),
-  filtro de cidade (#177), visitas bidirecionais (#178), microinterações (#179) e
-  intro de voz (#180), todos mergeados na `main`.
+  Resultado esperado (`main` `ae389c2`, pós-PRs #173–#187): **~2016 passam, 1 falha**
+  de **~2017 testes / 16083 asserts** (o `GeoBlockTest` da view 451, falha documentada
+  só neste clone de dev; verde no CI). O número consolida a fila de melhorias — Turnstile
+  (#174), sinais de atividade (#175), teaser (#176), filtro de cidade (#177), visitas
+  bidirecionais (#178), microinterações (#179), intro de voz (#180) — mais a landing
+  cinematográfica (#184) e o foco em lista de espera (#187), todos mergeados na `main`.
+  `feat/landing-motion` não adiciona testes (a camada é visual; os testes de landing
+  existentes seguem verdes).
