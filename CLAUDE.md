@@ -406,15 +406,21 @@ PR #140 — sem tipo novo.
 > spam"). Reduced-motion e mobile honrados. `ExternalAssetPolicyTest` verde. Ver §
 > "Landing cinematográfica — foco em lista de espera".
 >
-> **Em branch (`feat/landing-motion`, a partir da `main`, PR pendente):** camada de
-> **MOVIMENTO cinematográfico** sobre a landing (nenhum asset novo, nenhuma tela interna
-> tocada) — Ken Burns nas fotos, parallax mais expressivo com o texto em derivada,
-> reveal de texto em cascata (palavra a palavra), cross-dissolve entre cenas e um véu de
-> luz dourado sobre o mármore. Estende o laço rAF ÚNICO e o IntersectionObserver que já
-> existiam (nada de segundo listener de scroll); `will-change` promovido só na cena em
-> cena (observer de presença); `prefers-reduced-motion` e mobile honrados no bloco único.
-> Ver § "Landing cinematográfica — foco em lista de espera" (subseção "Camada de
-> movimento").
+> **Em branch (`feat/landing-motion` → `fix/landing-motion-v2`, a partir da `main`, PR
+> pendente):** camada de **MOVIMENTO cinematográfico** sobre a landing (nenhum asset
+> novo, nenhuma tela interna tocada) — Ken Burns nas fotos, parallax expressivo com o
+> texto em derivada, reveal de texto em cascata (palavra a palavra), e um véu de luz
+> dourado sobre o mármore. **`fix/landing-motion-v2` (build sobre a `feat/landing-motion`)
+> corrigiu os bugs visíveis** (palavras coladas na cascata, copy da cena 3, borda
+> descoberta no Ken Burns da cena 4) **e refez a transição entre cenas**: as 5 cenas
+> deixaram de ser seções empilhadas (que davam uma **emenda reta**) e viraram uma
+> **sequência empilhada com cross-dissolve** — palco sticky único, cenas sobrepostas,
+> opacity+brightness dirigidos pela POSIÇÃO do scroll (a de cima escurece, a de baixo
+> clareia, sem emenda, simétrico nos dois sentidos). Continua UM laço rAF ÚNICO e UM
+> listener de scroll; `will-change` só na cena em cena; `prefers-reduced-motion` cai no
+> fluxo vertical normal; mobile roda o cross-fade com parallax zerado. Ver § "Landing
+> cinematográfica — foco em lista de espera" (subseções "Camada de movimento" e
+> "Transição empilhada e correções de movimento").
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1612,6 +1618,55 @@ gate de `will-change`).
   reveal do "Cruze o limiar", o wizard da waitlist, o aviso de SPAM e o header só-logo
   seguem intactos.
 
+### Transição empilhada e correções de movimento (`fix/landing-motion-v2`)
+
+A primeira camada de movimento (`feat/landing-motion`) mantinha as 5 cenas como
+**seções empilhadas verticalmente** — ao rolar, aparecia uma **emenda reta** com as
+duas fotos no mesmo brilho (corte seco, não fusão). O antigo `[data-scroll-fade]`/
+`.scene-dissolve` só escurecia o fundo atrás do texto e não resolvia a emenda. Este PR
+(a partir da `feat/landing-motion`) refaz a transição e corrige os bugs visíveis. Zero
+asset novo; nenhuma tela interna tocada; os três testes de landing seguem verdes; a
+suíte MySQL fica verde (só o `GeoBlockTest` 451 falha, e só neste clone de dev).
+
+- **Correções (commit próprio, `075f96b`):** (1) a cascata de palavras colapsava o
+  espaço entre `<span>` inline-block e renderizava "Verificado,real" — o container da
+  linha (`.reveal-stagger .scene-line`) virou **flex com `gap`**, espaçamento
+  independente do whitespace do template (vale para as cenas 3 e 4); (2) a cena 3 mudou
+  para **"Verificado, real e discreto."** (nenhum teste assertava a string antiga —
+  SSR está off); (3) o Ken Burns descobria a borda nos painéis da cena 4 (que têm
+  `inset:0`, sem folga) — a **escala base subiu para 1.06** (3% de folga por lado) e o
+  pan foi **capado em ~metade da folga (≤1.5%)**, então nenhum frame revela borda; (4)
+  centragem da impressão digital tornada explícita (`object-position`/`margin:auto`).
+- **Transição REAL (cross-dissolve empilhado, commit `bde9a21`):** as 5 cenas passam a
+  ocupar o **MESMO espaço da tela, sobrepostas**, dentro de um wrapper alto
+  (`.scene-stack`, altura `N × 100svh` fixada no JS) com um **palco `.scene-viewport`
+  sticky ÚNICO** por dentro. Rolando, a cena que **sai escurece e some** e a que
+  **entra clareia e aparece** — curva **simétrica derivada da POSIÇÃO do scroll**
+  (funciona igual pra cima e pra baixo, sem emenda em ponto nenhum).
+  - **Escolha de arquitetura:** um palco sticky único com cenas absolutas (em vez de
+    `position:sticky` por cena) dá o **cross-fade PURO** que o PO pediu; sticky
+    por-cena deixaria a cena entrante **deslizar de baixo** — justamente a emenda que
+    se quer eliminar. Mesmo wrapper de `N×100svh`, sem o slide.
+  - **Continua UM único laço rAF e UM único listener de scroll** (invariante dura): o
+    `runScroll()` lê o progresso dentro do wrapper (usando a altura REAL do palco, não
+    `innerHeight`, para alinhar `progress=1` ao release do sticky mesmo com a barra do
+    Safari) e distribui, por cena, **opacity + `filter:brightness`** e o parallax de
+    mídia/texto (**texto mais rápido que a foto**, só desktop).
+  - **2.2** o texto agora **deriva com o scroll** em todas as cenas; o
+    `[data-scroll-fade]` da cena 2 foi **ABSORVIDO** pela lógica unificada (elemento e
+    CSS removidos — fim da duplicação). **2.3** a cascata/reveal dispara no **brilho
+    pleno** (`dist < REVEAL_AT`), não na entrada na viewport.
+  - **`will-change` só nas cenas em cena** (≤2 durante o cross-fade), via `.is-onstage`
+    ligado/desligado pelo próprio laço. Só `transform`/`opacity`/`filter:brightness` —
+    nada de `width/height/top/left` animados.
+  - **`prefers-reduced-motion`:** o palco **não empilha** (o JS não adiciona
+    `.is-stacked` nem liga o scroll) — as cenas caem no **fluxo vertical normal**,
+    estáticas e legíveis, no bloco ÚNICO que já existia. **Mobile** roda o cross-fade
+    (opacity/brightness) com **parallax zerado**; `svh`/`vh` fallback no palco sticky e
+    na altura do wrapper para não saltar com a barra de endereço do iOS. A banda
+    `#lista-de-espera` **continua uma seção normal** depois da sequência (fora do
+    empilhamento).
+
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 
 Toda imagem no upload passa por hash perceptual conferido contra uma lista local.
@@ -2227,5 +2282,7 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   (#174), sinais de atividade (#175), teaser (#176), filtro de cidade (#177), visitas
   bidirecionais (#178), microinterações (#179), intro de voz (#180) — mais a landing
   cinematográfica (#184) e o foco em lista de espera (#187), todos mergeados na `main`.
-  `feat/landing-motion` não adiciona testes (a camada é visual; os testes de landing
-  existentes seguem verdes).
+  `feat/landing-motion` / `fix/landing-motion-v2` não adicionam testes (a camada é
+  visual; os testes de landing existentes — `LandingCinematicTest`,
+  `LandingCinematicAssetsTest`, `ExternalAssetPolicyTest` — seguem verdes, confirmados
+  nesta sessão em 2017 testes / 16083 asserts).
