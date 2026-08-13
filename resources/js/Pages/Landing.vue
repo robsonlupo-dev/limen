@@ -27,71 +27,99 @@ const props = defineProps({
 // .env muda, sem rebuild. Só a Landing consome a flag; as demais telas guest não.
 const prelaunch = computed(() => Boolean(usePage().props.features?.landing_prelaunch))
 
-// ── Camada cinematográfica ───────────────────────────────────────────────────
-// Resolvidos no cliente (Inertia SSR está off): desktop ganha o vídeo, o
-// parallax e o texto em derivada; mobile e quem pede menos movimento ficam na
-// versão estática. O Ken Burns e o véu de luz são CSS por TEMPO (independentes
-// do scroll) e o reveal em cascata segue nos dois — o CSS os desliga sob
-// prefers-reduced-motion.
+// ── Sequência cinematográfica empilhada (cross-dissolve dirigido por scroll) ──
+// As 5 cenas deixam de ser seções lado a lado e passam a ocupar O MESMO espaço da
+// tela, sobrepostas dentro de um "palco" sticky. Um wrapper alto (N × 100svh) dá o
+// curso de scroll; o laço rAF ÚNICO lê o progresso do scroll DENTRO do wrapper e,
+// por cena, distribui opacidade + brilho: a que sai escurece e some, a que entra
+// clareia e aparece. A curva é simétrica e derivada da POSIÇÃO — funciona igual nos
+// dois sentidos, sem emenda. Mobile roda o cross-fade (opacity/brightness); parallax
+// e derivada do texto ficam só no desktop (fluidez primeiro). Reduced-motion cai no
+// empilhamento vertical normal (sem `is-stacked`), cenas estáticas e legíveis.
+//
+// NOTA de arquitetura: a spec sugeria "cada cena position:sticky". Um palco sticky
+// ÚNICO com as cenas absolutas sobrepostas dá o cross-fade PURO que o PO pediu
+// ("a de cima escurece, a de baixo clareia, na MESMA posição") — sticky por-cena
+// deixaria a cena entrante DESLIZAR de baixo (a emenda que se quer eliminar). Mesmo
+// wrapper de N×100svh, mesmo resultado visual, sem o slide.
 const isDesktop = ref(false)
 const motionOk = ref(true)
 const showOpeningVideo = ref(false)
+const stackEl = ref(null)
 
-let revealIo = null // reveal-on-scroll: uma passada, depois solta
-let stageIo = null // presença em cena: gate de will-change + processamento por-frame
+let revealIo = null // reveal da lista de espera (seção normal, abaixo do palco)
+let wlStageIo = null // presença da banda de waitlist: gate de will-change do mármore
 let rafId = null
+let viewportEl = null // o palco sticky; sua altura real fecha a conta do progresso
 
-// Descritores de cena, montados UMA vez: cada um cacheia os elementos que o laço
-// de scroll toca, para não pagar querySelector por frame.
+// Descritores de cena, montados UMA vez (cacheiam o que o laço toca por frame).
 let sceneList = []
-// Só as cenas EM CENA entram no laço — e só nelas o will-change vive. Cinco
-// camadas full-screen promovidas ao mesmo tempo estouram a GPU do celular.
-const onstage = new Set()
 
-// Parallax: a mídia sobe mais devagar que o scroll; o texto deriva no sentido
-// oposto, mais devagar ainda — as duas velocidades separam os planos. Fatores
-// pequenos e com TETO para a mídia (130% de altura, inset -15%) nunca revelar borda.
-const MEDIA_SHIFT = -0.1
-const MEDIA_CAP = 0.12
-const TEXT_SHIFT = 0.05
-const TEXT_CAP = 0.06
+// Parallax dentro da cena fixada: a mídia deriva devagar e o TEXTO deriva mais
+// RÁPIDO, em sentido oposto — planos separados. Fatores em fração de vh, com teto
+// para a mídia (inset -15% de folga) nunca revelar borda. Só no desktop.
+const MEDIA_SHIFT = 0.05
+const MEDIA_CAP = 0.07
+const TEXT_SHIFT = 0.1
+const TEXT_CAP = 0.12
+// Brilho da imagem que sai/entra: 1 no centro → 0.4 na borda da transição.
+const DIM = 0.6
+// A cascata de palavras / reveal do texto dispara ao chegar perto do brilho pleno.
+const REVEAL_AT = 0.22
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 // UM único laço de scroll (rAF): lê o scroll uma vez por frame e distribui para
-// tudo que depende dele — parallax da mídia e do texto, fade dirigido por scroll
-// da cena 2 e o cross-dissolve (o fundo da cena que sai/entra escurece).
+// tudo — cross-dissolve (opacity+brightness por cena), parallax da mídia e do
+// texto, e o gatilho do reveal no brilho pleno.
 function runScroll() {
+    const stack = stackEl.value
+    if (!stack || !viewportEl) {
+        rafId = null
+        return
+    }
+
+    // Progresso 0..1 dentro do wrapper: 0 = topo do palco no topo da tela; 1 = o
+    // palco terminou de rolar (exatamente quando o sticky solta). Usar a altura
+    // REAL do palco (não innerHeight) alinha progress=1 ao release do sticky mesmo
+    // com a barra de endereço do Safari mexendo no viewport.
+    const span = stack.offsetHeight - viewportEl.offsetHeight
+    const progress = span > 0 ? clamp(-stack.getBoundingClientRect().top / span, 0, 1) : 0
+    const p = progress * (sceneList.length - 1) // posição contínua entre cenas [0..N-1]
     const vh = window.innerHeight
 
-    for (const s of onstage) {
-        const rect = s.el.getBoundingClientRect()
-        const offset = rect.top + rect.height / 2 - vh / 2
+    for (const s of sceneList) {
+        const local = p - s.i // <0 entrando (de baixo), 0 no centro, >0 saindo (por cima)
+        const dist = Math.abs(local)
+        const opacity = clamp(1 - dist, 0, 1)
+        s.el.style.opacity = opacity.toFixed(3)
+
+        const visible = opacity > 0.001
+        if (visible !== s.visible) {
+            s.visible = visible
+            s.el.classList.toggle('is-onstage', visible) // will-change só na cena em cena
+        }
+        if (!visible) continue
+
+        // Brilho: a imagem escurece conforme a cena sai/entra (o texto some por opacity).
+        const brightness = (1 - dist * DIM).toFixed(3)
+        for (const d of s.dimmers) d.style.filter = `brightness(${brightness})`
 
         if (isDesktop.value) {
             if (s.media) {
-                const y = clamp(offset * MEDIA_SHIFT, -MEDIA_CAP * vh, MEDIA_CAP * vh)
+                const y = clamp(local * MEDIA_SHIFT * vh, -MEDIA_CAP * vh, MEDIA_CAP * vh)
                 s.media.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
             }
             for (const t of s.texts) {
-                const y = clamp(offset * TEXT_SHIFT, -TEXT_CAP * vh, TEXT_CAP * vh)
+                const y = clamp(-local * TEXT_SHIFT * vh, -TEXT_CAP * vh, TEXT_CAP * vh)
                 t.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
             }
         }
 
-        if (s.fade) {
-            // Cena 2: o texto ganha opacidade conforme a CENA sobe — quase
-            // invisível ao entrar, pleno quando ela preenche a tela.
-            const p = 1 - rect.top / (vh * 0.85)
-            s.fade.style.opacity = clamp(p, 0.06, 1).toFixed(2)
-        }
-
-        if (s.dissolve) {
-            // Cross-dissolve: 0 no centro, escurece à medida que a cena sai (para
-            // cima ou baixo). Fica em ~0 na banda central e vive ABAIXO do texto
-            // (z-index), então não reduz a legibilidade do que se está lendo.
-            const d = Math.abs(offset) / (vh * 0.5)
-            s.dissolve.style.opacity = (clamp((d - 0.5) / 0.5, 0, 1) * 0.5).toFixed(2)
+        // Reveal / cascata de palavras: dispara ao chegar no brilho pleno (dist pequena).
+        if (!s.revealed && s.reveal && dist < REVEAL_AT) {
+            s.revealed = true
+            s.reveal.classList.add('is-visible')
         }
     }
 
@@ -108,8 +136,7 @@ onMounted(() => {
     // Vídeo de abertura: só desktop + movimento permitido (senão porta.webp).
     showOpeningVideo.value = isDesktop.value && motionOk.value
 
-    // Reveal-on-scroll: cada [data-reveal] aparece (fade + subida; palavras em
-    // cascata via --i no CSS) ao entrar na viewport. Uma passada só; depois solta.
+    // Reveal da lista de espera (seção normal, abaixo do palco): fade + subida.
     revealIo = new IntersectionObserver(
         (entries, obs) => {
             for (const entry of entries) {
@@ -121,52 +148,54 @@ onMounted(() => {
         },
         { threshold: 0.2 },
     )
-    document.querySelectorAll('[data-reveal]').forEach((el) => revealIo.observe(el))
+    document.querySelectorAll('.wl-section [data-reveal]').forEach((el) => revealIo.observe(el))
 
-    // Sob reduced-motion nada disto liga: sem parallax, sem cross-dissolve, sem
-    // presença/will-change. O CSS deixa Ken Burns e véu de luz parados e o texto
-    // da cena 2 em opacity:1. O reveal acima segue (o CSS o torna instantâneo).
+    // Sob reduced-motion o palco NÃO empilha: as cenas ficam no fluxo vertical normal
+    // (sem `is-stacked`), estáticas e legíveis; o CSS deixa Ken Burns/véu de luz
+    // parados e os reveals instantâneos. O observer acima segue valendo.
     if (!motionOk.value) return
 
-    // Descritores por cena — inclui a banda da lista de espera (mármore com Ken
-    // Burns). Cacheados uma vez; o laço só lê getBoundingClientRect por frame.
-    sceneList = Array.from(document.querySelectorAll('[data-stage]')).map((el) => ({
+    const stack = stackEl.value
+    if (!stack) return
+    viewportEl = stack.querySelector('.scene-viewport')
+
+    // Descritores por cena. `dimmers` são as camadas de imagem que escurecem;
+    // `media` é a que recebe o parallax; `reveal` é o container do texto em cascata.
+    sceneList = Array.from(stack.querySelectorAll('.scene')).map((el, i) => ({
         el,
+        i,
         media: el.querySelector('[data-parallax]'),
+        dimmers: Array.from(el.querySelectorAll('.scene-media, .split-pane')),
         texts: isDesktop.value ? Array.from(el.querySelectorAll('[data-parallax-text]')) : [],
-        fade: el.querySelector('[data-scroll-fade]'),
-        dissolve: el.querySelector('[data-dissolve]'),
+        reveal: el.querySelector('[data-reveal]'),
+        visible: null,
+        revealed: false,
     }))
 
-    // Presença em cena: liga o processamento por-frame e o will-change só
-    // enquanto a cena está (perto de) visível; solta os dois quando ela sai.
-    const byEl = new Map(sceneList.map((s) => [s.el, s]))
-    stageIo = new IntersectionObserver(
+    // O wrapper ganha o curso de scroll (N × 100svh) e vira palco empilhado. A dupla
+    // atribuição é o fallback de unidade: se `svh` não existe, a 2ª é rejeitada e o
+    // `vh` fica (Safari antigo). O palco sticky por dentro vem do CSS `.is-stacked`.
+    const stackVh = sceneList.length * 100
+    stack.style.height = `${stackVh}vh`
+    stack.style.height = `${stackVh}svh`
+    stack.classList.add('is-stacked')
+
+    // Presença da banda de waitlist (mármore com Ken Burns): gate de will-change.
+    wlStageIo = new IntersectionObserver(
         (entries) => {
-            for (const entry of entries) {
-                const s = byEl.get(entry.target)
-                if (!s) continue
-                if (entry.isIntersecting) {
-                    onstage.add(s)
-                    entry.target.classList.add('is-onstage')
-                } else {
-                    onstage.delete(s)
-                    entry.target.classList.remove('is-onstage')
-                }
-            }
-            onScroll()
+            for (const entry of entries) entry.target.classList.toggle('is-onstage', entry.isIntersecting)
         },
-        { rootMargin: '20% 0px 20% 0px', threshold: 0 },
+        { rootMargin: '10% 0px 10% 0px', threshold: 0 },
     )
-    sceneList.forEach((s) => stageIo.observe(s.el))
+    document.querySelectorAll('.wl-section[data-stage]').forEach((el) => wlStageIo.observe(el))
 
     window.addEventListener('scroll', onScroll, { passive: true })
-    runScroll()
+    runScroll() // pinta o estado inicial antes do primeiro paint (evita flash das cenas)
 })
 
 onBeforeUnmount(() => {
     revealIo?.disconnect()
-    stageIo?.disconnect()
+    wlStageIo?.disconnect()
     window.removeEventListener('scroll', onScroll)
     if (rafId !== null) cancelAnimationFrame(rafId)
 })
@@ -270,10 +299,20 @@ function onSubmit() {
                 </div>
             </div>
 
+            <!-- ── Palco cinematográfico: as 5 cenas EMPILHADAS no mesmo espaço ──
+                 O wrapper alto (N × 100svh, altura fixada no JS) dá o curso de
+                 scroll; o palco (.scene-viewport) fica sticky por dentro e as cenas
+                 são absolutas, sobrepostas. O laço rAF faz o cross-dissolve
+                 (opacity + brightness) dirigido pela POSIÇÃO do scroll. Sem
+                 `is-stacked` (reduced-motion / pré-JS) as cenas caem no fluxo
+                 vertical normal, estáticas e legíveis. -->
+            <div ref="stackEl" class="scene-stack">
+              <div class="scene-viewport">
+
             <!-- ── Cena 1 · ABERTURA ─────────────────────────────────────────
                  Vídeo da câmera cruzando a porta (desktop) ou porta.webp
                  estática (mobile / reduced-motion). Texto surge após ~1.5s. -->
-            <section class="scene" data-stage>
+            <section class="scene">
                 <div class="scene-media" data-parallax>
                     <video
                         v-if="showOpeningVideo"
@@ -296,7 +335,6 @@ function onSubmit() {
                     />
                 </div>
                 <div class="scene-veil scene-veil--center" aria-hidden="true" />
-                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--center" data-reveal>
                     <h1 class="scene-line hero-line">Alguns portais não se anunciam.</h1>
                     <p class="scroll-hint" aria-hidden="true">role para descer</p>
@@ -307,7 +345,7 @@ function onSubmit() {
                  O arco (portal.webp) fica em brilho pleno — só um gradiente na
                  base escurece atrás do texto. "Cruze o limiar." aparece no terço
                  inferior, ABAIXO do LIMEN da imagem, com fade dirigido por scroll. -->
-            <section class="scene scene--portal" data-stage>
+            <section class="scene scene--portal">
                 <div class="scene-media" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/portal-mobile.webp'" type="image/webp" />
@@ -321,15 +359,16 @@ function onSubmit() {
                 </div>
                 <div class="scene-veil scene-veil--bottom" aria-hidden="true" />
                 <div class="light-sheen" aria-hidden="true"><span class="light-sheen-band" /></div>
-                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
-                <div class="scene-content scene-content--lower" data-scroll-fade>
+                <!-- O antigo [data-scroll-fade] foi ABSORVIDO pelo cross-dissolve do
+                     palco: o texto revela no brilho pleno da cena (como as demais). -->
+                <div class="scene-content scene-content--lower" data-reveal>
                     <h2 class="scene-line" data-parallax-text>Cruze o limiar.</h2>
                 </div>
             </section>
 
             <!-- ── Cena 3 · A VERIFICAÇÃO ─────────────────────────────────
                  Impressão digital dourada centralizada em fundo escuro. -->
-            <section class="scene scene--dark" data-stage>
+            <section class="scene scene--dark">
                 <div class="scene-media scene-media--contain" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/digital-mobile.webp'" type="image/webp" />
@@ -341,7 +380,6 @@ function onSubmit() {
                         />
                     </picture>
                 </div>
-                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--center scene-content--bottom reveal-stagger" data-reveal>
                     <h2 class="scene-line" data-parallax-text>
                         <span class="reveal-word" :style="{ '--i': 0 }">Verificado,</span>
@@ -355,7 +393,7 @@ function onSubmit() {
             <!-- ── Cena 4 · O MISTÉRIO ───────────────────────────────────
                  Silhueta atrás de vidro fosco + máscara veneziana. Lado a lado
                  no desktop, empilhadas no mobile. -->
-            <section class="scene scene--split" data-stage>
+            <section class="scene scene--split">
                 <div class="split-pane">
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/silhueta-mobile.webp'" type="image/webp" />
@@ -379,7 +417,6 @@ function onSubmit() {
                     </picture>
                 </div>
                 <div class="scene-veil scene-veil--full" aria-hidden="true" />
-                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--center reveal-stagger" data-reveal>
                     <h2 class="scene-line" data-parallax-text>
                         <span class="reveal-word" :style="{ '--i': 0 }">Um</span>
@@ -393,7 +430,7 @@ function onSubmit() {
             <!-- ── Cena 5 · O CONVITE ────────────────────────────────────
                  Wordmark LIMEN dourado (moldura.webp) full-bleed, tagline e o
                  ÚNICO CTA: "Entre na lista de espera" (rola até o formulário). -->
-            <section class="scene scene--dark scene--invite" data-stage>
+            <section class="scene scene--dark scene--invite">
                 <div class="scene-media" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/moldura-mobile.webp'" type="image/webp" />
@@ -407,7 +444,6 @@ function onSubmit() {
                 </div>
                 <div class="scene-veil scene-veil--bottom" aria-hidden="true" />
                 <div class="light-sheen" aria-hidden="true"><span class="light-sheen-band" /></div>
-                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--invite" data-reveal>
                     <p class="invite-tagline" data-parallax-text>O portal do desejo, verificado e real.</p>
                     <button type="button" class="invite-cta" @click="scrollToForm()">
@@ -416,6 +452,9 @@ function onSubmit() {
                     <p class="invite-note">Lançamento em breve · entrada por convite</p>
                 </div>
             </section>
+
+              </div><!-- /.scene-viewport -->
+            </div><!-- /.scene-stack -->
         </div>
 
         <!-- ── Lista de espera (ÚNICO CTA da landing) ────────────────────────
@@ -639,6 +678,48 @@ function onSubmit() {
     overflow-x: clip;
 }
 
+/* ── Palco empilhado ──────────────────────────────────────────────────────────
+   FALLBACK (sem JS / reduced-motion): o wrapper e o palco não fazem nada; cada
+   cena é uma seção normal de 100svh, empilhada verticalmente — legível e estática.
+   MODO EMPILHADO (`.is-stacked`, ligado pelo JS só quando há movimento): o wrapper
+   ganha altura de N × 100svh (fixada no JS) e o palco fica STICKY por dentro, então
+   as cenas absolutas ocupam o MESMO espaço da tela, sobrepostas. O laço rAF pinta
+   opacity + brightness por cena a partir da posição do scroll (cross-dissolve). */
+.scene-stack {
+    position: relative;
+}
+.scene-viewport {
+    position: relative;
+}
+.scene-stack.is-stacked .scene-viewport {
+    position: sticky;
+    top: 0;
+    /* svh (estável sob a barra de endereço do Safari) com fallback para vh. */
+    height: 100vh;
+    height: 100svh;
+    overflow: hidden;
+}
+.scene-stack.is-stacked .scene {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    height: 100%;
+    /* O JS pinta as opacidades; começar em 0 evita o flash das 5 cenas de uma vez. */
+    opacity: 0;
+    will-change: auto;
+}
+/* will-change vive SÓ na(s) cena(s) em cena (≤2 durante o cross-fade) — cinco
+   camadas full-screen promovidas de uma vez estouram a GPU do celular. */
+.scene.is-onstage {
+    will-change: opacity;
+}
+.scene.is-onstage .scene-media,
+.scene.is-onstage .split-pane,
+.scene.is-onstage img.scene-img,
+.scene.is-onstage .light-sheen-band {
+    will-change: transform;
+}
+
 /* Cada cena ocupa a viewport inteira. */
 .scene {
     position: relative;
@@ -652,17 +733,13 @@ function onSubmit() {
     background-color: #100d0a;
 }
 
-/* Camada de mídia (fundo full-bleed). 130% de altura para o parallax nunca
-   revelar borda. `will-change` só é promovido quando a cena está em cena
-   (`.is-onstage`) — cinco camadas full-screen promovidas de uma vez estouram a
-   GPU do celular. */
+/* Camada de mídia (fundo full-bleed). inset -15% dá folga vertical para o parallax
+   nunca revelar borda. O brilho (filter) e o translate do parallax são pintados
+   pelo laço rAF; will-change:transform vem do `.is-onstage` acima. */
 .scene-media {
     position: absolute;
     inset: -15% 0;
     z-index: 0;
-}
-[data-stage].is-onstage .scene-media {
-    will-change: transform;
 }
 .scene-img {
     width: 100%;
@@ -676,9 +753,6 @@ function onSubmit() {
 img.scene-img {
     transform-origin: center;
     animation: ken-burns-a 24s ease-in-out infinite alternate;
-}
-[data-stage].is-onstage img.scene-img {
-    will-change: transform;
 }
 /* Direção diferente por cena (o mesmo enquadramento repetido lê como slideshow). */
 .scene--portal img.scene-img {
@@ -811,21 +885,7 @@ img.scene-img--contain {
     transform: translate3d(-16%, 0, 0);
     animation: sheen-drift 16s ease-in-out infinite alternate;
 }
-[data-stage].is-onstage .light-sheen-band {
-    will-change: transform;
-}
 
-/* ── Cross-dissolve: o fundo da cena que sai/entra escurece (opacidade dirigida
-   por scroll no laço rAF). Fica ABAIXO do texto (z 2), então a transição entre
-   cenas lê como fade-através-do-escuro, sem tocar a legibilidade. */
-.scene-dissolve {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    background: #0a0806;
-    opacity: 0;
-    pointer-events: none;
-}
 .scene-content--center {
     margin-inline: auto;
 }
@@ -858,11 +918,6 @@ img.scene-img--contain {
     font-style: italic;
     /* Surge ~1.5s depois da abertura entrar. `both` mantém invisível no atraso. */
     animation: hero-in 1.4s ease-out 1.5s both;
-}
-/* Cena 2: opacidade inicial é dirigida por scroll no JS; este é o fallback
-   (pré-JS e reduced-motion): texto plenamente visível. */
-[data-scroll-fade] {
-    opacity: 1;
 }
 
 .scroll-hint {
@@ -950,7 +1005,7 @@ img.scene-img--contain {
     transform-origin: center;
     animation: ken-burns-breathe 26s ease-in-out infinite alternate;
 }
-[data-stage].is-onstage .wl-bg-img {
+.wl-section.is-onstage .wl-bg-img {
     will-change: transform;
 }
 /* Escurece forte: o mármore vira textura, não distrai do formulário. */
@@ -1093,11 +1148,13 @@ img.scene-img--contain {
     }
 }
 
-/* Menos movimento: desliga parallax e cross-dissolve (via JS), Ken Burns, véu de
-   luz, reveal (container e palavras) e as animações de tempo. O texto da cena 2
-   fica em opacity:1 pelo fallback de [data-scroll-fade] acima. Bloco ÚNICO.
-   `!important` no kill de animação porque as regras por-cena de Ken Burns têm
-   especificidade alta — é o override de acessibilidade, o lugar onde ele cabe. */
+/* Menos movimento: o palco NÃO empilha (o JS não adiciona `.is-stacked` nem liga o
+   laço de scroll), então as cenas ficam no fluxo vertical normal, em opacity:1 e
+   estáticas. Aqui só matamos o que é CSS por tempo — Ken Burns, véu de luz, animações
+   de entrada — e forçamos os reveals (container e palavras) visíveis, já que sob
+   reduced-motion o gatilho por scroll não roda. Bloco ÚNICO. `!important` no kill de
+   Ken Burns porque as regras por-cena têm especificidade alta — é o override de
+   acessibilidade, o lugar onde ele cabe. */
 @media (prefers-reduced-motion: reduce) {
     .hero-line,
     .scroll-hint {
