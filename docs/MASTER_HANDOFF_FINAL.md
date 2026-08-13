@@ -937,7 +937,7 @@ carregam o racional item a item.
 
 | Entrega | PR |
 |---|---|
-| **Estilos de Vida** (`lifestyle_tier`) — 6 faixas opt-in exibidas no perfil; **sem filtro no catálogo**, Modo Discreto **suprime** a exibição e a faixa **não entra no painel de visitantes**. Regra e slugs em `App\Support\LifestyleTier` | #111 |
+| **Estilos de Vida** (`lifestyle_tier`) — 6 faixas opt-in exibidas no perfil; **sem filtro no catálogo**, Modo Discreto **suprime** a exibição. A faixa **TAMBÉM aparece no painel de visitantes** (ao lado do FanAlias de cada visitante revelável — `ProfileVisitService::panelFor` traz `lifestyle`), e **NÃO há k-anonimato sobre o atributo** (o k=3 do painel é por FAIXA DE HORÁRIO, não sobre `lifestyle_tier`). Regra e slugs em `App\Support\LifestyleTier` | #111 |
 | **Favoritos** (`favorites`) — bookmark **PRIVADO**: a performer NUNCA sabe que foi favoritada. Invariante nova no `CLAUDE.md` (§ "Favoritos do membro"), dona única `FavoriteService`, cobertura nos dois sentidos do `DeletionService` | #112 |
 | **"Sobre mim"** — campos de perfil renderizados na página pública da performer | #113 |
 | **"Visto por último"** em FAIXA (`last_active_at` + `App\Support\ActivitySlot`) — **Ghost Mode suprime a ESCRITA** (§ abaixo), nunca em relógio | #114 |
@@ -965,11 +965,23 @@ teste varre os props de TODAS as telas da performer e falha se a string `favorit
 aparecer.
 
 **Estilo de Vida é exibição, não faceta.** As 6 faixas são opt-in e aparecem no
-perfil, mas **não filtram o catálogo** e **não entram no painel de visitantes** —
-Modo Discreto as suprime. O slug fica **fora do `audit_logs`** (mesmo raciocínio
-do favorito: seria cópia do mapa de interesses que o Hard Delete apaga). **Gap
-conhecido, registrado no backlog:** não há k-anonimato sobre `lifestyle_tier` — o
-caso "Patrono único" (uma faixa com um só membro) pode ser correlacionável.
+perfil, mas **não filtram o catálogo**. Modo Discreto suprime a exibição no perfil
+— e o membro discreto **nunca aparece no painel de visitantes** (o `record()` já o
+barra, então a faixa dele também não sai por ali). O slug fica **fora do
+`audit_logs`** (mesmo raciocínio do favorito: seria cópia do mapa de interesses que
+o Hard Delete apaga).
+
+**Correção (conferido em código): a faixa ENTRA no painel de visitantes.** Ao
+contrário do que uma redação anterior deste doc dizia, `ProfileVisitService::panelFor`
+resolve a faixa em lote (`LifestyleTier::labelsFor`) e a devolve no campo `lifestyle`
+de cada visitante revelável — a performer lê a faixa ao lado do FanAlias no painel.
+**Gap conhecido, registrado no backlog: NÃO há k-anonimato sobre `lifestyle_tier`.**
+O `SLOT_MIN_K` (3) do painel é k por **faixa de horário** (`visited_slot`), não sobre
+o atributo: um rótulo de estilo de vida raro ("Patrono único") aparece ao lado do
+alias assim que a faixa de horário tiver ≥3 visitantes, e pode ser correlacionável.
+`LifestyleTier::labelsFor` faz só o pluck→rótulo, sem supressão por escassez — a
+ressalva completa (chave de join global, entropia baixa mas eixo NOVO) vive no
+docblock de `App\Support\LifestyleTier`.
 
 **"Visto por último" repete a disciplina do painel de visitantes.** `last_active_at`
 sai em FAIXA (`ActivitySlot`), nunca em relógio, e **Ghost Mode suprime a ESCRITA**
@@ -3590,6 +3602,36 @@ Resumo:
 - **Hard Delete varre a intro** (`purgePerformerVoiceIntro` + bytes); **GC
   `voice:purge-orphan-raw`** (horário). Zero asset externo. Não toca mobile-layout.
 
+### Landing cinematográfica — camada de movimento — EM BRANCH (`feat/landing-motion`)
+
+Sobre a landing de 5 cenas (base #184 `feat/landing-cinematic` + foco em lista de
+espera #187 `feat/landing-waitlist-focus`, ambas mergeadas), esta branch adiciona
+**MOVIMENTO cinematográfico** para cada cena "viva" sem parecer slideshow. **CSS/JS
+puro, ZERO biblioteca, ZERO asset novo.** Dona única: `resources/js/Pages/Landing.vue`.
+Detalhe completo no `CLAUDE.md`, § "Landing cinematográfica", subseção "Camada de
+movimento". Resumo:
+
+- **Regra de arquitetura (dura):** continua havendo **UM ÚNICO laço `rAF` + UM listener
+  de scroll** (`runScroll` lê o scroll uma vez por frame e distribui). Um SEGUNDO
+  `IntersectionObserver` — de PRESENÇA em cena — foi acrescentado para gate de
+  `will-change` (observer não é listener de scroll; é o padrão correto).
+- **Cinco efeitos:** (1) **Ken Burns** por TEMPO (CSS) nas fotos das cenas 2–5 + mármore
+  da waitlist, direção distinta por cena, **nunca no `<video>`** (`img.scene-img`),
+  respiração-só na impressão digital contida; (2) **parallax** mais expressivo no laço
+  (mídia `-0.1` com teto `±0.12·vh`; texto deriva `+0.05`; só desktop); (3) **reveal em
+  cascata** palavra a palavra via `--i` (CSS `transition-delay`); (4) **cross-dissolve**
+  (opacidade de fundo dirigida por scroll, abaixo do texto, não briga com o
+  `[data-scroll-fade]` da cena 2); (5) **véu de luz** dourado deslizando sobre o mármore
+  (só `transform`).
+- **GPU/memória:** anima só `transform`/`opacity`; `will-change` promovido só na cena
+  `.is-onstage` (o laço só processa cenas em cena). `prefers-reduced-motion` desliga tudo
+  no bloco ÚNICO já existente (Ken Burns/véu/reveal com `!important` no kill por causa da
+  especificidade das regras por-cena; parallax/dissolve já não ligam pelo guard do JS).
+  Mobile: Ken Burns mais sutil (só respira, 30s) e parallax zerado.
+- **Não regride nada:** vídeo da cena 1, reveal do "Cruze o limiar", wizard da waitlist,
+  aviso de SPAM e header só-logo intactos. `ExternalAssetPolicyTest`,
+  `LandingCinematicAssetsTest`, `LandingCinematicTest` verdes. Sem testes novos (visual).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),
@@ -3783,7 +3825,8 @@ registro do que saiu está em "Sprint 9C — O que foi entregue".
 > "Sprint 10 — O que foi entregue". Lista aqui só como memória.
 
 - [x] **Estilos de Vida** (`lifestyle_tier`, 6 faixas opt-in) — exibição, **sem
-      filtro**, Modo Discreto suprime, fora do painel de visitantes, slug fora do audit
+      filtro**, Modo Discreto suprime a exibição no perfil, slug fora do audit. A faixa
+      **aparece no painel de visitantes** (sem k sobre o atributo — ver o gap abaixo)
 - [x] **Favoritos** (bookmark privado — a performer nunca sabe; invariante no `CLAUDE.md`)
 - [x] **"Sobre mim"** no perfil público · [x] **"Visto por último"** em faixa (Ghost Mode suprime a escrita)
 - [x] **Barra de progresso do perfil** · [x] **Galeria de fotos** (carrossel 6, EXIF strip, pública)
@@ -3825,8 +3868,11 @@ registro do que saiu está em "Sprint 9C — O que foi entregue".
       disco indefinidamente se a denúncia nunca fechar; sem prazo nem alarme para
       denúncia parada. 🟡 do 9B/9C.
 - [ ] **k-anonimato sobre `lifestyle_tier`** — o caso "Patrono único" (faixa de
-      Estilo de Vida com um só membro) pode ser correlacionável. Não há k mínimo na
-      exibição da faixa, como há no painel de visitantes.
+      Estilo de Vida com um só membro) pode ser correlacionável. Não há k mínimo sobre
+      o ATRIBUTO em superfície nenhuma: a faixa aparece no painel de visitantes assim
+      que a faixa de HORÁRIO reúne ≥3 aliases (o k=3 do painel é por `visited_slot`,
+      não sobre `lifestyle_tier`). Suprimir o rótulo enquanto < K membros o sustentam
+      segue como follow-up.
 - [ ] **Expansão LATAM** — pós go-live.
 
 > **Fora do servidor / projeto separado:** **CRM de recrutamento** — projeto à

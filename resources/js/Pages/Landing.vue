@@ -28,39 +28,71 @@ const props = defineProps({
 const prelaunch = computed(() => Boolean(usePage().props.features?.landing_prelaunch))
 
 // ── Camada cinematográfica ───────────────────────────────────────────────────
-// Resolvidos no cliente (Inertia SSR está off): desktop ganha o vídeo e o
-// parallax; mobile e quem pede menos movimento ficam na versão estática.
+// Resolvidos no cliente (Inertia SSR está off): desktop ganha o vídeo, o
+// parallax e o texto em derivada; mobile e quem pede menos movimento ficam na
+// versão estática. O Ken Burns e o véu de luz são CSS por TEMPO (independentes
+// do scroll) e o reveal em cascata segue nos dois — o CSS os desliga sob
+// prefers-reduced-motion.
 const isDesktop = ref(false)
 const motionOk = ref(true)
 const showOpeningVideo = ref(false)
 
-let io = null
+let revealIo = null // reveal-on-scroll: uma passada, depois solta
+let stageIo = null // presença em cena: gate de will-change + processamento por-frame
 let rafId = null
-let parallaxEls = []
-let fadeEls = []
 
-// Um único laço de scroll (rAF) faz duas coisas quando o movimento é permitido:
-//  • parallax leve da mídia (só desktop) — desloca a camada por uma fração do
-//    offset ao centro; a mídia é 130% da altura (inset -15%) p/ nunca revelar borda;
-//  • fade dirigido por scroll da cena 2: o texto ganha opacidade conforme a CENA
-//    sobe na viewport — quase invisível ao entrar, pleno quando ela preenche a tela.
+// Descritores de cena, montados UMA vez: cada um cacheia os elementos que o laço
+// de scroll toca, para não pagar querySelector por frame.
+let sceneList = []
+// Só as cenas EM CENA entram no laço — e só nelas o will-change vive. Cinco
+// camadas full-screen promovidas ao mesmo tempo estouram a GPU do celular.
+const onstage = new Set()
+
+// Parallax: a mídia sobe mais devagar que o scroll; o texto deriva no sentido
+// oposto, mais devagar ainda — as duas velocidades separam os planos. Fatores
+// pequenos e com TETO para a mídia (130% de altura, inset -15%) nunca revelar borda.
+const MEDIA_SHIFT = -0.1
+const MEDIA_CAP = 0.12
+const TEXT_SHIFT = 0.05
+const TEXT_CAP = 0.06
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
+
+// UM único laço de scroll (rAF): lê o scroll uma vez por frame e distribui para
+// tudo que depende dele — parallax da mídia e do texto, fade dirigido por scroll
+// da cena 2 e o cross-dissolve (o fundo da cena que sai/entra escurece).
 function runScroll() {
     const vh = window.innerHeight
 
-    if (isDesktop.value) {
-        for (const el of parallaxEls) {
-            const rect = el.getBoundingClientRect()
-            const offset = rect.top + rect.height / 2 - vh / 2
-            el.style.transform = `translate3d(0, ${(offset * -0.08).toFixed(1)}px, 0)`
-        }
-    }
+    for (const s of onstage) {
+        const rect = s.el.getBoundingClientRect()
+        const offset = rect.top + rect.height / 2 - vh / 2
 
-    for (const el of fadeEls) {
-        // Progresso da CENA (não do texto, que fica no terço inferior): 0 quando a
-        // cena entra pela base, 1 quando quase preenche a viewport.
-        const scene = el.closest('.scene')
-        const p = 1 - scene.getBoundingClientRect().top / (vh * 0.85)
-        el.style.opacity = Math.min(1, Math.max(0.06, p)).toFixed(2)
+        if (isDesktop.value) {
+            if (s.media) {
+                const y = clamp(offset * MEDIA_SHIFT, -MEDIA_CAP * vh, MEDIA_CAP * vh)
+                s.media.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
+            }
+            for (const t of s.texts) {
+                const y = clamp(offset * TEXT_SHIFT, -TEXT_CAP * vh, TEXT_CAP * vh)
+                t.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
+            }
+        }
+
+        if (s.fade) {
+            // Cena 2: o texto ganha opacidade conforme a CENA sobe — quase
+            // invisível ao entrar, pleno quando ela preenche a tela.
+            const p = 1 - rect.top / (vh * 0.85)
+            s.fade.style.opacity = clamp(p, 0.06, 1).toFixed(2)
+        }
+
+        if (s.dissolve) {
+            // Cross-dissolve: 0 no centro, escurece à medida que a cena sai (para
+            // cima ou baixo). Fica em ~0 na banda central e vive ABAIXO do texto
+            // (z-index), então não reduz a legibilidade do que se está lendo.
+            const d = Math.abs(offset) / (vh * 0.5)
+            s.dissolve.style.opacity = (clamp((d - 0.5) / 0.5, 0, 1) * 0.5).toFixed(2)
+        }
     }
 
     rafId = null
@@ -76,9 +108,9 @@ onMounted(() => {
     // Vídeo de abertura: só desktop + movimento permitido (senão porta.webp).
     showOpeningVideo.value = isDesktop.value && motionOk.value
 
-    // Reveal-on-scroll: cada [data-reveal] aparece (fade + subida) ao entrar na
-    // viewport. Uma passada só; depois desconecta.
-    io = new IntersectionObserver(
+    // Reveal-on-scroll: cada [data-reveal] aparece (fade + subida; palavras em
+    // cascata via --i no CSS) ao entrar na viewport. Uma passada só; depois solta.
+    revealIo = new IntersectionObserver(
         (entries, obs) => {
             for (const entry of entries) {
                 if (entry.isIntersecting) {
@@ -89,21 +121,52 @@ onMounted(() => {
         },
         { threshold: 0.2 },
     )
-    document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el))
+    document.querySelectorAll('[data-reveal]').forEach((el) => revealIo.observe(el))
 
-    if (motionOk.value) {
-        // Parallax só no desktop; o fade dirigido por scroll roda nos dois (é só
-        // opacidade, barato). Sob reduced-motion nada disso liga — o CSS deixa o
-        // texto da cena 2 em opacity:1.
-        parallaxEls = isDesktop.value ? Array.from(document.querySelectorAll('[data-parallax]')) : []
-        fadeEls = Array.from(document.querySelectorAll('[data-scroll-fade]'))
-        window.addEventListener('scroll', onScroll, { passive: true })
-        runScroll()
-    }
+    // Sob reduced-motion nada disto liga: sem parallax, sem cross-dissolve, sem
+    // presença/will-change. O CSS deixa Ken Burns e véu de luz parados e o texto
+    // da cena 2 em opacity:1. O reveal acima segue (o CSS o torna instantâneo).
+    if (!motionOk.value) return
+
+    // Descritores por cena — inclui a banda da lista de espera (mármore com Ken
+    // Burns). Cacheados uma vez; o laço só lê getBoundingClientRect por frame.
+    sceneList = Array.from(document.querySelectorAll('[data-stage]')).map((el) => ({
+        el,
+        media: el.querySelector('[data-parallax]'),
+        texts: isDesktop.value ? Array.from(el.querySelectorAll('[data-parallax-text]')) : [],
+        fade: el.querySelector('[data-scroll-fade]'),
+        dissolve: el.querySelector('[data-dissolve]'),
+    }))
+
+    // Presença em cena: liga o processamento por-frame e o will-change só
+    // enquanto a cena está (perto de) visível; solta os dois quando ela sai.
+    const byEl = new Map(sceneList.map((s) => [s.el, s]))
+    stageIo = new IntersectionObserver(
+        (entries) => {
+            for (const entry of entries) {
+                const s = byEl.get(entry.target)
+                if (!s) continue
+                if (entry.isIntersecting) {
+                    onstage.add(s)
+                    entry.target.classList.add('is-onstage')
+                } else {
+                    onstage.delete(s)
+                    entry.target.classList.remove('is-onstage')
+                }
+            }
+            onScroll()
+        },
+        { rootMargin: '20% 0px 20% 0px', threshold: 0 },
+    )
+    sceneList.forEach((s) => stageIo.observe(s.el))
+
+    window.addEventListener('scroll', onScroll, { passive: true })
+    runScroll()
 })
 
 onBeforeUnmount(() => {
-    io?.disconnect()
+    revealIo?.disconnect()
+    stageIo?.disconnect()
     window.removeEventListener('scroll', onScroll)
     if (rafId !== null) cancelAnimationFrame(rafId)
 })
@@ -210,7 +273,7 @@ function onSubmit() {
             <!-- ── Cena 1 · ABERTURA ─────────────────────────────────────────
                  Vídeo da câmera cruzando a porta (desktop) ou porta.webp
                  estática (mobile / reduced-motion). Texto surge após ~1.5s. -->
-            <section class="scene">
+            <section class="scene" data-stage>
                 <div class="scene-media" data-parallax>
                     <video
                         v-if="showOpeningVideo"
@@ -233,6 +296,7 @@ function onSubmit() {
                     />
                 </div>
                 <div class="scene-veil scene-veil--center" aria-hidden="true" />
+                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--center" data-reveal>
                     <h1 class="scene-line hero-line">Alguns portais não se anunciam.</h1>
                     <p class="scroll-hint" aria-hidden="true">role para descer</p>
@@ -243,7 +307,7 @@ function onSubmit() {
                  O arco (portal.webp) fica em brilho pleno — só um gradiente na
                  base escurece atrás do texto. "Cruze o limiar." aparece no terço
                  inferior, ABAIXO do LIMEN da imagem, com fade dirigido por scroll. -->
-            <section class="scene scene--portal">
+            <section class="scene scene--portal" data-stage>
                 <div class="scene-media" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/portal-mobile.webp'" type="image/webp" />
@@ -256,14 +320,16 @@ function onSubmit() {
                     </picture>
                 </div>
                 <div class="scene-veil scene-veil--bottom" aria-hidden="true" />
+                <div class="light-sheen" aria-hidden="true"><span class="light-sheen-band" /></div>
+                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--lower" data-scroll-fade>
-                    <h2 class="scene-line">Cruze o limiar.</h2>
+                    <h2 class="scene-line" data-parallax-text>Cruze o limiar.</h2>
                 </div>
             </section>
 
             <!-- ── Cena 3 · A VERIFICAÇÃO ─────────────────────────────────
                  Impressão digital dourada centralizada em fundo escuro. -->
-            <section class="scene scene--dark">
+            <section class="scene scene--dark" data-stage>
                 <div class="scene-media scene-media--contain" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/digital-mobile.webp'" type="image/webp" />
@@ -275,15 +341,20 @@ function onSubmit() {
                         />
                     </picture>
                 </div>
-                <div class="scene-content scene-content--center scene-content--bottom" data-reveal>
-                    <h2 class="scene-line">Verificado. Real. Discreto.</h2>
+                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
+                <div class="scene-content scene-content--center scene-content--bottom reveal-stagger" data-reveal>
+                    <h2 class="scene-line" data-parallax-text>
+                        <span class="reveal-word" :style="{ '--i': 0 }">Verificado.</span>
+                        <span class="reveal-word" :style="{ '--i': 1 }">Real.</span>
+                        <span class="reveal-word" :style="{ '--i': 2 }">Discreto.</span>
+                    </h2>
                 </div>
             </section>
 
             <!-- ── Cena 4 · O MISTÉRIO ───────────────────────────────────
                  Silhueta atrás de vidro fosco + máscara veneziana. Lado a lado
                  no desktop, empilhadas no mobile. -->
-            <section class="scene scene--split">
+            <section class="scene scene--split" data-stage>
                 <div class="split-pane">
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/silhueta-mobile.webp'" type="image/webp" />
@@ -307,15 +378,21 @@ function onSubmit() {
                     </picture>
                 </div>
                 <div class="scene-veil scene-veil--full" aria-hidden="true" />
-                <div class="scene-content scene-content--center" data-reveal>
-                    <h2 class="scene-line">Um clube para poucos.</h2>
+                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
+                <div class="scene-content scene-content--center reveal-stagger" data-reveal>
+                    <h2 class="scene-line" data-parallax-text>
+                        <span class="reveal-word" :style="{ '--i': 0 }">Um</span>
+                        <span class="reveal-word" :style="{ '--i': 1 }">clube</span>
+                        <span class="reveal-word" :style="{ '--i': 2 }">para</span>
+                        <span class="reveal-word" :style="{ '--i': 3 }">poucos.</span>
+                    </h2>
                 </div>
             </section>
 
             <!-- ── Cena 5 · O CONVITE ────────────────────────────────────
                  Wordmark LIMEN dourado (moldura.webp) full-bleed, tagline e o
                  ÚNICO CTA: "Entre na lista de espera" (rola até o formulário). -->
-            <section class="scene scene--dark scene--invite">
+            <section class="scene scene--dark scene--invite" data-stage>
                 <div class="scene-media" data-parallax>
                     <picture>
                         <source media="(max-width: 767px)" :srcset="'/landing/moldura-mobile.webp'" type="image/webp" />
@@ -328,8 +405,10 @@ function onSubmit() {
                     </picture>
                 </div>
                 <div class="scene-veil scene-veil--bottom" aria-hidden="true" />
+                <div class="light-sheen" aria-hidden="true"><span class="light-sheen-band" /></div>
+                <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--invite" data-reveal>
-                    <p class="invite-tagline">O portal do desejo, verificado e real.</p>
+                    <p class="invite-tagline" data-parallax-text>O portal do desejo, verificado e real.</p>
                     <button type="button" class="invite-cta" @click="scrollToForm()">
                         Entre na lista de espera
                     </button>
@@ -341,7 +420,7 @@ function onSubmit() {
         <!-- ── Lista de espera (ÚNICO CTA da landing) ────────────────────────
              Mesma identidade das cenas: mármore (moldura.webp) escurecido atrás
              do formulário, que fica centralizado e com respiro. -->
-        <section id="lista-de-espera" class="wl-section">
+        <section id="lista-de-espera" class="wl-section" data-stage>
             <div class="wl-bg" aria-hidden="true">
                 <img class="wl-bg-img" :src="'/landing/moldura.webp'" alt="" loading="lazy" />
                 <div class="wl-bg-veil"></div>
@@ -573,11 +652,15 @@ function onSubmit() {
 }
 
 /* Camada de mídia (fundo full-bleed). 130% de altura para o parallax nunca
-   revelar borda; `will-change` mantém o deslocamento no GPU. */
+   revelar borda. `will-change` só é promovido quando a cena está em cena
+   (`.is-onstage`) — cinco camadas full-screen promovidas de uma vez estouram a
+   GPU do celular. */
 .scene-media {
     position: absolute;
     inset: -15% 0;
     z-index: 0;
+}
+[data-stage].is-onstage .scene-media {
     will-change: transform;
 }
 .scene-img {
@@ -585,6 +668,37 @@ function onSubmit() {
     height: 100%;
     object-fit: cover;
     display: block;
+}
+/* Ken Burns: zoom/pan lento e contínuo, por TEMPO (não pelo scroll). O seletor
+   `img` isenta o <video> da cena 1 (ele já tem movimento próprio), mas cobre o
+   fallback estático porta.webp. `alternate` volta suave, sem corte. */
+img.scene-img {
+    transform-origin: center;
+    animation: ken-burns-a 24s ease-in-out infinite alternate;
+}
+[data-stage].is-onstage img.scene-img {
+    will-change: transform;
+}
+/* Direção diferente por cena (o mesmo enquadramento repetido lê como slideshow). */
+.scene--portal img.scene-img {
+    animation-name: ken-burns-b;
+    animation-duration: 22s;
+}
+.scene--split .split-pane:first-of-type img.scene-img {
+    animation-name: ken-burns-a;
+}
+.scene--split .split-pane:nth-of-type(2) img.scene-img {
+    animation-name: ken-burns-c;
+}
+.scene--invite img.scene-img {
+    animation-name: ken-burns-c;
+    animation-duration: 26s;
+}
+/* Cena 3 (impressão digital): é OBJETO contido, não fundo — só respira (escala),
+   sem pan, senão sairia do centro. */
+img.scene-img--contain {
+    animation-name: ken-burns-breathe;
+    animation-duration: 18s;
 }
 /* Cena 3 (digital): a imagem é o "objeto", centralizada e contida — não recortada. */
 .scene-media--contain {
@@ -655,13 +769,55 @@ function onSubmit() {
     );
 }
 
-/* Conteúdo textual — sempre acima da mídia e do véu. */
+/* Conteúdo textual — sempre acima da mídia, do véu, do véu de luz e do
+   cross-dissolve (z 3, o topo da pilha da cena). O texto nunca escurece. */
 .scene-content {
     position: relative;
-    z-index: 2;
+    z-index: 3;
     padding: 2rem 1.5rem;
     text-align: center;
     max-width: 40rem;
+}
+
+/* ── Véu de luz: reflexo dourado que desliza devagar sobre o mármore ─────────
+   Uma faixa de ouro TRANSLÚCIDA num container que recorta a cena; anima só por
+   `transform` (GPU). Fica ABAIXO do texto (z 2) e é fraca — luxo, não festa —,
+   então não clareia os véus de contraste nem atrapalha a leitura. */
+.light-sheen {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+}
+.light-sheen-band {
+    position: absolute;
+    inset: -20% -45%;
+    display: block;
+    background: linear-gradient(
+        105deg,
+        transparent 40%,
+        rgba(214, 184, 114, 0.1) 50%,
+        rgba(214, 184, 114, 0.03) 57%,
+        transparent 64%
+    );
+    transform: translate3d(-16%, 0, 0);
+    animation: sheen-drift 16s ease-in-out infinite alternate;
+}
+[data-stage].is-onstage .light-sheen-band {
+    will-change: transform;
+}
+
+/* ── Cross-dissolve: o fundo da cena que sai/entra escurece (opacidade dirigida
+   por scroll no laço rAF). Fica ABAIXO do texto (z 2), então a transição entre
+   cenas lê como fade-através-do-escuro, sem tocar a legibilidade. */
+.scene-dissolve {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: #0a0806;
+    opacity: 0;
+    pointer-events: none;
 }
 .scene-content--center {
     margin-inline: auto;
@@ -783,6 +939,12 @@ function onSubmit() {
     height: 100%;
     object-fit: cover;
     display: block;
+    /* Vida subliminar atrás do mármore escurecido: respira devagar (só escala). */
+    transform-origin: center;
+    animation: ken-burns-breathe 26s ease-in-out infinite alternate;
+}
+[data-stage].is-onstage .wl-bg-img {
+    will-change: transform;
 }
 /* Escurece forte: o mármore vira textura, não distrai do formulário. */
 .wl-bg-veil {
@@ -817,6 +979,28 @@ function onSubmit() {
     transform: none;
 }
 
+/* Reveal em CASCATA: o container não anima (fica visível); cada palavra entra em
+   sequência (fade + subida) pelo atraso escalonado `--i`. Mais específico que
+   `[data-reveal]`, então vence sem !important. */
+[data-reveal].reveal-stagger {
+    opacity: 1;
+    transform: none;
+    transition: none;
+}
+[data-reveal] .reveal-word {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+        opacity 0.6s ease-out,
+        transform 0.6s ease-out;
+    transition-delay: calc(var(--i, 0) * 110ms);
+}
+[data-reveal].is-visible .reveal-word {
+    opacity: 1;
+    transform: none;
+}
+
 @keyframes hero-in {
     from { opacity: 0; transform: translateY(18px); letter-spacing: 0.14em; }
     to { opacity: 1; transform: translateY(0); letter-spacing: 0.06em; }
@@ -824,6 +1008,29 @@ function onSubmit() {
 @keyframes hint-pulse {
     0%, 100% { opacity: 0.35; transform: translateY(0); }
     50% { opacity: 0.9; transform: translateY(4px); }
+}
+
+/* Ken Burns — sempre parte de escala ≥ 1.04 (com o inset -15% da mídia, cobre a
+   cena com folga; o pan de ±1–2% nunca revela borda). Direções distintas por cena. */
+@keyframes ken-burns-a {
+    from { transform: scale(1.04) translate3d(0.6%, 0.6%, 0); }
+    to { transform: scale(1.11) translate3d(-1.4%, -1.2%, 0); }
+}
+@keyframes ken-burns-b {
+    from { transform: scale(1.05) translate3d(-1.2%, 0.4%, 0); }
+    to { transform: scale(1.1) translate3d(1.5%, -0.7%, 0); }
+}
+@keyframes ken-burns-c {
+    from { transform: scale(1.05) translate3d(0.9%, -1%, 0); }
+    to { transform: scale(1.11) translate3d(-0.7%, 1.3%, 0); }
+}
+@keyframes ken-burns-breathe {
+    from { transform: scale(1); }
+    to { transform: scale(1.06); }
+}
+@keyframes sheen-drift {
+    from { transform: translate3d(-16%, 0, 0); }
+    to { transform: translate3d(16%, 0, 0); }
 }
 
 /* Desktop: cena 4 fica lado a lado. */
@@ -850,14 +1057,41 @@ function onSubmit() {
     }
 }
 
-/* Menos movimento: desliga parallax (via JS), animações e reveal. O texto da
-   cena 2 fica em opacity:1 pelo fallback de [data-scroll-fade] acima. */
+/* Mobile: fluidez primeiro. O parallax e a derivada do texto já ficam DESLIGADOS
+   (JS: só desktop); o Ken Burns fica mais sutil — só respira (escala, sem pan) e
+   mais devagar, em toda imagem de cena e no mármore da lista de espera. */
+@media (max-width: 767px) {
+    /* Casa a especificidade das regras por-cena (com `img`) para de fato vencê-las. */
+    img.scene-img,
+    .scene--portal img.scene-img,
+    .scene--split .split-pane:first-of-type img.scene-img,
+    .scene--split .split-pane:nth-of-type(2) img.scene-img,
+    .scene--invite img.scene-img {
+        animation-name: ken-burns-breathe;
+        animation-duration: 30s;
+    }
+}
+
+/* Menos movimento: desliga parallax e cross-dissolve (via JS), Ken Burns, véu de
+   luz, reveal (container e palavras) e as animações de tempo. O texto da cena 2
+   fica em opacity:1 pelo fallback de [data-scroll-fade] acima. Bloco ÚNICO.
+   `!important` no kill de animação porque as regras por-cena de Ken Burns têm
+   especificidade alta — é o override de acessibilidade, o lugar onde ele cabe. */
 @media (prefers-reduced-motion: reduce) {
     .hero-line,
     .scroll-hint {
         animation: none;
     }
-    [data-reveal] {
+    img.scene-img,
+    .wl-bg-img,
+    .light-sheen-band {
+        animation: none !important;
+    }
+    .light-sheen {
+        opacity: 0;
+    }
+    [data-reveal],
+    [data-reveal] .reveal-word {
         opacity: 1;
         transform: none;
         transition: none;
