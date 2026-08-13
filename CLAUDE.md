@@ -435,6 +435,24 @@ PR #140 — sem tipo novo.
 > seguem clicáveis; `prefers-reduced-motion` desliga o zoom (cena estática/legível). Ver
 > § "Landing cinematográfica — foco em lista de espera", subseção "Cena 5 (LIMEN): zoom
 > de saída por scroll + contain no retrato".
+>
+> **Em branch (`feat/landing-marble-bg`, build sobre a `feat/landing-scene5-zoom`, PR
+> pendente):** troca a **FOTO do wordmark** (`moldura.webp`, letras douradas) por
+> **mármore LIMPO + o LOGO REAL da marca** na cena 5 e na banda de waitlist. `moldura.webp`
+> era foto: cortava as letras no retrato ("MB" em vez de "LIMEN") e não deixava espaço
+> para a tagline (ficava POR CIMA do wordmark). Agora o fundo é o mármore próprio do PO
+> (`fundo.webp` paisagem / `fundo-mobile.webp` retrato vertical, otimizados por ffmpeg,
+> 208KB/183KB) e o wordmark vem do componente **`PortalLogo.vue`** (o MESMO do header),
+> no terço superior/central, com a tagline + CTA **ABAIXO, com folga real** — zero
+> sobreposição (o objetivo do PR). O **zoom de saída passa a agir no LOGO** (escala
+> 1.0→1.6, ele cresce e some dando lugar à waitlist); o mármore fica quieto (só respira) —
+> a sensação é de ATRAVESSAR o portal, não a parede crescer. Retrato volta a `object-cover`
+> (asset vertical próprio — fim do `contain` de emergência) com **véu de contraste
+> reforçado** atrás do logo (o mármore de celular tem veios laranja vivos). `moldura.webp`
+> CONTINUA no repo como **og:image** do cartão social (só saiu da tela). Só
+> `transform`/`opacity`/`brightness`, UM laço rAF/listener, `prefers-reduced-motion`
+> desliga o movimento; nenhuma tela interna tocada. Ver § "Landing cinematográfica — foco
+> em lista de espera", subseção "Cena 5 (LIMEN): mármore limpo + logo real".
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1723,6 +1741,61 @@ seguem verdes; suíte MySQL verde (só o `GeoBlockTest` 451 falha, e só neste c
   construção: o JS retorna cedo (palco não empilha, sem cauda, sem `zt`), a cena 5 fica
   **estática e legível** (contain no retrato / cover no desktop), no bloco único já
   existente.
+
+### Cena 5 (LIMEN): mármore limpo + logo real (`feat/landing-marble-bg`)
+
+Correção da RAIZ do bug de corte da cena 5 (build sobre a `feat/landing-scene5-zoom`).
+`moldura.webp` é uma **FOTO** de letras douradas — por ser foto, o `object-cover` numa
+tela alta recortava as letras (sobrava "MB" no retrato) e não havia espaço para a tagline
+(ela ficava POR CIMA do wordmark). O `contain` de emergência do scene5-zoom só disfarçava.
+A correção definitiva: **trocar o fundo por mármore LIMPO e trazer o wordmark como
+elemento próprio (o logo real da marca).** Zero asset de terceiro; nenhuma tela interna
+tocada; `LandingCinematicTest`/`LandingCinematicAssetsTest`/`ExternalAssetPolicyTest`
+verdes; `npm run build` limpo.
+
+- **Assets novos (mármore do PO, otimizados por ffmpeg/libwebp):** `fundo.png`
+  (paisagem 1456×816, "escuro e calmo") → **`fundo.webp`** (1456px, **208KB** < 400KB);
+  `fundocelular.png` (retrato 816×1456, "veios laranja mais vivos") → **`fundo-mobile.webp`**
+  (800px de largura, **183KB** < 250KB). Os PNGs-fonte **não** são commitados (o
+  `LandingCinematicAssetsTest` barra PNG pesado no repo — `'fundo'` entrou em
+  `LANDING_IMAGE_STEMS`). Servidos por `<picture>` com `<source media="(max-width:767px)">`
+  → `-mobile.webp`, `object-cover`, **URL BOUND** (`:src="'/landing/fundo.webp'"` — `src`
+  estático quebra o `npm run build`, precedente do PortalLogo).
+- **Nas DUAS seções finais** (cena 5 do convite + banda `#lista-de-espera`), `fundo.webp`
+  substitui `moldura.webp` como fundo. A waitlist mantém o escurecimento forte
+  (`wl-bg-veil` ~0,9) atrás do card.
+- **Wordmark = LOGO REAL, não foto.** Na cena 5 o wordmark vem do componente
+  **`PortalLogo.vue`** já existente (ícone da marca + "Limen" em Cormorant dourado, o mesmo
+  do header e das telas de auth) — **nada de logo novo nem letra em fonte diferente da
+  marca.** Tamanho responsivo comandado pelo prop `:size` (fixado uma vez no mount, como
+  `isDesktop`): **~50% da largura no desktop (cap 320px)**, **~75% no retrato (cap 260px)** —
+  o cap em px evita o logo gigante em monitor largo. Fica no **terço superior/central**;
+  tagline "O portal do desejo, verificado e real." + CTA "Entre na lista de espera" ficam
+  **ABAIXO, com folga real** (container flex-column, `gap: clamp(2.25rem, 7svh, 5rem)`) —
+  **zero sobreposição**, o objetivo do PR.
+- **O zoom de saída passa a agir no LOGO** (não mais na imagem). No laço rAF ÚNICO, o
+  elemento `[data-invite-logo]` (raiz do PortalLogo) escala **1.0 → 1.6** na cauda de scroll
+  (`ZOOM_TAIL`), cresce e a cena esmaece dando lugar à waitlist — sensação de **atravessar
+  o portal**. O **mármore de fundo NÃO recebe escala de scroll**: fica quieto (só o Ken
+  Burns-`breathe` por tempo, 30s, "a parede quase parada"). Só o LOGO cresce; tagline/CTA
+  ficam no tamanho e **clicáveis**. Simétrico (deriva da posição). O `INVITE_ZOOM`/
+  `INVITE_FADE_AT`/`ZOOM_TAIL` do scene5-zoom seguem — só o alvo do scale mudou (imagem → logo).
+- **Retrato volta a `object-cover`** (requisito 6): como o retrato agora tem asset PRÓPRIO
+  e vertical (`fundo-mobile.webp`), o `object-fit:contain` de emergência do scene5-zoom foi
+  **removido** — não há mais corte de letras (o wordmark é o logo, não a foto).
+- **Contraste no retrato** (requisito 5): véu radial `.scene-veil--invite` — discreto no
+  desktop (o `fundo.webp` de paisagem já é escuro), **FORTE no retrato** (o mármore de
+  celular tem veios laranja/dourados vivos que apagariam o logo dourado), garantindo
+  leitura sem apagar a textura. O card da waitlist sobre o mesmo fundo já tem o véu ~0,9.
+- **`moldura.webp` CONTINUA no repo** (requisito 7) e segue sendo o **og:image** do cartão
+  social (o `LandingController` aponta para `…/landing/moldura.webp`; `LandingCinematicTest`
+  trava isso) — só deixou de ser usado como fundo NA TELA. `moldura-mobile.webp` também fica
+  (segue em `LANDING_IMAGE_STEMS`).
+- **Restrições honradas:** só `transform`/`opacity`/`brightness` em animação; UM único laço
+  rAF + UM listener de scroll (os que já existiam — o logo entrou no `sceneList` e no gate de
+  `will-change` `.scene.is-onstage .invite-logo`); `prefers-reduced-motion` desliga o
+  movimento no bloco único existente (o `logoSize` é calculado ANTES do `return` de
+  reduced-motion, então o logo renderiza no tamanho certo, estático).
 
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 

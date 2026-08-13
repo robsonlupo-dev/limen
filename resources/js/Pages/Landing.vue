@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Button from '@/Components/Button.vue'
+import PortalLogo from '@/Components/PortalLogo.vue'
 
 // ── Landing cinematográfica — foco em lista de espera ("feat/landing-waitlist-focus") ─
 // O site está em PRÉ-LANÇAMENTO: a landing NÃO oferece cadastro ainda. As 5 cenas
@@ -47,6 +48,13 @@ const motionOk = ref(true)
 const showOpeningVideo = ref(false)
 const stackEl = ref(null)
 
+// Tamanho do logo (PortalLogo) na cena do convite. Responsivo, com TETO em px para
+// não estourar em monitor grande: ~50% da largura no desktop (cap 320px), ~75% no
+// retrato (cap 260px). `size` do PortalLogo comanda o ícone e o wordmark juntos, em
+// proporção da marca — nada de fonte/logo improvisado. Fixado uma vez no mount (como
+// `isDesktop`, a landing não é reativa a resize).
+const logoSize = ref(240)
+
 let revealIo = null // reveal da lista de espera (seção normal, abaixo do palco)
 let wlStageIo = null // presença da banda de waitlist: gate de will-change do mármore
 let rafId = null
@@ -67,17 +75,19 @@ const DIM = 0.6
 // A cascata de palavras / reveal do texto dispara ao chegar perto do brilho pleno.
 const REVEAL_AT = 0.22
 
-// ── Zoom de saída da cena final (o wordmark LIMEN) ────────────────────────────
+// ── Zoom de saída da cena final (o LOGO LIMEN) ────────────────────────────────
 // Pedido do PO: "o LIMEN aparece e, conforme rolo pra baixo, vai crescendo até
 // desaparecer e dar lugar à próxima seção". O cross-dissolve não cobre isso — a
 // última cena não tem sucessora para empurrar `p` além dela, então ela chega em
 // brilho pleno exatamente quando o palco solta. Damos ao palco uma CAUDA extra de
-// scroll (ZOOM_TAIL viewports) DEPOIS do dissolve terminar: nesse trecho a IMAGEM
-// da cena 5 cresce de ~1.0 a ~1.6 e a cena esmaece no fim, revelando a banda da
-// lista de espera. A escala é derivada da POSIÇÃO (simétrica: rolar pra cima
-// encolhe de volta) e roda no MESMO laço rAF. O texto/CTA NÃO cresce (só a imagem).
+// scroll (ZOOM_TAIL viewports) DEPOIS do dissolve terminar: nesse trecho o LOGO
+// (PortalLogo) da cena 5 cresce de ~1.0 a ~1.6 e a cena esmaece no fim, revelando a
+// banda da lista de espera — a sensação é de ATRAVESSAR o portal (o logo cresce),
+// não de a parede inteira crescer (o mármore de fundo fica quieto, só respira). A
+// escala é derivada da POSIÇÃO (simétrica: rolar pra cima encolhe de volta) e roda
+// no MESMO laço rAF. Só o LOGO cresce — tagline/CTA ficam no tamanho e clicáveis.
 const ZOOM_TAIL = 1 // viewports extras de scroll reservados ao zoom da cena final
-const INVITE_ZOOM = 0.6 // escala 1.0 → 1.6
+const INVITE_ZOOM = 0.6 // escala do logo 1.0 → 1.6
 const INVITE_FADE_AT = 0.6 // fração da cauda a partir da qual a cena esmaece
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
@@ -112,12 +122,11 @@ function runScroll() {
         const dist = Math.abs(local)
         let opacity = clamp(1 - dist, 0, 1)
 
-        // Cena do convite (última): zoom de saída dirigido pelo scroll. A imagem cresce
-        // e a cena esmaece no fim da cauda; a escala e o fade derivam de `zt` (posição),
-        // então rolar pra cima desfaz na mesma curva. O texto/CTA NÃO entra no scale.
-        let inviteScale = 1
-        if (s.isInvite && zt > 0) {
-            inviteScale = 1 + INVITE_ZOOM * zt
+        // Cena do convite (última): zoom de saída dirigido pelo scroll. O LOGO cresce
+        // (abaixo) e a cena esmaece no fim da cauda; a escala e o fade derivam de `zt`
+        // (posição), então rolar pra cima desfaz na mesma curva. Só o LOGO entra no
+        // scale — mármore de fundo, tagline e CTA NÃO crescem.
+        if (s.isInvite) {
             const fade = clamp((zt - INVITE_FADE_AT) / (1 - INVITE_FADE_AT), 0, 1)
             opacity *= 1 - fade
         }
@@ -134,12 +143,18 @@ function runScroll() {
         const brightness = (1 - dist * DIM).toFixed(3)
         for (const d of s.dimmers) d.style.filter = `brightness(${brightness})`
 
-        // Mídia: parallax (só desktop) + escala do zoom da cena final (todas as telas —
-        // o zoom vale no mobile em `contain`, clipado pelo overflow da cena).
-        if (s.media && (isDesktop.value || s.isInvite)) {
-            const y = isDesktop.value ? clamp(local * MEDIA_SHIFT * vh, -MEDIA_CAP * vh, MEDIA_CAP * vh) : 0
-            const scalePart = s.isInvite ? ` scale(${inviteScale.toFixed(3)})` : ''
-            s.media.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)${scalePart}`
+        // Mídia: parallax leve, só desktop. O mármore da cena do convite NÃO recebe
+        // escala de scroll (quem cresce é o logo) — fica quieto (só o Ken Burns-breathe
+        // por tempo), para a sensação ser de atravessar o portal, não de a parede crescer.
+        if (s.media && isDesktop.value) {
+            const y = clamp(local * MEDIA_SHIFT * vh, -MEDIA_CAP * vh, MEDIA_CAP * vh)
+            s.media.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
+        }
+        // Zoom de saída da cena final: escala aplicada ao LOGO (todas as telas). Escrito
+        // a cada frame visível (mesmo em zt=0 → scale(1)), então rolar pra cima o reseta.
+        if (s.isInvite && s.logo) {
+            const scale = 1 + INVITE_ZOOM * zt
+            s.logo.style.transform = `scale(${scale.toFixed(3)})`
         }
         if (isDesktop.value) {
             for (const t of s.texts) {
@@ -167,6 +182,13 @@ onMounted(() => {
     motionOk.value = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
     // Vídeo de abertura: só desktop + movimento permitido (senão porta.webp).
     showOpeningVideo.value = isDesktop.value && motionOk.value
+
+    // Logo da cena do convite: ~50% da largura no desktop (cap 320) / ~75% no retrato
+    // (cap 260). O cap em px evita o logo gigante em monitor largo.
+    const portrait = window.matchMedia('(max-width: 767px), (orientation: portrait)').matches
+    logoSize.value = portrait
+        ? Math.min(Math.round(window.innerWidth * 0.75), 260)
+        : Math.min(Math.round(window.innerWidth * 0.5), 320)
 
     // Reveal da lista de espera (seção normal, abaixo do palco): fade + subida.
     revealIo = new IntersectionObserver(
@@ -198,6 +220,7 @@ onMounted(() => {
         i,
         isInvite: i === arr.length - 1, // a última cena (convite) ganha o zoom de saída
         media: el.querySelector('[data-parallax]'),
+        logo: el.querySelector('[data-invite-logo]'), // o logo que cresce no zoom de saída
         dimmers: Array.from(el.querySelectorAll('.scene-media, .split-pane')),
         texts: isDesktop.value ? Array.from(el.querySelectorAll('[data-parallax-text]')) : [],
         reveal: el.querySelector('[data-reveal]'),
@@ -463,28 +486,38 @@ function onSubmit() {
             </section>
 
             <!-- ── Cena 5 · O CONVITE ────────────────────────────────────
-                 Wordmark LIMEN dourado (moldura.webp) full-bleed, tagline e o
-                 ÚNICO CTA: "Entre na lista de espera" (rola até o formulário). -->
+                 Mármore LIMPO (fundo.webp — vertical próprio no retrato) como
+                 fundo, e o LOGO real da marca (PortalLogo, o mesmo do header) no
+                 terço superior/central. A tagline e o ÚNICO CTA ("Entre na lista
+                 de espera") ficam ABAIXO, com folga — zero sobreposição. O zoom
+                 de saída cresce o LOGO; o mármore fica quieto. -->
             <section class="scene scene--dark scene--invite">
                 <div class="scene-media" data-parallax>
                     <picture>
-                        <source media="(max-width: 767px)" :srcset="'/landing/moldura-mobile.webp'" type="image/webp" />
+                        <source media="(max-width: 767px)" :srcset="'/landing/fundo-mobile.webp'" type="image/webp" />
                         <img
                             class="scene-img"
-                            :src="'/landing/moldura.webp'"
-                            alt="A palavra LIMEN em letras douradas tridimensionais."
+                            :src="'/landing/fundo.webp'"
+                            alt="Mármore escuro com veios dourados."
                             loading="lazy"
                         />
                     </picture>
                 </div>
+                <!-- Véu de contraste (radial): discreto no desktop, FORTE no retrato,
+                     onde o mármore de celular tem veios laranja vivos que poderiam
+                     apagar o logo dourado. -->
+                <div class="scene-veil scene-veil--invite" aria-hidden="true" />
                 <div class="scene-veil scene-veil--bottom" aria-hidden="true" />
                 <div class="light-sheen" aria-hidden="true"><span class="light-sheen-band" /></div>
                 <div class="scene-content scene-content--invite" data-reveal>
-                    <p class="invite-tagline" data-parallax-text>O portal do desejo, verificado e real.</p>
-                    <button type="button" class="invite-cta" @click="scrollToForm()">
-                        Entre na lista de espera
-                    </button>
-                    <p class="invite-note">Lançamento em breve · entrada por convite</p>
+                    <PortalLogo class="invite-logo" data-invite-logo :size="logoSize" />
+                    <div class="invite-text">
+                        <p class="invite-tagline" data-parallax-text>O portal do desejo, verificado e real.</p>
+                        <button type="button" class="invite-cta" @click="scrollToForm()">
+                            Entre na lista de espera
+                        </button>
+                        <p class="invite-note">Lançamento em breve · entrada por convite</p>
+                    </div>
                 </div>
             </section>
 
@@ -493,11 +526,14 @@ function onSubmit() {
         </div>
 
         <!-- ── Lista de espera (ÚNICO CTA da landing) ────────────────────────
-             Mesma identidade das cenas: mármore (moldura.webp) escurecido atrás
-             do formulário, que fica centralizado e com respiro. -->
+             Mesma identidade da cena 5: mármore (fundo.webp) fortemente escurecido
+             atrás do formulário, que fica centralizado e com respiro. -->
         <section id="lista-de-espera" class="wl-section" data-stage>
             <div class="wl-bg" aria-hidden="true">
-                <img class="wl-bg-img" :src="'/landing/moldura.webp'" alt="" loading="lazy" />
+                <picture>
+                    <source media="(max-width: 767px)" :srcset="'/landing/fundo-mobile.webp'" type="image/webp" />
+                    <img class="wl-bg-img" :src="'/landing/fundo.webp'" alt="" loading="lazy" />
+                </picture>
                 <div class="wl-bg-veil"></div>
             </div>
 
@@ -751,6 +787,7 @@ function onSubmit() {
 .scene.is-onstage .scene-media,
 .scene.is-onstage .split-pane,
 .scene.is-onstage img.scene-img,
+.scene.is-onstage .invite-logo,
 .scene.is-onstage .light-sheen-band {
     will-change: transform;
 }
@@ -800,11 +837,12 @@ img.scene-img {
 .scene--split .split-pane:nth-of-type(2) img.scene-img {
     animation-name: ken-burns-c;
 }
-/* Cena 5: SEM Ken Burns por tempo — o movimento é 100% o zoom de saída dirigido
-   pelo scroll (laço rAF, escala pintada no `.scene-media`). Deixar a respiração por
-   tempo aqui somaria um segundo transform contínuo e brigaria com o zoom. */
+/* Cena 5: o mármore de fundo só RESPIRA (escala lenta, sem pan) — movimento bem
+   sutil, "a parede quase parada". O zoom de saída (scroll) age no LOGO, não aqui,
+   então a respiração por tempo não briga com nada. */
 .scene--invite img.scene-img {
-    animation: none;
+    animation-name: ken-burns-breathe;
+    animation-duration: 30s;
 }
 /* Cena 3 (impressão digital): é OBJETO contido, não fundo — só respira (escala),
    sem pan, senão sairia do centro. */
@@ -884,6 +922,17 @@ img.scene-img--contain {
         transparent 42%,
         rgba(10, 8, 6, 0.5) 68%,
         rgba(10, 8, 6, 0.85)
+    );
+}
+/* Cena 5: véu radial de CONTRASTE atrás do logo/texto. Discreto no desktop (o
+   fundo.webp de paisagem já é escuro e calmo); FORTE no retrato (regra abaixo),
+   onde o mármore de celular tem veios laranja vivos que apagariam o logo dourado. */
+.scene-veil--invite {
+    background: radial-gradient(
+        ellipse 82% 72% at 50% 46%,
+        rgba(10, 8, 6, 0.4),
+        rgba(10, 8, 6, 0.18) 62%,
+        transparent 80%
     );
 }
 
@@ -966,17 +1015,26 @@ img.scene-img--contain {
     animation: hint-pulse 2.4s ease-in-out 2.6s infinite;
 }
 
-/* Cena do convite: tagline + CTA no TERÇO INFERIOR, ABAIXO do wordmark LIMEN (nunca
-   cobrindo-o) — mesmo tratamento do "Cruze o limiar." da cena 2. O véu de base
-   (`.scene--invite .scene-veil--bottom`, reforçado abaixo) forma a faixa escura que
-   dá leitura ao texto. Como o zoom mexe SÓ na imagem (`.scene-media`), o texto/CTA
-   fica no tamanho normal e segue clicável. */
+/* Cena do convite: LOGO no terço superior/central + tagline/CTA ABAIXO, com folga
+   REAL (gap generoso) — zero sobreposição, o objetivo do PR. Container ocupa a cena
+   inteira e centraliza a coluna; o logo cresce no zoom de saída (transform via JS),
+   o texto fica no tamanho normal e clicável. */
 .scene-content--invite {
     position: absolute;
-    bottom: 7svh;
-    left: 0;
-    right: 0;
+    inset: 0;
     margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(2.25rem, 7svh, 5rem);
+    padding: 12svh 1.5rem 12svh;
+}
+/* O logo cresce a partir do centro (zoom de saída). transform pintado pelo laço rAF. */
+.invite-logo {
+    transform-origin: center;
+}
+.invite-text {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1189,8 +1247,9 @@ img.scene-img--contain {
    mais devagar, em toda imagem de cena e no mármore da lista de espera. */
 @media (max-width: 767px) {
     /* Casa a especificidade das regras por-cena (com `img`) para de fato vencê-las.
-       A cena 5 fica FORA — seu img tem `animation: none` (o movimento é o zoom por
-       scroll), e sua regra base (0,2,1) já vence a bare `img.scene-img` (0,1,1). */
+       A cena 5 fica FORA — sua regra própria (0,2,1) já a põe em `ken-burns-breathe`
+       a 30s (o mesmo "só respira" que este bloco aplica às demais), e vence a bare
+       `img.scene-img` (0,1,1). O zoom de saída dela é por scroll (age no LOGO). */
     img.scene-img,
     .scene--portal img.scene-img,
     .scene--split .split-pane:first-of-type img.scene-img,
@@ -1200,22 +1259,19 @@ img.scene-img--contain {
     }
 }
 
-/* ── Cena 5 no RETRATO/mobile: contain em vez de cover ────────────────────────
-   moldura.webp é uma imagem LARGA. Com object-cover numa tela ALTA o recorte
-   lateral come as letras — no celular sobra só "MB" no lugar de "LIMEN" (bug de
-   corte). Em retrato ela passa a `contain`, centralizada, e o fundo escuro da
-   cena (scene--dark, #100d0a) faz o letterbox — invisível no escuro. No desktop
-   (paisagem) segue `cover`, onde o wordmark preenche bem. O `inset: 0` tira a
-   folga de -15% (o parallax já está desligado no mobile) para o contain caber
-   inteiro; o zoom por scroll cresce a partir do centro e é clipado pelo overflow
-   da cena, sem gerar rolagem horizontal. */
+/* ── Cena 5 no RETRATO: mármore VERTICAL próprio (fundo-mobile.webp) ──────────
+   Agora o retrato tem asset dedicado, vertical, então volta a `object-cover` (o
+   `contain` de emergência do wordmark-foto foi removido — não há mais corte de
+   letras). Só reforçamos o VÉU de contraste: o mármore de celular tem veios
+   laranja/dourados vivos e o logo dourado sumiria em cima deles. */
 @media (max-width: 767px), (orientation: portrait) {
-    .scene--invite .scene-media {
-        inset: 0;
-    }
-    .scene--invite .scene-img {
-        object-fit: contain;
-        object-position: center;
+    .scene-veil--invite {
+        background: radial-gradient(
+            ellipse 100% 78% at 50% 44%,
+            rgba(10, 8, 6, 0.78),
+            rgba(10, 8, 6, 0.52) 52%,
+            rgba(10, 8, 6, 0.28) 78%
+        );
     }
 }
 
