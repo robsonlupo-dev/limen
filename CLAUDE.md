@@ -421,6 +421,20 @@ PR #140 — sem tipo novo.
 > fluxo vertical normal; mobile roda o cross-fade com parallax zerado. Ver § "Landing
 > cinematográfica — foco em lista de espera" (subseções "Camada de movimento" e
 > "Transição empilhada e correções de movimento").
+>
+> **Em branch (`feat/landing-scene5-zoom`, build sobre a `fix/landing-motion-v2`, PR
+> pendente):** três ajustes na **cena 5** (o wordmark LIMEN) — (1) **fix do corte no
+> retrato/mobile** (`moldura.webp` é larga; em tela alta o `cover` comia as letras e
+> sobrava "MB") passando a **`object-fit:contain`** no retrato, letterbox invisível no
+> fundo escuro, `cover` mantido no desktop; (2) **tagline + CTA para o terço inferior**,
+> abaixo das letras, sobre véu de base reforçado; (3) **zoom de saída dirigido por
+> scroll** — uma **cauda extra** de scroll (`stackVh = (N + ZOOM_TAIL) × 100`) no laço
+> rAF ÚNICO onde a IMAGEM da cena 5 escala **1.0 → 1.6** e esmaece, dando lugar à
+> waitlist; simétrico, **Ken Burns por tempo removido da cena 5** (os dois brigavam;
+> cenas 2/3/4 mantêm). Só `transform`/`opacity`/`brightness`; texto/CTA não crescem e
+> seguem clicáveis; `prefers-reduced-motion` desliga o zoom (cena estática/legível). Ver
+> § "Landing cinematográfica — foco em lista de espera", subseção "Cena 5 (LIMEN): zoom
+> de saída por scroll + contain no retrato".
 
 **Sprints 6, 7, 8, 9A, 9C, 10, 11, 12, 13, 14, 15 e 16 fechados** (tags `v1.0-sprint6`
 a `v1.0-sprint9a`, **`v1.0-sprint9`** no fecho do 9C, **`v1.0-sprint9.1`** no fecho
@@ -1666,6 +1680,49 @@ suíte MySQL fica verde (só o `GeoBlockTest` 451 falha, e só neste clone de de
     na altura do wrapper para não saltar com a barra de endereço do iOS. A banda
     `#lista-de-espera` **continua uma seção normal** depois da sequência (fora do
     empilhamento).
+
+### Cena 5 (LIMEN): zoom de saída por scroll + contain no retrato (`feat/landing-scene5-zoom`)
+
+Três ajustes na **cena do convite** (o wordmark LIMEN, `moldura.webp`), a partir da
+`fix/landing-motion-v2`. Zero asset novo; nenhuma tela interna tocada; os três testes
+de landing (`LandingCinematicTest`, `LandingCinematicAssetsTest`, `ExternalAssetPolicyTest`)
+seguem verdes; suíte MySQL verde (só o `GeoBlockTest` 451 falha, e só neste clone de dev).
+
+- **Corte no retrato/mobile corrigido (bug).** `moldura.webp` é uma imagem **LARGA**;
+  com `object-cover` numa tela **ALTA** o recorte lateral comia as letras e no celular
+  sobrava só "MB" no lugar de "LIMEN". Em **retrato** (`max-width:767px` **ou**
+  `orientation:portrait`) a cena 5 passa a **`object-fit:contain`** centralizada, e o
+  fundo escuro da cena (`scene--dark`, `#100d0a`) faz o **letterbox invisível** no
+  escuro. No **desktop (paisagem) segue `cover`** (lá o wordmark preenche bem). O
+  `inset:0` no retrato tira a folga de -15% do `.scene-media` (o parallax já está
+  desligado no mobile) para o contain caber inteiro. **A banda `#lista-de-espera` NÃO
+  mudou** — o mármore ali é `cover` fortemente escurecido (véu ~0,9), é textura, o corte
+  não prejudica.
+- **Texto abaixo das letras.** A tagline "O portal do desejo, verificado e real." + o
+  CTA "Entre na lista de espera" saíram de cima do wordmark e foram para o **terço
+  inferior**, sobre um véu de base reforçado (`.scene--invite .scene-veil--bottom`,
+  gradiente que fecha em ~0,92) — mesmo tratamento do "Cruze o limiar." da cena 2. Como
+  o zoom mexe **só na imagem**, o texto/CTA fica no tamanho normal e **segue clicável**.
+- **Zoom de saída dirigido pelo SCROLL (pedido do PO):** "o LIMEN aparece e, conforme
+  rolo pra baixo, cresce até desaparecer e dar lugar à próxima seção". O cross-dissolve
+  não cobria isso — a última cena **não tem sucessora** para empurrar `p` além dela, então
+  chegava em brilho pleno exatamente quando o palco solta. A solução dá ao palco uma
+  **CAUDA extra** de scroll: `stackVh = (N + ZOOM_TAIL) × 100` (ZOOM_TAIL = 1 viewport).
+  No laço rAF **ÚNICO** já existente, `raw = progress × (N-1 + ZOOM_TAIL)`, `p` satura em
+  `N-1` (dissolve completo) e **`zt` (0→1) só existe na cauda**. Aí a **imagem** da cena
+  5 (`.scene-media`, `transform-origin:center`) escala **1.0 → 1.6** (`INVITE_ZOOM=0.6`)
+  e a cena **esmaece** a partir de `zt > INVITE_FADE_AT` (0.6), revelando a banda de
+  waitlist. **Simétrico** (deriva da POSIÇÃO — rolar pra cima encolhe de volta). O
+  **Ken Burns por tempo foi REMOVIDO da cena 5** (`.scene--invite img.scene-img {
+  animation:none }`, e a cena saiu da lista de Ken Burns do mobile) — os dois brigariam;
+  na cena 5 o movimento é 100% scroll. As **cenas 2/3/4 mantêm** o Ken Burns por tempo.
+- **Só `transform`/`opacity`/`filter:brightness`.** A escala vale em **todas as telas**
+  (o zoom roda no mobile em `contain`), clipada pelo `overflow:hidden` da cena — **sem
+  rolagem horizontal** (`.landing-cinematic { overflow-x: clip }`). `will-change`
+  continua **só na cena em cena**. **`prefers-reduced-motion` desliga o zoom** por
+  construção: o JS retorna cedo (palco não empilha, sem cauda, sem `zt`), a cena 5 fica
+  **estática e legível** (contain no retrato / cover no desktop), no bloco único já
+  existente.
 
 ## Anti-CSAM — Sprint 16 (PR #161, MVP fail-open)
 

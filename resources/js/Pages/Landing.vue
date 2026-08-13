@@ -67,6 +67,19 @@ const DIM = 0.6
 // A cascata de palavras / reveal do texto dispara ao chegar perto do brilho pleno.
 const REVEAL_AT = 0.22
 
+// ── Zoom de saída da cena final (o wordmark LIMEN) ────────────────────────────
+// Pedido do PO: "o LIMEN aparece e, conforme rolo pra baixo, vai crescendo até
+// desaparecer e dar lugar à próxima seção". O cross-dissolve não cobre isso — a
+// última cena não tem sucessora para empurrar `p` além dela, então ela chega em
+// brilho pleno exatamente quando o palco solta. Damos ao palco uma CAUDA extra de
+// scroll (ZOOM_TAIL viewports) DEPOIS do dissolve terminar: nesse trecho a IMAGEM
+// da cena 5 cresce de ~1.0 a ~1.6 e a cena esmaece no fim, revelando a banda da
+// lista de espera. A escala é derivada da POSIÇÃO (simétrica: rolar pra cima
+// encolhe de volta) e roda no MESMO laço rAF. O texto/CTA NÃO cresce (só a imagem).
+const ZOOM_TAIL = 1 // viewports extras de scroll reservados ao zoom da cena final
+const INVITE_ZOOM = 0.6 // escala 1.0 → 1.6
+const INVITE_FADE_AT = 0.6 // fração da cauda a partir da qual a cena esmaece
+
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 // UM único laço de scroll (rAF): lê o scroll uma vez por frame e distribui para
@@ -85,13 +98,29 @@ function runScroll() {
     // com a barra de endereço do Safari mexendo no viewport.
     const span = stack.offsetHeight - viewportEl.offsetHeight
     const progress = span > 0 ? clamp(-stack.getBoundingClientRect().top / span, 0, 1) : 0
-    const p = progress * (sceneList.length - 1) // posição contínua entre cenas [0..N-1]
+    // O curso do palco vale (N-1) "beats" de cross-dissolve + ZOOM_TAIL de cauda. `p`
+    // percorre as cenas [0..N-1] e SATURA em N-1; `zt` (0 durante o dissolve → 1 no
+    // fim da cauda) só existe depois que `p` chega na última cena.
+    const beats = sceneList.length - 1 + ZOOM_TAIL
+    const raw = progress * beats
+    const p = clamp(raw, 0, sceneList.length - 1) // posição contínua entre cenas [0..N-1]
+    const zt = ZOOM_TAIL > 0 ? clamp((raw - (sceneList.length - 1)) / ZOOM_TAIL, 0, 1) : 0
     const vh = window.innerHeight
 
     for (const s of sceneList) {
         const local = p - s.i // <0 entrando (de baixo), 0 no centro, >0 saindo (por cima)
         const dist = Math.abs(local)
-        const opacity = clamp(1 - dist, 0, 1)
+        let opacity = clamp(1 - dist, 0, 1)
+
+        // Cena do convite (última): zoom de saída dirigido pelo scroll. A imagem cresce
+        // e a cena esmaece no fim da cauda; a escala e o fade derivam de `zt` (posição),
+        // então rolar pra cima desfaz na mesma curva. O texto/CTA NÃO entra no scale.
+        let inviteScale = 1
+        if (s.isInvite && zt > 0) {
+            inviteScale = 1 + INVITE_ZOOM * zt
+            const fade = clamp((zt - INVITE_FADE_AT) / (1 - INVITE_FADE_AT), 0, 1)
+            opacity *= 1 - fade
+        }
         s.el.style.opacity = opacity.toFixed(3)
 
         const visible = opacity > 0.001
@@ -105,11 +134,14 @@ function runScroll() {
         const brightness = (1 - dist * DIM).toFixed(3)
         for (const d of s.dimmers) d.style.filter = `brightness(${brightness})`
 
+        // Mídia: parallax (só desktop) + escala do zoom da cena final (todas as telas —
+        // o zoom vale no mobile em `contain`, clipado pelo overflow da cena).
+        if (s.media && (isDesktop.value || s.isInvite)) {
+            const y = isDesktop.value ? clamp(local * MEDIA_SHIFT * vh, -MEDIA_CAP * vh, MEDIA_CAP * vh) : 0
+            const scalePart = s.isInvite ? ` scale(${inviteScale.toFixed(3)})` : ''
+            s.media.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)${scalePart}`
+        }
         if (isDesktop.value) {
-            if (s.media) {
-                const y = clamp(local * MEDIA_SHIFT * vh, -MEDIA_CAP * vh, MEDIA_CAP * vh)
-                s.media.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
-            }
             for (const t of s.texts) {
                 const y = clamp(-local * TEXT_SHIFT * vh, -TEXT_CAP * vh, TEXT_CAP * vh)
                 t.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
@@ -161,9 +193,10 @@ onMounted(() => {
 
     // Descritores por cena. `dimmers` são as camadas de imagem que escurecem;
     // `media` é a que recebe o parallax; `reveal` é o container do texto em cascata.
-    sceneList = Array.from(stack.querySelectorAll('.scene')).map((el, i) => ({
+    sceneList = Array.from(stack.querySelectorAll('.scene')).map((el, i, arr) => ({
         el,
         i,
+        isInvite: i === arr.length - 1, // a última cena (convite) ganha o zoom de saída
         media: el.querySelector('[data-parallax]'),
         dimmers: Array.from(el.querySelectorAll('.scene-media, .split-pane')),
         texts: isDesktop.value ? Array.from(el.querySelectorAll('[data-parallax-text]')) : [],
@@ -175,7 +208,9 @@ onMounted(() => {
     // O wrapper ganha o curso de scroll (N × 100svh) e vira palco empilhado. A dupla
     // atribuição é o fallback de unidade: se `svh` não existe, a 2ª é rejeitada e o
     // `vh` fica (Safari antigo). O palco sticky por dentro vem do CSS `.is-stacked`.
-    const stackVh = sceneList.length * 100
+    // +ZOOM_TAIL viewports de curso extra: a cauda de scroll onde a cena 5 dá o zoom
+    // de saída depois de o cross-dissolve já ter terminado.
+    const stackVh = (sceneList.length + ZOOM_TAIL) * 100
     stack.style.height = `${stackVh}vh`
     stack.style.height = `${stackVh}svh`
     stack.classList.add('is-stacked')
@@ -765,9 +800,11 @@ img.scene-img {
 .scene--split .split-pane:nth-of-type(2) img.scene-img {
     animation-name: ken-burns-c;
 }
+/* Cena 5: SEM Ken Burns por tempo — o movimento é 100% o zoom de saída dirigido
+   pelo scroll (laço rAF, escala pintada no `.scene-media`). Deixar a respiração por
+   tempo aqui somaria um segundo transform contínuo e brigaria com o zoom. */
 .scene--invite img.scene-img {
-    animation-name: ken-burns-c;
-    animation-duration: 26s;
+    animation: none;
 }
 /* Cena 3 (impressão digital): é OBJETO contido, não fundo — só respira (escala),
    sem pan, senão sairia do centro. */
@@ -929,10 +966,14 @@ img.scene-img--contain {
     animation: hint-pulse 2.4s ease-in-out 2.6s infinite;
 }
 
-/* Cena do convite: tagline + CTA no terço inferior, sobre o wordmark full-bleed. */
+/* Cena do convite: tagline + CTA no TERÇO INFERIOR, ABAIXO do wordmark LIMEN (nunca
+   cobrindo-o) — mesmo tratamento do "Cruze o limiar." da cena 2. O véu de base
+   (`.scene--invite .scene-veil--bottom`, reforçado abaixo) forma a faixa escura que
+   dá leitura ao texto. Como o zoom mexe SÓ na imagem (`.scene-media`), o texto/CTA
+   fica no tamanho normal e segue clicável. */
 .scene-content--invite {
     position: absolute;
-    bottom: 8svh;
+    bottom: 7svh;
     left: 0;
     right: 0;
     margin-inline: auto;
@@ -940,6 +981,16 @@ img.scene-img--contain {
     flex-direction: column;
     align-items: center;
     gap: 1.4rem;
+}
+/* Base mais escura e mais alta na cena 5: garante o "chão" legível sob o texto,
+   abaixo do centro visual do wordmark. */
+.scene--invite .scene-veil--bottom {
+    background: linear-gradient(
+        to bottom,
+        transparent 34%,
+        rgba(10, 8, 6, 0.55) 58%,
+        rgba(10, 8, 6, 0.92)
+    );
 }
 .invite-tagline {
     font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
@@ -1129,7 +1180,7 @@ img.scene-img--contain {
         bottom: 16svh;
     }
     .scene-content--invite {
-        bottom: 12svh;
+        bottom: 9svh;
     }
 }
 
@@ -1137,14 +1188,34 @@ img.scene-img--contain {
    (JS: só desktop); o Ken Burns fica mais sutil — só respira (escala, sem pan) e
    mais devagar, em toda imagem de cena e no mármore da lista de espera. */
 @media (max-width: 767px) {
-    /* Casa a especificidade das regras por-cena (com `img`) para de fato vencê-las. */
+    /* Casa a especificidade das regras por-cena (com `img`) para de fato vencê-las.
+       A cena 5 fica FORA — seu img tem `animation: none` (o movimento é o zoom por
+       scroll), e sua regra base (0,2,1) já vence a bare `img.scene-img` (0,1,1). */
     img.scene-img,
     .scene--portal img.scene-img,
     .scene--split .split-pane:first-of-type img.scene-img,
-    .scene--split .split-pane:nth-of-type(2) img.scene-img,
-    .scene--invite img.scene-img {
+    .scene--split .split-pane:nth-of-type(2) img.scene-img {
         animation-name: ken-burns-breathe;
         animation-duration: 30s;
+    }
+}
+
+/* ── Cena 5 no RETRATO/mobile: contain em vez de cover ────────────────────────
+   moldura.webp é uma imagem LARGA. Com object-cover numa tela ALTA o recorte
+   lateral come as letras — no celular sobra só "MB" no lugar de "LIMEN" (bug de
+   corte). Em retrato ela passa a `contain`, centralizada, e o fundo escuro da
+   cena (scene--dark, #100d0a) faz o letterbox — invisível no escuro. No desktop
+   (paisagem) segue `cover`, onde o wordmark preenche bem. O `inset: 0` tira a
+   folga de -15% (o parallax já está desligado no mobile) para o contain caber
+   inteiro; o zoom por scroll cresce a partir do centro e é clipado pelo overflow
+   da cena, sem gerar rolagem horizontal. */
+@media (max-width: 767px), (orientation: portrait) {
+    .scene--invite .scene-media {
+        inset: 0;
+    }
+    .scene--invite .scene-img {
+        object-fit: contain;
+        object-position: center;
     }
 }
 
