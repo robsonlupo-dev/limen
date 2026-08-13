@@ -20,7 +20,11 @@ function landingPath(string $rel = ''): string
     return dirname(__DIR__, 2).'/public/landing'.($rel ? "/{$rel}" : '');
 }
 
-const LANDING_IMAGE_STEMS = ['porta', 'portal', 'digital', 'silhueta', 'mascara', 'moldura'];
+// `fundo` (mármore limpo, feat/landing-marble-bg) substituiu `moldura` como fundo
+// da cena do convite e da banda de waitlist. `moldura` CONTINUA no repo — segue
+// sendo o og:image do cartão social (ver LandingCinematicTest) —, então permanece
+// na varredura de peso.
+const LANDING_IMAGE_STEMS = ['porta', 'portal', 'digital', 'silhueta', 'mascara', 'moldura', 'fundo'];
 
 /** Teto por imagem WebP: 400 KB (pedido de otimização). */
 const LANDING_WEBP_MAX = 400 * 1024;
@@ -88,10 +92,12 @@ it('hides the header account nav on the landing via the prelaunch flag', functio
 it('references landing media only by self-hosted relative /landing/ paths', function () {
     $vue = file_get_contents(dirname(__DIR__, 2).'/resources/js/Pages/Landing.vue');
 
-    // Cada cena aponta para /landing/<algo> — e nunca para um host externo.
+    // Cada cena aponta para /landing/<algo> — e nunca para um host externo. O fundo
+    // das duas seções finais é o mármore `fundo.webp` (moldura saiu da TELA; segue só
+    // como og:image no controller — ver LandingCinematicTest).
     expect($vue)->toContain('/landing/porta.webp')
         ->toContain('/landing/abertura.mp4')
-        ->toContain('/landing/moldura.webp');
+        ->toContain('/landing/fundo.webp');
 
     preg_match_all('#["\'](/landing/[^"\']+)["\']#', $vue, $m);
     expect($m[1])->not->toBeEmpty();

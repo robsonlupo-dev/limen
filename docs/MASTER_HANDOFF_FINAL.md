@@ -3706,6 +3706,50 @@ scroll + contain no retrato". Resumo:
   verdes; `npm run build` limpo; suíte MySQL **2016/2017** (só o `GeoBlockTest` 451, dev
   clone). Sem testes novos (a camada é visual/scroll — não observável sem navegador).
 
+### Landing — cena 5 (LIMEN): mármore limpo + logo real — EM BRANCH (`feat/landing-marble-bg`)
+
+Build sobre a `feat/landing-scene5-zoom` (acima). Corrige a **RAIZ** do bug de corte da
+cena 5, que o `contain` de emergência do scene5-zoom só disfarçava. `moldura.webp` é uma
+**FOTO** de letras douradas — por ser foto, cortava as letras no retrato ("MB" em vez de
+"LIMEN") e não deixava espaço para a tagline (ela ficava POR CIMA do wordmark). A correção:
+**trocar o fundo por mármore LIMPO e trazer o wordmark como elemento próprio (o logo real
+da marca).** Dona única segue `resources/js/Pages/Landing.vue`; **zero asset de terceiro**;
+nenhuma tela interna tocada. Detalhe completo no `CLAUDE.md`, subseção "Cena 5 (LIMEN):
+mármore limpo + logo real". Resumo:
+
+- **Assets novos (mármore do PO, otimizados por ffmpeg/libwebp, PNGs-fonte NÃO commitados):**
+  `fundo.png` (paisagem 1456×816) → **`fundo.webp`** (1456px, **208KB** < 400KB);
+  `fundocelular.png` (retrato 816×1456) → **`fundo-mobile.webp`** (800px, **183KB** < 250KB).
+  `'fundo'` entrou em `LANDING_IMAGE_STEMS` (barra PNG pesado + exige as duas WebP). Servidos
+  por `<picture>` + `<source media="(max-width:767px)">`, `object-cover`, **URL BOUND**.
+- **Nas DUAS seções finais** (cena 5 + banda `#lista-de-espera`) `fundo.webp` substitui
+  `moldura.webp` como fundo; a waitlist mantém o véu forte (~0,9) atrás do card.
+- **Wordmark = LOGO REAL:** componente **`PortalLogo.vue`** já existente (ícone da marca +
+  "Limen" em Cormorant dourado, o mesmo do header) — nada de logo/fonte improvisado. `:size`
+  responsivo (fixado no mount): **~50% da largura no desktop (cap 320px)**, **~75% no retrato
+  (cap 260px)**. Terço superior/central; tagline + CTA **ABAIXO com folga real** (flex-column,
+  `gap: clamp(2.25rem,7svh,5rem)`) — **zero sobreposição**, o objetivo do PR.
+- **Zoom de saída agora age no LOGO** (não na imagem): `[data-invite-logo]` escala 1.0→1.6 na
+  cauda `ZOOM_TAIL` do laço rAF ÚNICO, cresce e a cena esmaece → waitlist (sensação de
+  atravessar o portal). O **mármore de fundo NÃO recebe scale de scroll** — fica quieto (Ken
+  Burns-`breathe` 30s). Só o logo cresce; tagline/CTA no tamanho e clicáveis. Simétrico.
+- **Retrato volta a `object-cover`** (asset vertical próprio — fim do `contain` de emergência).
+- **Contraste no retrato:** véu radial `.scene-veil--invite` discreto no desktop, **FORTE no
+  retrato** (mármore de celular tem veios laranja vivos que apagariam o logo dourado).
+- **`moldura.webp` CONTINUA no repo** como **og:image** do cartão social (`LandingController`
+  aponta para ele; `LandingCinematicTest` trava) — só saiu da TELA.
+- **Restrições:** só `transform`/`opacity`/`brightness`; UM laço rAF/listener (o logo entrou
+  no `sceneList` + no gate `.scene.is-onstage .invite-logo`); `prefers-reduced-motion` desliga
+  no bloco único (o `logoSize` é calculado ANTES do `return`, logo renderiza estático no
+  tamanho certo).
+- **Testes:** `LandingCinematicTest`/`LandingCinematicAssetsTest`/`ExternalAssetPolicyTest`
+  verdes (16/16); `npm run build` limpo; suíte MySQL **2013/2017** — o `GeoBlockTest` 451
+  (dev clone) **mais 3 do `PrivacyPerksTest`** (faixa "Manhã" do painel de visitantes), estas
+  **pré-existentes e independentes do PR** (falham idênticas na base com as mudanças
+  stashadas; são um flake de relógio: as datas fixas `2026-07-21` do teste vs. a data real
+  quebram a elegibilidade de piso por idade de conta — nada de landing). Sem testes novos (a
+  camada é visual/scroll — não observável sem navegador).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),
