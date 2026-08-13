@@ -3632,6 +3632,48 @@ movimento". Resumo:
   aviso de SPAM e header só-logo intactos. `ExternalAssetPolicyTest`,
   `LandingCinematicAssetsTest`, `LandingCinematicTest` verdes. Sem testes novos (visual).
 
+### Landing — transição empilhada e correções de movimento — EM BRANCH (`fix/landing-motion-v2`)
+
+Build sobre a `feat/landing-motion` (acima). A camada de movimento acima estava bonita
+mas as 5 cenas seguiam **empilhadas como seções verticais** — ao rolar, aparecia uma
+**emenda reta** com as duas fotos no mesmo brilho (corte seco). Este PR corrige os bugs
+visíveis e **refaz a transição** para uma fusão real. Dona única segue
+`resources/js/Pages/Landing.vue`; CSS/JS puro, **ZERO asset novo**. Detalhe completo no
+`CLAUDE.md`, § "Landing cinematográfica", subseção "Transição empilhada e correções de
+movimento". Resumo:
+
+- **Parte 1 — bugs (commit próprio):** (1) a cascata de palavras colapsava o espaço
+  entre `<span>` inline-block ("Verificado,real") — a linha virou **flex com `gap`**,
+  espaçamento fora do whitespace do template (cenas 3 e 4); (2) cena 3 →
+  **"Verificado, real e discreto."**; (3) o Ken Burns descobria a **borda** nos painéis
+  da cena 4 (`inset:0`, sem folga) — **escala base 1.06** (3%/lado) e pan capado em
+  **≤1.5%** (metade da folga), nenhum frame revela borda; (4) centragem da impressão
+  digital explícita.
+- **Parte 2 — transição REAL (cross-dissolve empilhado):** as 5 cenas ocupam o **MESMO
+  espaço da tela, sobrepostas**, num wrapper alto (`.scene-stack`, `N × 100svh` fixado no
+  JS) com um **palco `.scene-viewport` sticky ÚNICO**. Rolando, a cena que **sai
+  escurece/some** e a que **entra clareia/aparece** — curva **simétrica derivada da
+  POSIÇÃO** do scroll (igual nos dois sentidos, sem emenda).
+  - **Escolha:** palco sticky único + cenas absolutas dá o **cross-fade PURO**; sticky
+    por-cena deixaria a cena entrante **deslizar de baixo** (a emenda a eliminar).
+  - **Invariante dura mantida:** **UM laço rAF + UM listener de scroll**. O `runScroll`
+    lê o progresso no wrapper (altura REAL do palco, não `innerHeight`, p/ alinhar ao
+    release do sticky sob a barra do Safari) e distribui **opacity + `filter:brightness`**
+    + parallax de mídia/**texto (mais rápido, só desktop)**.
+  - O antigo `[data-scroll-fade]` da cena 2 e o `.scene-dissolve` por-cena foram
+    **removidos e absorvidos** pela lógica unificada (fim da duplicação). O reveal/cascata
+    dispara no **brilho pleno** (`dist < REVEAL_AT`), não na entrada em viewport.
+  - `will-change` só nas cenas em cena (≤2), via `.is-onstage` ligado pelo laço. Só
+    `transform`/`opacity`/`filter:brightness`.
+  - `prefers-reduced-motion`: **sem `.is-stacked`** — cenas caem no **fluxo vertical
+    normal**, estáticas/legíveis (bloco ÚNICO). Mobile roda o cross-fade com parallax
+    zerado; `svh`/`vh` fallback no palco e na altura do wrapper (barra do iOS). A banda
+    `#lista-de-espera` segue **seção normal** depois da sequência.
+- **Não regride nada:** vídeo da cena 1, wizard da waitlist, aviso de SPAM, header
+  só-logo, ausência de `route('register')`. `ExternalAssetPolicyTest`/
+  `LandingCinematicAssetsTest`/`LandingCinematicTest` verdes; suíte MySQL verde (só o
+  `GeoBlockTest` 451 falha, e só neste clone de dev). Sem testes novos (visual).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),
