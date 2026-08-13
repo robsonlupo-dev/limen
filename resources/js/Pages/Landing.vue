@@ -344,9 +344,10 @@ function onSubmit() {
                 <div class="scene-dissolve" data-dissolve aria-hidden="true" />
                 <div class="scene-content scene-content--center scene-content--bottom reveal-stagger" data-reveal>
                     <h2 class="scene-line" data-parallax-text>
-                        <span class="reveal-word" :style="{ '--i': 0 }">Verificado.</span>
-                        <span class="reveal-word" :style="{ '--i': 1 }">Real.</span>
-                        <span class="reveal-word" :style="{ '--i': 2 }">Discreto.</span>
+                        <span class="reveal-word" :style="{ '--i': 0 }">Verificado,</span>
+                        <span class="reveal-word" :style="{ '--i': 1 }">real</span>
+                        <span class="reveal-word" :style="{ '--i': 2 }">e</span>
+                        <span class="reveal-word" :style="{ '--i': 3 }">discreto.</span>
                     </h2>
                 </div>
             </section>
@@ -714,6 +715,12 @@ img.scene-img--contain {
     max-width: min(560px, 82vw);
     max-height: 62svh;
     object-fit: contain;
+    /* Centragem explícita (além do flex do container): a impressão digital é o
+       objeto da cena e tem de ficar no eixo. `object-position: center` fixa o
+       recorte interno; `margin: auto` a mantém centrada mesmo se algum ancestral
+       perder o flex. */
+    object-position: center;
+    margin: auto;
 }
 
 /* Cena 4: dois painéis lado a lado (desktop) / empilhados (mobile). */
@@ -987,6 +994,17 @@ img.scene-img--contain {
     transform: none;
     transition: none;
 }
+/* A cascata torna cada palavra um <span> inline-block, e o espaço em branco entre
+   spans colapsava — renderizava "Verificado,real" colado. O container das palavras
+   (a própria linha) vira flex e o espaçamento passa a ser `gap`, independente do
+   whitespace do template. Vale para as duas frases em cascata (cenas 3 e 4). */
+.reveal-stagger .scene-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.28em;
+    justify-content: center;
+    align-items: baseline;
+}
 [data-reveal] .reveal-word {
     display: inline-block;
     opacity: 0;
@@ -1010,19 +1028,22 @@ img.scene-img--contain {
     50% { opacity: 0.9; transform: translateY(4px); }
 }
 
-/* Ken Burns — sempre parte de escala ≥ 1.04 (com o inset -15% da mídia, cobre a
-   cena com folga; o pan de ±1–2% nunca revela borda). Direções distintas por cena. */
+/* Ken Burns — parte SEMPRE de escala ≥ 1.06 (a folga base: 3% de cada lado) e o
+   deslocamento máximo é ~metade da folga (≤ 1.5%), então em NENHUM frame a imagem
+   descobre a borda — inclusive nos painéis da cena 4, que têm inset 0 (sem folga de
+   inset, só a da escala). Direções distintas por cena. Validado por bounding box em
+   0%/50%/100%: com base 1.06 a folga por lado (1.5%) supera o pan efetivo (≤1.06×1.5%). */
 @keyframes ken-burns-a {
-    from { transform: scale(1.04) translate3d(0.6%, 0.6%, 0); }
-    to { transform: scale(1.11) translate3d(-1.4%, -1.2%, 0); }
+    from { transform: scale(1.06) translate3d(0.9%, 0.9%, 0); }
+    to { transform: scale(1.12) translate3d(-1.3%, -1.1%, 0); }
 }
 @keyframes ken-burns-b {
-    from { transform: scale(1.05) translate3d(-1.2%, 0.4%, 0); }
-    to { transform: scale(1.1) translate3d(1.5%, -0.7%, 0); }
+    from { transform: scale(1.06) translate3d(-1.1%, 0.6%, 0); }
+    to { transform: scale(1.11) translate3d(1.4%, -0.8%, 0); }
 }
 @keyframes ken-burns-c {
-    from { transform: scale(1.05) translate3d(0.9%, -1%, 0); }
-    to { transform: scale(1.11) translate3d(-0.7%, 1.3%, 0); }
+    from { transform: scale(1.06) translate3d(1%, -1%, 0); }
+    to { transform: scale(1.12) translate3d(-0.9%, 1.3%, 0); }
 }
 @keyframes ken-burns-breathe {
     from { transform: scale(1); }
