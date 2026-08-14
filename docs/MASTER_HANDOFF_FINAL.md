@@ -3750,6 +3750,39 @@ mármore limpo + logo real". Resumo:
   quebram a elegibilidade de piso por idade de conta — nada de landing). Sem testes novos (a
   camada é visual/scroll — não observável sem navegador).
 
+### Landing — nomes da waitlist + fix do flake de relógio do PrivacyPerksTest — EM BRANCH (`fix/privacy-test-and-waitlist-copy`)
+
+Dois ajustes INDEPENDENTES num PR (build sobre a `feat/landing-marble-bg`). Nenhuma
+regra de service tocada; nenhuma tela interna tocada além da landing.
+
+**Parte 1 — fix do flake de relógio do `PrivacyPerksTest`.** O flake registrado na
+seção anterior ("mármore limpo + logo real", nota de testes) está **RESOLVIDO**. Os
+~5 testes de faixa do painel de visitantes usavam datas FIXAS (`2026-07-21`) via
+`travelTo`. O `ProfileVisitService` calcula elegibilidade de piso por IDADE DE CONTA
+relativa a `now()`: os seguidores/visitantes são criados por `now()->subDays(30)`
+ANTES da viagem, e viajar para um passado distante (julho, com a data real já em
+agosto+) os fazia parecer novos demais para o piso de 7 dias — o painel sumia e a
+faixa saía vazia. **Correção: todas as datas fixas viraram RELATIVAS a `now()`** via
+o helper novo `perkTodayAt(int $hour)` (uma hora de HOJE no fuso de exibição,
+`ProfileVisitService::DISPLAY_TIMEZONE`), e `perkVisitorsAt` passou a receber `Carbon`
+em vez de `string`. Ancorar em HOJE mantém a idade das contas estável — passa hoje,
+amanhã e em 2027. O teste "visita de ontem sai como data" fixa as DUAS âncoras (ontem
+22:00 e hoje 02:00) ANTES de viajar, senão `perkTodayAt()` ancoraria no dia errado
+depois do primeiro `travelTo`. **`ProfileVisitService` e nenhum outro service mudaram**
+— só o teste. `PrivacyPerksTest` **66/66 verde**.
+
+**Parte 2 — texto e nomes da lista de espera** (`resources/js/Pages/Landing.vue`):
+- **Subtítulo da tela de entrada** trocado para "Ainda não abrimos. Deixe seu e-mail e
+  o convite chega antes do anúncio." — a frase "Sem spam" **saiu da tela de entrada**.
+- **Aviso de spam** ("confira a caixa de spam · marque como não é spam") fica **SÓ na
+  tela de SUCESSO** (já existia lá desde o waitlist-focus — não duplicado).
+- **Rótulos do seletor "Eu quero entrar como":** "👤 Membro" → **"👤 Associado"**,
+  "🌟 Performer" → **"🌟 Residente"**. **Só o RÓTULO VISÍVEL na Landing** — o valor
+  técnico enviado ao backend continua `member`/`performer`, e **nenhum outro arquivo**
+  do sistema troca "membro"/"performer" (o resto da app mantém os nomes atuais).
+- `LandingCinematicTest`/`LandingCinematicAssetsTest`/`ExternalAssetPolicyTest` seguem
+  verdes; `npm run build` limpo. Nenhum teste assertava as strings antigas.
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),

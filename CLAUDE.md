@@ -2416,3 +2416,23 @@ para auditoria como "contrato aceito"** até o texto definitivo entrar.
   visual; os testes de landing existentes — `LandingCinematicTest`,
   `LandingCinematicAssetsTest`, `ExternalAssetPolicyTest` — seguem verdes, confirmados
   nesta sessão em 2017 testes / 16083 asserts).
+
+## Nota operacional — 14/08/2026 (fix do flake de relógio do PrivacyPerksTest)
+
+- **Branch `fix/privacy-test-and-waitlist-copy`** (sobre a `feat/landing-marble-bg`).
+  O flake de relógio do `PrivacyPerksTest` — que só aparecia rodando a suíte DEPOIS de
+  julho/2026 — está **RESOLVIDO**. Os testes de faixa do painel de visitantes usavam
+  datas FIXAS (`2026-07-21`) via `travelTo`; como o `ProfileVisitService` calcula
+  elegibilidade de piso por IDADE DE CONTA relativa a `now()` e os seguidores/visitantes
+  nascem por `now()->subDays(30)`, viajar para um passado distante os fazia parecer novos
+  demais para o piso de 7 dias e o painel sumia (faixa vazia). **Correção só no teste:**
+  todas as datas fixas viraram RELATIVAS a `now()` via o helper `perkTodayAt(int $hour)`
+  (hora de HOJE no fuso `DISPLAY_TIMEZONE`), `perkVisitorsAt` recebe `Carbon`. Passa hoje,
+  amanhã e em 2027. **Nenhum service mudou.** `PrivacyPerksTest` 66/66.
+- **Além disso**, mesmo PR: texto/nomes da lista de espera na `Landing.vue` (subtítulo da
+  entrada sem "Sem spam"; aviso de spam só na tela de sucesso; rótulos do seletor "Membro"
+  → "Associado" e "Performer" → "Residente", **só o rótulo visível — valor técnico
+  `member`/`performer` intacto e nenhum outro arquivo tocado**). Ver a seção do handoff
+  "Landing — nomes da waitlist + fix do flake de relógio do PrivacyPerksTest".
+- **Resultado esperado da suíte com este PR:** volta a **1 única falha** (o `GeoBlockTest`
+  451 deste clone de dev) — as falhas do `PrivacyPerksTest` somem, que é o objetivo.
