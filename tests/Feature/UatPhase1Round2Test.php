@@ -169,8 +169,9 @@ it('monta o panic button no GuestLayout para o usuario logado', function () {
 });
 
 it('mantem o panic button montado no AppLayout', function () {
-    // Guarda de regressão: o AppLayout já o montava incondicionalmente.
-    expect(File::get(resource_path('js/Layouts/AppLayout.vue')))->toContain('<PanicButton />');
+    // Guarda de regressão: o AppLayout o monta incondicionalmente (agora com a
+    // prop :lift-mobile, que sobe a pílula acima da barra inferior do painel).
+    expect(File::get(resource_path('js/Layouts/AppLayout.vue')))->toContain('<PanicButton');
 });
 
 // ─── #4 /catalogo: membro entra, performer redireciona, admin 403 ────────────

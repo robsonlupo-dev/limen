@@ -65,6 +65,13 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
   tema legado) continuam onde já estavam, mas tela nova entra em `limen-*`.
 - Commits pequenos, em inglês, no imperativo ("add token ledger migration").
 - 1 PR por entrega. Testes verdes antes de marcar como pronto.
+- **MOBILE PRIMEIRO — regra permanente (decisão do PO, ago/2026, a partir de
+  `feat/performer-nav-restructure`).** Toda tela nova (e todo redesenho) é pensada
+  primeiro para **360–390px** de largura e só depois adaptada ao desktop. Se algo
+  não couber no celular, o problema é o DESIGN, não a tela. Navegação primária no
+  celular usa padrão de app (barra fixa no rodapé), **nunca menu hambúrguer**. Alvos
+  de toque ≥44px, foco visível, teclado, e `prefers-reduced-motion` honrado em
+  qualquer transição.
 - **Ao adicionar seção nova ao handoff (`docs/MASTER_HANDOFF_FINAL.md`), use um
   título descritivo único (nome da feature ou data), NUNCA número sequencial
   (`A.0.N`).** A numeração sequencial colide quando duas branches criadas em paralelo
@@ -1910,34 +1917,103 @@ chamada".
   no `AppLayout` (aviso não-modal T-5min + "performer entrou" com contador de 2min;
   divide o canal `user.{id}` com o `MessageToast` — `stopListening`, nunca `Echo.leave`).
 
-## PanicButton — 3 saídas redundantes (Sprint 6, reforçado no Sprint 16)
+## PanicButton — Saída rápida flutuante (Sprint 6; re-apresentada em `feat/performer-nav-restructure`)
 
-Botão de saída rápida da sessão. O Sprint 16 (PRs #151/#155/#17344cf) fechou um
-achado do UAT: o disco flutuante sozinho era lido como "fechar modal" e o membro
-não achava a saída. Hoje há **três saídas redundantes**, todas disparando a mesma
-ação:
+Botão de saída rápida da sessão — tira a Limen da tela quando alguém entra na
+sala. **A LÓGICA (`escape()`) é intocável e não muda entre PRs:** limpa
+sessionStorage, reescreve a entrada de histórico para "/", DISPARA o logout
+fire-and-forget com `keepalive`, e sai com `location.replace` (o Voltar não
+devolve a Limen). O duplo-Escape e o `keepalive` são cobrados por
+`PanicButtonLayerTest`.
 
-1. **Link de texto no header** (pedido do PO) — montado inline no fluxo do header,
-   nomeado, para o membro achar a saída sem adivinhar. Um modal pode cobri-lo.
-   **Atualização (`feat/member-catalog-home-engagement`, PR #173, mergeado):** o link é
-   agora **PROMINENTE e empilhado ABAIXO do nome** (nome em cima, "Panic Button"
-   embaixo, numa coluna no header desktop), com **borda dourada `limen-gold`
-   visível** e rótulo legível `text-limen-gold` (antes era `muted`/`border-frame`,
-   discreto) — outro achado do UAT: o tom apagado escondia a saída. O hover puxa para
-   `danger` e o ícone de saída fica. **Só desktop** (mobile é PR de responsividade
-   separado). `PanicButtonVisibilityTest` foi atualizado para a nova prominência
-   (`border-limen-gold`/`text-limen-gold`), preservando todos os invariantes de
-   segurança (rótulo, aria-label, disco, duplo-Escape).
-2. **Disco flutuante** teleportado para a raiz em **`z-[10001]`** — a via SEMPRE
-   VISÍVEL, o fallback que o link não é. **Inalterado** (o disco mantém
-   `bg-surface`/`text-[#6f6a62]`; a prominência acima é só do link inline).
-3. **Duplo-Escape** (dois `Escape` em < 500ms). Um Escape sozinho não faz nada
-   (senão fechar um modal viraria evasão acidental).
+**Apresentação atual (`feat/performer-nav-restructure`, ago/2026 — pedido do PO):**
+o antigo LINK inline no header + o DISCO no topo direito viraram **UMA pílula
+flutuante rotulada "Saída rápida"** (português, antes era "Panic Button" em
+inglês), teleportada, no **canto INFERIOR-ESQUERDO**, em **cor de ALERTA
+(`bg-danger`)** distinta do dourado da marca. Duas vias redundantes:
 
-- **O `z-10001` continua RESERVADO ao disco** — fica UM acima do teto do projeto
-  (IntroAnimation 10000, AgeGateModal 9999): nada o cobre nem engole o clique.
-  **Overlay novo entra ABAIXO de 10001; não suba o disco** para acomodar outra
-  camada.
+1. **Pílula flutuante "Saída rápida"** — teleportada para a raiz em **`z-[10001]`**,
+   a via SEMPRE VISÍVEL, ROTULADA e INTOCÁVEL (o Teleport a tira de qualquer
+   stacking context; o 10001 fica UM acima do teto do projeto). **Inferior-esquerda**
+   de propósito: longe do menu do avatar/"Sair" (topo direito — a saída de
+   emergência NUNCA pode ficar adjacente ao "Sair" normal), do `MessageToast`
+   (inferior direito, z-100) e do `ReservationNotice` (inferior centro, z-40). Cor
+   de alerta para não ser lida como "fechar" (regressão do UAT 63). No celular a
+   prop `liftMobile` a sobe **acima da barra de navegação fixa do painel** (`bottom-20`
+   quando `isActivePerformer`, `bottom-4` fora do painel) — alcançável pelo polegar,
+   fora da zona de toque acidental ao rolar.
+2. **Duplo-Escape** (dois `Escape` em < 500ms, listener em `window`). Um Escape
+   sozinho não faz nada (senão fechar um modal viraria evasão). Dispara mesmo sob
+   overlay e com a pílula coberta — a via que nenhuma tela cobre.
+
+- **O `z-10001` continua RESERVADO à pílula** — fica UM acima do teto do projeto
+  (IntroAnimation 10000, AgeGateModal 9999): nada a cobre nem engole o clique.
+  **Overlay novo entra ABAIXO de 10001; não suba a pílula** para acomodar outra
+  camada. A barra de navegação do painel usa `z-40`, o menu do avatar `z-50` —
+  ambos abaixo da pílula.
+- **Montada GLOBAL uma vez no AppLayout** (`<PanicButton :lift-mobile="isActivePerformer" />`,
+  presente em toda tela autenticada — membro E performer) e no GuestLayout sob
+  `v-if="isLoggedIn"`. Saiu do fluxo da `<nav>`: não é mais item de menu.
+  `PanicButtonVisibilityTest` foi reescrito para o novo contrato (rótulo PT,
+  `bg-danger`, teleporte/`z-[10001]`, inferior-esquerda, sem `pr-16` no header).
+
+## Navegação do painel da performer — mobile primeiro (`feat/performer-nav-restructure`)
+
+Reestruturação da navegação do painel da performer (ago/2026, PR pendente). O
+header lotava: 13 elementos numa linha (logo + "Meu Painel" + 9 links + nome +
+Panic Button + Sair), que já quebrava no desktop e era impraticável no celular.
+**MUDA SÓ A APRESENTAÇÃO — nenhuma rota, permissão ou lógica de negócio muda; as
+telas de sempre continuam existindo, muda a forma de chegar nelas.** Primeira tela
+desenhada sob a regra **MOBILE PRIMEIRO** (ver Convenções).
+
+- **9 telas → 5 seções de 1º nível + menu do avatar.** Fonte ÚNICA:
+  `resources/js/lib/performerNav.js` (consumida pela barra e pela subnav — uma
+  cópia só, senão a seção ativa e os filhos divergiriam). As seções: **Painel**
+  (`performer.dashboard`) · **Conteúdo** (`performer.content`) · **Mensagens**
+  (`chat.index`) · **Pessoas** (subnav Seguidores `performer.followers` + Membros
+  `performer.members`) · **Ganhos** (subnav Saques `performer.payouts.index` +
+  Histórico `performer.payouts.history`). Foram para o **menu do avatar** (canto
+  superior direito): Perfil · Interesses · **Agendamentos** (gateado por
+  `feature:call` — some no dark launch) · Segurança · Sair.
+- **Mobile primeiro:** barra superior enxuta (logo + avatar) + **BARRA FIXA NO
+  RODAPÉ** com as 5 seções (ícone + rótulo, padrão de app, ≥44px, safe-area do
+  iOS), **nunca menu hambúrguer**. O `<main>` ganha `pb-24 md:pb-0` no painel para
+  o rodapé fixo não cobrir o conteúdo. **Desktop:** as 5 seções em linha + avatar à
+  direita; o logo fica sozinho à esquerda (fim da colisão "Meu Painel"/logo). A
+  **seção ativa é marcada nas duas versões** (`aria-current` + "vela" dourada de
+  2px), via `route().current(...)`.
+- **Componentes:** `Components/Performer/PerformerNav.vue` (barra superior desktop
+  + menu do avatar + barra inferior mobile) e `Components/Performer/PerformerSubnav.vue`
+  (a subnav de Pessoas/Ganhos, some nas seções sem filhos e fora do painel).
+  Montados no AppLayout só para `isActivePerformer`; os demais papéis (membro,
+  admin/moderador, performer em onboarding) seguem com a nav inline de antes.
+- **Menu do avatar acessível:** botão `aria-haspopup="menu"` com dropdown; fecha por
+  clique-fora e Escape. O Escape NÃO é engolido (`stopPropagation`) — senão o
+  duplo-Escape da Saída rápida deixaria de contar com o menu aberto. "Sair" emite
+  `logout` e o layout abre o modal de confirmação (fluxo intocado).
+- **Saída rápida saiu da nav** — virou a pílula flutuante global de alerta (ver
+  § PanicButton). Como o "Sair" foi para o menu do avatar (topo direito) e a pílula
+  fica no inferior-esquerdo, os dois **nunca ficam adjacentes** em nenhuma largura.
+- **Editar perfil em 4 abas** (`Performer/Profile/Edit.vue`): o scroll único de ~10
+  blocos virou **Fotos** (avatar, capa, galeria) · **Sobre mim** (nome, bio, mundos,
+  tags) · **Preferências** (idiomas, bebida, fumo, altura, o que procuro) ·
+  **Localização** (localizações, encontrável por cidade, URL do perfil), cada uma
+  cabendo numa tela de celular (ARIA tablist, setas do teclado). **O backend NÃO
+  fragmenta:** o "Salvar alterações" (nas abas Sobre mim/Preferências) posta o
+  `profileForm` INTEIRO — o estado vive no JS, trocar de aba não perde nada. Erro de
+  validação **salta para a aba do campo**. Trocar de aba com alterações não salvas
+  **avisa** (`switchTab` confere `isDirty`; trocar entre Sobre mim↔Preferências não
+  avisa — dividem o mesmo form). Fotos gravam na hora; Localização tem porta própria.
+- **Alinhamento:** removida a folga assimétrica `pr-16` do header (reservava o canto
+  do disco antigo, agora no inferior-esquerdo) — o header volta a `px-6` simétrico,
+  corrigindo a coluna de conteúdo "deslocada à esquerda" percebida na tela larga
+  (era efeito do header direito-pesado + folga assimétrica; a coluna já era
+  `mx-auto`). As páginas do painel seguem centralizadas (`max-w-* mx-auto`).
+- **Testes (fonte, sem Vitest):** `PerformerNavRestructureTest` (5 seções, menu do
+  avatar, subnav, barra inferior, wiring do AppLayout, 4 abas do perfil);
+  `PanicButtonVisibilityTest` reescrito; `PerformerProfileEditTest` segue verde
+  (component/props inalterados). **Zero rota nova no Ziggy** — todos os destinos já
+  estavam no `only[]`.
 
 ## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
 

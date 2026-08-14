@@ -2,6 +2,13 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 
+// liftMobile: sobe a pílula no celular para ela flutuar ACIMA da barra de
+// navegação fixa do painel da performer (que ocupa o rodapé). Fora do painel
+// (membro, telas guest) não há barra inferior, então a pílula desce ao rodapé.
+defineProps({
+    liftMobile: { type: Boolean, default: false },
+})
+
 // Saída rápida. Existe para um cenário concreto: alguém entra na sala e o
 // membro precisa tirar a Limen da tela AGORA, sem hesitar num menu.
 //
@@ -101,63 +108,36 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
     <!--
-      TRÊS vias para a mesma saída (escape()), e cada uma cobre um buraco da outra:
+      DUAS vias para a mesma saída (escape()), cada uma cobrindo um buraco da outra:
 
-      1. LINK DE TEXTO no header (pedido do PO, ago/2026), montado inline pelos
-         layouts ao lado do nome. É a via DESCOBERTA/ROTULADA — "Panic Button" diz o
-         que é sem o membro adivinhar, o que o disco sozinho (lido como "fechar") não
-         fazia (achado do UAT). Mas, inline no fluxo do header, um modal pode cobri-lo.
+      1. PÍLULA FLUTUANTE "Saída rápida" — teleportada para a raiz em z-[10001], a via
+         SEMPRE VISÍVEL, ROTULADA e INTOCÁVEL. O Teleport a tira de qualquer stacking
+         context de layout, e o 10001 fica UM acima do teto do projeto (IntroAnimation
+         10000, AgeGateModal 9999): nada a cobre nem engole o clique. Fica no canto
+         INFERIOR-ESQUERDO — longe do menu do avatar/"Sair" (topo direito), do toast
+         (inferior direito) e do aviso de reserva (inferior centro), então em nenhuma
+         largura ela encosta no "Sair" normal. Cor de ALERTA (`danger`), distinta do
+         dourado da marca, para não ser lida como "fechar" (regressão do UAT 63). No
+         celular sobe acima da barra de navegação do painel (prop liftMobile) e fica
+         alcançável pelo polegar, mas fora da zona de toque acidental ao rolar.
+         Invariante (PanicButtonLayerTest): NENHUM outro componente usa z-index
+         >= 10001 — overlay novo entra abaixo, não suba a pílula.
 
-      2. DISCO FLUTUANTE teleportado para a raiz em z-[10001] — a via SEMPRE VISÍVEL e
-         INTOCÁVEL. O Teleport tira o botão de qualquer stacking context de layout, e o
-         10001 fica UM acima do teto do projeto (IntroAnimation 10000, AgeGateModal
-         9999): nada o cobre nem engole o clique. É o fallback que o link não é.
-         Invariante cobrado por PanicButtonLayerTest: NENHUM outro componente usa
-         z-index >= 10001 — overlay novo entra abaixo, não suba o disco.
+      2. DUPLO-ESCAPE (listener em `window`, no <script>) — a via de TECLADO, dispara
+         mesmo sob overlay e sem apontar para nada. Cobre o touch-less e o caso de a
+         pílula estar coberta.
 
-      3. DUPLO-ESCAPE (listener em `window`) — a via de TECLADO, dispara mesmo sob
-         overlay e sem apontar para nada. Cobre o touch-less e o caso de os dois
-         botões estarem cobertos.
-
-      Ao mexer no visual, preserve as três — cada uma existe porque as outras falham
-      num cenário. O link é PROMINENTE (pedido do PO, ago/2026): pílula com borda
-      dourada `limen-gold` visível e rótulo legível (`text-limen-gold`), com ícone de
-      saída e hover puxando para `danger` — localizável rápido numa emergência, não
-      mais o controle discreto de antes. O disco é opaco (`bg-surface`) com aro
-      dourado, glifo discreto (`#6f6a62`, pedido do PO) — quem ganha contraste no
-      canto é o disco, não o X (regressão do UAT cenário 63); o link ganha contraste
-      no fluxo do header.
+      Este PR mudou só a APRESENTAÇÃO (o link inline + o disco viraram uma pílula
+      rotulada de alerta, e o rótulo em inglês passou a "Saída rápida", em
+      português). A lógica de matar a sessão (escape()) é a de sempre.
     -->
-    <button
-        type="button"
-        aria-label="Panic Button — saída rápida: sai da Limen e vai para outro site"
-        title="Saída rápida"
-        class="inline-flex items-center gap-1.5 rounded-md border border-limen-gold/70 px-2.5 py-1 text-xs font-medium text-limen-gold transition-colors hover:border-danger/60 hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/60"
-        @click="escape"
-    >
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="h-3.5 w-3.5"
-            aria-hidden="true"
-        >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <path d="M16 17l5-5-5-5M21 12H9" />
-        </svg>
-        Panic Button
-    </button>
-
     <Teleport to="body">
         <button
             type="button"
-            aria-label="Saída rápida"
+            aria-label="Saída rápida — sai da Limen e vai para outro site"
             title="Saída rápida"
-            class="fixed top-4 right-4 z-[10001] flex h-10 w-10 items-center justify-center rounded-full border border-gold/40 bg-surface text-[#6f6a62] shadow-lg shadow-black/40 ring-1 ring-gold/25 transition-colors hover:text-cream hover:border-gold/70 hover:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+            class="pnc-exit fixed left-4 z-[10001] inline-flex items-center gap-1.5 rounded-full border border-danger/60 bg-danger px-3.5 py-2 text-xs font-semibold text-cream shadow-lg shadow-black/50 transition-colors hover:bg-danger/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/60 sm:left-6 sm:bottom-6"
+            :class="liftMobile ? 'bottom-[calc(4.5rem_+_env(safe-area-inset-bottom))]' : 'bottom-4'"
             @click="escape"
         >
             <svg
@@ -165,13 +145,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="1.5"
+                stroke-width="1.8"
                 stroke-linecap="round"
+                stroke-linejoin="round"
                 class="h-4 w-4"
                 aria-hidden="true"
             >
-                <path d="M6 6l12 12M18 6L6 18" />
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="M16 17l5-5-5-5M21 12H9" />
             </svg>
+            Saída rápida
         </button>
     </Teleport>
 </template>

@@ -5,6 +5,8 @@ import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import PanicButton from '@/Components/PanicButton.vue'
+import PerformerNav from '@/Components/Performer/PerformerNav.vue'
+import PerformerSubnav from '@/Components/Performer/PerformerSubnav.vue'
 import MessageToast from '@/Components/MessageToast.vue'
 import ReservationNotice from '@/Components/ReservationNotice.vue'
 
@@ -60,16 +62,29 @@ function logout() {
     <div class="min-h-screen bg-background flex flex-col">
         <!-- Header -->
         <header class="border-b border-frame/50">
-            <!-- pr-16 reserva o canto superior direito para o DISCO da Saída rápida
-                 (PanicButton teleporta um disco fixed top-4 right-4 além do link
-                 inline abaixo). Sem a folga, em tela estreita o disco cobre nome/Sair
-                 e o link — achado do UAT cenário 63. -->
-            <div class="max-w-6xl mx-auto pl-6 pr-16 py-4 flex items-center justify-between">
-                <Link :href="homeRoute" class="flex items-center gap-3 no-underline">
+            <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+                <Link :href="homeRoute" class="flex items-center gap-3 no-underline shrink-0">
                     <PortalLogo :size="32" :show-text="false" />
                     <span class="font-serif text-[#C9A24B] tracking-widest">Limen</span>
                 </Link>
-                <nav class="flex items-center gap-6 text-sm text-muted">
+
+                <!-- Painel da performer ATIVA: navegação reagrupada em 5 seções
+                     + menu do avatar, mobile primeiro. Ver PerformerNav. As 9 telas
+                     de antes viram Painel · Conteúdo · Mensagens · Pessoas · Ganhos,
+                     com Perfil/Interesses/Agendamentos/Segurança/Sair no avatar. -->
+                <PerformerNav
+                    v-if="isActivePerformer"
+                    :nav-counts="navCounts"
+                    :features="features"
+                    :user-name="page.props.auth.user?.name"
+                    @logout="showLogoutConfirm = true"
+                />
+
+                <!-- Demais papéis (membro, admin/moderador e performer ainda em
+                     onboarding): navegação inline, como antes. -->
+                <nav v-else class="flex items-center gap-6 text-sm text-muted">
+                    <!-- Performer em onboarding: painel (→ onboarding) + Segurança,
+                         a tela em que o 2FA mais importa durante o KYC. -->
                     <Link
                         v-if="isPerformer"
                         :href="dashboardRoute"
@@ -77,64 +92,6 @@ function logout() {
                     >
                         Meu Painel
                     </Link>
-                    <template v-if="isActivePerformer">
-                        <Link
-                            :href="route('performer.profile.edit')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Perfil
-                        </Link>
-                        <Link
-                            :href="route('performer.followers')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Seguidores
-                        </Link>
-                        <!-- "Membros" saiu da nav: o catálogo de membros virou a
-                             HOME da performer (volta pelo logo). Ver homeRoute. -->
-                        <Link
-                            :href="route('performer.interests.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Interesses
-                        </Link>
-                        <Link
-                            :href="route('performer.content')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Conteúdo
-                        </Link>
-                        <Link
-                            :href="route('chat.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Mensagens
-                            <span
-                                v-if="navCounts.messages > 0"
-                                class="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-limen-gold px-1.5 py-0.5 text-[10px] font-semibold leading-none text-limen-bg"
-                                aria-label="mensagens não lidas"
-                            >{{ navCounts.messages > 99 ? '99+' : navCounts.messages }}</span>
-                        </Link>
-                        <Link
-                            :href="route('performer.payouts.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Saques
-                        </Link>
-                        <!-- Fila de chamadas agendadas (feat/scheduled-call-v1),
-                             sob feature:call como o resto da chamada. -->
-                        <Link
-                            v-if="features.call_enabled"
-                            :href="route('performer.reservations.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Agendamentos
-                        </Link>
-                    </template>
-                    <!-- isPerformer e não isActivePerformer: a performer em KYC
-                         já tem documento e selfie na conta — é a janela em que
-                         o 2FA mais importa e a única em que ela ainda não teria
-                         acesso à tela se o link seguisse os outros. -->
                     <Link
                         v-if="isPerformer"
                         :href="route('performer.2fa.show')"
@@ -264,15 +221,7 @@ function logout() {
                     >
                         Admin
                     </a>
-                    <!-- Nome em cima, Saída rápida ABAIXO (pedido do PO, ago/2026):
-                         empilhados numa coluna para o Panic Button ser localizável
-                         rápido, não mais um controle discreto ao lado do nome. O
-                         duplo-Escape e o disco flutuante moram no mesmo componente e
-                         valem mesmo se esta barra sair da tela. -->
-                    <div class="flex flex-col items-end gap-1">
-                        <span class="text-cream">{{ page.props.auth.user?.name }}</span>
-                        <PanicButton />
-                    </div>
+                    <span class="text-cream">{{ page.props.auth.user?.name }}</span>
                     <button
                         class="hover:text-cream transition-colors"
                         @click="showLogoutConfirm = true"
@@ -283,6 +232,10 @@ function logout() {
             </div>
         </header>
 
+        <!-- Subnav da seção ativa (Pessoas: Seguidores · Membros / Ganhos: Saques ·
+             Histórico). Some nas seções sem filhos e fora do painel. -->
+        <PerformerSubnav v-if="isActivePerformer" />
+
         <!-- Flash messages -->
         <div v-if="page.props.flash?.success" class="bg-success/10 border-b border-success/30 px-6 py-3 text-sm text-success text-center">
             {{ page.props.flash.success }}
@@ -291,8 +244,9 @@ function logout() {
             {{ page.props.flash.error }}
         </div>
 
-        <!-- Content -->
-        <main class="mi-page-enter flex-1">
+        <!-- Content. No painel da performer, o rodapé fixo (barra de navegação
+             mobile) exige folga inferior no celular para não cobrir o conteúdo. -->
+        <main class="mi-page-enter flex-1" :class="isActivePerformer ? 'pb-[calc(6rem_+_env(safe-area-inset-bottom))] md:pb-0' : ''">
             <slot />
         </main>
 
@@ -317,6 +271,12 @@ function logout() {
              T-5min, "performer entrou" com contador de 2min, no-show/refund. Divide
              o canal user.{id} com o MessageToast sem derrubá-lo. -->
         <ReservationNotice />
+
+        <!-- Saída rápida GLOBAL — pílula flutuante (teleportada) no canto
+             inferior-esquerdo, presente em toda tela autenticada (membro E
+             performer). No painel da performer sobe acima da barra de navegação
+             do rodapé (liftMobile). Longe do menu do avatar/"Sair" (topo direito). -->
+        <PanicButton :lift-mobile="isActivePerformer" />
 
         <!-- Logout confirmation -->
         <Modal :show="showLogoutConfirm" max-width="sm" @close="showLogoutConfirm = false">

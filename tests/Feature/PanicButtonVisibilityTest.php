@@ -5,14 +5,17 @@ use Illuminate\Support\Facades\File;
 // Visibilidade da Saída rápida (PanicButton).
 //
 // O botão é perk de privacidade DO MEMBRO (Sprint 6): tira a Limen da tela
-// quando alguém entra na sala. Desde ago/2026 (pedido do PO) ele tem DUAS
-// superfícies clicáveis + o teclado: um LINK DE TEXTO rotulado no header (ao lado
-// do nome — a via descoberta, que o disco sozinho, lido como "fechar", não era) E
-// o DISCO flutuante teleportado na camada de topo (a via sempre visível/intocável,
-// que o link inline não é). Estes testes travam:
-//   (a) a matriz de montagem (membro vê, visitante não, performer mantém),
-//   (b) o link rotulado e legível, e
-//   (c) o disco de contraste na camada de topo (a causa raiz do UAT cenário 63).
+// quando alguém entra na sala. A reestruturação da navegação do painel
+// (feat/performer-nav-restructure) tirou a saída do fluxo do header: o antigo
+// link inline + o disco viraram UMA pílula flutuante ROTULADA "Saída rápida"
+// (português), teleportada na camada de topo, em cor de ALERTA (danger,
+// distinta do dourado da marca), no canto INFERIOR-ESQUERDO — longe do "Sair"
+// do menu do avatar (topo direito), do toast (inferior direito) e do aviso de
+// reserva (inferior centro). O duplo-Escape continua sendo a via de teclado
+// (cobrado por PanicButtonLayerTest). Estes testes travam:
+//   (a) a matriz de montagem (membro E performer veem; visitante não),
+//   (b) o rótulo em português e o alerta, e
+//   (c) a pílula teleportada/fixa na camada de topo (sempre visível/intocável).
 //
 // Como o projeto não tem Vitest/Jest, a verificação roda pela fonte .vue —
 // mesma disciplina do PanicButtonLayerTest e do UatPhase1Round2Test.
@@ -26,10 +29,11 @@ const GUEST_LAYOUT = 'js/Layouts/GuestLayout.vue';
 it('monta o panic button para todo usuario autenticado (membro E performer)', function () {
     // AppLayout envolve TODA página autenticada — do catálogo do membro ao painel
     // da performer. Montado sem v-if de role/tier: não há gate que esconda o botão
-    // de um lado. Membro e performer recebem a mesma saída.
+    // de um lado. Membro e performer recebem a mesma saída. A prop :lift-mobile só
+    // ajusta a posição no celular (acima da barra de navegação do painel).
     expect(File::get(resource_path(APP_LAYOUT)))
         ->toContain("import PanicButton from '@/Components/PanicButton.vue'")
-        ->toContain('<PanicButton />');
+        ->toContain('<PanicButton');
 });
 
 it('nao expoe o panic button ao visitante deslogado, so ao membro logado', function () {
@@ -40,52 +44,55 @@ it('nao expoe o panic button ao visitante deslogado, so ao membro logado', funct
         ->toMatch('/<PanicButton\s+v-if="isLoggedIn"\s*\/>/');
 });
 
-// ─── Desenho: link de texto rotulado E disco flutuante convivem ──────────────
+// ─── Desenho: pílula rotulada, em português, cor de alerta ───────────────────
 
-it('desenha o panic button como link de texto rotulado', function () {
+it('desenha a saida como pilula rotulada em portugues', function () {
     $src = File::get(resource_path(PANIC));
 
-    // O RÓTULO em texto é a via descoberta: o membro lê o que é, não adivinha um
-    // glifo. E precisa de nome acessível para quem navega por leitor de tela.
-    expect($src)->toContain('Panic Button')
-        ->and($src)->toContain('aria-label="Panic Button');
+    // O RÓTULO em texto é a via descoberta: a performer lê o que é, não adivinha um
+    // glifo. Em PORTUGUÊS (a interface é pt-BR) e com nome acessível para leitor
+    // de tela. Nunca mais "Panic Button" em inglês.
+    expect($src)->toContain('Saída rápida')
+        ->and($src)->toContain('aria-label="Saída rápida')
+        ->and($src)->not->toContain('Panic Button');
 });
 
-it('mantem tambem o disco flutuante opaco na camada de topo (fallback do UAT 63)', function () {
-    // O disco é a via SEMPRE VISÍVEL que o link inline não é: teleportado para a
-    // raiz, fixo no topo direito, na camada de topo. Contraste é requisito de
-    // segurança (cenário 63): disco opaco `bg-surface` com aro dourado, glifo
-    // discreto. Guarda contra remover o disco OU deixá-lo translúcido de novo.
+it('usa cor de alerta distinta do dourado da marca', function () {
+    // Cor de ALERTA (`danger`), não o dourado da marca nem o cinza discreto do
+    // disco antigo — a saída de emergência tem que ser inconfundível e não ser
+    // lida como "fechar" (regressão do UAT cenário 63).
+    $src = File::get(resource_path(PANIC));
+
+    expect($src)->toContain('bg-danger');
+});
+
+it('mantem a pilula teleportada e fixa na camada de topo', function () {
+    // A pílula é a via SEMPRE VISÍVEL e INTOCÁVEL: teleportada para a raiz (fora de
+    // qualquer stacking context de layout) e fixa na camada de topo (z-[10001], UM
+    // acima do teto do projeto). Guarda contra remover o Teleport ou baixar a camada.
     $src = File::get(resource_path(PANIC));
 
     expect($src)->toContain('<Teleport to="body">')
-        ->and($src)->toContain('fixed top-4 right-4')
         ->and($src)->toContain('z-[10001]')
-        ->and($src)->toContain('bg-surface')
-        ->and($src)->not->toContain('bg-background/70')
-        ->and($src)->toContain('text-[#6f6a62]');
+        ->and($src)->toContain('fixed');
 });
 
-it('mantem o link prominente com borda dourada e rotulo legivel', function () {
-    // Prominência (pedido do PO, ago/2026): o link deixou de ser o controle
-    // "discreto" (muted/border-frame) e virou uma pílula com borda dourada
-    // `limen-gold` visível e rótulo legível `text-limen-gold`, com o hover puxando
-    // para `danger` — localizável rápido numa emergência. Guarda contra regredir
-    // para o tom apagado que o UAT reprovou (o membro não achava a saída).
+it('flutua no canto inferior-esquerdo, nunca no topo direito', function () {
+    // Inferior-esquerdo: longe do menu do avatar/"Sair" (topo direito), do toast
+    // (inferior direito) e do aviso de reserva (inferior centro). Em nenhuma
+    // largura a Saída rápida encosta no "Sair" normal — requisito de segurança.
     $src = File::get(resource_path(PANIC));
 
-    expect($src)->toContain('border-limen-gold')
-        ->and($src)->toContain('text-limen-gold')
-        ->and($src)->toContain('hover:text-danger');
+    expect($src)->toContain('left-4')
+        ->and($src)->not->toContain('top-4 right-4');
 });
 
-// ─── O disco flutua no canto: o header reserva a folga nos dois layouts ───────
+// ─── Alinhamento: o header não reserva mais o canto do disco antigo ──────────
 
-it('reserva o canto do header para o disco flutuante nos dois layouts', function () {
-    // O disco é `fixed top-4 right-4`, teleportado — flutua sobre o header. Sem
-    // folga à direita, em tela estreita ele cobre (e, invisível, interceptava o
-    // clique de) nome/Sair e o próprio link. pr-16 abre o espaço nos dois headers.
-    foreach ([APP_LAYOUT, GUEST_LAYOUT] as $layout) {
-        expect(File::get(resource_path($layout)))->toContain('pr-16');
-    }
+it('nao reserva mais o canto superior direito do header (disco removido)', function () {
+    // A pílula desceu para o canto inferior-esquerdo, então a folga assimétrica
+    // `pr-16` que o header reservava para o disco no topo direito saiu — o header
+    // volta a `px-6` simétrico (corrige a coluna de conteúdo "deslocada à esquerda"
+    // percebida na tela larga).
+    expect(File::get(resource_path(APP_LAYOUT)))->not->toContain('pr-16');
 });

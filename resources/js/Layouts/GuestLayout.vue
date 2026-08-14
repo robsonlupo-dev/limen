@@ -36,18 +36,17 @@ const showIntro = computed(() => !isLoggedIn.value && !page.props.introSeen)
 
         <!-- Header -->
         <header class="border-b border-frame/50">
-            <!-- pr-16: mesma folga do AppLayout para o disco flutuante da Saída
-                 rápida (o membro logado o recebe nas telas públicas). -->
-            <div class="max-w-6xl mx-auto pl-6 pr-16 py-4 flex items-center justify-between">
+            <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
                 <Link :href="route('landing')" class="flex items-center gap-3 no-underline">
                     <PortalLogo :size="32" :show-text="false" />
                     <span class="font-serif text-[#C9A24B] tracking-widest">Limen</span>
                 </Link>
                 <nav class="flex items-center gap-6 text-sm text-muted">
                     <!-- Saída rápida SÓ para o membro logado que chega às telas
-                         públicas por link direto — mesma regra da versão flutuante
-                         anterior. Visitante deslogado não recebe (logout seria
-                         no-op). Ver PanicButton.vue. -->
+                         públicas por link direto. Visitante deslogado não recebe
+                         (logout seria no-op). Hoje é uma pílula flutuante global
+                         (teleportada), então o v-if aqui só decide se ela MONTA —
+                         a posição é fixa no canto inferior-esquerdo. Ver PanicButton. -->
                     <PanicButton v-if="isLoggedIn" />
                     <!-- Botões de conta escondidos no pré-lançamento da landing
                          (hideAccountNav): o único caminho é a lista de espera. -->

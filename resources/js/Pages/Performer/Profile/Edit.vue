@@ -234,9 +234,72 @@ function onCoverCropped(file) {
     })
 }
 
+// ── Abas (feat/performer-nav-restructure) ────────────────────────────────────
+// O scroll único de ~10 blocos virou 4 abas, cada uma cabendo numa tela de
+// celular. O BACKEND não fragmenta: o botão "Salvar alterações" (nas abas Sobre
+// mim e Preferências) posta o profileForm INTEIRO — todos os campos, esteja qual
+// aba estiver. Fotos gravam na hora (upload direto); Localização tem porta
+// própria (locationsForm). O estado do form vive no JS, então trocar de aba NÃO
+// perde nada; o aviso de "não salvo" é lembrete de salvar, não recuperação.
+const TABS = [
+    { key: 'fotos', label: 'Fotos' },
+    { key: 'sobre', label: 'Sobre mim' },
+    { key: 'preferencias', label: 'Preferências' },
+    { key: 'localizacao', label: 'Localização' },
+]
+const activeTab = ref('fotos')
+
+// Qual form pertence à aba (para o aviso de alterações não salvas). Sobre mim e
+// Preferências dividem o MESMO profileForm — trocar entre elas não cruza
+// fronteira de save, então não avisa.
+function formFor(tab) {
+    if (tab === 'sobre' || tab === 'preferencias') return profileForm
+    if (tab === 'localizacao') return locationsForm
+    return null
+}
+
+function switchTab(next) {
+    if (next === activeTab.value) return
+    const current = formFor(activeTab.value)
+    const target = formFor(next)
+    if (current && current.isDirty && current !== target) {
+        if (!window.confirm('Você tem alterações não salvas nesta aba. Trocar de aba antes de salvar?')) {
+            return
+        }
+    }
+    activeTab.value = next
+}
+
+// Navegação por teclado nas abas (padrão ARIA tablist): setas movem e focam.
+function onTabKeydown(event, index) {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }
+    let nextIndex = null
+    if (event.key in step) nextIndex = (index + step[event.key] + TABS.length) % TABS.length
+    else if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = TABS.length - 1
+    if (nextIndex === null) return
+    event.preventDefault()
+    switchTab(TABS[nextIndex].key)
+    event.currentTarget.parentElement?.querySelectorAll('[role="tab"]')[nextIndex]?.focus()
+}
+
+// Campos de cada aba do profileForm — para saltar à aba do primeiro erro.
+const SOBRE_FIELDS = ['stage_name', 'bio', 'worlds', 'tags']
+
 function save() {
-    if (worldsInvalid.value) return
-    profileForm.post(route('performer.profile.save'), { preserveScroll: true })
+    if (worldsInvalid.value) {
+        activeTab.value = 'sobre'
+        return
+    }
+    profileForm.post(route('performer.profile.save'), {
+        preserveScroll: true,
+        onError: (errors) => {
+            // Mostra a aba que contém o primeiro erro — senão o aviso ficaria
+            // escondido numa aba que a performer não está vendo.
+            const first = Object.keys(errors)[0]
+            activeTab.value = first && !SOBRE_FIELDS.includes(first) ? 'preferencias' : 'sobre'
+        },
+    })
 }
 </script>
 
@@ -253,88 +316,118 @@ function save() {
                 </Link>
             </div>
 
-            <!-- Avatar -->
-            <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
-                <h2 class="font-serif text-xl text-cream">Foto de perfil</h2>
+            <!-- Abas: cada uma cabe numa tela de celular. Salvar posta o form todo. -->
+            <div
+                role="tablist"
+                aria-label="Seções do perfil"
+                class="flex gap-1 overflow-x-auto border-b border-frame"
+            >
+                <button
+                    v-for="(tab, index) in TABS"
+                    :key="tab.key"
+                    type="button"
+                    role="tab"
+                    :aria-selected="activeTab === tab.key"
+                    :tabindex="activeTab === tab.key ? 0 : -1"
+                    class="ptab relative shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+                    :class="activeTab === tab.key ? 'text-gold' : 'text-muted hover:text-cream'"
+                    @click="switchTab(tab.key)"
+                    @keydown="onTabKeydown($event, index)"
+                >
+                    {{ tab.label }}
+                    <span
+                        v-if="activeTab === tab.key"
+                        class="ptab-marker absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gold"
+                        aria-hidden="true"
+                    />
+                </button>
+            </div>
 
-                <div class="flex items-center gap-6">
-                    <div class="h-24 w-24 rounded-full overflow-hidden bg-surface-2 border border-frame flex items-center justify-center shrink-0">
-                        <img v-if="currentAvatar" :src="currentAvatar" alt="Sua foto de perfil" class="h-full w-full object-cover" />
-                        <span v-else class="font-serif text-3xl text-gold">{{ profile.stage_name?.charAt(0) }}</span>
+            <!-- ── Aba: Fotos ─────────────────────────────────────────────── -->
+            <div v-show="activeTab === 'fotos'" role="tabpanel" class="space-y-8">
+                <!-- Avatar -->
+                <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
+                    <h2 class="font-serif text-xl text-cream">Foto de perfil</h2>
+
+                    <div class="flex items-center gap-6">
+                        <div class="h-24 w-24 rounded-full overflow-hidden bg-surface-2 border border-frame flex items-center justify-center shrink-0">
+                            <img v-if="currentAvatar" :src="currentAvatar" alt="Sua foto de perfil" class="h-full w-full object-cover" />
+                            <span v-else class="font-serif text-3xl text-gold">{{ profile.stage_name?.charAt(0) }}</span>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="cursor-pointer inline-block">
+                                <span class="inline-flex items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
+                                    {{ avatarForm.processing ? 'Enviando...' : 'Trocar foto' }}
+                                </span>
+                                <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    class="hidden"
+                                    :disabled="avatarForm.processing"
+                                    @change="pickAvatar"
+                                />
+                            </label>
+                            <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em quadrado antes de salvar.</p>
+                            <p v-if="avatarForm.errors.file" class="text-xs text-danger">{{ avatarForm.errors.file }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Foto de capa (UAT fix): a faixa larga do topo do perfil. -->
+                <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
+                    <h2 class="font-serif text-xl text-cream">Foto de capa</h2>
+
+                    <div class="aspect-[3/1] w-full overflow-hidden rounded-lg bg-surface-2 border border-frame flex items-center justify-center">
+                        <img v-if="currentCover" :src="currentCover" alt="Sua foto de capa" class="h-full w-full object-cover" />
+                        <span v-else class="text-sm text-muted">Nenhuma foto de capa</span>
                     </div>
 
                     <div class="space-y-2">
                         <label class="cursor-pointer inline-block">
                             <span class="inline-flex items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
-                                {{ avatarForm.processing ? 'Enviando...' : 'Trocar foto' }}
+                                {{ coverForm.processing ? 'Enviando...' : (currentCover ? 'Trocar capa' : 'Adicionar capa') }}
                             </span>
                             <input
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp"
                                 class="hidden"
-                                :disabled="avatarForm.processing"
-                                @change="pickAvatar"
+                                :disabled="coverForm.processing"
+                                @change="pickCover"
                             />
                         </label>
-                        <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em quadrado antes de salvar.</p>
-                        <p v-if="avatarForm.errors.file" class="text-xs text-danger">{{ avatarForm.errors.file }}</p>
+                        <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em 3:1 antes de salvar.</p>
+                        <p v-if="coverForm.errors.file" class="text-xs text-danger">{{ coverForm.errors.file }}</p>
                     </div>
                 </div>
+
+                <!-- Croppers: abrem quando um arquivo é escolhido; ao confirmar,
+                     enviam o JPEG já enquadrado. O corte definitivo é server-side. -->
+                <ImageCropper
+                    :file="pendingAvatarFile"
+                    :aspect-ratio="1"
+                    :output-width="512"
+                    title="Enquadre sua foto de perfil"
+                    hint="Arraste e ajuste o zoom. A foto fica quadrada no seu card."
+                    @crop="onAvatarCropped"
+                    @cancel="pendingAvatarFile = null"
+                />
+                <ImageCropper
+                    :file="pendingCoverFile"
+                    :aspect-ratio="3"
+                    :output-width="1200"
+                    title="Enquadre sua foto de capa"
+                    hint="Arraste e ajuste o zoom. A capa é a faixa larga 3:1 do topo do perfil."
+                    @crop="onCoverCropped"
+                    @cancel="pendingCoverFile = null"
+                />
+
+                <!-- Galeria de fotos (Sprint 10) -->
+                <PhotoGalleryManager :initial-photos="photos" :max-photos="maxPhotos" />
             </div>
 
-            <!-- Foto de capa (UAT fix): a faixa larga do topo do perfil. -->
-            <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
-                <h2 class="font-serif text-xl text-cream">Foto de capa</h2>
-
-                <div class="aspect-[3/1] w-full overflow-hidden rounded-lg bg-surface-2 border border-frame flex items-center justify-center">
-                    <img v-if="currentCover" :src="currentCover" alt="Sua foto de capa" class="h-full w-full object-cover" />
-                    <span v-else class="text-sm text-muted">Nenhuma foto de capa</span>
-                </div>
-
-                <div class="space-y-2">
-                    <label class="cursor-pointer inline-block">
-                        <span class="inline-flex items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
-                            {{ coverForm.processing ? 'Enviando...' : (currentCover ? 'Trocar capa' : 'Adicionar capa') }}
-                        </span>
-                        <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            class="hidden"
-                            :disabled="coverForm.processing"
-                            @change="pickCover"
-                        />
-                    </label>
-                    <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em 3:1 antes de salvar.</p>
-                    <p v-if="coverForm.errors.file" class="text-xs text-danger">{{ coverForm.errors.file }}</p>
-                </div>
-            </div>
-
-            <!-- Croppers: abrem quando um arquivo é escolhido; ao confirmar,
-                 enviam o JPEG já enquadrado. O corte definitivo é server-side. -->
-            <ImageCropper
-                :file="pendingAvatarFile"
-                :aspect-ratio="1"
-                :output-width="512"
-                title="Enquadre sua foto de perfil"
-                hint="Arraste e ajuste o zoom. A foto fica quadrada no seu card."
-                @crop="onAvatarCropped"
-                @cancel="pendingAvatarFile = null"
-            />
-            <ImageCropper
-                :file="pendingCoverFile"
-                :aspect-ratio="3"
-                :output-width="1200"
-                title="Enquadre sua foto de capa"
-                hint="Arraste e ajuste o zoom. A capa é a faixa larga 3:1 do topo do perfil."
-                @crop="onCoverCropped"
-                @cancel="pendingCoverFile = null"
-            />
-
-            <!-- Galeria de fotos (Sprint 10) -->
-            <PhotoGalleryManager :initial-photos="photos" :max-photos="maxPhotos" />
-
-            <!-- Name & bio -->
-            <form class="rounded-xl border border-frame bg-surface p-6 space-y-5" @submit.prevent="save">
+            <!-- ── Aba: Sobre mim ─────────────────────────────────────────── -->
+            <form v-show="activeTab === 'sobre'" role="tabpanel" class="rounded-xl border border-frame bg-surface p-6 space-y-5" @submit.prevent="save">
                 <h2 class="font-serif text-xl text-cream">Nome e bio</h2>
 
                 <Input
@@ -393,198 +486,43 @@ function save() {
                     <p v-else-if="profileForm.errors.worlds" class="text-xs text-danger">{{ profileForm.errors.worlds }}</p>
                 </div>
 
-                <!-- Sobre mim: tudo opcional e auto-declarado. Aparece no seu
-                     perfil público — a copy abaixo diz isso à performer antes
-                     de ela preencher, não depois. -->
-                <div class="border-t border-frame pt-5 space-y-6">
-                    <div class="space-y-1">
-                        <h2 class="font-serif text-xl text-cream">Sobre mim</h2>
-                        <p class="text-xs text-muted">
-                            Tudo aqui é opcional e aparece no seu perfil público. Preencha só o que
-                            quiser mostrar.
-                        </p>
+                <!-- Tags -->
+                <div class="border-t border-frame pt-5 flex flex-col gap-3">
+                    <div class="flex items-baseline justify-between gap-3">
+                        <span class="text-sm font-medium text-cream">Tags</span>
+                        <span class="text-xs text-muted tabular-nums shrink-0">
+                            {{ tagCount }}/{{ MAX_TAGS }} selecionadas
+                        </span>
                     </div>
+                    <p class="text-xs text-muted">
+                        Escolha até {{ MAX_TAGS }} que te descrevem. Membros usam as tags para
+                        te encontrar.
+                    </p>
 
-                    <!-- Tags -->
-                    <div class="flex flex-col gap-3">
-                        <div class="flex items-baseline justify-between gap-3">
-                            <span class="text-sm font-medium text-cream">Tags</span>
-                            <span class="text-xs text-muted tabular-nums shrink-0">
-                                {{ tagCount }}/{{ MAX_TAGS }} selecionadas
-                            </span>
-                        </div>
-                        <p class="text-xs text-muted">
-                            Escolha até {{ MAX_TAGS }} que te descrevem. Membros usam as tags para
-                            te encontrar.
-                        </p>
-
-                        <div v-for="group in TAG_GROUPS" :key="group.key" class="space-y-2">
-                            <p class="text-xs text-muted uppercase tracking-wide">{{ group.label }}</p>
-                            <div class="flex flex-wrap gap-2">
-                                <button
-                                    v-for="tag in group.tags"
-                                    :key="tag.value"
-                                    type="button"
-                                    :disabled="!isTagSelected(tag.value) && tagLimitReached"
-                                    :aria-pressed="isTagSelected(tag.value)"
-                                    class="rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                    :class="isTagSelected(tag.value)
-                                        ? 'border-gold bg-gold/10 text-gold'
-                                        : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
-                                    @click="toggleTag(tag.value)"
-                                >
-                                    {{ tag.label }}
-                                </button>
-                            </div>
-                        </div>
-
-                        <p v-if="tagLimitReached" class="text-xs text-muted">
-                            Limite atingido. Desmarque uma tag para escolher outra.
-                        </p>
-                        <p v-if="profileForm.errors.tags" class="text-xs text-danger">{{ profileForm.errors.tags }}</p>
-                    </div>
-
-                    <!-- Idiomas -->
-                    <div class="flex flex-col gap-2">
-                        <span class="text-sm font-medium text-cream">Idiomas</span>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
-                            <label
-                                v-for="language in LANGUAGES"
-                                :key="language.value"
-                                class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
-                                :class="profileForm.languages.includes(language.value)
+                    <div v-for="group in TAG_GROUPS" :key="group.key" class="space-y-2">
+                        <p class="text-xs text-muted uppercase tracking-wide">{{ group.label }}</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-for="tag in group.tags"
+                                :key="tag.value"
+                                type="button"
+                                :disabled="!isTagSelected(tag.value) && tagLimitReached"
+                                :aria-pressed="isTagSelected(tag.value)"
+                                class="rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                :class="isTagSelected(tag.value)
                                     ? 'border-gold bg-gold/10 text-gold'
                                     : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                                @click="toggleTag(tag.value)"
                             >
-                                <input
-                                    type="checkbox"
-                                    class="accent-gold h-4 w-4"
-                                    :value="language.value"
-                                    :checked="profileForm.languages.includes(language.value)"
-                                    @change="toggleLanguage(language.value)"
-                                />
-                                {{ language.label }}
-                            </label>
-                        </div>
-                        <p v-if="profileForm.errors.languages" class="text-xs text-danger">{{ profileForm.errors.languages }}</p>
-                    </div>
-
-                    <!-- Bebida / Fumo -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div class="flex flex-col gap-2">
-                            <span class="text-sm font-medium text-cream">Bebida</span>
-                            <div class="flex flex-col gap-2 pt-1">
-                                <label
-                                    v-for="option in DRINKS"
-                                    :key="option.value"
-                                    class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
-                                    :class="profileForm.drinks === option.value
-                                        ? 'border-gold bg-gold/10 text-gold'
-                                        : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="drinks"
-                                        class="accent-gold h-4 w-4"
-                                        :value="option.value"
-                                        :checked="profileForm.drinks === option.value"
-                                        @click="toggleChoice('drinks', option.value)"
-                                    />
-                                    {{ option.label }}
-                                </label>
-                            </div>
-                            <p v-if="profileForm.errors.drinks" class="text-xs text-danger">{{ profileForm.errors.drinks }}</p>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                            <span class="text-sm font-medium text-cream">Fumo</span>
-                            <div class="flex flex-col gap-2 pt-1">
-                                <label
-                                    v-for="option in SMOKES"
-                                    :key="option.value"
-                                    class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
-                                    :class="profileForm.smokes === option.value
-                                        ? 'border-gold bg-gold/10 text-gold'
-                                        : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="smokes"
-                                        class="accent-gold h-4 w-4"
-                                        :value="option.value"
-                                        :checked="profileForm.smokes === option.value"
-                                        @click="toggleChoice('smokes', option.value)"
-                                    />
-                                    {{ option.label }}
-                                </label>
-                            </div>
-                            <p v-if="profileForm.errors.smokes" class="text-xs text-danger">{{ profileForm.errors.smokes }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Altura. O slider não consegue expressar "não informado",
-                         então o campo nasce vazio e há como voltar a vazio. -->
-                    <div class="flex flex-col gap-2">
-                        <div class="flex items-baseline justify-between gap-3">
-                            <label for="height_cm" class="text-sm font-medium text-cream">Altura</label>
-                            <span class="text-xs tabular-nums shrink-0" :class="profileForm.height_cm ? 'text-gold' : 'text-muted'">
-                                {{ profileForm.height_cm ? `${profileForm.height_cm} cm` : 'Não informado' }}
-                            </span>
-                        </div>
-
-                        <div v-if="profileForm.height_cm" class="flex items-center gap-3">
-                            <span class="text-xs text-muted tabular-nums shrink-0">{{ HEIGHT_MIN_CM }}</span>
-                            <input
-                                id="height_cm"
-                                v-model.number="profileForm.height_cm"
-                                type="range"
-                                class="accent-gold w-full"
-                                :min="HEIGHT_MIN_CM"
-                                :max="HEIGHT_MAX_CM"
-                                step="1"
-                            />
-                            <span class="text-xs text-muted tabular-nums shrink-0">{{ HEIGHT_MAX_CM }}</span>
-                            <button
-                                type="button"
-                                class="text-xs text-muted underline underline-offset-4 hover:text-cream transition-colors shrink-0"
-                                @click="profileForm.height_cm = null"
-                            >
-                                Limpar
+                                {{ tag.label }}
                             </button>
                         </div>
-                        <button
-                            v-else
-                            type="button"
-                            class="self-start rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream hover:border-gold/50 transition-colors"
-                            @click="profileForm.height_cm = 165"
-                        >
-                            Informar altura
-                        </button>
-
-                        <p v-if="profileForm.errors.height_cm" class="text-xs text-danger">{{ profileForm.errors.height_cm }}</p>
                     </div>
 
-                    <!-- O que estou procurando -->
-                    <div class="flex flex-col gap-1.5">
-                        <label for="looking_for" class="text-sm font-medium text-cream">O que estou procurando</label>
-                        <textarea
-                            id="looking_for"
-                            v-model="profileForm.looking_for"
-                            rows="3"
-                            maxlength="1000"
-                            placeholder="Descreva o tipo de conexão que você busca..."
-                            class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
-                        />
-                        <span class="text-xs text-muted tabular-nums self-end">{{ profileForm.looking_for.length }}/1000</span>
-                        <p v-if="profileForm.errors.looking_for" class="text-xs text-danger">{{ profileForm.errors.looking_for }}</p>
-                    </div>
-
-                </div>
-
-                <!-- Public address -->
-                <div class="rounded-lg border border-frame bg-surface-2 p-4 space-y-1">
-                    <p class="text-xs text-muted uppercase tracking-wide">Endereço do seu perfil</p>
-                    <p class="text-sm text-cream break-all">/performers/{{ profile.slug }}</p>
+                    <p v-if="tagLimitReached" class="text-xs text-muted">
+                        Limite atingido. Desmarque uma tag para escolher outra.
+                    </p>
+                    <p v-if="profileForm.errors.tags" class="text-xs text-danger">{{ profileForm.errors.tags }}</p>
                 </div>
 
                 <div v-if="willRename" class="rounded-lg border border-gold/30 bg-gold/10 p-4 text-sm text-gold">
@@ -600,135 +538,305 @@ function save() {
                 </div>
             </form>
 
-            <!-- Localizações (Sprint 13): card e porta próprios, separados do save
-                 do perfil. O aviso de privacidade vem ANTES dos campos: depois
-                 deles a performer já teria digitado a cidade sem saber para onde
-                 ela vai. -->
-            <form class="rounded-xl border border-frame bg-surface p-6 space-y-5" @submit.prevent="saveLocations">
+            <!-- ── Aba: Preferências ──────────────────────────────────────── -->
+            <form v-show="activeTab === 'preferencias'" role="tabpanel" class="rounded-xl border border-frame bg-surface p-6 space-y-6" @submit.prevent="save">
                 <div class="space-y-1">
-                    <h2 class="font-serif text-2xl text-cream">Localizações</h2>
-                    <p class="text-muted text-sm">Onde você atende — até {{ MAX_LOCATIONS }} estados.</p>
-                </div>
-
-                <div class="flex items-start gap-2 rounded-lg border border-frame bg-surface-2 px-3 py-2.5">
-                    <svg class="h-4 w-4 shrink-0 text-gold mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path
-                            fill-rule="evenodd"
-                            d="M10 1a4 4 0 00-4 4v3H5.5A1.5 1.5 0 004 9.5v7A1.5 1.5 0 005.5 18h9a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 8H14V5a4 4 0 00-4-4zm2.5 7V5a2.5 2.5 0 10-5 0v3h5z"
-                            clip-rule="evenodd"
-                        />
-                    </svg>
-                    <p class="text-xs leading-relaxed text-muted">
-                        Apenas seu estado aparece no catálogo. Sua cidade nunca é exibida — ela só passa a
-                        filtrar a busca se você ligar a opção abaixo.
+                    <h2 class="font-serif text-xl text-cream">Preferências</h2>
+                    <p class="text-xs text-muted">
+                        Tudo aqui é opcional e aparece no seu perfil público. Preencha só o que
+                        quiser mostrar.
                     </p>
                 </div>
 
-                <!-- Erro geral da lista (exatamente uma principal / duplicata / teto). -->
-                <p v-if="locationsForm.errors.locations" class="text-xs text-danger">
-                    {{ locationsForm.errors.locations }}
-                </p>
-
-                <p v-if="locationsForm.locations.length === 0" class="text-sm text-muted">
-                    Nenhuma localização. Adicione uma para aparecer nos filtros por estado.
-                </p>
-
-                <div
-                    v-for="(loc, index) in locationsForm.locations"
-                    :key="index"
-                    class="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto_auto] rounded-lg border border-frame bg-surface-2 p-3"
-                >
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-cream">Estado</label>
-                        <select
-                            v-model="loc.state"
-                            class="rounded-lg border border-frame bg-surface px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                <!-- Idiomas -->
+                <div class="flex flex-col gap-2">
+                    <span class="text-sm font-medium text-cream">Idiomas</span>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                        <label
+                            v-for="language in LANGUAGES"
+                            :key="language.value"
+                            class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
+                            :class="profileForm.languages.includes(language.value)
+                                ? 'border-gold bg-gold/10 text-gold'
+                                : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
                         >
-                            <option :value="null">Selecione</option>
-                            <option v-for="uf in STATES" :key="uf.value" :value="uf.value">{{ uf.label }}</option>
-                        </select>
-                        <p v-if="locationsForm.errors[`locations.${index}.state`]" class="text-xs text-danger">
-                            {{ locationsForm.errors[`locations.${index}.state`] }}
-                        </p>
+                            <input
+                                type="checkbox"
+                                class="accent-gold h-4 w-4"
+                                :value="language.value"
+                                :checked="profileForm.languages.includes(language.value)"
+                                @change="toggleLanguage(language.value)"
+                            />
+                            {{ language.label }}
+                        </label>
                     </div>
-
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-cream">Cidade</label>
-                        <CityAutocomplete
-                            :model-value="loc.city"
-                            :uf="loc.state || null"
-                            aria-label="Cidade"
-                            placeholder="Opcional"
-                            @update:model-value="(v) => (loc.city = v)"
-                        />
-                    </div>
-
-                    <label class="flex items-center gap-1.5 text-xs text-muted pb-2.5">
-                        <input
-                            type="radio"
-                            :checked="loc.is_primary"
-                            class="accent-gold"
-                            @change="setPrimary(index)"
-                        />
-                        Principal
-                    </label>
-
-                    <button
-                        type="button"
-                        class="pb-2.5 text-xs text-muted underline underline-offset-2 hover:text-danger transition-colors"
-                        @click="removeLocation(index)"
-                    >
-                        Remover
-                    </button>
+                    <p v-if="profileForm.errors.languages" class="text-xs text-danger">{{ profileForm.errors.languages }}</p>
                 </div>
 
-                <div class="flex items-center justify-between">
-                    <button
-                        v-if="canAddLocation"
-                        type="button"
-                        class="text-sm text-gold hover:text-gold/80 transition-colors"
-                        @click="addLocation"
-                    >
-                        + Adicionar localização
-                    </button>
-                    <span v-else class="text-xs text-muted">Máximo de {{ MAX_LOCATIONS }} localizações.</span>
+                <!-- Bebida / Fumo -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div class="flex flex-col gap-2">
+                        <span class="text-sm font-medium text-cream">Bebida</span>
+                        <div class="flex flex-col gap-2 pt-1">
+                            <label
+                                v-for="option in DRINKS"
+                                :key="option.value"
+                                class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
+                                :class="profileForm.drinks === option.value
+                                    ? 'border-gold bg-gold/10 text-gold'
+                                    : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                            >
+                                <input
+                                    type="radio"
+                                    name="drinks"
+                                    class="accent-gold h-4 w-4"
+                                    :value="option.value"
+                                    :checked="profileForm.drinks === option.value"
+                                    @click="toggleChoice('drinks', option.value)"
+                                />
+                                {{ option.label }}
+                            </label>
+                        </div>
+                        <p v-if="profileForm.errors.drinks" class="text-xs text-danger">{{ profileForm.errors.drinks }}</p>
+                    </div>
 
-                    <Button type="submit" variant="primary" :loading="locationsForm.processing">
-                        Salvar localizações
+                    <div class="flex flex-col gap-2">
+                        <span class="text-sm font-medium text-cream">Fumo</span>
+                        <div class="flex flex-col gap-2 pt-1">
+                            <label
+                                v-for="option in SMOKES"
+                                :key="option.value"
+                                class="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors"
+                                :class="profileForm.smokes === option.value
+                                    ? 'border-gold bg-gold/10 text-gold'
+                                    : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                            >
+                                <input
+                                    type="radio"
+                                    name="smokes"
+                                    class="accent-gold h-4 w-4"
+                                    :value="option.value"
+                                    :checked="profileForm.smokes === option.value"
+                                    @click="toggleChoice('smokes', option.value)"
+                                />
+                                {{ option.label }}
+                            </label>
+                        </div>
+                        <p v-if="profileForm.errors.smokes" class="text-xs text-danger">{{ profileForm.errors.smokes }}</p>
+                    </div>
+                </div>
+
+                <!-- Altura. O slider não consegue expressar "não informado",
+                     então o campo nasce vazio e há como voltar a vazio. -->
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-baseline justify-between gap-3">
+                        <label for="height_cm" class="text-sm font-medium text-cream">Altura</label>
+                        <span class="text-xs tabular-nums shrink-0" :class="profileForm.height_cm ? 'text-gold' : 'text-muted'">
+                            {{ profileForm.height_cm ? `${profileForm.height_cm} cm` : 'Não informado' }}
+                        </span>
+                    </div>
+
+                    <div v-if="profileForm.height_cm" class="flex items-center gap-3">
+                        <span class="text-xs text-muted tabular-nums shrink-0">{{ HEIGHT_MIN_CM }}</span>
+                        <input
+                            id="height_cm"
+                            v-model.number="profileForm.height_cm"
+                            type="range"
+                            class="accent-gold w-full"
+                            :min="HEIGHT_MIN_CM"
+                            :max="HEIGHT_MAX_CM"
+                            step="1"
+                        />
+                        <span class="text-xs text-muted tabular-nums shrink-0">{{ HEIGHT_MAX_CM }}</span>
+                        <button
+                            type="button"
+                            class="text-xs text-muted underline underline-offset-4 hover:text-cream transition-colors shrink-0"
+                            @click="profileForm.height_cm = null"
+                        >
+                            Limpar
+                        </button>
+                    </div>
+                    <button
+                        v-else
+                        type="button"
+                        class="self-start rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream hover:border-gold/50 transition-colors"
+                        @click="profileForm.height_cm = 165"
+                    >
+                        Informar altura
+                    </button>
+
+                    <p v-if="profileForm.errors.height_cm" class="text-xs text-danger">{{ profileForm.errors.height_cm }}</p>
+                </div>
+
+                <!-- O que estou procurando -->
+                <div class="flex flex-col gap-1.5">
+                    <label for="looking_for" class="text-sm font-medium text-cream">O que estou procurando</label>
+                    <textarea
+                        id="looking_for"
+                        v-model="profileForm.looking_for"
+                        rows="3"
+                        maxlength="1000"
+                        placeholder="Descreva o tipo de conexão que você busca..."
+                        class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
+                    />
+                    <span class="text-xs text-muted tabular-nums self-end">{{ profileForm.looking_for.length }}/1000</span>
+                    <p v-if="profileForm.errors.looking_for" class="text-xs text-danger">{{ profileForm.errors.looking_for }}</p>
+                </div>
+
+                <div class="flex justify-end">
+                    <Button type="submit" variant="primary" :loading="profileForm.processing" :disabled="worldsInvalid">
+                        Salvar alterações
                     </Button>
                 </div>
+            </form>
 
-                <!-- Opt-in "encontrável por cidade" (item 4). Default OFF. Consentimento
-                     explícito: liga o filtro por cidade da busca. A cidade continua
-                     sem aparecer no perfil/card — muda só a descoberta. -->
-                <div
-                    class="flex items-start justify-between gap-4 rounded-lg border px-4 py-3"
-                    :class="findableByCity ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface-2'"
-                >
+            <!-- ── Aba: Localização ───────────────────────────────────────── -->
+            <div v-show="activeTab === 'localizacao'" role="tabpanel" class="space-y-8">
+                <!-- Endereço público do perfil. Fica aqui porque é o que muda quando
+                     o nome artístico muda (aviso na aba Sobre mim). -->
+                <div class="rounded-xl border border-frame bg-surface p-6 space-y-1">
+                    <p class="text-xs text-muted uppercase tracking-wide">Endereço do seu perfil</p>
+                    <p class="text-sm text-cream break-all">/performers/{{ profile.slug }}</p>
+                </div>
+
+                <!-- Localizações (Sprint 13): card e porta próprios, separados do save
+                     do perfil. O aviso de privacidade vem ANTES dos campos: depois
+                     deles a performer já teria digitado a cidade sem saber para onde
+                     ela vai. -->
+                <form class="rounded-xl border border-frame bg-surface p-6 space-y-5" @submit.prevent="saveLocations">
                     <div class="space-y-1">
-                        <p class="text-sm font-medium text-cream">Encontrável por cidade</p>
+                        <h2 class="font-serif text-2xl text-cream">Localizações</h2>
+                        <p class="text-muted text-sm">Onde você atende — até {{ MAX_LOCATIONS }} estados.</p>
+                    </div>
+
+                    <div class="flex items-start gap-2 rounded-lg border border-frame bg-surface-2 px-3 py-2.5">
+                        <svg class="h-4 w-4 shrink-0 text-gold mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path
+                                fill-rule="evenodd"
+                                d="M10 1a4 4 0 00-4 4v3H5.5A1.5 1.5 0 004 9.5v7A1.5 1.5 0 005.5 18h9a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 8H14V5a4 4 0 00-4-4zm2.5 7V5a2.5 2.5 0 10-5 0v3h5z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
                         <p class="text-xs leading-relaxed text-muted">
-                            Membros podem te encontrar filtrando o catálogo pela sua cidade. Sua cidade
-                            continua não aparecendo no perfil — só passa a filtrar a busca. Desligado por padrão.
+                            Apenas seu estado aparece no catálogo. Sua cidade nunca é exibida — ela só passa a
+                            filtrar a busca se você ligar a opção abaixo.
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        role="switch"
-                        :aria-checked="findableByCity"
-                        aria-label="Encontrável por cidade"
-                        :disabled="findableSaving"
-                        class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
-                        :class="findableByCity ? 'bg-gold' : 'bg-frame'"
-                        @click="toggleFindableByCity"
+
+                    <!-- Erro geral da lista (exatamente uma principal / duplicata / teto). -->
+                    <p v-if="locationsForm.errors.locations" class="text-xs text-danger">
+                        {{ locationsForm.errors.locations }}
+                    </p>
+
+                    <p v-if="locationsForm.locations.length === 0" class="text-sm text-muted">
+                        Nenhuma localização. Adicione uma para aparecer nos filtros por estado.
+                    </p>
+
+                    <div
+                        v-for="(loc, index) in locationsForm.locations"
+                        :key="index"
+                        class="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto_auto] rounded-lg border border-frame bg-surface-2 p-3"
                     >
-                        <span
-                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                            :class="findableByCity ? 'translate-x-6' : 'translate-x-1'"
-                        />
-                    </button>
-                </div>
-            </form>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-cream">Estado</label>
+                            <select
+                                v-model="loc.state"
+                                class="rounded-lg border border-frame bg-surface px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                            >
+                                <option :value="null">Selecione</option>
+                                <option v-for="uf in STATES" :key="uf.value" :value="uf.value">{{ uf.label }}</option>
+                            </select>
+                            <p v-if="locationsForm.errors[`locations.${index}.state`]" class="text-xs text-danger">
+                                {{ locationsForm.errors[`locations.${index}.state`] }}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-cream">Cidade</label>
+                            <CityAutocomplete
+                                :model-value="loc.city"
+                                :uf="loc.state || null"
+                                aria-label="Cidade"
+                                placeholder="Opcional"
+                                @update:model-value="(v) => (loc.city = v)"
+                            />
+                        </div>
+
+                        <label class="flex items-center gap-1.5 text-xs text-muted pb-2.5">
+                            <input
+                                type="radio"
+                                :checked="loc.is_primary"
+                                class="accent-gold"
+                                @change="setPrimary(index)"
+                            />
+                            Principal
+                        </label>
+
+                        <button
+                            type="button"
+                            class="pb-2.5 text-xs text-muted underline underline-offset-2 hover:text-danger transition-colors"
+                            @click="removeLocation(index)"
+                        >
+                            Remover
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <button
+                            v-if="canAddLocation"
+                            type="button"
+                            class="text-sm text-gold hover:text-gold/80 transition-colors"
+                            @click="addLocation"
+                        >
+                            + Adicionar localização
+                        </button>
+                        <span v-else class="text-xs text-muted">Máximo de {{ MAX_LOCATIONS }} localizações.</span>
+
+                        <Button type="submit" variant="primary" :loading="locationsForm.processing">
+                            Salvar localizações
+                        </Button>
+                    </div>
+
+                    <!-- Opt-in "encontrável por cidade" (item 4). Default OFF. Consentimento
+                         explícito: liga o filtro por cidade da busca. A cidade continua
+                         sem aparecer no perfil/card — muda só a descoberta. -->
+                    <div
+                        class="flex items-start justify-between gap-4 rounded-lg border px-4 py-3"
+                        :class="findableByCity ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface-2'"
+                    >
+                        <div class="space-y-1">
+                            <p class="text-sm font-medium text-cream">Encontrável por cidade</p>
+                            <p class="text-xs leading-relaxed text-muted">
+                                Membros podem te encontrar filtrando o catálogo pela sua cidade. Sua cidade
+                                continua não aparecendo no perfil — só passa a filtrar a busca. Desligado por padrão.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            role="switch"
+                            :aria-checked="findableByCity"
+                            aria-label="Encontrável por cidade"
+                            :disabled="findableSaving"
+                            class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+                            :class="findableByCity ? 'bg-gold' : 'bg-frame'"
+                            @click="toggleFindableByCity"
+                        >
+                            <span
+                                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                :class="findableByCity ? 'translate-x-6' : 'translate-x-1'"
+                            />
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+@media (prefers-reduced-motion: reduce) {
+    .ptab {
+        transition: none;
+    }
+}
+</style>
