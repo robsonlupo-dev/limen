@@ -47,22 +47,23 @@ it('libera camera e microfone para a propria origem no Permissions-Policy', func
         ->and($policy)->toContain('geolocation=()');
 });
 
-// ─── #2 Panic button visível: disco no topo direito + link rotulado ──────────
+// ─── #2 Panic button visível: pílula flutuante rotulada de alerta ────────────
 //
-// O achado original do R3 pedia o botão VISÍVEL e discreto. A pedido do PO
-// (ago/2026) ganhou um LINK rotulado no header (mais legível, diz o que é) SEM
-// perder o disco flutuante no topo direito (a via sempre visível). O detalhe do
-// desenho vive em PanicButtonVisibilityTest/PanicButtonLayerTest; aqui trava as
-// duas superfícies do R3: disco no topo direito, discreto, com tooltip, E rótulo.
+// O achado original do R3 pedia o botão VISÍVEL e discreto. A reestruturação da
+// navegação (feat/performer-nav-restructure) tirou a saída do fluxo do header: o
+// link inline + o disco viraram UMA pílula flutuante rotulada "Saída rápida"
+// (português), em cor de ALERTA (danger, distinta do dourado), teleportada na
+// camada de topo, no canto INFERIOR-ESQUERDO (longe do "Sair" do menu do avatar).
+// O detalhe do desenho vive em PanicButtonVisibilityTest/PanicButtonLayerTest.
 
-it('mantem o disco no topo direito e o link rotulado, com tooltip', function () {
+it('mantem a pilula flutuante rotulada, de alerta, na camada de topo', function () {
     $src = File::get(resource_path('js/Components/PanicButton.vue'));
 
-    expect($src)->toContain('fixed top-4 right-4')      // disco no topo direito
-        ->and($src)->toContain('text-[#6f6a62]')        // glifo discreto (PO)
-        ->and($src)->toContain('title="Saída rápida"')  // tooltip no hover
+    expect($src)->toContain('title="Saída rápida"')     // tooltip no hover
         ->and($src)->toContain('z-[10001]')             // camada de topo
-        ->and($src)->toContain('Panic Button');         // rótulo da via descoberta
+        ->and($src)->toContain('bg-danger')             // cor de alerta (não dourado)
+        ->and($src)->toContain('Saída rápida')          // rótulo em português
+        ->and($src)->not->toContain('Panic Button');    // nunca mais o inglês
 });
 
 // ─── #3 Foto do card sem corte (redesign do catálogo, card v2) ───────────────

@@ -3243,6 +3243,48 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 > título descritivo único (o nome da feature), nunca o "próximo número"**. As entradas
 > abaixo foram convertidas; os antigos rótulos `A.0.x` foram removidos.
 
+### Navegação do painel da performer — mobile primeiro (`feat/performer-nav-restructure`, PR pendente)
+
+Reestruturação da navegação do painel da performer (ago/2026). **Só apresentação —
+nenhuma rota, permissão ou regra de negócio muda.** Primeira tela sob a regra
+**MOBILE PRIMEIRO** (agora registrada nas Convenções do `CLAUDE.md`): desenhar para
+360–390px e só depois adaptar ao desktop; se não couber no celular, o problema é o
+design. Detalhe canônico no `CLAUDE.md`, § "Navegação do painel da performer".
+
+- **Problema:** o header tinha 13 elementos numa linha (logo + "Meu Painel" + 9
+  links + nome + Panic Button + Sair) — quebrava no desktop (colisão "Meu
+  Painel"/logo) e era impraticável no celular. O botão de pânico estava em inglês
+  ("Panic Button") e colado no "Sair" (ambiguidade perigosa numa saída de
+  emergência). Saques aparecia com a coluna deslocada à esquerda em tela larga.
+- **Navegação:** as 9 telas viraram **5 seções** (Painel · Conteúdo · Mensagens ·
+  Pessoas[Seguidores/Membros] · Ganhos[Saques/Histórico]) + **menu do avatar**
+  (Perfil · Interesses · Agendamentos · Segurança · Sair). Fonte única
+  `resources/js/lib/performerNav.js`. **Celular:** barra fixa no rodapé (padrão de
+  app, nunca hambúrguer) + avatar no topo. **Desktop:** 5 seções em linha + avatar à
+  direita, logo sozinho à esquerda. Seção ativa marcada nas duas versões.
+  Componentes `Components/Performer/PerformerNav.vue` e `PerformerSubnav.vue`,
+  montados no AppLayout só para `isActivePerformer`; demais papéis inalterados.
+- **Saída rápida (segurança):** rótulo em português "Saída rápida", **fora do menu**,
+  pílula flutuante global de **alerta** (`bg-danger`) no canto **inferior-esquerdo**
+  — nunca adjacente ao "Sair" (menu do avatar, topo direito). **As duas vias
+  redundantes e o `escape()` (matar sessão) preservados INTEGRALMENTE** (só a
+  apresentação mudou); `z-[10001]` teleportado segue reservado. No celular sobe
+  acima da barra do rodapé. Ver `CLAUDE.md` § PanicButton.
+- **Editar perfil em 4 abas** (`Performer/Profile/Edit.vue`): Fotos · Sobre mim ·
+  Preferências · Localização, cada uma cabendo numa tela de celular. O **backend não
+  fragmenta**: o "Salvar alterações" posta o form inteiro; erro salta para a aba do
+  campo; troca de aba com alterações não salvas avisa (`isDirty`).
+- **Alinhamento:** removida a folga assimétrica `pr-16` do header (era do disco
+  antigo, agora inferior-esquerdo) → header `px-6` simétrico; a percepção de "coluna
+  à esquerda" era o header direito-pesado, não falta de `mx-auto`.
+- **Acessibilidade/motion:** foco visível, alvos ≥44px, navegação por teclado
+  (tablist com setas, menu do avatar com Escape/clique-fora), `prefers-reduced-motion`
+  honrado. **Sem biblioteca nova. Zero rota nova no Ziggy** (todos os destinos já
+  estavam no `only[]`).
+- **Testes (fonte):** `PerformerNavRestructureTest` (5 seções, avatar, subnav, barra
+  inferior, wiring, 4 abas), `PanicButtonVisibilityTest` reescrito para o novo
+  contrato; `PanicButtonLayerTest`/`PerformerProfileEditTest` seguem verdes.
+
 ### Sprint 13 — ENTREGUE
 
 O backlog do Sprint 13 foi implementado (PRs #125–#129, ver "Sprint 13 —
