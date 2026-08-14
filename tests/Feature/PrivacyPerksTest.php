@@ -301,6 +301,22 @@ it('o painel so mostra visitas das ultimas 24h', function () {
 // com o alias que aparecia carimbado 14:32 — e o FanAlias é estável por par,
 // então o vínculo ia junto para gorjetas e seguidores.
 
+/**
+ * Uma hora de HOJE no fuso de exibição, ancorada em now() — NUNCA uma data fixa.
+ *
+ * Estes testes viajam no tempo para carimbar visitas em faixas específicas. Uma
+ * data fixa (era `2026-07-21`) vira armadilha de relógio de parede: os
+ * seguidores/visitantes são criados por `now()->subDays(30)`, e viajar para um
+ * passado distante os faz parecer novos demais para o piso de 7 dias — o painel
+ * some e a faixa fica vazia. Ancorar em HOJE mantém a idade das contas estável e
+ * a faixa determinística: passa hoje, amanhã e em 2027.
+ */
+function perkTodayAt(int $hour, int $minute = 0): Carbon
+{
+    return now()->setTimezone(ProfileVisitService::DISPLAY_TIMEZONE)
+        ->startOfDay()->addHours($hour)->addMinutes($minute);
+}
+
 /** Painel montado direto pelo service, no instante atual. */
 function perkPanelSlots(PerformerProfile $performer): array
 {
@@ -309,7 +325,7 @@ function perkPanelSlots(PerformerProfile $performer): array
 }
 
 it('visitantes da mesma faixa recebem o mesmo rotulo', function () {
-    $this->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    $this->travelTo(perkTodayAt(15));
 
     $performer = perkVisiblePerformer();
     perkVisitors($performer, 5); // todos às 15:00 → mesma faixa
@@ -318,7 +334,7 @@ it('visitantes da mesma faixa recebem o mesmo rotulo', function () {
 });
 
 it('a faixa da manha sai como Manha', function () {
-    $this->travelTo(Carbon::parse('2026-07-21 09:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    $this->travelTo(perkTodayAt(9));
 
     $performer = perkVisiblePerformer();
     perkVisitors($performer, 5);
@@ -331,7 +347,7 @@ it('a faixa e derivada do fuso brasileiro, nao do UTC da app', function () {
     // `config('app.timezone')` (que é UTC) rotularia isto como "Madrugada" —
     // e ainda jogaria a visita para o "dia seguinte", virando data em vez de
     // faixa. O rótulo é lido por gente no Brasil.
-    $this->travelTo(Carbon::parse('2026-07-21 21:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    $this->travelTo(perkTodayAt(21));
 
     $performer = perkVisiblePerformer();
     perkVisitors($performer, 5);
@@ -340,19 +356,26 @@ it('a faixa e derivada do fuso brasileiro, nao do UTC da app', function () {
 });
 
 it('visita de ontem sai como data, nao como faixa do dia', function () {
-    // Dentro da janela de 24h, mas em outro dia do calendário.
-    $this->travelTo(Carbon::parse('2026-07-20 22:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    // Dentro da janela de 24h, mas em outro dia do calendário. Datas RELATIVAS:
+    // a visita cai ontem às 22:00, o painel é lido hoje às 02:00 (4h depois).
+    // As duas âncoras são fixadas ANTES de viajar — depois do primeiro travelTo,
+    // now() já é ontem e perkTodayAt() ancoraria no dia errado.
+    $ontem = perkTodayAt(22)->subDay();
+    $hoje = perkTodayAt(2);
+    $ontemData = perkTodayAt(0)->subDay()->format('d/m/Y');
+
+    $this->travelTo($ontem);
 
     $performer = perkVisiblePerformer();
     perkVisitors($performer, 5);
 
-    $this->travelTo(Carbon::parse('2026-07-21 02:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    $this->travelTo($hoje);
 
-    expect(array_unique(perkPanelSlots($performer)))->toBe(['20/07/2026']);
+    expect(array_unique(perkPanelSlots($performer)))->toBe([$ontemData]);
 });
 
 it('o painel nao devolve visited_at em lugar nenhum', function () {
-    $this->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    $this->travelTo(perkTodayAt(15));
 
     $performer = perkVisiblePerformer();
     perkVisitors($performer, 5);
@@ -379,7 +402,7 @@ it('o painel nao devolve visited_at em lugar nenhum', function () {
 it('embaralha a ordem dentro da faixa', function () {
     // Sem shuffle, a POSIÇÃO entrega o que o relógio entregava: a primeira
     // linha da faixa é sempre o visitante mais recente dela.
-    $this->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    $this->travelTo(perkTodayAt(15));
 
     $performer = perkVisiblePerformer();
     perkVisitors($performer, 5); // todos na mesma faixa
@@ -404,10 +427,10 @@ it('embaralha a ordem dentro da faixa', function () {
 // painel ficaria escondido pelo PISO, e um teste de k passaria pelo motivo
 // errado.
 
-/** N visitantes num horário específico (fuso de exibição). */
-function perkVisitorsAt(PerformerProfile $profile, int $count, string $when): array
+/** N visitantes num horário específico (via perkTodayAt, relativo a now()). */
+function perkVisitorsAt(PerformerProfile $profile, int $count, Carbon $when): array
 {
-    test()->travelTo(Carbon::parse($when, ProfileVisitService::DISPLAY_TIMEZONE));
+    test()->travelTo($when);
 
     return perkVisitors($profile, $count);
 }
@@ -421,8 +444,8 @@ function perkSlotCounts(PerformerProfile $performer): array
 
 it('faixa com menos de k aliases nao aparece', function () {
     $performer = perkVisiblePerformer();
-    perkVisitorsAt($performer, 3, '2026-07-21 09:00'); // Manhã: completa
-    perkVisitorsAt($performer, 2, '2026-07-21 15:00'); // Tarde: incompleta
+    perkVisitorsAt($performer, 3, perkTodayAt(9));  // Manhã: completa
+    perkVisitorsAt($performer, 2, perkTodayAt(15)); // Tarde: incompleta
 
     // 5 visitantes elegíveis: o piso está satisfeito, então o que esconde a
     // Tarde é o k, não o piso.
@@ -431,8 +454,8 @@ it('faixa com menos de k aliases nao aparece', function () {
 
 it('faixa com exatamente k aliases aparece', function () {
     $performer = perkVisiblePerformer();
-    perkVisitorsAt($performer, 3, '2026-07-21 09:00');
-    perkVisitorsAt($performer, 2, '2026-07-21 15:00');
+    perkVisitorsAt($performer, 3, perkTodayAt(9));
+    perkVisitorsAt($performer, 2, perkTodayAt(15));
 
     // O corte é `< k`, não `<= k`: exatamente 3 é faixa legítima.
     expect(perkSlotCounts($performer)['Manhã'])->toBe(ProfileVisitService::SLOT_MIN_K);
@@ -440,9 +463,9 @@ it('faixa com exatamente k aliases aparece', function () {
 
 it('nenhuma faixa aparece quando todas estao incompletas', function () {
     $performer = perkVisiblePerformer();
-    perkVisitorsAt($performer, 2, '2026-07-21 09:00'); // Manhã
-    perkVisitorsAt($performer, 2, '2026-07-21 15:00'); // Tarde
-    perkVisitorsAt($performer, 1, '2026-07-21 21:00'); // Noite
+    perkVisitorsAt($performer, 2, perkTodayAt(9));  // Manhã
+    perkVisitorsAt($performer, 2, perkTodayAt(15)); // Tarde
+    perkVisitorsAt($performer, 1, perkTodayAt(21)); // Noite
 
     $panel = app(ProfileVisitService::class)->panelFor($performer);
 
@@ -456,9 +479,9 @@ it('a tela nao distingue lista vazia por k de ausencia de visitas', function () 
     // Se a tela dissesse "2 visitas ocultas" ou mudasse de copy, a performer
     // saberia que ALGUÉM passou — exatamente o sinal que o k remove.
     $comVisitas = perkVisiblePerformer();
-    perkVisitorsAt($comVisitas, 2, '2026-07-21 09:00');
-    perkVisitorsAt($comVisitas, 2, '2026-07-21 15:00');
-    perkVisitorsAt($comVisitas, 1, '2026-07-21 21:00');
+    perkVisitorsAt($comVisitas, 2, perkTodayAt(9));
+    perkVisitorsAt($comVisitas, 2, perkTodayAt(15));
+    perkVisitorsAt($comVisitas, 1, perkTodayAt(21));
 
     $semVisitas = perkVisiblePerformer();
 
@@ -472,9 +495,9 @@ it('a tela nao distingue lista vazia por k de ausencia de visitas', function () 
 
 it('faixas completas e incompletas convivem sem vazar a incompleta', function () {
     $performer = perkVisiblePerformer();
-    perkVisitorsAt($performer, 4, '2026-07-21 09:00'); // Manhã completa
-    perkVisitorsAt($performer, 3, '2026-07-21 15:00'); // Tarde completa
-    perkVisitorsAt($performer, 2, '2026-07-21 21:00'); // Noite incompleta
+    perkVisitorsAt($performer, 4, perkTodayAt(9));  // Manhã completa
+    perkVisitorsAt($performer, 3, perkTodayAt(15)); // Tarde completa
+    perkVisitorsAt($performer, 2, perkTodayAt(21)); // Noite incompleta
 
     // Ordem das faixas é por RECÊNCIA (Tarde antes de Manhã) — o que o shuffle
     // embaralha é o interior da faixa, não a sequência entre elas. `toBe` em
@@ -486,9 +509,9 @@ it('o k protege a transicao escondida para visivel', function () {
     // O cenário do polling: a performer olha o painel, manda o link, olha de
     // novo. A faixa não pode surgir com o alvo sozinho dentro.
     $performer = perkVisiblePerformer();
-    perkVisitorsAt($performer, 5, '2026-07-21 09:00'); // piso, faixa da Manhã
+    perkVisitorsAt($performer, 5, perkTodayAt(9)); // piso, faixa da Manhã
 
-    test()->travelTo(Carbon::parse('2026-07-21 15:00', ProfileVisitService::DISPLAY_TIMEZONE));
+    test()->travelTo(perkTodayAt(15));
     $antes = perkSlotCounts($performer);
 
     // Chega o alvo, sozinho na Tarde.

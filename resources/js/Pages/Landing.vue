@@ -555,7 +555,7 @@ function onSubmit() {
                         <div class="mb-8 text-center">
                             <h2 class="font-serif text-3xl text-limen-ink md:text-4xl">Entre na lista de espera</h2>
                             <p class="mx-auto mt-3 max-w-sm text-limen-ink-soft">
-                                Deixe seu e-mail e seja avisado no lançamento. Sem spam — só o convite quando abrirmos.
+                                Ainda não abrimos. Deixe seu e-mail e o convite chega antes do anúncio.
                             </p>
                         </div>
 
@@ -578,7 +578,7 @@ function onSubmit() {
                                                 : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/50'"
                                             @click="selectRole('member')"
                                         >
-                                            👤 Membro
+                                            👤 Associado
                                         </button>
                                         <button
                                             type="button"
@@ -588,7 +588,7 @@ function onSubmit() {
                                                 : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/50'"
                                             @click="selectRole('performer')"
                                         >
-                                            🌟 Performer
+                                            🌟 Residente
                                         </button>
                                     </div>
                                     <p v-if="form.errors.role" class="mt-1 text-xs text-danger">{{ form.errors.role }}</p>
