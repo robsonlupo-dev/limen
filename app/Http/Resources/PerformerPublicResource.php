@@ -55,14 +55,15 @@ class PerformerPublicResource extends JsonResource
             // então quem tem uma só continua idêntico. Travado por teste.
             'states' => $this->locationStates(),
             'is_live' => $this->is_live,
-            // "Disponível para conversa" (Sprint 11) — BOOLEANO derivado, nunca
-            // o carimbo `available_for_chat_at` (que é $hidden e não sai daqui
-            // em forma nenhuma). isAvailableForChat() é a dona única da janela
-            // de 4h. A tela suprime o badge quando `is_live` (a bolinha já diz
-            // "agora") e NÃO o mostra junto do estado — presença + localização é
-            // a correlação do R2, a mesma razão de o estado sumir com is_live.
-            // Aqui só sai o sinal cru; o cruzamento é decidido no card/perfil.
-            'is_available' => $this->isAvailableForChat(),
+            // "Online agora" (fix/panel-polish-v1) — BOOLEANO derivado da SESSÃO,
+            // nunca um carimbo. isOnline() é a dona única: `last_active_at` dentro
+            // da janela E sem opt-out (`appear_offline`). Substituiu o "Disponível
+            // para conversa" manual do Sprint 11 — a performer fica online sozinha
+            // enquanto tem sessão ativa. A tela suprime o badge quando `is_live`
+            // (a bolinha já diz "agora") e NÃO o mostra junto do estado — presença
+            // + localização é a correlação do R2, a mesma razão de o estado sumir
+            // com is_live. Aqui só sai o sinal cru; o cruzamento é no card/perfil.
+            'is_available' => $this->isOnline(),
             // Boost pago (Sprint 11) — BOOLEANO derivado, nunca o carimbo
             // `boosted_until` (que é $hidden e não sai daqui em forma nenhuma).
             // isBoosted() é a dona única da janela. A tela usa isto para o badge
@@ -80,7 +81,13 @@ class PerformerPublicResource extends JsonResource
             // houver. "Ativa agora" (is_live) é a bolinha verde, não este
             // rótulo — a tela oculta a faixa quando is_live, para não repetir o
             // sinal em duas formas.
-            'activity_label' => ActivitySlot::for($this->user?->last_active_at),
+            //
+            // Opt-out de presença (fix/panel-polish-v1): quando a performer liga o
+            // `appear_offline`, a faixa de atividade some junto com o online — a
+            // promessa da tela dela é "invisível no catálogo", então nenhum sinal
+            // de presença (online OU "ativa hoje") pode vazar. Suprimido aqui, na
+            // leitura, além da supressão por Ghost/Invisível que já vale na escrita.
+            'activity_label' => $this->appear_offline ? null : ActivitySlot::for($this->user?->last_active_at),
             // Selo "Nova" (feat/activity-badges): BOOLEANO derivado do `created_at`
             // do perfil, nunca a data — mesma disciplina do `is_boosted`. Só
             // performer verificada entra no catálogo, então "entrou nos últimos 7

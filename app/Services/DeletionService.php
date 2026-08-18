@@ -875,11 +875,14 @@ class DeletionService
             'avatar_path' => null,
             'cover_path' => null,
             'is_live' => false,
-            // "Disponível para conversa" (Sprint 11): o carimbo é sinal de
-            // presença, sem valor fiscal nem trilha legal — sai junto. Não
-            // basta ele estar vencido (a janela de 4h passou): o Hard Delete
-            // apaga o dado, não conta com a expiração da leitura.
+            // Presença (Sprint 11 → fix/panel-polish-v1): o carimbo vestigial de
+            // "Disponível para conversa" e o opt-out de visibilidade são sinais de
+            // presença, sem valor fiscal nem trilha legal — saem junto, zerados
+            // (não é o `last_active_at`, que o anonymizeUser já anula do lado do
+            // User). O Hard Delete apaga o dado, não conta com a expiração da
+            // leitura.
             'available_for_chat_at' => null,
+            'appear_offline' => false,
             // Boost pago (Sprint 11): o carimbo do destaque, mesma natureza do
             // `available_for_chat_at` acima — presença sem valor fiscal nem
             // legal. Sai junto, sem contar com a expiração da leitura. O débito

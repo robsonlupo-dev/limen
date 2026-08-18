@@ -20,10 +20,10 @@ const props = defineProps({
     followers: { type: String, required: true },
     kycStatus: { type: String, required: true },
     isLive: { type: Boolean, required: true },
-    // "Disponível para conversa" (Sprint 11): estado atual + faixa de tempo
-    // restante ("por mais de 2 horas"), nunca um relógio. Ver DashboardController.
-    isAvailable: { type: Boolean, default: false },
-    availabilityRemaining: { type: String, default: null },
+    // Visibilidade no catálogo (fix/panel-polish-v1): a presença "online" agora
+    // deriva da sessão; o painel controla só o OPT-OUT. `isVisible` = ! appear_offline
+    // (default: visível). Ver DashboardController.
+    isVisible: { type: Boolean, default: true },
     // Visitantes já pseudonimizados (FanAlias) pelo servidor — o id do membro
     // não chega aqui, como nas gorjetas.
     visitors: { type: Array, default: () => [] },
@@ -144,22 +144,20 @@ const page = usePage()
 const liveEnabled = computed(() => !!page.props.features?.live_enabled)
 const callEnabled = computed(() => !!page.props.features?.call_enabled)
 
-// "Disponível para conversa" (Sprint 11). Estado local, otimista sobre a
-// resposta do toggle: o servidor devolve o booleano DERIVADO (janela de 4h) e a
-// faixa de tempo restante — nunca um relógio.
-const available = ref(props.isAvailable)
-const availableRemaining = ref(props.availabilityRemaining)
-const togglingAvailability = ref(false)
+// Visibilidade no catálogo (fix/panel-polish-v1). A presença "online" é
+// automática (deriva da sessão) — este toggle controla só o OPT-OUT "aparecer
+// offline". Estado local otimista: o servidor devolve o booleano `visible`.
+const visible = ref(props.isVisible)
+const togglingVisibility = ref(false)
 
-async function toggleAvailability() {
-    if (togglingAvailability.value) return
-    togglingAvailability.value = true
+async function toggleVisibility() {
+    if (togglingVisibility.value) return
+    togglingVisibility.value = true
     try {
         const data = await patchJson(route('performer.availability.toggle'), {
-            available: !available.value,
+            visible: !visible.value,
         })
-        available.value = data.is_available
-        availableRemaining.value = data.remaining_label
+        visible.value = data.visible
     } catch (error) {
         toastMessage.value =
             error.status === 429
@@ -167,7 +165,7 @@ async function toggleAvailability() {
                 : 'Não foi possível atualizar. Tente novamente.'
         setTimeout(() => (toastMessage.value = ''), 4000)
     } finally {
-        togglingAvailability.value = false
+        togglingVisibility.value = false
     }
 }
 
@@ -289,40 +287,47 @@ async function decideAccess(req, approve) {
                 </div>
             </div>
 
-            <!-- "Disponível para conversa" (Sprint 11): toggle on/off + a FAIXA
-                 de tempo restante ("por mais de 2 horas"), nunca um relógio. Só
-                 para performer verificada (mesma condição do "Ir ao vivo") — quem
-                 ainda está em KYC não aparece no catálogo, então sinalizar seria
-                 no-op. Expira sozinha em 4h (checada na leitura), e a própria
-                 performer pode desligar antes. -->
+            <!-- Presença no catálogo (fix/panel-polish-v1): a performer fica
+                 ONLINE automaticamente enquanto tem sessão ativa — não há botão de
+                 "ficar disponível". Este toggle é o OPT-OUT: ligá-lo para invisível
+                 a esconde do catálogo (sem online, sem faixa de atividade), mas ela
+                 CONTINUA recebendo mensagens. Só para performer verificada (mesma
+                 condição do "Ir ao vivo") — quem ainda está em KYC não aparece no
+                 catálogo. O switch LIGADO = visível/online; desligado = invisível. -->
             <div
                 v-if="canGoLive"
                 class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border p-5"
-                :class="available ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface'"
+                :class="visible ? 'border-success/40 bg-success/5' : 'border-frame bg-surface'"
             >
                 <div class="space-y-1">
                     <p class="text-sm text-cream flex items-center gap-2">
-                        <span aria-hidden="true">💬</span> Disponível para conversa
+                        <span
+                            aria-hidden="true"
+                            class="inline-block h-2.5 w-2.5 rounded-full"
+                            :class="visible ? 'bg-success' : 'bg-muted'"
+                        />
+                        {{ visible ? 'Aparecendo como online' : 'Invisível no catálogo' }}
                     </p>
-                    <p v-if="available" class="text-xs text-gold">
-                        Você está sinalizando disponibilidade{{ availableRemaining ? ` — ${availableRemaining}` : '' }}.
+                    <p v-if="visible" class="text-xs text-muted">
+                        Você aparece como online para quem está procurando agora.
                     </p>
                     <p v-else class="text-xs text-muted">
-                        Sinalize que quer ser abordada agora. Membros que já seguem você recebem destaque.
+                        Você está invisível no catálogo. Continua recebendo mensagens normalmente.
                     </p>
                 </div>
                 <button
                     type="button"
                     role="switch"
-                    :aria-checked="available"
-                    :disabled="togglingAvailability"
-                    class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
-                    :class="available ? 'bg-gold' : 'bg-frame'"
-                    @click="toggleAvailability"
+                    :aria-checked="visible"
+                    aria-label="Aparecer como online no catálogo"
+                    :disabled="togglingVisibility"
+                    class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-success/60"
+                    :class="visible ? 'bg-success' : 'bg-frame'"
+                    @click="toggleVisibility"
                 >
                     <span
                         class="inline-block h-5 w-5 transform rounded-full bg-background transition-transform"
-                        :class="available ? 'translate-x-6' : 'translate-x-1'"
+                        :class="visible ? 'translate-x-6' : 'translate-x-1'"
                     />
                 </button>
             </div>

@@ -272,11 +272,12 @@ function logout() {
              o canal user.{id} com o MessageToast sem derrubá-lo. -->
         <ReservationNotice />
 
-        <!-- Saída rápida GLOBAL — pílula flutuante (teleportada) no canto
-             inferior-esquerdo, presente em toda tela autenticada (membro E
-             performer). No painel da performer sobe acima da barra de navegação
-             do rodapé (liftMobile). Longe do menu do avatar/"Sair" (topo direito). -->
-        <PanicButton :lift-mobile="isActivePerformer" />
+        <!-- Saída rápida GLOBAL — ícone flutuante (teleportado) no canto
+             SUPERIOR-esquerdo, DESKTOP-ONLY, presente em toda tela autenticada
+             (membro E performer). No celular ele não aparece (a saída nativa —
+             bloquear o aparelho — é mais rápida); o duplo-Escape segue ativo em
+             toda largura. Longe do menu do avatar/"Sair" (topo direito). -->
+        <PanicButton />
 
         <!-- Logout confirmation -->
         <Modal :show="showLogoutConfirm" max-width="sm" @close="showLogoutConfirm = false">

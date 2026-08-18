@@ -3243,6 +3243,40 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 > título descritivo único (o nome da feature), nunca o "próximo número"**. As entradas
 > abaixo foram convertidas; os antigos rótulos `A.0.x` foram removidos.
 
+### Ajustes do painel — presença por sessão + Panic Button desktop-only (`fix/panel-polish-v1`, PR pendente)
+
+Três ajustes do painel (ago/2026, sobre a `feat/performer-nav-restructure`).
+**Nenhuma rota/permissão/regra de negócio muda.** Suíte MySQL verde (só o
+`GeoBlockTest` 451 do clone de dev falha: **2029/2030, 16082 asserts**). Detalhe
+canônico no `CLAUDE.md`, § "Ajustes do painel — presença por sessão + Panic Button
+desktop-only".
+
+1. **Panic Button desktop-only, só ícone.** No celular some (`hidden md:block`) — a
+   saída nativa (bloquear o aparelho) é mais rápida, e a saída da conta fica no menu
+   do avatar. No desktop vira ícone pequeno vermelho no canto **superior-esquerdo**;
+   o rótulo **"Panic Button" (inglês, decisão do PO)** + o atalho Esc só no
+   hover/foco. `escape()`, `z-[10001]` teleportado e **duplo-Escape (ativo em toda
+   largura, inclusive celular)** intactos. `liftMobile` removida.
+
+2. **Presença DERIVADA da sessão + opt-out.** *Verificação pedida pelo PO, respondida
+   antes de mexer:* o "Disponível para conversa" (Sprint 11) **nunca bloqueou
+   recebimento de mensagens** — só visibilidade/filtro (confirmado: `ChatService`/
+   `ChatAccessService` não olhavam `available_for_chat_at`). Agora a presença deriva
+   de `users.last_active_at` (`PerformerProfile::isOnline`, janela
+   `ONLINE_WINDOW_MINUTES=10`, reusa o middleware `TrackPerformerActivity`); sem
+   expiração de 4h. O toggle virou o **opt-out `appear_offline`** (`$hidden`, fora do
+   `$fillable`, forceFill): invisível no catálogo (sem online, faixa de atividade
+   suprimida) mas **recebendo mensagens normalmente**. `scopeAvailableForChat`→
+   `scopeOnline`; filtro `available` → "Online agora" (chave mantida por compat).
+   `available_for_chat_at` fica vestigial. **Só performer — presença de membro segue
+   nunca exposta.** Copy: online = "Você aparece como online para quem está
+   procurando agora."; invisível = "Você está invisível no catálogo. Continua
+   recebendo mensagens normalmente." `PerformerAvailabilityTest` → `PerformerPresenceTest`
+   (inclui *mensagem chega com a performer invisível*).
+
+3. **Landing:** rótulo visível "Residente" → **"Anfitrião"** (valor técnico
+   `performer` intacto).
+
 ### Navegação do painel da performer — mobile primeiro (`feat/performer-nav-restructure`, PR pendente)
 
 Reestruturação da navegação do painel da performer (ago/2026). **Só apresentação —

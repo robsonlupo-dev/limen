@@ -28,14 +28,18 @@ class PerformerProfile extends Model
     public const TIERS = ['verificada', 'select', 'maison'];
 
     /**
-     * Janela de "Disponível para conversa" (Sprint 11), em horas. A
-     * disponibilidade é DERIVADA do carimbo `available_for_chat_at`: a performer
-     * está disponível quando ele é não-nulo e mais novo que esta janela. Fonte
-     * única do número — o resource, o filtro e o dashboard perguntam aqui, nunca
-     * repetem o `4`. Lida na LEITURA (isAvailableForChat), como o `is_live`: não
-     * há job que apaga o estado, a expiração vale a cada request.
+     * Janela de PRESENÇA "online" da performer (fix/panel-polish-v1), em minutos.
+     * A presença é DERIVADA da atividade real: a performer está online quando o
+     * `users.last_active_at` (mantido pelo middleware TrackPerformerActivity, que
+     * o bumpa a cada ~5min de sessão ativa, suprimido por Ghost/Invisível) é mais
+     * novo que esta janela E ela não está em opt-out (`appear_offline`). Fonte
+     * única do número — o resource, o filtro e o scope perguntam aqui, nunca
+     * repetem o `10`. Lida na LEITURA (isOnline), como o `is_live`: não há job, a
+     * presença "vence" a cada request. A janela é maior que o throttle de 5min do
+     * middleware, para a performer não piscar entre offline/online enquanto lê uma
+     * página sem navegar.
      */
-    public const AVAILABILITY_WINDOW_HOURS = 4;
+    public const ONLINE_WINDOW_MINUTES = 10;
 
     /**
      * Tags da performer, agrupadas pela seção em que a tela as mostra. O grupo
@@ -139,15 +143,20 @@ class PerformerProfile extends Model
     ];
 
     /**
-     * `available_for_chat_at` é o carimbo bruto de "Disponível para conversa"
-     * (Sprint 11). $hidden porque o público só pode ver o BOOLEANO derivado
-     * (is_available no PerformerPublicResource), nunca o instante em que a
-     * performer sinalizou — o timestamp exato é presença ao minuto, mesma
-     * disciplina do `last_active_at` do User e do `visited_at` do painel de
-     * visitantes. O código que precisa dele lê o atributo direto (o $hidden só
-     * afeta a serialização), como isAvailableForChat() abaixo.
+     * `appear_offline` é o OPT-OUT de presença (fix/panel-polish-v1): ligado, a
+     * performer some do catálogo (nunca online, faixa de atividade suprimida) mas
+     * segue recebendo mensagens. $hidden porque o público não vê o flag — quando
+     * ligado, a performer simplesmente não aparece como online (is_available cru
+     * false); expor o flag anunciaria "está escondida de propósito". Fora do
+     * $fillable: escrita só pelo endpoint dedicado (AvailabilityController), por
+     * forceFill — disciplina de discrete_mode / do segredo do 2FA.
+     *
+     * `available_for_chat_at` é VESTIGIAL do "Disponível para conversa" (Sprint
+     * 11): não é mais lido nem escrito (a presença virou derivada de
+     * last_active_at). Segue $hidden por higiene — o timestamp nunca vaza.
      */
     protected $hidden = [
+        'appear_offline',
         'available_for_chat_at',
         // Boost pago (Sprint 11): o carimbo do FIM do destaque. $hidden porque o
         // público só pode ver o BOOLEANO derivado (is_boosted no
@@ -171,6 +180,7 @@ class PerformerProfile extends Model
             'languages' => 'array',
             'height_cm' => 'integer',
             'is_live' => 'boolean',
+            'appear_offline' => 'boolean',
             'available_for_chat_at' => 'datetime',
             'boosted_until' => 'datetime',
             'is_verified' => 'boolean',
@@ -366,71 +376,59 @@ class PerformerProfile extends Model
     }
 
     /**
-     * "Disponível para conversa" agora (Sprint 11), DERIVADO na leitura.
+     * A performer está ONLINE agora (fix/panel-polish-v1), DERIVADO na leitura.
      *
-     * Verdadeiro só quando a performer sinalizou (`available_for_chat_at`
-     * não-nulo) E o sinal ainda está dentro da janela de AVAILABILITY_WINDOW_HOURS.
-     * Sem job de expiração: exatamente como o `is_live` e o ChatAccess, o estado
-     * "vence" na leitura. É o ÚNICO lugar que decide disponibilidade — o resource
-     * (is_available), o scope do filtro e o dashboard passam por aqui.
+     * Verdadeiro quando ela NÃO está em opt-out (`appear_offline`) E teve
+     * atividade real recente: `users.last_active_at` dentro de ONLINE_WINDOW_MINUTES.
+     * A presença deriva da SESSÃO (o middleware TrackPerformerActivity bumpa o
+     * carimbo enquanto ela navega), não de um botão — então ela "fica online"
+     * sozinha ao usar o site e some ao encerrar a sessão / ficar inativa, sem job.
+     * É o ÚNICO lugar que decide presença — o resource (is_available) e o scope
+     * passam por aqui.
+     *
+     * SÓ PERFORMER: presença de MEMBRO nunca é exposta (decisão registrada); este
+     * método vive no perfil da performer e não tem espelho do lado do membro.
      */
-    public function isAvailableForChat(): bool
+    public function isOnline(): bool
     {
-        return $this->available_for_chat_at !== null
-            && $this->available_for_chat_at->greaterThan(
-                now()->subHours(self::AVAILABILITY_WINDOW_HOURS)
-            );
-    }
-
-    /**
-     * Tempo restante de disponibilidade em FAIXA, para o PRÓPRIO painel da
-     * performer — nunca sai numa superfície pública. Faixa e não relógio pela
-     * mesma disciplina da ActivitySlot/ExpirySlot: mesmo sendo o dado dela na
-     * tela dela, a copy não promete um minuto exato que o produto não expõe em
-     * lugar nenhum. Null quando não está disponível (a tela não desenha nada).
-     */
-    public function availabilityRemainingLabel(): ?string
-    {
-        if (! $this->isAvailableForChat()) {
-            return null;
+        if ($this->appear_offline) {
+            return false;
         }
 
-        $endsAt = $this->available_for_chat_at->copy()->addHours(self::AVAILABILITY_WINDOW_HOURS);
-        $hoursLeft = now()->diffInHours($endsAt, false);
+        $lastActive = $this->user?->last_active_at;
 
-        return match (true) {
-            $hoursLeft >= 3 => 'por quase 4 horas',
-            $hoursLeft >= 2 => 'por mais de 2 horas',
-            $hoursLeft >= 1 => 'por mais de 1 hora',
-            default => 'por menos de 1 hora',
-        };
+        return $lastActive !== null
+            && $lastActive->greaterThan(now()->subMinutes(self::ONLINE_WINDOW_MINUTES));
     }
 
     /**
-     * Restringe o catálogo a quem está disponível para conversa agora (Sprint
-     * 11) — o filtro "Disponíveis agora". Espelha isAvailableForChat() em SQL:
-     * carimbo dentro da janela. Quem nunca sinalizou (`null`) ou sinalizou há
-     * mais de AVAILABILITY_WINDOW_HOURS simplesmente não casa — como o filtro de
-     * estado, a faceta é opt-in e ausência não é "perdido".
+     * Restringe o catálogo a quem está ONLINE agora (fix/panel-polish-v1) — o
+     * filtro "Online agora". Espelha isOnline() em SQL: não em opt-out E
+     * last_active_at dentro da janela. Quem está inativo há mais de
+     * ONLINE_WINDOW_MINUTES, nunca teve atividade (`null`) ou ligou o opt-out
+     * simplesmente não casa — como o filtro de estado, a faceta é opt-in e
+     * ausência não é "perdido".
      *
      * @param  Builder<PerformerProfile>  $query
      * @return Builder<PerformerProfile>
      */
-    public function scopeAvailableForChat(Builder $query): Builder
+    public function scopeOnline(Builder $query): Builder
     {
-        return $query->where(
-            'available_for_chat_at',
-            '>',
-            now()->subHours(self::AVAILABILITY_WINDOW_HOURS)
-        );
+        return $query
+            ->where('performer_profiles.appear_offline', false)
+            ->whereHas('user', fn (Builder $inner) => $inner->where(
+                'last_active_at',
+                '>',
+                now()->subMinutes(self::ONLINE_WINDOW_MINUTES)
+            ));
     }
 
     /**
      * O perfil está em destaque AGORA (Sprint 11), DERIVADO na leitura.
      *
      * Verdadeiro só quando `boosted_until` foi setado E ainda está no futuro.
-     * Sem job de expiração — como `is_live`, `isAvailableForChat` e o ChatAccess,
-     * o estado "vence" na leitura. É o ÚNICO lugar que decide destaque: o resource
+     * Sem job de expiração — como `is_live`, `isOnline` e o ChatAccess, o estado
+     * "vence" na leitura. É o ÚNICO lugar que decide destaque: o resource
      * (is_boosted), a ordenação do catálogo e o BoostService passam por aqui.
      */
     public function isBoosted(): bool
@@ -441,7 +439,7 @@ class PerformerProfile extends Model
     /**
      * Tempo restante de destaque em FAIXA, para o PRÓPRIO painel da performer —
      * nunca sai em superfície pública. Faixa e não relógio pela mesma disciplina
-     * da availabilityRemainingLabel/ActivitySlot: mesmo sendo o dado dela na tela
+     * da ActivitySlot: mesmo sendo o dado dela na tela
      * dela, a copy não promete um minuto exato que o produto não expõe. Null
      * quando não está boostado (a tela não desenha nada).
      *

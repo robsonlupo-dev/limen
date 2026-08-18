@@ -212,8 +212,9 @@ function onTipSent(data) {
                     />
                 </div>
 
-                <!-- "Disponível para conversa" (Sprint 11), com destaque. Some
-                     quando is_live (o LiveBadge do topo já sinaliza presença). O
+                <!-- "Online agora" (fix/panel-polish-v1): presença DERIVADA da
+                     sessão (is_available = isOnline), com destaque. Some quando
+                     is_live (o LiveBadge do topo já sinaliza presença ao vivo). O
                      CTA "Iniciar conversa" só aparece para o membro que já tem
                      conversa aberta (chat interest-gated, sem chat frio) e leva à
                      tela de chat — que resolve a compra de acesso se preciso. -->
@@ -221,8 +222,8 @@ function onTipSent(data) {
                     v-if="performer.is_available && !performer.is_live"
                     class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-limen-gold/40 bg-limen-gold/5 px-4 py-3"
                 >
-                    <p class="text-sm text-limen-gold flex items-center gap-2">
-                        <span aria-hidden="true">💬</span> Disponível para conversa
+                    <p class="text-sm text-limen-ink flex items-center gap-2">
+                        <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-success" /> Online agora
                     </p>
                     <Link
                         v-if="chat"

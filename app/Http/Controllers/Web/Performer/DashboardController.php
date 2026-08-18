@@ -86,13 +86,12 @@ class DashboardController extends Controller
             'followers' => $profile->followersCountLabel(),
             'kycStatus' => $this->kycStatus($user),
             'isLive' => $profile->is_live,
-            // "Disponível para conversa" (Sprint 11): booleano derivado (janela
-            // de 4h lida na leitura) + a FAIXA de tempo restante para o toggle
-            // do painel. Nunca o carimbo `available_for_chat_at` — ele é $hidden
-            // e não sai em prop nenhuma; aqui vale a mesma disciplina de faixa
-            // da ActivitySlot, mesmo sendo o dado dela na tela dela.
-            'isAvailable' => $profile->isAvailableForChat(),
-            'availabilityRemaining' => $profile->availabilityRemainingLabel(),
+            // Visibilidade no catálogo (fix/panel-polish-v1): a presença "online"
+            // agora deriva da sessão (isOnline, lida na leitura do catálogo), não
+            // de um botão. O painel expõe só o OPT-OUT: `isVisible` = ! appear_offline.
+            // Ligar o toggle de invisível some do catálogo (sem online, sem faixa
+            // de atividade) mas NÃO afeta o recebimento de mensagens.
+            'isVisible' => ! $profile->appear_offline,
             // Boost pago (Sprint 11): seção "Destaque". Booleano derivado + faixa
             // de tempo restante (nunca o carimbo `boosted_until`, que é $hidden) +
             // custo, vagas livres e a elegibilidade (verificada) para a tela

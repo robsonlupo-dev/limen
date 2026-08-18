@@ -47,23 +47,24 @@ it('libera camera e microfone para a propria origem no Permissions-Policy', func
         ->and($policy)->toContain('geolocation=()');
 });
 
-// ─── #2 Panic button visível: pílula flutuante rotulada de alerta ────────────
+// ─── #2 Panic button visível: ícone de alerta na camada de topo ──────────────
 //
-// O achado original do R3 pedia o botão VISÍVEL e discreto. A reestruturação da
-// navegação (feat/performer-nav-restructure) tirou a saída do fluxo do header: o
-// link inline + o disco viraram UMA pílula flutuante rotulada "Saída rápida"
-// (português), em cor de ALERTA (danger, distinta do dourado), teleportada na
-// camada de topo, no canto INFERIOR-ESQUERDO (longe do "Sair" do menu do avatar).
+// O achado original do R3 pedia o botão VISÍVEL e discreto. O ajuste de painel
+// (fix/panel-polish-v1) o refinou por decisão do PO: no DESKTOP é um ÍCONE
+// pequeno em cor de ALERTA (danger), teleportado na camada de topo, no canto
+// SUPERIOR-ESQUERDO (longe do "Sair" do menu do avatar); o rótulo "Panic Button"
+// (inglês) só aparece no HOVER/FOCO. No CELULAR ele NÃO aparece (a saída nativa
+// é mais rápida) — o duplo-Escape segue como via de teclado em toda largura.
 // O detalhe do desenho vive em PanicButtonVisibilityTest/PanicButtonLayerTest.
 
-it('mantem a pilula flutuante rotulada, de alerta, na camada de topo', function () {
+it('mantem o icone de alerta discreto na camada de topo', function () {
     $src = File::get(resource_path('js/Components/PanicButton.vue'));
 
-    expect($src)->toContain('title="Saída rápida"')     // tooltip no hover
-        ->and($src)->toContain('z-[10001]')             // camada de topo
+    expect($src)->toContain('z-[10001]')                // camada de topo
         ->and($src)->toContain('bg-danger')             // cor de alerta (não dourado)
-        ->and($src)->toContain('Saída rápida')          // rótulo em português
-        ->and($src)->not->toContain('Panic Button');    // nunca mais o inglês
+        ->and($src)->toContain('Panic Button')          // rótulo (inglês) revelado no hover
+        ->and($src)->toContain('hidden md:block')       // desktop-only
+        ->and($src)->toContain('group-hover:opacity-100'); // rótulo só no hover/foco
 });
 
 // ─── #3 Foto do card sem corte (redesign do catálogo, card v2) ───────────────
