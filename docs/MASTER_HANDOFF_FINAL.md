@@ -3859,6 +3859,43 @@ depois do primeiro `travelTo`. **`ProfileVisitService` e nenhum outro service mu
 - `LandingCinematicTest`/`LandingCinematicAssetsTest`/`ExternalAssetPolicyTest` seguem
   verdes; `npm run build` limpo. Nenhum teste assertava as strings antigas.
 
+### Navegação e redesenho do painel do MEMBRO — EM BRANCH (`feat/member-nav-restructure`)
+
+Espelha o que a `feat/performer-nav-restructure` fez do lado da performer, agora para o
+MEMBRO — e vai além: além de reagrupar a navegação, faz um **redesenho maison** do
+painel. O header do membro lotava (~13 elementos numa linha; "Meu Painel" colidia com o
+logo, o nome quebrava). **Só apresentação muda — zero rota/permissão/regra de negócio;
+os destinos são os de sempre.** Mobile primeiro. Detalhe completo em CLAUDE.md, §
+"Navegação do painel do MEMBRO — mobile primeiro + assinatura do arco".
+
+- **Estrutura — ~11 telas → 5 seções + menu do avatar.** Fonte única
+  `resources/js/lib/memberNav.js` (reexporta os helpers genéricos do `performerNav.js`).
+  Seções: **Início** (dashboard) · **Descobrir** (Catálogo · Feed) · **Conexões**
+  (Interesses · Interessadas · Quem me visitou · Salvos) · **Mensagens** (Mensagens ·
+  Chamadas sob `feature:call`) · **Carteira** (Tokens · Círculos). Menu do avatar: **Meu
+  Perfil** · **Configurações** (`consumer.settings` — o membro não tem 2FA, o slot de
+  conta aponta para privacidade/preferências/exclusão) · **Sair**.
+- **Componentes:** `Components/Member/MemberNav.vue`, `MemberSubnav.vue`, `ArchHeading.vue`
+  (a assinatura). Montados no AppLayout só para `isConsumer`. Barra fixa no rodapé no
+  celular (≥44px, safe-area), barra superior no desktop; seção ativa por `aria-current` +
+  curva dourada. Bolinhas de não-vistos (mensagens/corações) reusam `nav_counts`.
+- **Assinatura de design — o ARCO do portal como ESTRUTURA:** títulos de seção nascem sob
+  uma curva fina dourada (`ArchHeading`); a moldura das fotos de "Quem eu sigo" é um arco
+  (`rounded-t-full`), não círculo; a seção ativa da nav é uma curva dourada, não um traço
+  reto. Dourado é acento; divisores em bronze fino (`border-gold/15`); muito espaço
+  negativo; **sem mármore** nas telas de trabalho; movimento pouco e lento (reduced-motion
+  honrado). Cormorant (serif de display) + Inter, ambas já auto-hospedadas — sem fonte
+  nova (ExternalAssetPolicy).
+- **Dashboard redesenhado** (`Pages/Consumer/Dashboard.vue`): saiu a fileira de cards de
+  estatística com número grande (o default que o painel da performer ainda faz). Saldo em
+  prosa, gorjetas em livro-caixa discreto, saudação pelo relógio local, **estados vazios
+  reescritos como convite à ação**. Demais telas do membro seguem o estilo atual, sob a
+  nova nav.
+- **Privacidade:** nenhum indicador de presença/online do membro é criado (LOCKED).
+- **Testes:** `MemberNavRestructureTest` (fonte — 5 seções, subnavs, menu do avatar, barra
+  inferior, wiring do AppLayout). **Zero rota nova no Ziggy.** `npm run build` limpo; suíte
+  MySQL **2041/2042** (só o `GeoBlockTest` 451 deste clone falha).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),

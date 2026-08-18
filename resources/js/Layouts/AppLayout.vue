@@ -7,6 +7,8 @@ import Button from '@/Components/Button.vue'
 import PanicButton from '@/Components/PanicButton.vue'
 import PerformerNav from '@/Components/Performer/PerformerNav.vue'
 import PerformerSubnav from '@/Components/Performer/PerformerSubnav.vue'
+import MemberNav from '@/Components/Member/MemberNav.vue'
+import MemberSubnav from '@/Components/Member/MemberSubnav.vue'
 import MessageToast from '@/Components/MessageToast.vue'
 import ReservationNotice from '@/Components/ReservationNotice.vue'
 
@@ -80,7 +82,19 @@ function logout() {
                     @logout="showLogoutConfirm = true"
                 />
 
-                <!-- Demais papéis (membro, admin/moderador e performer ainda em
+                <!-- Painel do MEMBRO: navegação reagrupada em 5 seções + menu do
+                     avatar, mobile primeiro. Ver MemberNav. As ~11 telas de antes
+                     viram Início · Descobrir · Conexões · Mensagens · Carteira,
+                     com Meu Perfil/Configurações/Sair no menu do avatar. -->
+                <MemberNav
+                    v-else-if="isConsumer"
+                    :nav-counts="navCounts"
+                    :features="features"
+                    :user-name="page.props.auth.user?.name"
+                    @logout="showLogoutConfirm = true"
+                />
+
+                <!-- Demais papéis (admin/moderador e performer ainda em
                      onboarding): navegação inline, como antes. -->
                 <nav v-else class="flex items-center gap-6 text-sm text-muted">
                     <!-- Performer em onboarding: painel (→ onboarding) + Segurança,
@@ -99,101 +113,6 @@ function logout() {
                     >
                         Segurança
                     </Link>
-                    <template v-if="isConsumer">
-                        <Link
-                            :href="route('consumer.dashboard')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Meu Painel
-                        </Link>
-                        <!-- Feed de conteúdo permanente de quem o membro segue. -->
-                        <Link
-                            :href="route('feed')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Feed
-                        </Link>
-                        <!-- "Meu Perfil" e "Interesses" são coisas diferentes e
-                             ficam lado a lado de propósito: Interesses é a caixa
-                             do Interesse Controlado (o que performers mandaram),
-                             Meu Perfil é a auto-declaração do membro. -->
-                        <Link
-                            :href="route('consumer.profile.edit')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Meu Perfil
-                        </Link>
-                        <Link
-                            :href="route('interests.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Interesses
-                        </Link>
-                        <!-- "Performers interessadas em você" (corações recebidos):
-                             grátis e com a identidade da performer visível — o
-                             oposto do Interesse pago/anônimo acima. -->
-                        <Link
-                            :href="route('consumer.hearts.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Interessadas
-                            <span
-                                v-if="navCounts.hearts > 0"
-                                class="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-limen-gold px-1.5 py-0.5 text-[10px] font-semibold leading-none text-limen-bg"
-                                aria-label="novos corações"
-                            >{{ navCounts.hearts > 99 ? '99+' : navCounts.hearts }}</span>
-                        </Link>
-                        <!-- "Quem visitou seu perfil" (visitas bidirecionais): as
-                             performers que passaram pelo perfil do membro. A
-                             performer é pública, então aparece com a identidade
-                             real — nenhum membro é exposto aqui. -->
-                        <Link
-                            :href="route('consumer.visitors.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Quem me visitou
-                        </Link>
-                        <!-- Bookmark privado — a performer não é avisada. Fica
-                             na nav do MEMBRO e não tem espelho na da performer. -->
-                        <Link
-                            :href="route('favorites.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Salvos
-                        </Link>
-                        <Link
-                            :href="route('chat.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Mensagens
-                            <span
-                                v-if="navCounts.messages > 0"
-                                class="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-limen-gold px-1.5 py-0.5 text-[10px] font-semibold leading-none text-limen-bg"
-                                aria-label="mensagens não lidas"
-                            >{{ navCounts.messages > 99 ? '99+' : navCounts.messages }}</span>
-                        </Link>
-                        <Link
-                            :href="route('wallet.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Carteira
-                        </Link>
-                        <!-- Minhas chamadas agendadas (feat/scheduled-call-v1),
-                             sob feature:call. -->
-                        <Link
-                            v-if="features.call_enabled"
-                            :href="route('reservations.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Chamadas
-                        </Link>
-                        <Link
-                            :href="route('subscribe.index')"
-                            class="text-gold/80 hover:text-gold transition-colors no-underline"
-                        >
-                            Círculos
-                        </Link>
-                    </template>
                     <!-- Moderação: moderador E admin. Link Inertia — a fila é
                          uma tela Vue (/moderacao/*). -->
                     <Link
@@ -236,6 +155,10 @@ function logout() {
              Histórico). Some nas seções sem filhos e fora do painel. -->
         <PerformerSubnav v-if="isActivePerformer" />
 
+        <!-- Subnav do membro (Descobrir/Conexões/Mensagens/Carteira). Some na
+             seção Início e fora do painel. -->
+        <MemberSubnav v-else-if="isConsumer" :nav-counts="navCounts" :features="features" />
+
         <!-- Flash messages -->
         <div v-if="page.props.flash?.success" class="bg-success/10 border-b border-success/30 px-6 py-3 text-sm text-success text-center">
             {{ page.props.flash.success }}
@@ -246,7 +169,7 @@ function logout() {
 
         <!-- Content. No painel da performer, o rodapé fixo (barra de navegação
              mobile) exige folga inferior no celular para não cobrir o conteúdo. -->
-        <main class="mi-page-enter flex-1" :class="isActivePerformer ? 'pb-[calc(6rem_+_env(safe-area-inset-bottom))] md:pb-0' : ''">
+        <main class="mi-page-enter flex-1" :class="(isActivePerformer || isConsumer) ? 'pb-[calc(6rem_+_env(safe-area-inset-bottom))] md:pb-0' : ''">
             <slot />
         </main>
 

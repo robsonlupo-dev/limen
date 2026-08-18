@@ -2106,6 +2106,81 @@ desenhada sob a regra **MOBILE PRIMEIRO** (ver Convenções).
   (component/props inalterados). **Zero rota nova no Ziggy** — todos os destinos já
   estavam no `only[]`.
 
+## Navegação do painel do MEMBRO — mobile primeiro + assinatura do arco (`feat/member-nav-restructure`)
+
+Reestruturação E redesenho do painel do membro (ago/2026, PR pendente), espelhando
+o padrão do lado da performer (`feat/performer-nav-restructure`). O header do membro
+lotava: ~13 elementos numa linha (Meu Painel + Feed + Meu Perfil + Interesses +
+Interessadas + Quem me visitou + Salvos + Mensagens + Carteira + Chamadas + Círculos
++ nome + Sair) — "Meu Painel" colidia com o logo e o nome quebrava em duas linhas.
+**MUDA SÓ A APRESENTAÇÃO — nenhuma rota, permissão ou regra de negócio muda; as
+telas de sempre continuam existindo, muda a forma de chegar nelas.** Desenhado sob a
+regra **MOBILE PRIMEIRO**.
+
+- **~11 telas → 5 seções de 1º nível + menu do avatar.** Fonte ÚNICA:
+  `resources/js/lib/memberNav.js` (consumida pela barra e pela subnav — uma cópia só,
+  senão a seção ativa e os filhos divergiriam; reexporta `isSectionActive`/
+  `isRouteActive` genéricos do `performerNav.js`, sem duplicar). As seções: **Início**
+  (`consumer.dashboard`) · **Descobrir** (subnav Catálogo `catalog` + Feed `feed`) ·
+  **Conexões** (subnav Interesses `interests.index` + Interessadas `consumer.hearts.index`
+  + Quem me visitou `consumer.visitors.index` + Salvos `favorites.index`) · **Mensagens**
+  (subnav Mensagens `chat.index` + Chamadas `reservations.index`, gateada por
+  `feature:call`) · **Carteira** (subnav Tokens `wallet.index` + Círculos `subscribe.index`).
+  Foram para o **menu do avatar** (canto superior direito): **Meu Perfil**
+  (`consumer.profile.edit`) · **Configurações** (`consumer.settings` — o membro não tem
+  2FA, então o slot de "conta" aponta para as Configurações: privacidade + preferências +
+  exclusão de conta) · **Sair**.
+- **Bolinhas de não-vistos** (`nav_counts`): mensagens na seção Mensagens (e no filho
+  Mensagens), corações na seção Conexões (e no filho Interessadas). Mesma fonte
+  (`NavBadgeService`), só desenho.
+- **Mobile primeiro:** barra superior enxuta (logo + avatar) + **BARRA FIXA NO RODAPÉ**
+  com as 5 seções (ícone + rótulo, ≥44px, safe-area do iOS), **nunca hambúrguer**. O
+  `<main>` ganha `pb-[calc(6rem+safe-area)] md:pb-0` também para o membro. **Desktop:**
+  5 seções em linha + avatar à direita; logo sozinho à esquerda. A **seção ativa é
+  marcada nas duas versões** (`aria-current` + a **curva dourada do portal**, ver
+  assinatura) via `route().current(...)`.
+- **Componentes:** `Components/Member/MemberNav.vue` (barra superior desktop + menu do
+  avatar + barra inferior mobile), `Components/Member/MemberSubnav.vue` (subnav de
+  Descobrir/Conexões/Mensagens/Carteira; some na seção Início e fora do painel, filtra
+  o filho gateado Chamadas) e `Components/Member/ArchHeading.vue` (a assinatura). Montados
+  no AppLayout só para `isConsumer` (`v-else-if` depois do `isActivePerformer`); os demais
+  papéis (admin/moderador, performer em onboarding) seguem com a nav inline de antes.
+- **Menu do avatar acessível:** `aria-haspopup="menu"`, fecha por clique-fora e Escape.
+  O Escape NÃO é engolido — o duplo-Escape da Saída rápida continua contando com o menu
+  aberto. "Sair" emite `logout` e o layout abre o modal de confirmação (fluxo intocado).
+
+### Redesenho maison — o ARCO do portal como assinatura
+Direção de design (decidida com o PO): o painel deve ser reconhecível como Limen mesmo
+com o logo fora da tela. **Elemento-assinatura: o arco/limiar do portal, usado como
+ESTRUTURA, não enfeite.** Dona única: `Components/Member/ArchHeading.vue`.
+
+- **Títulos de seção "nascem sob uma curva fina dourada"** — `ArchHeading` desenha um
+  arco raso em SVG dourado + rótulo em caixa alta pequena e espaçada (`tracking-[0.28em]`)
+  + título em serifada de display (Cormorant, já auto-hospedada). Usado no Dashboard.
+- **A moldura das fotos é um ARCO, não um retângulo** — os retratos de "Quem eu sigo"
+  no Dashboard usam `rounded-t-full rounded-b-lg` (silhueta de portal), no lugar dos
+  círculos de antes.
+- **A seção ativa da nav é marcada por uma CURVA dourada** (SVG), não por um traço reto
+  como no lado da performer — a assinatura entra já na navegação.
+- **Dourado é ACENTO, nunca preenchimento; divisores em bronze fino** (`border-gold/15`,
+  não `border-frame` cinza); muito espaço negativo. **SEM fundo de mármore** nas telas de
+  trabalho (decisão do PO: prejudica leitura). Movimento: pouco e lento, `prefers-reduced-
+  motion` honrado (a curva e o menu desligam a animação).
+- **Dashboard redesenhado (`Pages/Consumer/Dashboard.vue`):** saiu a **fileira de cards
+  de estatística com número grande** (o default que o painel da performer ainda faz). O
+  saldo vira **prosa** ("Você tem N tokens", + linha derivada "Você segue N performers ·
+  N tokens em N gorjetas"), não caixinha; saudação pelo relógio local do membro (clube
+  noturno); gorjetas viram **livro-caixa** discreto com divisores de bronze, não tabela
+  pesada. **Textos de estado vazio reescritos como convite à ação** ("Seu círculo começa
+  vazio" → explorar catálogo; "Nenhuma gorjeta ainda" → ir ao catálogo). O resto das
+  telas do membro (Wallet, Interesses, etc.) segue o estilo atual, agora sob a nova nav.
+- **Privacidade preservada:** nenhum indicador de presença/online do MEMBRO é criado
+  (decisão LOCKED). O ArchHeading/curva é puramente visual.
+- **Testes (fonte, sem Vitest):** `MemberNavRestructureTest` (5 seções, subnavs, menu do
+  avatar, barra inferior mobile, wiring do AppLayout). **Zero rota nova no Ziggy** — todos
+  os destinos já estavam no `only[]`. `npm run build` limpo; suíte MySQL verde (só o
+  `GeoBlockTest` 451 deste clone falha).
+
 ## Foto Efêmera do Membro — Sprint 9B (implementada, NÃO liberada)
 
 Foto privada que o membro manda para a performer no chat: cifrada em disco
