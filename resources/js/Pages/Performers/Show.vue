@@ -206,19 +206,19 @@ const workModeLabels = {
                     </div>
                 </div>
 
-                <!-- "Disponível para conversa" (Sprint 11) — com destaque no
-                     perfil, ao contrário do card. Some quando is_live: o LiveBadge
-                     do topo já sinaliza presença agora. O CTA "Iniciar conversa"
-                     só aparece para quem tem conversa aberta (chat interest-gated
-                     — não há chat frio): com acesso em dia vira link, sem acesso
-                     abre o modal de compra. Visitante/membro sem conversa vê só o
-                     sinal. -->
+                <!-- "Online agora" (fix/panel-polish-v1) — presença DERIVADA da
+                     sessão (is_available = isOnline), com destaque no perfil, ao
+                     contrário do card. Some quando is_live: o LiveBadge do topo já
+                     sinaliza presença ao vivo. O CTA "Iniciar conversa" só aparece
+                     para quem tem conversa aberta (chat interest-gated — não há chat
+                     frio): com acesso em dia vira link, sem acesso abre o modal de
+                     compra. Visitante/membro sem conversa vê só o sinal. -->
                 <div
                     v-if="performer.is_available && !performer.is_live"
                     class="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-limen-gold/40 bg-limen-gold/5 px-4 py-3"
                 >
-                    <p class="text-sm text-limen-gold flex items-center gap-2">
-                        <span aria-hidden="true">💬</span> Disponível para conversa
+                    <p class="text-sm text-limen-ink flex items-center gap-2">
+                        <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-success" /> Online agora
                     </p>
                     <template v-if="chat">
                         <Link

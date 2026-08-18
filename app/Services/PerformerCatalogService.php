@@ -41,8 +41,10 @@ class PerformerCatalogService
             'sort' => ['nullable', 'in:rating_avg,followers_count,newest'],
             'level' => ['nullable', 'in:iniciante,estrela,premium,vip'],
             'is_live' => ['nullable', 'boolean'],
-            // "Disponíveis agora" (Sprint 11): filtra por quem sinalizou
-            // disponibilidade dentro da janela de 4h. Ver scopeAvailableForChat.
+            // "Online agora" (fix/panel-polish-v1): filtra por quem tem sessão
+            // ativa recente (last_active_at dentro da janela) e não está em
+            // opt-out. A chave segue `available` (compat de saved searches / do
+            // FilterPanel); o que mudou é a semântica. Ver scopeOnline.
             'available' => ['nullable', 'boolean'],
 
             // Teto no array: sem ele, `tags[]` com 200 entradas monta um
@@ -102,10 +104,10 @@ class PerformerCatalogService
             $query->where('is_live', true);
         }
 
-        // "Disponíveis agora" (Sprint 11). Delega ao scope que é a dona da
-        // janela de 4h — o número não se repete aqui (ver isAvailableForChat).
+        // "Online agora" (fix/panel-polish-v1). Delega ao scope que é a dona da
+        // janela — o número não se repete aqui (ver isOnline / scopeOnline).
         if (! empty($filters['available'])) {
-            $query->availableForChat();
+            $query->online();
         }
 
         if (! empty($filters['level'])) {

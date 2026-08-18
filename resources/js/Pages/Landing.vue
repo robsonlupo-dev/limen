@@ -588,7 +588,7 @@ function onSubmit() {
                                                 : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/50'"
                                             @click="selectRole('performer')"
                                         >
-                                            🌟 Residente
+                                            🌟 Anfitrião
                                         </button>
                                     </div>
                                     <p v-if="form.errors.role" class="mt-1 text-xs text-danger">{{ form.errors.role }}</p>

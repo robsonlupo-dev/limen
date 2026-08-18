@@ -2,19 +2,12 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 
-// liftMobile: sobe a pílula no celular para ela flutuar ACIMA da barra de
-// navegação fixa do painel da performer (que ocupa o rodapé). Fora do painel
-// (membro, telas guest) não há barra inferior, então a pílula desce ao rodapé.
-defineProps({
-    liftMobile: { type: Boolean, default: false },
-})
-
 // Saída rápida. Existe para um cenário concreto: alguém entra na sala e o
-// membro precisa tirar a Limen da tela AGORA, sem hesitar num menu.
+// usuário precisa tirar a Limen da tela AGORA, sem hesitar num menu.
 //
 // Comportamento esperado (o projeto não tem Vitest/Jest — este bloco é o
 // contrato do componente, verificar à mão ao mexer):
-//  1. Clique no botão OU Escape duas vezes em menos de 500ms dispara a saída.
+//  1. Clique no ÍCONE OU Escape duas vezes em menos de 500ms dispara a saída.
 //     Um Escape sozinho não faz nada (senão fechar um modal viraria evasão).
 //  2. Na saída, nesta ordem: limpa sessionStorage, reescreve a entrada atual
 //     do histórico para "/", DISPARA o POST de logout, e sai com
@@ -25,8 +18,17 @@ defineProps({
 //  4. O destino vem de props.panicRedirectUrl (config/app.php →
 //     PANIC_REDIRECT_URL). URL não-http(s) ou ausente cai no padrão.
 //
+// APRESENTAÇÃO (decisão do PO, fix/panel-polish-v1): o botão flutuante é
+// DESKTOP-ONLY (`hidden md:*`). No CELULAR a saída nativa — bloquear o aparelho
+// — é mais rápida que qualquer botão nosso, então a pílula some e a saída da
+// conta fica no menu do avatar/"Sair". O DUPLO-ESCAPE continua ativo em TODA
+// largura (o listener não depende do botão estar renderizado). No desktop o
+// botão é um ÍCONE pequeno e discreto no canto SUPERIOR-ESQUERDO, em vermelho
+// (danger); o rótulo "Panic Button" (em inglês, de propósito: menos legível de
+// relance para quem passa perto) + o atalho Esc só aparecem no HOVER/FOCO.
+//
 // Por que o logout não é aguardado: `await fetch(...)` antes do redirect
-// prenderia o membro na tela da Limen pelo tempo do round-trip — e com rede
+// prenderia o usuário na tela da Limen pelo tempo do round-trip — e com rede
 // ruim ou captive portal, isso é dezenas de segundos olhando exatamente para o
 // que ele precisa esconder. keepalive existe para este caso: o request sobrevive
 // à navegação, então dá para redirecionar na hora e deixar o logout terminar
@@ -110,51 +112,58 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     <!--
       DUAS vias para a mesma saída (escape()), cada uma cobrindo um buraco da outra:
 
-      1. PÍLULA FLUTUANTE "Saída rápida" — teleportada para a raiz em z-[10001], a via
-         SEMPRE VISÍVEL, ROTULADA e INTOCÁVEL. O Teleport a tira de qualquer stacking
-         context de layout, e o 10001 fica UM acima do teto do projeto (IntroAnimation
-         10000, AgeGateModal 9999): nada a cobre nem engole o clique. Fica no canto
-         INFERIOR-ESQUERDO — longe do menu do avatar/"Sair" (topo direito), do toast
-         (inferior direito) e do aviso de reserva (inferior centro), então em nenhuma
-         largura ela encosta no "Sair" normal. Cor de ALERTA (`danger`), distinta do
-         dourado da marca, para não ser lida como "fechar" (regressão do UAT 63). No
-         celular sobe acima da barra de navegação do painel (prop liftMobile) e fica
-         alcançável pelo polegar, mas fora da zona de toque acidental ao rolar.
+      1. ÍCONE FLUTUANTE (desktop) — teleportado para a raiz em z-[10001], a via
+         VISÍVEL e INTOCÁVEL. O Teleport a tira de qualquer stacking context de
+         layout, e o 10001 fica UM acima do teto do projeto (IntroAnimation 10000,
+         AgeGateModal 9999): nada a cobre nem engole o clique. Fica no canto
+         SUPERIOR-ESQUERDO, pequeno e em cor de ALERTA (`danger`), distinta do
+         dourado da marca, para não ser lida como "fechar" (regressão do UAT 63).
+         `hidden md:block`: NÃO aparece no celular — lá a saída nativa (bloquear o
+         aparelho) é mais rápida, e a saída da conta fica no menu do avatar.
          Invariante (PanicButtonLayerTest): NENHUM outro componente usa z-index
-         >= 10001 — overlay novo entra abaixo, não suba a pílula.
+         >= 10001 — overlay novo entra abaixo, não suba a camada.
 
-      2. DUPLO-ESCAPE (listener em `window`, no <script>) — a via de TECLADO, dispara
-         mesmo sob overlay e sem apontar para nada. Cobre o touch-less e o caso de a
-         pílula estar coberta.
+      2. DUPLO-ESCAPE (listener em `window`, no <script>) — a via de TECLADO,
+         SEMPRE ATIVA (independe do ícone estar renderizado), então funciona no
+         celular com teclado e mesmo com o ícone escondido ou coberto.
 
-      Este PR mudou só a APRESENTAÇÃO (o link inline + o disco viraram uma pílula
-      rotulada de alerta, e o rótulo em inglês passou a "Saída rápida", em
-      português). A lógica de matar a sessão (escape()) é a de sempre.
+      O rótulo "Panic Button" e o atalho só aparecem no HOVER/FOCO — o ícone
+      sozinho é discreto; quem precisa da saída conhece o gesto.
     -->
     <Teleport to="body">
-        <button
-            type="button"
-            aria-label="Saída rápida — sai da Limen e vai para outro site"
-            title="Saída rápida"
-            class="pnc-exit fixed left-4 z-[10001] inline-flex items-center gap-1.5 rounded-full border border-danger/60 bg-danger px-3.5 py-2 text-xs font-semibold text-cream shadow-lg shadow-black/50 transition-colors hover:bg-danger/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/60 sm:left-6 sm:bottom-6"
-            :class="liftMobile ? 'bottom-[calc(4.5rem_+_env(safe-area-inset-bottom))]' : 'bottom-4'"
-            @click="escape"
-        >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="h-4 w-4"
-                aria-hidden="true"
+        <div class="pnc-exit fixed left-4 top-4 z-[10001] hidden md:block">
+            <button
+                type="button"
+                aria-label="Panic Button — sair da Limen agora. Atalho: pressione Esc duas vezes."
+                class="pnc-btn group relative flex h-9 w-9 items-center justify-center rounded-full border border-danger/60 bg-danger/90 text-cream shadow-lg shadow-black/40 transition-colors hover:bg-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/70"
+                @click="escape"
             >
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <path d="M16 17l5-5-5-5M21 12H9" />
-            </svg>
-            Saída rápida
-        </button>
+                <!-- Ícone de porta/seta de saída. -->
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="h-4 w-4"
+                    aria-hidden="true"
+                >
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <path d="M16 17l5-5-5-5M21 12H9" />
+                </svg>
+
+                <!-- Rótulo revelado só no hover/foco. Posicionado ABSOLUTO (nunca
+                     empurra layout) e controlado por opacidade — a transição
+                     respeita prefers-reduced-motion (motion-safe). -->
+                <span
+                    class="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-danger/40 bg-background/95 px-2.5 py-1.5 text-left opacity-0 shadow-lg shadow-black/40 motion-safe:transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                >
+                    <span class="block text-xs font-semibold text-cream">Panic Button</span>
+                    <span class="block text-[10px] text-muted">Esc · Esc para sair</span>
+                </span>
+            </button>
+        </div>
     </Teleport>
 </template>

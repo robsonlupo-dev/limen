@@ -427,7 +427,7 @@ async function deleteSaved(id) {
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
                             <input v-model="form.available" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />
-                            💬 Disponíveis agora
+                            <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-success" /> Online agora
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
                             <input v-model="form.has_photo" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />

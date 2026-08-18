@@ -7,13 +7,17 @@ use App\Http\Requests\ToggleAvailabilityRequest;
 use Illuminate\Http\JsonResponse;
 
 /**
- * "Disponível para conversa" (Sprint 11) — o Caminho 3 do Interesse Expandido:
- * a performer sinaliza que quer ser abordada agora, em vez de buscar membros.
+ * Visibilidade da performer no catálogo (fix/panel-polish-v1).
  *
- * Um endpoint só, PATCH, idempotente. O estado é DERIVADO do carimbo
- * `available_for_chat_at` (PerformerProfile::isAvailableForChat), então "ligar"
- * é carimbar `now()` e "desligar" é `null` — não há booleano guardado a manter
- * em sincronia com um job.
+ * A presença "online" agora é DERIVADA da sessão (PerformerProfile::isOnline,
+ * a partir de `last_active_at`) — a performer fica online sozinha enquanto tem
+ * sessão ativa, sem botão. Este endpoint controla apenas o OPT-OUT
+ * `appear_offline`: ligado, ela fica invisível no catálogo (nunca aparece como
+ * online, faixa de atividade suprimida) mas CONTINUA recebendo mensagens
+ * normalmente — receber mensagem nunca dependeu deste estado.
+ *
+ * Um endpoint só, PATCH, idempotente. O campo é `visible` (desejo de aparecer);
+ * "invisível" é `appear_offline = true`.
  */
 class AvailabilityController extends Controller
 {
@@ -23,25 +27,25 @@ class AvailabilityController extends Controller
         $profile = $user->performerProfile;
 
         // Conta de performer sem perfil (onboarding nunca concluído): não há o
-        // que sinalizar. 404 e não 500 — o dashboard não oferece o toggle nesse
+        // que ajustar. 404 e não 500 — o dashboard não oferece o toggle nesse
         // estado, então quem chega aqui é requisição fora do fluxo.
         abort_unless($profile !== null, 404);
 
-        $desired = $request->desiredValue() ?? ! $profile->isAvailableForChat();
+        // Sem `visible` no corpo, inverte o estado atual (visível = ! appear_offline).
+        $desiredVisible = $request->desiredVisible() ?? $profile->appear_offline;
 
-        // forceFill: `available_for_chat_at` fica FORA do $fillable de propósito
-        // (mesma regra de discrete_mode e do segredo do 2FA) — a escrita só
-        // acontece aqui, por atribuição direta, nunca de um payload de massa.
+        // forceFill: `appear_offline` fica FORA do $fillable de propósito (mesma
+        // regra de discrete_mode e do segredo do 2FA) — a escrita só acontece
+        // aqui, por atribuição direta, nunca de um payload de massa.
         $profile->forceFill([
-            'available_for_chat_at' => $desired ? now() : null,
+            'appear_offline' => ! $desiredVisible,
         ])->save();
 
         return response()->json([
-            'is_available' => $profile->isAvailableForChat(),
-            // Faixa, nunca relógio — e null quando desligado. É o dado dela na
-            // tela dela, mas a faixa mantém a disciplina de linguagem do resto
-            // do produto (ver PerformerProfile::availabilityRemainingLabel).
-            'remaining_label' => $profile->availabilityRemainingLabel(),
+            // O estado do TOGGLE (visível/invisível), não a presença ao vivo:
+            // "online agora" depende de last_active_at e é decidido na leitura do
+            // catálogo, não aqui. A tela reflete só a escolha da performer.
+            'visible' => ! $profile->appear_offline,
         ]);
     }
 }

@@ -6,7 +6,12 @@ use App\Http\Requests\Web\Concerns\FailsValidationAsJson;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Toggle de "Disponível para conversa" (Sprint 11).
+ * Toggle de VISIBILIDADE da performer (fix/panel-polish-v1).
+ *
+ * Substituiu o "Disponível para conversa" manual do Sprint 11: a presença agora
+ * deriva da sessão, e este toggle controla só o OPT-OUT `appear_offline`. O
+ * campo é `visible` (desejo de aparecer), traduzido para `appear_offline` no
+ * controller.
  *
  * Rota WEB consumida pelo `patchJson` do dashboard — usa FailsValidationAsJson
  * para o erro de validação sair 422 JSON, não redirect com erros de sessão
@@ -25,15 +30,16 @@ class ToggleAvailabilityRequest extends FormRequest
     {
         return [
             // Opcional: sem ele, inverte o estado atual. Com ele, o cliente diz
-            // o estado que quer — o que torna o duplo clique / retry inofensivo,
-            // mesmo padrão do ToggleDiscreteModeRequest.
-            'available' => ['sometimes', 'boolean'],
+            // se quer aparecer (`true`) ou ficar invisível (`false`) — o que
+            // torna o duplo clique / retry inofensivo, mesmo padrão do
+            // ToggleDiscreteModeRequest.
+            'visible' => ['sometimes', 'boolean'],
         ];
     }
 
-    /** O estado desejado, ou null para inverter o atual. */
-    public function desiredValue(): ?bool
+    /** O estado de visibilidade desejado, ou null para inverter o atual. */
+    public function desiredVisible(): ?bool
     {
-        return $this->has('available') ? $this->boolean('available') : null;
+        return $this->has('visible') ? $this->boolean('visible') : null;
     }
 }

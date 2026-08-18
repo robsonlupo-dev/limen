@@ -1926,7 +1926,16 @@ fire-and-forget com `keepalive`, e sai com `location.replace` (o Voltar não
 devolve a Limen). O duplo-Escape e o `keepalive` são cobrados por
 `PanicButtonLayerTest`.
 
-**Apresentação atual (`feat/performer-nav-restructure`, ago/2026 — pedido do PO):**
+> **SUPERADO na apresentação por `fix/panel-polish-v1` (ago/2026).** A pílula
+> rotulada "Saída rápida" no canto INFERIOR-esquerdo virou um **ÍCONE
+> desktop-only no canto SUPERIOR-esquerdo**, com rótulo "Panic Button" (inglês)
+> só no hover/foco, e **some no celular** (a `liftMobile` foi removida). A
+> LÓGICA (`escape()`, duplo-Escape, `keepalive`, `z-[10001]`, Teleport) é a
+> mesma. Ver a § "Ajustes do painel — presença por sessão + Panic Button
+> desktop-only (`fix/panel-polish-v1`)". A descrição abaixo (pílula rotulada,
+> inferior-esquerda, PT, `liftMobile`) é HISTÓRICA e vale só até aquela branch.
+
+**Apresentação (`feat/performer-nav-restructure`, ago/2026 — pedido do PO):**
 o antigo LINK inline no header + o DISCO no topo direito viraram **UMA pílula
 flutuante rotulada "Saída rápida"** (português, antes era "Panic Button" em
 inglês), teleportada, no **canto INFERIOR-ESQUERDO**, em **cor de ALERTA
@@ -1956,6 +1965,88 @@ inglês), teleportada, no **canto INFERIOR-ESQUERDO**, em **cor de ALERTA
   `v-if="isLoggedIn"`. Saiu do fluxo da `<nav>`: não é mais item de menu.
   `PanicButtonVisibilityTest` foi reescrito para o novo contrato (rótulo PT,
   `bg-danger`, teleporte/`z-[10001]`, inferior-esquerda, sem `pr-16` no header).
+
+## Ajustes do painel — presença por sessão + Panic Button desktop-only (`fix/panel-polish-v1`)
+
+Três ajustes do painel (ago/2026, PR pendente, sobre a `feat/performer-nav-restructure`).
+**Nenhuma rota, permissão ou lógica de negócio muda em nada aqui** — presença de
+mensagem, ledger e privacidade seguem intactos; muda a APRESENTAÇÃO e a semântica
+de um sinal de vitrine. Mobile primeiro (regra do CLAUDE.md). Suíte MySQL verde
+(só o `GeoBlockTest` 451 deste clone falha).
+
+### 1. Panic Button — desktop-only, só ícone (decisão do PO)
+
+No celular a saída NATIVA (bloquear o aparelho) é mais rápida que qualquer botão
+nosso, então o botão flutuante **some no mobile** (`hidden md:block`) — a saída
+da CONTA no celular fica no menu do avatar/"Sair". No **desktop** vira um **ÍCONE
+pequeno e discreto** (porta/seta de saída) em **vermelho (`bg-danger`)**, no canto
+**SUPERIOR-ESQUERDO**; o rótulo **"Panic Button" (em INGLÊS, decisão do PO — menos
+legível de relance para quem passa perto)** + a menção ao atalho Esc só aparecem
+no **hover/foco** (rótulo em `opacity-0` → `group-hover/​group-focus-visible`,
+posicionado ABSOLUTO, nunca empurra layout; transição sob `motion-safe`). Clique
+sai na hora. **A LÓGICA é intocável:** `escape()` (sessionStorage, `history.replace`,
+logout `keepalive`, `location.replace`), o `z-[10001]` teleportado e o **duplo-Escape
+SEMPRE ATIVO em toda largura** (o listener em `window` independe do ícone estar
+renderizado — a via de teclado funciona no celular também). A prop `liftMobile` saiu
+(o ícone não existe mais no mobile); o AppLayout monta `<PanicButton />` sem prop.
+Contrato travado em `PanicButtonVisibilityTest` (desktop-only, ícone/rótulo inglês
+no hover, superior-esquerda, alerta) + `PanicButtonLayerTest` (camada/lógica, sem
+mudança) + `UatPhase1Round3Test`.
+
+### 2. Presença da performer — DERIVADA da sessão, opt-out para invisível
+
+**Verificação pedida pelo PO, respondida ANTES de mexer:** o toggle antigo
+"Disponível para conversa" (Sprint 11) **NÃO bloqueava o recebimento de mensagens**
+— `ChatService`/`ChatAccessService` nunca olharam `available_for_chat_at`. Ele só
+afetava **visibilidade/ordenação** (o badge no perfil, o filtro "Disponíveis agora",
+nada de ordenação de fato). Confirmado no código em HEAD.
+
+A partir daqui a presença **deriva da ATIVIDADE REAL**, não de um botão:
+- **`PerformerProfile::isOnline()`** (dona única) = **não** está em opt-out E
+  `users.last_active_at` dentro de **`ONLINE_WINDOW_MINUTES` (10)**. O carimbo é
+  mantido pelo middleware **`TrackPerformerActivity`** que já existia (bumpa a cada
+  ~5min de sessão ativa, suprimido por Ghost/Invisível). A janela (10min) é maior
+  que o throttle (5min) para a performer não piscar entre online/offline lendo uma
+  página sem navegar. Vence na LEITURA, sem job — como `is_live`. Substituiu
+  `isAvailableForChat()` e a janela de 4h (removidas); `scopeAvailableForChat`
+  virou **`scopeOnline`**; o filtro `available` do catálogo virou **"Online agora"**
+  (chave `available` mantida por compat de saved-search / FilterPanel — só a
+  semântica e o rótulo mudaram). O resource segue expondo só o BOOLEANO
+  `is_available` (= `isOnline`), NUNCA um carimbo.
+- **Sem expiração de 4h:** sem botão manual, não há o que expirar — a performer
+  some quando a sessão encerra / fica inativa (a janela de 10min vence na leitura).
+- **O toggle do painel virou OPT-OUT: `appear_offline`** (booleano, default FALSE,
+  `NOT NULL`; `$hidden` e FORA do `$fillable` — escrita só por forceFill no
+  `AvailabilityController`, disciplina de `discrete_mode`/2FA). Ligado ("aparecer
+  offline"), a performer fica **invisível no catálogo**: nunca aparece como online
+  (`isOnline` retorna false na 1ª guarda) **E a faixa de atividade some**
+  (`activity_label` suprimido no resource quando `appear_offline`). O endpoint
+  (`PATCH /performer/disponibilidade`, campo `visible`) responde `{ visible }`; o
+  dashboard reflete só a escolha (não a presença ao vivo). **Receber mensagem NUNCA
+  depende deste estado** (invariante travada por teste: membro com acesso envia
+  normalmente a uma performer invisível).
+- **Copy do painel:** online → "Você aparece como online para quem está procurando
+  agora."; invisível → "Você está invisível no catálogo. Continua recebendo
+  mensagens normalmente." Bolinha de presença **verde (`bg-success`)**, distinta do
+  `limen-live` vermelho (exclusivo do ao vivo). O badge de perfil (`Catalog/Show`,
+  `Performers/Show`) passou de "💬 Disponível para conversa" para **bolinha verde +
+  "Online agora"**; o filtro idem.
+- **SÓ PERFORMER. Presença de MEMBRO continua NUNCA exposta** (decisão registrada):
+  nada aqui cria indicador de presença de membro. `isOnline`/`scopeOnline` vivem no
+  perfil da performer e não têm espelho do lado do membro.
+- **`available_for_chat_at` fica VESTIGIAL** no schema (sem drop): não é mais lido
+  nem escrito; segue `$hidden` e o Hard Delete o zera junto com `appear_offline`.
+  Migration `2026_08_18_000001_add_appear_offline_to_performer_profiles`.
+- Testes: o antigo `PerformerAvailabilityTest` virou **`PerformerPresenceTest`**
+  (toggle de visibilidade, derivação da janela de 10min, opt-out apaga online+faixa,
+  filtro "Online agora", **mensagem chega com a performer invisível**, privacidade
+  do flag/carimbo, fillable, Hard Delete).
+
+### 3. Landing — rótulo "Residente" → "Anfitrião"
+
+Só o rótulo VISÍVEL do seletor de papel no wizard da waitlist (`Landing.vue`); o
+valor técnico `performer` fica intacto. Nenhum teste asserta a string (verificado);
+nenhum outro arquivo tocado.
 
 ## Navegação do painel da performer — mobile primeiro (`feat/performer-nav-restructure`)
 
