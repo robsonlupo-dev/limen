@@ -1164,6 +1164,36 @@ oráculo para reconstruir quem a lista esconde — disciplina do
 - **Só membro verificado e ativo** (`role=consumer`, `status=active`,
   `email_verified_at` não-nulo) — throwaway não é exposto à performer.
 
+## Ícone "Conversar" do card no catálogo do membro — `fix/member-chat-click`
+
+Correção de UX (ago/2026, PR pendente, base `main`). O ícone de balão no card de
+performer do catálogo do membro (`PerformerCard.vue`) levava SEMPRE ao perfil, e a
+percepção era de "o botão de chat não abre o chat". **NÃO era vazamento de clique** —
+o ícone sempre foi um `<Link>` IRMÃO (não aninhado, `z-20`) com `href` = o perfil, de
+propósito: **chat membro→performer é interest-gated (M.13.1), não existe chat frio.**
+`chat.show` é bound a uma `Conversation` existente (404 sem ela) e `/chat` é só a
+lista — nenhum dos dois abre conversa com uma performer específica que ainda não
+mandou Interesse. O CTA de chat + o paywall vivem no perfil.
+
+Decisão do PO (Opção "inteligente"): o ícone passa a **abrir a conversa quando ela
+JÁ existe**, e só cair no perfil quando não existe (o único lugar onde o chat começa).
+
+- **Backend (`CatalogController::index`):** uma query batched (mesmo molde de
+  `is_following`/`is_favorited`, nunca N+1) resolve o id da conversa aberta do membro
+  com cada performer da página → `chat_conversation_id` no payload (null = sem
+  conversa). É a conversa do PRÓPRIO membro; só o id trafega (nunca estado de
+  acesso/paywall), e `chat.show` reconfere `can view` (404), então o id não é oráculo.
+- **Front (`PerformerCard.vue`):** `chatHref` = `route('chat.show', chat_conversation_id)`
+  quando há id, senão `profileHref`. `aria-label` honesto: "Abrir conversa" vs "Ver
+  perfil para conversar". Fallback ao perfil quando a prop não vem (o card é reusado
+  em Favoritos etc. sem esse dado). **O gate de tokens/interesse segue no destino** — o
+  front não pula o `ChatController`.
+- **Nada muda no lado da performer** (`/performer/membros`, onde a performer INICIA o
+  chat por modal/`sendCatalogMessage`) — direção oposta, intocada. Teste:
+  `MemberChatClickTest` trava o contrato do payload (null sem conversa, id com conversa,
+  não vaza a conversa de outro membro). `npm run build` limpo; suíte MySQL verde (só o
+  `GeoBlockTest` 451 deste clone falha).
+
 ## Catálogo de membros como HOME + motor de engajamento — `feat/member-catalog-home-engagement` (PR #173, mergeado na `main`)
 
 Evolução do PR #165. **O catálogo de membros virou a HOME da performer** (antes era o

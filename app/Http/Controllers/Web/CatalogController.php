@@ -118,6 +118,23 @@ class CatalogController extends Controller
             $profile->slug => in_array($profile->id, $favoritedIds, true),
         ]);
 
+        // Id da conversa JÁ ABERTA do membro com cada performer da página (uma
+        // query, mesmo molde dos blocos acima — por card seria N+1). Chat é
+        // interest-gated: só existe conversa se a performer mandou Interesse e o
+        // membro desbloqueou (ou Círculo ativo). Serve o ícone "Conversar" do card
+        // (fix/member-chat-click): COM conversa, o ícone abre `chat.show` direto;
+        // SEM conversa, cai no perfil — o único lugar onde o chat pode começar. É
+        // só o id (para o <Link>), NUNCA estado de acesso/paywall. É a conversa do
+        // PRÓPRIO membro; `chat.show` reconfere `can view` (404), então o id não é
+        // oráculo. Chaveado por slug como o resto.
+        $conversationIdByProfileId = Conversation::where('member_id', $request->user()->id)
+            ->whereIn('performer_profile_id', $profiles->pluck('id'))
+            ->pluck('id', 'performer_profile_id');
+
+        $conversationBySlug = $profiles->mapWithKeys(fn ($profile) => [
+            $profile->slug => $conversationIdByProfileId[$profile->id] ?? null,
+        ]);
+
         // Trilha "Agora" (redesign do catálogo): quem está AO VIVO agora no mundo
         // corrente, para o topo do catálogo. Independente do filtro/paginação — é
         // "quem está ao vivo agora", não a busca — mas no MESMO recorte público
@@ -158,6 +175,9 @@ class CatalogController extends Controller
                 'is_following' => $followingBySlug[$item['slug']] ?? false,
                 'has_unseen_stories' => $unseenBySlug[$item['slug']] ?? false,
                 'is_favorited' => $favoritedBySlug[$item['slug']] ?? false,
+                // null = sem conversa aberta → o ícone leva ao perfil (onde o
+                // chat começa); com id → abre a conversa direto (fix/member-chat-click).
+                'chat_conversation_id' => $conversationBySlug[$item['slug']] ?? null,
             ]))
             ->all();
 
