@@ -3896,6 +3896,29 @@ os destinos são os de sempre.** Mobile primeiro. Detalhe completo em CLAUDE.md,
   inferior, wiring do AppLayout). **Zero rota nova no Ziggy.** `npm run build` limpo; suíte
   MySQL **2041/2042** (só o `GeoBlockTest` 451 deste clone falha).
 
+### Ícone "Conversar" do card no catálogo do membro — EM BRANCH (`fix/member-chat-click`, base `main`)
+
+Correção de UX: o ícone de balão no card de performer do catálogo do membro
+(`PerformerCard.vue`) parecia "não abrir o chat" — levava ao perfil. **Diagnóstico:
+NÃO é vazamento de clique.** O ícone sempre foi um `<Link>` irmão (não aninhado, `z-20`)
+apontando ao perfil de propósito, porque chat membro→performer é **interest-gated
+(M.13.1) — não há chat frio** (`chat.show` exige `Conversation` existente → 404; `/chat`
+é só a lista). O CTA de chat + o paywall vivem no perfil.
+
+Decisão do PO (opção "inteligente"): o ícone **abre a conversa quando ela JÁ existe**;
+sem conversa, cai no perfil (o único lugar onde o chat começa).
+
+- **Backend** (`CatalogController::index`): query batched (molde de `is_following`,
+  não N+1) injeta `chat_conversation_id` por performer no payload (null sem conversa).
+  Só o id do PRÓPRIO membro trafega; `chat.show` reconfere `can view` (404) → não é
+  oráculo.
+- **Front** (`PerformerCard.vue`): `chatHref` = `chat.show` com id, senão o perfil;
+  `aria-label` "Abrir conversa" vs "Ver perfil para conversar". Fallback ao perfil onde
+  o card é reusado sem a prop (Favoritos). Gate de tokens/interesse segue no destino.
+- **Lado da performer intocado** (`/performer/membros`, onde ELA inicia o chat). Teste
+  `MemberChatClickTest` (contrato do payload; não vaza conversa de outro membro).
+  `npm run build` limpo; suíte MySQL **2044/2045** (só o `GeoBlockTest` 451 deste clone).
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),

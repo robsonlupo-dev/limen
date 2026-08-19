@@ -35,6 +35,18 @@ const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
 
 const profileHref = computed(() => route('catalog.show', props.performer.slug))
 
+// Ícone "Conversar" (fix/member-chat-click): chat membro→performer é
+// interest-gated — não há chat frio. Se o membro JÁ tem conversa aberta com esta
+// performer (Interesse desbloqueado ou Círculo ativo), o ícone abre a conversa
+// direto; senão leva ao PERFIL, o único lugar onde o chat pode começar (é lá que
+// vivem o CTA de "Iniciar conversa" e o paywall). `chat_conversation_id` vem do
+// catálogo (uma query batched, não estado por card). Fallback ao perfil quando a
+// prop não existe (o card é reusado em telas sem esse dado — Favoritos etc.).
+const hasChat = computed(() => !!props.performer.chat_conversation_id)
+const chatHref = computed(() =>
+    hasChat.value ? route('chat.show', props.performer.chat_conversation_id) : profileHref.value,
+)
+
 // Foto de perfil preenche o card. Sem avatar cai na capa; sem nenhuma, no
 // placeholder. object-cover recorta para o retrato 3:4.
 const photoUrl = computed(() => props.performer.avatar_url || props.performer.cover_url || null)
@@ -206,13 +218,14 @@ onBeforeUnmount(stopPreview)
              clique. Bookmark é PRIVADO — nada daqui chega à performer, e por isso
              não há contador (ver FavoriteService). -->
         <div v-if="canFavorite" class="absolute bottom-3 right-3 z-20 flex items-center gap-2">
-            <!-- Mensagem: leva ao PERFIL, onde vive o CTA de chat interest-gated
-                 (não há chat frio; o catálogo não carrega estado de conversa por
-                 performer). O front NÃO pula o ChatController — o gate de tokens/
-                 interesse continua na tela de destino. -->
+            <!-- Conversar (fix/member-chat-click): COM conversa aberta abre o chat
+                 direto; SEM conversa leva ao perfil, o único lugar onde o chat
+                 pode começar (chat membro→performer é interest-gated — não há chat
+                 frio). Irmão do <Link> de navegação (nunca aninhado); trata o
+                 próprio clique. O gate de tokens/interesse segue no destino. -->
             <Link
-                :href="profileHref"
-                aria-label="Conversar"
+                :href="chatHref"
+                :aria-label="hasChat ? 'Abrir conversa' : 'Ver perfil para conversar'"
                 class="grid h-9 w-9 place-items-center rounded-full bg-black/45 text-limen-gold ring-1 ring-limen-gold/40 backdrop-blur-sm transition-colors hover:bg-black/65 hover:ring-limen-gold/70"
             >
                 <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
