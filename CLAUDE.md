@@ -1358,6 +1358,14 @@ de 2. **Nenhuma mudança na economia/ledger/cobrança — é leitura e apresenta
   cobrança única"**; e a linha redundante "Pague para ver as mensagens desta conversa."
   (embaixo do card) foi removida quando o card já está acima. **A economia não muda** —
   é uma cobrança só, agora explícita.
+- **[7] LISTA DE CONVERSAS mostrava o nome da PRÓPRIA performer em toda linha.** O
+  payload do `ChatController::index` só trazia `performer.stage_name`, então a performer
+  via o próprio nome em todas as conversas e não distinguia uma da outra. Agora cada
+  linha traz `title` = o OUTRO participante: à performer, o MEMBRO por **FanAlias**
+  (nunca dado real — M.13.10, resolvido por par); ao membro, a performer (nome público).
+  Prop `viewerIsPerformer` só ajusta a copy do estado vazio. `ChatListTitleTest` trava:
+  performer vê o alias do membro (não o próprio nome, não nome/e-mail reais), membro vê
+  a performer, e cada linha casa com o alias do SEU membro.
 
 ## Ícone "Conversar" do card no catálogo do membro — `fix/member-chat-click`
 

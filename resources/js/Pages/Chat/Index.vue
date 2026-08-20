@@ -6,6 +6,9 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 const props = defineProps({
     conversations: { type: Object, required: true }, // paginator
     accessCost: { type: Number, required: true },
+    // A performer vê o MEMBRO (FanAlias) em cada linha; o membro vê a performer.
+    // O título já vem resolvido por lado no `c.title`; este flag é só para a copy.
+    viewerIsPerformer: { type: Boolean, default: false },
 })
 
 const page = usePage()
@@ -72,7 +75,9 @@ onBeforeUnmount(() => {
             <h1 class="font-serif text-2xl text-cream mb-6">Mensagens</h1>
 
             <p v-if="items.length === 0" class="text-sm text-muted py-12 text-center">
-                Você ainda não tem conversas. Elas aparecem aqui quando uma performer demonstra interesse e você desbloqueia.
+                {{ viewerIsPerformer
+                    ? 'Nenhuma conversa ainda. Elas aparecem aqui quando um membro escreve para você ou você inicia pelo catálogo.'
+                    : 'Você ainda não tem conversas. Elas aparecem aqui quando você escreve para uma performer ou uma performer fala com você.' }}
             </p>
 
             <ul v-else class="divide-y divide-frame/50 rounded-2xl border border-frame/60 overflow-hidden">
@@ -81,14 +86,14 @@ onBeforeUnmount(() => {
                         :href="route('chat.show', c.id)"
                         class="flex items-center gap-4 px-4 py-4 no-underline hover:bg-surface/60 transition-colors"
                     >
-                        <!-- Avatar (inicial) -->
+                        <!-- Avatar (inicial do OUTRO participante) -->
                         <div class="h-12 w-12 shrink-0 rounded-full border border-gold/40 bg-surface-2 flex items-center justify-center">
-                            <span class="font-serif text-lg text-gold">{{ c.performer.stage_name?.charAt(0) }}</span>
+                            <span class="font-serif text-lg text-gold">{{ c.title?.charAt(0) }}</span>
                         </div>
 
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center justify-between gap-2">
-                                <span class="text-cream font-medium truncate">{{ c.performer.stage_name }}</span>
+                                <span class="text-cream font-medium truncate">{{ c.title }}</span>
                                 <span class="text-xs text-muted shrink-0">{{ when(c.last_message_at) }}</span>
                             </div>
                             <div class="flex items-center justify-between gap-2 mt-0.5">
