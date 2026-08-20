@@ -3243,6 +3243,34 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 > título descritivo único (o nome da feature), nunca o "próximo número"**. As entradas
 > abaixo foram convertidas; os antigos rótulos `A.0.x` foram removidos.
 
+### Extrato de ganhos da performer + correções de UX do chat no mobile (`fix/chat-ux-mobile`, PR pendente)
+
+Sobre a `feat/chat-economy-v2` (base `main` 34f1a30). Seis correções de UX, **mobile
+primeiro**, sem tocar economia/ledger/cobrança (é leitura e apresentação). Suíte MySQL
+**2073/2074** (só o `GeoBlockTest` 451 do clone de dev falha), `npm run build` limpo.
+Detalhe canônico no `CLAUDE.md`, § "Extrato de ganhos + UX de chat no mobile".
+
+1. **Extrato de GANHOS (o mais importante)** — `performer.earnings.index`, na seção
+   Ganhos (subnav "Extrato"). SOMENTE LEITURA do ledger (`PerformerEarningsService`):
+   cada crédito mostra bruto pago pelo membro · % congelado · líquido dela (4 casas), o
+   bruto DERIVADO (`líquido × 100 ÷ taxa`, bcmath). Fecha a quebra de confiança: a
+   performer confere que 1,6000 é 80% de 2. Membro SEMPRE por FanAlias (o chat, sem
+   alias na description, vem do elo `chat_access.credit_ledger_id`); filtro por período
+   e tipo; saldo em destaque com decimais + redação M.13.5. `PerformerEarningsTest`
+   trava a corretude e a não-exposição de dado real do membro.
+2. **Texto cortado pela barra inferior** — o `Chat/Show` usava altura de viewport FIXA
+   que ignorava a folga do rodapé; agora desconta a barra no mobile com `dvh` +
+   `safe-area`. Só o chat tinha esse padrão (as demais telas usam `min-h-screen`).
+3. **Título da conversa colidindo** — cabeçalho empilha no retrato (nome com
+   `truncate`, etiqueta "Expira em N dias" abaixo), lado a lado no desktop.
+4. **Teaser de 2 caracteres** — `MessageTeaser` agora revela ~40 chars ou 8 palavras (o
+   que vier primeiro), corte SEGUE server-side, piso de "nunca a mensagem inteira".
+5. **Nome truncado no card** — no retrato as ações sobem para acima da barra do nome,
+   liberando a linha inteira (`PerformerCard.vue`); desktop intocado.
+6. **Dois caminhos de pagamento** — quando a performer iniciou, o card "Pagar para ler"
+   e o hint do compositor pareciam duas cobranças; o hint passa a dizer "cobrança
+   única" e a linha redundante saiu. É a MESMA janela — sem mudança na economia.
+
 ### Ajustes do painel — presença por sessão + Panic Button desktop-only (`fix/panel-polish-v1`, PR pendente)
 
 Três ajustes do painel (ago/2026, sobre a `feat/performer-nav-restructure`).

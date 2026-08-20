@@ -219,7 +219,11 @@ onBeforeUnmount(stopPreview)
              disputaria a navegação). z acima do link, cada uma trata o próprio
              clique. Bookmark é PRIVADO — nada daqui chega à performer, e por isso
              não há contador (ver FavoriteService). -->
-        <div v-if="canFavorite" class="absolute bottom-3 right-3 z-20 flex items-center gap-2">
+        <!-- No retrato (card estreito, 2 colunas) as ações sobem para ACIMA da
+             barra do nome, liberando a linha inteira para o nome (item 5:
+             "Sta..."/"An..." acontecia porque os ícones comiam a largura). No
+             desktop (card largo) seguem no canto inferior direito. -->
+        <div v-if="canFavorite" class="absolute bottom-16 right-3 z-20 flex items-center gap-2 sm:bottom-3">
             <!-- Conversar (feat/chat-economy-v2): COM conversa aberta abre o chat
                  direto; SEM conversa abre a tela de conversa em modo compor
                  (chat.with), onde o membro digita e paga ao ENVIAR. Irmão do <Link>
@@ -361,9 +365,10 @@ onBeforeUnmount(stopPreview)
                      clique atravessa para a foto/link. -->
                 <div class="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#100d0a] via-[#100d0a]/70 to-transparent" />
 
-                <!-- Barra inferior: nome + selo, e "Ativa hoje" abaixo. pr-24
-                     reserva o canto para o cluster de ações. -->
-                <div class="absolute inset-x-0 bottom-0 p-3 pr-24">
+                <!-- Barra inferior: nome + selo, e "Ativa hoje" abaixo. No retrato o
+                     nome ocupa a linha inteira (as ações subiram para acima da barra);
+                     no desktop, pr-24 reserva o canto para o cluster de ações. -->
+                <div class="absolute inset-x-0 bottom-0 p-3 sm:pr-24">
                     <div class="flex items-center gap-1.5 min-w-0">
                         <h3 class="font-serif leading-tight text-limen-ink truncate" :class="featured ? 'text-2xl' : 'text-base'">{{ performer.stage_name }}</h3>
                         <!-- UM selo dourado. Maison/Select ganham variação sutil

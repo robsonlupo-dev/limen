@@ -200,23 +200,29 @@ watch(() => props.messages.data.length, scrollToBottom)
 
 <template>
     <AppLayout :title="`Chat com ${conversation.performer.stage_name}`">
-        <div class="max-w-2xl mx-auto px-4 sm:px-6 py-6 flex flex-col h-[calc(100vh-9rem)]">
-            <!-- Cabeçalho -->
-            <div class="flex items-center justify-between pb-4 border-b border-frame/60">
-                <div class="flex items-center gap-3">
-                    <Link :href="route('chat.index')" class="text-muted hover:text-cream transition-colors no-underline">←</Link>
-                    <h1 class="font-serif text-xl text-cream">{{ conversation.performer.stage_name }}</h1>
+        <!-- h-full na base do calc: no celular o rodapé fixo (barra de navegação)
+             cobre ~6rem + safe-area; sem descontá-los, o compositor e a linha de
+             custo ficam ATRÁS da barra (o saldo some). Desconta no mobile e usa dvh
+             (barra do navegador móvel); no desktop não há rodapé fixo. -->
+        <div class="max-w-2xl mx-auto px-4 sm:px-6 py-6 flex flex-col h-[calc(100dvh-9rem-6rem-env(safe-area-inset-bottom))] md:h-[calc(100vh-9rem)]">
+            <!-- Cabeçalho: no retrato empilha (nome em cima, etiqueta abaixo) para o
+                 nome longo não colidir com a etiqueta de expiração; lado a lado no
+                 desktop. O nome trunca com reticências (min-w-0 deixa o flex encolher). -->
+            <div class="flex flex-col gap-1.5 pb-4 border-b border-frame/60 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <div class="flex min-w-0 items-center gap-3">
+                    <Link :href="route('chat.index')" class="shrink-0 text-muted hover:text-cream transition-colors no-underline" aria-label="Voltar às conversas">←</Link>
+                    <h1 class="min-w-0 truncate font-serif text-xl text-cream">{{ conversation.performer.stage_name }}</h1>
                 </div>
                 <span
                     v-if="showTimer"
-                    class="text-xs rounded-full border border-gold/30 bg-gold/5 px-3 py-1 text-gold"
-                    :title="access.expires_at"
+                    class="shrink-0 self-start text-xs rounded-full border border-gold/30 bg-gold/5 px-3 py-1 text-gold sm:self-auto"
+                    :title="`Acesso expira em ${access.days_remaining} ${access.days_remaining === 1 ? 'dia' : 'dias'}`"
                 >
-                    Acesso expira em {{ access.days_remaining }} {{ access.days_remaining === 1 ? 'dia' : 'dias' }}
+                    Expira em {{ access.days_remaining }} {{ access.days_remaining === 1 ? 'dia' : 'dias' }}
                 </span>
                 <span
                     v-else-if="access.state === 'subscriber'"
-                    class="text-xs rounded-full border border-gold/30 bg-gold/5 px-3 py-1 text-gold"
+                    class="shrink-0 self-start text-xs rounded-full border border-gold/30 bg-gold/5 px-3 py-1 text-gold sm:self-auto"
                 >
                     Chat livre · Círculo ativo
                 </span>
@@ -259,7 +265,10 @@ watch(() => props.messages.data.length, scrollToBottom)
                 <p v-if="isComposeMode" class="text-center text-sm text-muted py-8">
                     Envie a primeira mensagem para {{ conversation.performer.stage_name }}.
                 </p>
-                <p v-else-if="!access.can_read && orderedMessages.length === 0" class="text-center text-sm text-muted py-8">
+                <!-- Sem a linha redundante quando o card "Pagar para ler" já está
+                     acima (item 6): dois textos dizendo o mesmo confundem. Só aparece
+                     no caso raro de conversa sem card de pagamento e sem mensagens. -->
+                <p v-else-if="!access.can_read && orderedMessages.length === 0 && !showAccessBanner" class="text-center text-sm text-muted py-8">
                     Pague para ver as mensagens desta conversa.
                 </p>
                 <p v-else-if="orderedMessages.length === 0" class="text-center text-sm text-muted py-8">
@@ -327,9 +336,15 @@ watch(() => props.messages.data.length, scrollToBottom)
                         Enviar
                     </Button>
                 </form>
-                <!-- Custo mostrado ANTES da cobrança (feat/chat-economy-v2): o membro
-                     sem janela vigente vê que o próximo envio abre e paga 30 dias. -->
-                <p v-if="showCostHint" class="text-center text-xs text-muted pt-2">
+                <!-- Custo mostrado ANTES da cobrança. Quando o card "Pagar para ler"
+                     também aparece (a performer mandou algo), os dois caminhos abrem
+                     A MESMA janela — o texto deixa explícito que é UMA cobrança só,
+                     para o membro não achar que paga duas vezes. -->
+                <p v-if="showCostHint && showAccessBanner" class="text-center text-xs text-muted pt-2">
+                    Responder também abre os 30 dias — <span class="text-gold">{{ accessCost }}</span> tokens, cobrança única.
+                    Seu saldo: <span class="text-gold">{{ balance }}</span> tokens.
+                </p>
+                <p v-else-if="showCostHint" class="text-center text-xs text-muted pt-2">
                     Ao enviar, <span class="text-gold">{{ accessCost }}</span> tokens abrem 30 dias de conversa.
                     Seu saldo: <span class="text-gold">{{ balance }}</span> tokens.
                 </p>

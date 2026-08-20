@@ -51,6 +51,7 @@ use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\Moderation\VoiceIntroModerationController;
 use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\BoostController;
+use App\Http\Controllers\Web\Performer\EarningsController;
 use App\Http\Controllers\Web\Performer\CallSettingsController;
 use App\Http\Controllers\Web\Performer\DashboardController;
 use App\Http\Controllers\Web\Performer\FindableByCityController;
@@ -659,6 +660,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
 
         Route::get('/performer/payouts/history', [PayoutController::class, 'history'])
             ->name('performer.payouts.history')
+            ->can('performer-active');
+
+        // Extrato de GANHOS (fix/chat-ux-mobile): leitura dos créditos do ledger —
+        // de onde veio cada crédito, com bruto/percentual/líquido e o membro por
+        // FanAlias. Somente leitura; a performer confere que 1,6000 é 80% de 2.
+        Route::get('/performer/ganhos', [EarningsController::class, 'index'])
+            ->name('performer.earnings.index')
             ->can('performer-active');
 
         Route::post('/performer/payouts', [PayoutController::class, 'store'])
