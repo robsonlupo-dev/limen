@@ -61,6 +61,15 @@ const workModeLabels = {
 // /favoritos/{slug} exige), então o botão só aparece para ele.
 const page = usePage()
 const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
+
+// feat/chat-economy-v2: o membro pode INICIAR a conversa daqui (não é mais
+// interest-gated). Com conversa aberta abre o chat; sem conversa, abre a tela em
+// modo compor (chat.with), onde ele digita e paga ao ENVIAR a 1ª mensagem.
+const chatHref = computed(() =>
+    props.chat
+        ? route('chat.show', props.chat.conversation_id)
+        : route('chat.with', props.performer.slug),
+)
 const myUserId = computed(() => page.props.auth?.user?.id ?? 0)
 // Feature flags (Sprint 15). Off em produção → placeholders "Em breve".
 const features = computed(() => page.props.features ?? {})
@@ -215,9 +224,9 @@ function onTipSent(data) {
                 <!-- "Online agora" (fix/panel-polish-v1): presença DERIVADA da
                      sessão (is_available = isOnline), com destaque. Some quando
                      is_live (o LiveBadge do topo já sinaliza presença ao vivo). O
-                     CTA "Iniciar conversa" só aparece para o membro que já tem
-                     conversa aberta (chat interest-gated, sem chat frio) e leva à
-                     tela de chat — que resolve a compra de acesso se preciso. -->
+                     CTA "Iniciar conversa" aparece para qualquer membro
+                     (feat/chat-economy-v2: o chat deixou de ser interest-gated) e
+                     leva à tela de chat, onde ele paga ao ENVIAR a 1ª mensagem. -->
                 <div
                     v-if="performer.is_available && !performer.is_live"
                     class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-limen-gold/40 bg-limen-gold/5 px-4 py-3"
@@ -226,8 +235,8 @@ function onTipSent(data) {
                         <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-success" /> Online agora
                     </p>
                     <Link
-                        v-if="chat"
-                        :href="route('chat.show', chat.conversation_id)"
+                        v-if="canFavorite"
+                        :href="chatHref"
                         class="no-underline bg-limen-gold text-limen-bg px-4 py-1.5 rounded-lg text-sm hover:opacity-90 transition-opacity"
                     >
                         Iniciar conversa

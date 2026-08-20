@@ -38,20 +38,41 @@ const scroller = ref(null)
 
 const isMember = computed(() => ['none', 'active', 'grace', 'expired'].includes(props.access.state))
 const showTimer = computed(() => props.access.state === 'active' && props.access.days_remaining !== null)
-// Banner de expiração: só ao membro sem janela vigente. Assinante/performer nunca.
-const showAccessBanner = computed(() => ['grace', 'expired', 'none'].includes(props.access.state))
+
+// feat/chat-economy-v2: modo COMPOR — a conversa ainda não existe (o membro abriu
+// o chat pela performer). O canal nasce e a cobrança acontece só no 1º envio.
+const isComposeMode = computed(() => props.conversation.id === null)
+const performerSlug = computed(() => props.conversation.performer.slug)
+
+// O compositor aparece para a performer (can_send) E para o membro em QUALQUER
+// estado (feat/chat-economy-v2: ele digita e paga ao enviar; não há mais botão de
+// desbloquear ANTES de compor). Conversa arquivada não chega aqui como membro.
+const showComposer = computed(() => props.access.can_send || isMember.value)
+
+// Aviso de custo do envio: só ao membro sem janela vigente. Deixa claro que o
+// próximo envio abre (e cobra) 30 dias — a cobrança passou do desbloqueio prévio
+// para o ATO DO ENVIO.
+const showCostHint = computed(() => isMember.value && ! props.access.can_send)
+
+// Banner "pagar para ler": só quando há conteúdo travado a LER — a performer
+// mandou algo (state 'none' com teaser) ou há histórico em carência/expirado.
+// No modo compor (sem teaser, sem histórico) o banner some: o membro só compõe.
+const showAccessBanner = computed(
+    () => ['grace', 'expired'].includes(props.access.state)
+        || (props.access.state === 'none' && props.teaser !== null),
+)
 const bannerCopy = computed(() => {
     if (props.access.state === 'grace') {
-        return 'Seu acesso expirou. Renove para continuar lendo e enviando mensagens.'
+        return 'Seu acesso expirou. Pague para continuar lendo o histórico.'
     }
     if (props.access.state === 'expired') {
-        return 'Seu acesso expirou e o histórico foi arquivado. Renove para reabrir a conversa.'
+        return 'Seu acesso expirou e o histórico foi arquivado. Pague para reabrir a conversa.'
     }
-    return 'Desbloqueie este chat para ler e enviar mensagens.'
+    return 'Pague para ler as mensagens que você recebeu.'
 })
 const renewLabel = computed(() =>
     props.access.state === 'none'
-        ? `Desbloquear acesso — ${props.accessCost} tokens`
+        ? `Pagar para ler — ${props.accessCost} tokens`
         : `Renovar acesso — ${props.accessCost} tokens`,
 )
 
@@ -91,13 +112,26 @@ async function send() {
     sending.value = true
     sendError.value = ''
     try {
-        await postJson(route('chat.messages.store', props.conversation.id), { body })
-        draft.value = ''
-        // Recarrega só as mensagens (corpo gateado no servidor) + estado/saldo.
-        // A nossa própria mensagem entra pelo reload; o parceiro recebe via Echo.
-        reloadThread()
+        if (isComposeMode.value) {
+            // Modo compor: o canal nasce agora. O backend cria a conversa, cobra o
+            // tier no envio e devolve o id — navegamos para a conversa real.
+            const res = await postJson(route('chat.start', performerSlug.value), { body })
+            draft.value = ''
+            router.visit(route('chat.show', res.conversation_id))
+        } else {
+            // Conversa existente: enviar cobra automaticamente se não houver janela
+            // vigente (feat/chat-economy-v2). Recarrega só as mensagens (corpo
+            // gateado no servidor) + estado/saldo; o parceiro recebe via Echo.
+            await postJson(route('chat.messages.store', props.conversation.id), { body })
+            draft.value = ''
+            reloadThread()
+        }
     } catch (e) {
-        sendError.value = e.data?.message ?? 'Não foi possível enviar. Tente novamente.'
+        // Texto PRESERVADO no campo (não limpamos `draft` no erro): mensagem barrada
+        // pelo filtro ou saldo insuficiente não perde o que foi digitado.
+        sendError.value = e.status === 422 && e.data?.reason === 'insufficient_balance'
+            ? 'Saldo insuficiente. Compre tokens na sua carteira para enviar.'
+            : (e.data?.message ?? 'Não foi possível enviar. Tente novamente.')
     } finally {
         sending.value = false
     }
@@ -222,8 +256,11 @@ watch(() => props.messages.data.length, scrollToBottom)
                     </button>
                 </div>
 
-                <p v-if="!access.can_read && orderedMessages.length === 0" class="text-center text-sm text-muted py-8">
-                    Desbloqueie o acesso para ver as mensagens desta conversa.
+                <p v-if="isComposeMode" class="text-center text-sm text-muted py-8">
+                    Envie a primeira mensagem para {{ conversation.performer.stage_name }}.
+                </p>
+                <p v-else-if="!access.can_read && orderedMessages.length === 0" class="text-center text-sm text-muted py-8">
+                    Pague para ver as mensagens desta conversa.
                 </p>
                 <p v-else-if="orderedMessages.length === 0" class="text-center text-sm text-muted py-8">
                     Nenhuma mensagem ainda.
@@ -277,7 +314,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                     <span v-if="shareFeedback" class="text-xs text-muted">{{ shareFeedback }}</span>
                 </div>
 
-                <form v-if="access.can_send" class="flex items-end gap-2" @submit.prevent="send">
+                <form v-if="showComposer" class="flex items-end gap-2" @submit.prevent="send">
                     <textarea
                         v-model="draft"
                         rows="1"
@@ -290,10 +327,11 @@ watch(() => props.messages.data.length, scrollToBottom)
                         Enviar
                     </Button>
                 </form>
-                <p v-else class="text-center text-xs text-muted py-2">
-                    {{ access.state === 'grace' || access.state === 'expired'
-                        ? 'Renove o acesso acima para voltar a enviar mensagens.'
-                        : 'Desbloqueie o acesso acima para enviar mensagens.' }}
+                <!-- Custo mostrado ANTES da cobrança (feat/chat-economy-v2): o membro
+                     sem janela vigente vê que o próximo envio abre e paga 30 dias. -->
+                <p v-if="showCostHint" class="text-center text-xs text-muted pt-2">
+                    Ao enviar, <span class="text-gold">{{ accessCost }}</span> tokens abrem 30 dias de conversa.
+                    Seu saldo: <span class="text-gold">{{ balance }}</span> tokens.
                 </p>
                 <p v-if="sendError" class="text-xs text-danger text-center mt-1">{{ sendError }}</p>
             </div>

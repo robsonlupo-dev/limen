@@ -186,16 +186,44 @@ it('masks the opt-out as a genuine sent (422) when there is no prior unlock', fu
 
 // --- Acesso pago: membro sem assinatura ---------------------------------------
 
-it('blocks a non-subscriber without access from sending', function () {
+// feat/chat-economy-v2: a cobrança do membro passou para o ATO DO 1º ENVIO.
+it('charges a non-subscriber the tier cost on the first send (feat/chat-economy-v2)', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 2);
+
+    // Sem janela prévia, o 1º envio ABRE e paga a janela de 30 dias (custo 2).
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'oi'])
+        ->assertStatus(201);
+
+    expect(Message::where('sender_id', $member->id)->count())->toBe(1);
+
+    $access = ChatAccess::sole();
+    expect($access->hasFullAccess())->toBeTrue()
+        ->and(app(TokenService::class)->balance($member))->toBe(0);
+    expect(TokenLedger::find($access->spend_ledger_id)->amount)->toBe(-2)
+        ->and(TokenLedger::find($access->credit_ledger_id)->amount)->toBe('1.6000'); // split 80/20
+
+    // 2ª mensagem dentro da janela NÃO cobra de novo.
+    $this->actingAs($member)
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'de novo'])
+        ->assertStatus(201);
+    expect(ChatAccess::count())->toBe(1)
+        ->and(TokenLedger::where('entry_type', 'spend_chat_access')->count())->toBe(1);
+});
+
+it('refuses the first send when the member cannot afford the tier cost, without going negative', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
 
     $this->actingAs($member)
         ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'oi'])
         ->assertStatus(422)
-        ->assertJsonPath('reason', 'access_required');
+        ->assertJsonPath('reason', 'insufficient_balance');
 
-    expect(Message::where('sender_id', $member->id)->count())->toBe(0);
+    expect(Message::where('sender_id', $member->id)->count())->toBe(0)
+        ->and(ChatAccess::count())->toBe(0)
+        ->and(app(TokenService::class)->balance($member))->toBe(0);
 });
 
 it('charges the tier cost for chat access and credits the performer 1 fixed token, unlocking send', function () {
@@ -267,29 +295,22 @@ it('rejects opening access with insufficient balance without persisting it', fun
 
 // --- M.13.1: assinante TAMBÉM paga e gera linha — fim do chat grátis ----------
 
-it('makes a subscriber pay to open chat too, with no free-chat shortcut', function () {
+it('makes a subscriber pay on the first send too, with no free-chat shortcut', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 2);
     Subscription::factory()->create(['user_id' => $member->id]); // prestige → custo 2
 
-    // Sem abrir acesso, o assinante NÃO envia (sem atalho de chat grátis).
+    // Assinante NÃO tem chat grátis: o 1º envio cobra 2 e abre a janela.
     $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'nope'])
-        ->assertStatus(422)
-        ->assertJsonPath('reason', 'access_required');
-    expect(Message::where('sender_id', $member->id)->count())->toBe(0);
-
-    // Abre acesso pagando 2 → gera linha, credita 1 à performer, e então envia.
-    $this->actingAs($member)
-        ->postJson(route('chat.access.open', $conversation->id), ['idempotency_key' => (string) Str::uuid()])
-        ->assertStatus(201)
-        ->assertJsonPath('access.can_send', true)
-        ->assertJsonPath('new_balance', 0);
-    expect(ChatAccess::count())->toBe(1);
-
-    $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'agora sim'])
+        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'oi'])
         ->assertStatus(201);
+    expect(Message::where('sender_id', $member->id)->count())->toBe(1)
+        ->and(ChatAccess::count())->toBe(1)
+        ->and(app(TokenService::class)->balance($member))->toBe(0);
+
+    $access = ChatAccess::sole();
+    expect(TokenLedger::find($access->spend_ledger_id)->amount)->toBe(-2)
+        ->and(TokenLedger::find($access->credit_ledger_id)->amount)->toBe('1.6000'); // split 80/20
 });
 
 it('charges Black/FC only 1 token to open chat (M.13.1 tier cost)', function () {

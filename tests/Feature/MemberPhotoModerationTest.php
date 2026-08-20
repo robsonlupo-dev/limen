@@ -537,7 +537,7 @@ it('com acesso pago, chat e foto passam pelas duas portas', function () {
         ->assertOk();
 });
 
-it('fecha chat e foto de uma vez quando canMemberSendTo recusa', function () {
+it('fecha o compartilhamento de foto quando canMemberSendTo recusa (fonte única do gate da foto)', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 100);
     grantChatAccess($member, $conversation);
@@ -555,17 +555,14 @@ it('fecha chat e foto de uma vez quando canMemberSendTo recusa', function () {
         fn ($mock) => $mock->shouldReceive('canMemberSendTo')->andReturn(false),
     );
 
-    // Uma única recusa, no único lugar onde a pergunta mora. É o teste do 4º
-    // bloqueador — antes desta extração, `shareWith()` tinha uma CÓPIA da regra
-    // do chat, e foi assim que o `status === 'active'` passou batido na primeira
-    // versão da feature.
-    $this->actingAs($member)
-        ->postJson(route('chat.messages.store', $conversation->id), ['body' => 'de novo'])
-        ->assertStatus(422)
-        ->assertJsonPath('reason', 'access_required');
-
-    // A foto usa o service direto (o upload não passa pelo ChatAccessService),
-    // então aqui o share é a única porta que consulta a regra mockada.
+    // feat/chat-economy-v2: o CHAT deixou de consultar canMemberSendTo (agora paga
+    // no ENVIO — ver ChatService::sendMessage). O gate da FOTO efêmera continua
+    // sendo canMemberSendTo, a dona ÚNICA da pergunta "o membro pode falar com esta
+    // performer" para o compartilhamento de ROSTO (des-anonimização consentida
+    // exige janela paga ATIVA). É o teste do 4º bloqueador: antes da extração,
+    // `shareWith()` tinha uma CÓPIA da regra, e foi assim que o `status === 'active'`
+    // passou batido na primeira versão da feature. O upload não passa pelo
+    // ChatAccessService, então o share é a única porta que consulta a regra mockada.
     $photo = new MemberPhoto(['expires_at' => now()->addDay(), 'size_bytes' => 10]);
     $photo->user_id = $member->id;
     $photo->path_encrypted = 'nao-usado.enc';

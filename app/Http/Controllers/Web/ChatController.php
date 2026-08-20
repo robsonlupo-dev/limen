@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
 use App\Services\MemberPhotoService;
+use App\Services\PerformerCatalogService;
 use App\Services\TokenCreditPolicy;
 use App\Services\TokenService;
 use App\Support\MessageTeaser;
@@ -42,7 +43,94 @@ class ChatController extends Controller
         private TokenService $tokenService,
         private MemberPhotoService $memberPhotos,
         private TokenCreditPolicy $creditPolicy,
+        private PerformerCatalogService $catalog,
     ) {}
+
+    /**
+     * feat/chat-economy-v2: tela de conversa acessada por PERFORMER (slug), não por
+     * id de conversa. É a porta do membro iniciar o chat a partir do card do catálogo.
+     *
+     * Se já existe conversa do par, redireciona para a tela normal (show) — não
+     * duplica a lógica de paywall/leitura. Se não existe, renderiza a MESMA tela em
+     * modo "compor": o canal só nasce (e o membro só é cobrado) quando ele envia a
+     * primeira mensagem (startWithPerformer → ChatService::memberSendToPerformer).
+     *
+     * findBySlug usa o escopo publicCatalog (verificada + ativa): performer fora do
+     * ar dá 404, indistinguível de slug inexistente.
+     */
+    public function showWithPerformer(Request $request)
+    {
+        $user = $request->user();
+        $performer = $this->catalog->findBySlug($request->route('slug'));
+
+        $conversation = Conversation::where('member_id', $user->id)
+            ->where('performer_profile_id', $performer->id)
+            ->first();
+
+        if ($conversation) {
+            return redirect()->route('chat.show', $conversation->id);
+        }
+
+        return Inertia::render('Chat/Show', [
+            'conversation' => [
+                // id null = modo compor: o front mostra o compositor e envia por
+                // chat.start (o canal ainda não existe).
+                'id' => null,
+                'status' => 'active',
+                'performer' => [
+                    'stage_name' => $performer->stage_name,
+                    'slug' => $performer->slug,
+                    'profile_id' => $performer->id,
+                ],
+            ],
+            'messages' => new LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url()]),
+            'teaser' => null,
+            'access' => [
+                'state' => 'none',
+                'can_send' => false,
+                'can_read' => false,
+                'locked' => true,
+                'days_remaining' => 0,
+                'expires_at' => null,
+            ],
+            'photoSharing' => ['can_share' => false, 'photos' => []],
+            'accessCost' => $this->creditPolicy->chatCost($user),
+            'balance' => $this->tokenService->balance($user),
+        ]);
+    }
+
+    /**
+     * feat/chat-economy-v2: o membro ENVIA a primeira mensagem a uma performer,
+     * iniciando o canal. A cobrança do tier acontece dentro de
+     * memberSendToPerformer (no envio), atômica com a criação da conversa e da
+     * mensagem. Idempotente por (member, performer): reenvio não duplica a conversa.
+     */
+    public function startWithPerformer(SendMessageRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $performer = $this->catalog->findBySlug($request->route('slug'));
+
+        try {
+            $message = $this->chatService->memberSendToPerformer(
+                $performer,
+                $user,
+                $request->validated('body'),
+            );
+        } catch (ChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (InsufficientBalanceException) {
+            return response()->json([
+                'reason' => 'insufficient_balance',
+                'message' => 'Saldo de tokens insuficiente para iniciar a conversa.',
+            ], 422);
+        }
+
+        return response()->json([
+            'conversation_id' => $message->conversation_id,
+            'message_id' => $message->id,
+            'created_at' => $message->created_at,
+        ], 201);
+    }
 
     public function index(Request $request): Response
     {
@@ -236,6 +324,13 @@ class ChatController extends Controller
             );
         } catch (ChatException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (InsufficientBalanceException) {
+            // feat/chat-economy-v2: o membro paga no ENVIO. Sem saldo, recusa clara
+            // (sem mensagem, sem cobrança, sem saldo negativo — o débito reverteu).
+            return response()->json([
+                'reason' => 'insufficient_balance',
+                'message' => 'Saldo de tokens insuficiente para enviar. Compre tokens na sua carteira.',
+            ], 422);
         }
 
         return response()->json([

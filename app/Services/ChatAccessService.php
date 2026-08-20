@@ -10,6 +10,7 @@ use App\Models\Message;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Acesso pago ao chat. Ver docs/COMMUNICATION_ECONOMY.md §2.
@@ -71,7 +72,7 @@ class ChatAccessService
 
         // M.13.1: assinante também paga e gera linha — sem atalho de chat grátis.
 
-        return DB::transaction(function () use ($member, $performerProfile, $idempotencyKey) {
+        return DB::transaction(function () use ($conversation, $member, $performerProfile, $idempotencyKey) {
             // Serializa opens/renovações concorrentes do mesmo par.
             $access = ChatAccess::where('member_id', $member->id)
                 ->where('performer_profile_id', $performerProfile->id)
@@ -83,81 +84,147 @@ class ChatAccessService
                 return $access;
             }
 
-            $performerUser = $performerProfile->user;
-            // Custo por tier (M.13.1): 2 (NA/Expl/Ins/Pres) ou 1 (Black/FC).
-            $cost = $this->creditPolicy->chatCost($member);
+            return $this->chargeAndOpen($conversation, $member, $access, $idempotencyKey);
+        });
+    }
 
-            $spendEntry = $this->tokenService->debit(
-                $member,
-                $cost,
-                'spend_chat_access',
-                ChatAccess::class,
-                $access?->id,
-                "Acesso ao chat de {$performerProfile->stage_name}",
-            );
+    /**
+     * Abre a janela de 30 dias cobrando NO ATO do 1º envio (feat/chat-economy-v2),
+     * para o membro que ainda NÃO tem linha de acesso com esta performer. É o único
+     * ponto novo de cobrança: a partir daí, expiração/carência/renovação seguem
+     * EXATAMENTE como hoje (o chamador só entra aqui quando não há linha — grace/
+     * expired continuam exigindo renovação EXPLÍCITA por `openOrRenew`, não auto-
+     * renovam no envio; a retenção fica intocada).
+     *
+     * Charge-once sob concorrência: serializa na LINHA DA CONVERSA (âncora estável
+     * que sempre existe aqui). Dois primeiros-envios simultâneos do mesmo par
+     * esperam no lock — o primeiro abre a janela e cobra; o segundo, ao entrar, lê a
+     * linha de acesso com leitura TRAVADA (última versão comitada, não o snapshot
+     * REPEATABLE READ), vê a janela recém-aberta e sai sem cobrar. Debita/credita e
+     * cria a mensagem na MESMA transação do chamador (sendMessage): ou os três
+     * persistem, ou nenhum.
+     *
+     * @throws InsufficientBalanceException saldo insuficiente (aborta antes de gravar)
+     */
+    public function openForFirstSend(Conversation $conversation, User $member): ChatAccess
+    {
+        $conversation->loadMissing('performerProfile.user');
+        $performerProfile = $conversation->performerProfile;
 
-            // Economia de mensagem (19/08/2026): a performer recebe 80% do que o
-            // membro pagou pela abertura (split exato — 2 → 1,60; 1 → 0,80), no lugar
-            // do crédito fixo de 1 de M.13.1, que a 50% quebrava o contrato de 80%.
-            // applied_rate=80 congelado na linha; chat_access_credit nunca respeita
-            // teto (é *_credit) e segue no allowlist de payout.
-            $creditEntry = $this->creditPolicy->creditWithSplit(
-                $performerUser,
-                $cost,
-                'chat',
-                'chat_access_credit',
-                ChatAccess::class,
-                $access?->id,
-                'Acesso ao chat recebido',
-            );
+        return DB::transaction(function () use ($conversation, $member, $performerProfile) {
+            // Âncora de serialização: a linha da conversa (existe sempre aqui).
+            Conversation::whereKey($conversation->id)->lockForUpdate()->first();
 
-            // Base da nova janela: empilha sobre a atual se ainda ativa, senão agora.
-            $now = now();
-            $base = ($access && $now->lessThan($access->expires_at)) ? $access->expires_at : $now;
-            $expiresAt = $base->copy()->addDays($this->accessDays());
-            $graceEndsAt = $expiresAt->copy()->addDays($this->graceDays());
+            // Leitura TRAVADA da linha de acesso: enxerga a última versão comitada
+            // (não o snapshot), então o 2º primeiro-envio concorrente vê a janela
+            // recém-aberta.
+            $access = ChatAccess::where('member_id', $member->id)
+                ->where('performer_profile_id', $performerProfile->id)
+                ->lockForUpdate()
+                ->first();
 
-            if ($access) {
-                $access->forceFill([
-                    'expires_at' => $expiresAt,
-                    'grace_ends_at' => $graceEndsAt,
-                    'renewed_at' => $now,
-                    'status' => 'active',
-                    'spend_ledger_id' => $spendEntry->id,
-                    'credit_ledger_id' => $creditEntry?->id,
-                    'last_idempotency_key' => $idempotencyKey,
-                ])->save();
-            } else {
-                $access = ChatAccess::create([
-                    'member_id' => $member->id,
-                    'performer_profile_id' => $performerProfile->id,
-                    'unlocked_at' => $now,
-                    'expires_at' => $expiresAt,
-                    'grace_ends_at' => $graceEndsAt,
-                    'status' => 'active',
-                    'last_idempotency_key' => $idempotencyKey,
-                ]);
-                $access->forceFill([
-                    'spend_ledger_id' => $spendEntry->id,
-                    'credit_ledger_id' => $creditEntry?->id,
-                ])->save();
+            if ($access && $access->hasFullAccess()) {
+                return $access; // aberta por um envio concorrente → NÃO cobra de novo
             }
 
-            AuditLog::create([
-                'user_id' => $member->id,
-                'action' => 'chat.access_purchased',
-                'subject_type' => ChatAccess::class,
-                'subject_id' => $access->id,
-                'ip' => request()->ip(),
-                'metadata' => [
-                    'performer_profile_id' => $performerProfile->id,
-                    'cost' => $cost,
-                    'renewal' => $access->wasChanged() && $access->renewed_at !== null,
-                ],
-            ]);
-
-            return $access;
+            // Primeiro envio: cobra e abre. Um uuid basta — a garantia de cobrar-uma-
+            // vez vem do lock da conversa + do hasFullAccess() acima, não da chave.
+            return $this->chargeAndOpen($conversation, $member, $access, (string) Str::uuid());
         });
+    }
+
+    /**
+     * Núcleo da cobrança de acesso ao chat: debita o custo por tier do membro,
+     * credita 80/20 à performer pelo caminho decimal exato (M.14.4 — 2 → 1,6000;
+     * 1 → 0,8000), grava/estende a janela de 30 dias (+ carência) e audita. SEMPRE
+     * cobra — o chamador decide QUANDO: `openOrRenew` cobra a cada clique de
+     * pagar-para-ler/renovar; `openForFirstSend` só quando não há janela ativa.
+     *
+     * DEVE rodar dentro de uma transação que já travou a linha de acesso do par
+     * (openOrRenew) ou a linha da conversa (openForFirstSend), senão dois
+     * chamadores concorrentes cobram em dobro.
+     *
+     * @throws InsufficientBalanceException saldo insuficiente
+     */
+    private function chargeAndOpen(Conversation $conversation, User $member, ?ChatAccess $access, string $idempotencyKey): ChatAccess
+    {
+        $conversation->loadMissing('performerProfile.user');
+        $performerProfile = $conversation->performerProfile;
+        $performerUser = $performerProfile->user;
+
+        // Custo por tier (M.13.1): 2 (NA/Expl/Ins/Pres) ou 1 (Black/FC).
+        $cost = $this->creditPolicy->chatCost($member);
+
+        $spendEntry = $this->tokenService->debit(
+            $member,
+            $cost,
+            'spend_chat_access',
+            ChatAccess::class,
+            $access?->id,
+            "Acesso ao chat de {$performerProfile->stage_name}",
+        );
+
+        // Economia de mensagem (19/08/2026): a performer recebe 80% do que o membro
+        // pagou pela abertura (split exato — 2 → 1,60; 1 → 0,80), no lugar do crédito
+        // fixo de 1 de M.13.1, que a 50% quebrava o contrato de 80%. applied_rate=80
+        // congelado na linha; chat_access_credit nunca respeita teto (é *_credit) e
+        // segue no allowlist de payout.
+        $creditEntry = $this->creditPolicy->creditWithSplit(
+            $performerUser,
+            $cost,
+            'chat',
+            'chat_access_credit',
+            ChatAccess::class,
+            $access?->id,
+            'Acesso ao chat recebido',
+        );
+
+        // Base da nova janela: empilha sobre a atual se ainda ativa, senão agora.
+        $now = now();
+        $base = ($access && $now->lessThan($access->expires_at)) ? $access->expires_at : $now;
+        $expiresAt = $base->copy()->addDays($this->accessDays());
+        $graceEndsAt = $expiresAt->copy()->addDays($this->graceDays());
+
+        if ($access) {
+            $access->forceFill([
+                'expires_at' => $expiresAt,
+                'grace_ends_at' => $graceEndsAt,
+                'renewed_at' => $now,
+                'status' => 'active',
+                'spend_ledger_id' => $spendEntry->id,
+                'credit_ledger_id' => $creditEntry?->id,
+                'last_idempotency_key' => $idempotencyKey,
+            ])->save();
+        } else {
+            $access = ChatAccess::create([
+                'member_id' => $member->id,
+                'performer_profile_id' => $performerProfile->id,
+                'unlocked_at' => $now,
+                'expires_at' => $expiresAt,
+                'grace_ends_at' => $graceEndsAt,
+                'status' => 'active',
+                'last_idempotency_key' => $idempotencyKey,
+            ]);
+            $access->forceFill([
+                'spend_ledger_id' => $spendEntry->id,
+                'credit_ledger_id' => $creditEntry?->id,
+            ])->save();
+        }
+
+        AuditLog::create([
+            'user_id' => $member->id,
+            'action' => 'chat.access_purchased',
+            'subject_type' => ChatAccess::class,
+            'subject_id' => $access->id,
+            'ip' => request()->ip(),
+            'metadata' => [
+                'performer_profile_id' => $performerProfile->id,
+                'cost' => $cost,
+                'renewal' => $access->wasChanged() && $access->renewed_at !== null,
+            ],
+        ]);
+
+        return $access;
     }
 
     /**
