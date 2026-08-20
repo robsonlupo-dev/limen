@@ -46,8 +46,9 @@ export const PERFORMER_SECTIONS = [
         key: 'ganhos',
         label: 'Ganhos',
         route: 'performer.payouts.index',
-        match: ['performer.payouts.*'],
+        match: ['performer.payouts.*', 'performer.earnings.*'],
         children: [
+            { label: 'Extrato', route: 'performer.earnings.index' },
             { label: 'Saques', route: 'performer.payouts.index' },
             { label: 'Histórico', route: 'performer.payouts.history' },
         ],

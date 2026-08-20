@@ -53,20 +53,40 @@ class MessageTeaser
             return null;
         }
 
-        $limit = max(1, (int) config('message_teaser.words', 3));
+        $wordLimit = max(1, (int) config('message_teaser.words', 8));
+        $charLimit = max(1, (int) config('message_teaser.chars', 40));
 
-        // Piso: no máximo METADE das palavras, nunca a mensagem inteira. Em
-        // mensagem longa o teto (limit) manda; em mensagem curta a metade corta
-        // antes. floor => 3 palavras mostram 1, 2 mostram 1, 4 mostram 2.
-        $take = min($limit, intdiv($total, 2));
+        // Piso de segurança: NUNCA a mensagem inteira. Em mensagem curta corta na
+        // METADE das palavras (2 mostram 1, 4 mostram 2), independentemente do teto.
+        $wordCap = min($wordLimit, intdiv($total, 2));
 
-        if ($take < 1) {
-            // 1 palavra (metade = 0): mostrar a palavra inteira vazaria tudo.
-            // Devolve só um PEDAÇO dela (metade dos caracteres) + reticências.
+        if ($wordCap < 1) {
+            // 1 palavra (metade = 0): a palavra inteira vazaria tudo — só um PEDAÇO
+            // dela (metade dos caracteres) + reticências.
             return self::partialSingleWord($words[0]);
         }
 
-        return implode(' ', array_slice($words, 0, $take)).self::ELLIPSIS;
+        // Acumula palavra a palavra até o que vier PRIMEIRO: o teto de palavras (já
+        // no wordCap) ou o de caracteres. O corte é SERVER-SIDE — só este trecho
+        // trafega; o corpo completo nunca vai ao cliente não-pago.
+        $taken = [];
+        $length = 0;
+        foreach (array_slice($words, 0, $wordCap) as $word) {
+            $addition = ($taken === [] ? 0 : 1) + Str::length($word); // +1 do espaço
+            if ($taken !== [] && $length + $addition > $charLimit) {
+                break; // o teto de caracteres veio primeiro
+            }
+            $taken[] = $word;
+            $length += $addition;
+        }
+
+        // A 1ª palavra sozinha já estoura o teto de caracteres: mostra ao menos ela
+        // (está dentro do wordCap, então não é a mensagem inteira).
+        if ($taken === []) {
+            $taken[] = $words[0];
+        }
+
+        return implode(' ', $taken).self::ELLIPSIS;
     }
 
     /**

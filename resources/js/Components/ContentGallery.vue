@@ -29,7 +29,10 @@ const LEVEL_LABELS = {
 // Cópia local reativa: o desbloqueio troca o item em memória (locked → unlocked,
 // agora com image_url) sem recarregar a página. As props do Inertia não mudam
 // neste fluxo — a galeria não está no `only` de nenhum reload parcial.
-const items = ref(props.contents.map((c) => ({ ...c })))
+// `imageFailed` começa falso: quando os bytes não carregam (content.image 404 —
+// arquivo ausente no disco), o @error liga e a peça cai no placeholder decente,
+// em vez do ícone de imagem quebrada + o alt cobrindo o selo de nível.
+const items = ref(props.contents.map((c) => ({ ...c, imageFailed: false })))
 
 const selected = ref(null)
 const unlocking = ref(false)
@@ -74,7 +77,9 @@ async function confirmUnlock() {
         <h2 class="font-serif text-xl text-cream">Conteúdo</h2>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <template v-for="item in items" :key="item.id">
-                <!-- Desbloqueado / grátis / dona: mostra a imagem real. -->
+                <!-- Desbloqueado / grátis / dona: mostra a imagem real. Proporção
+                     FIXA (aspect-square) — sem depender da imagem carregar, então
+                     não estica nem colapsa quando os bytes faltam. -->
                 <div
                     v-if="!item.locked && item.image_url"
                     class="relative aspect-square rounded-xl overflow-hidden border border-frame bg-surface-2"
@@ -87,7 +92,27 @@ async function confirmUnlock() {
                         playsinline
                         class="h-full w-full object-cover bg-black"
                     />
-                    <img v-else :src="item.image_url" :alt="performerName" class="h-full w-full object-cover" />
+                    <!-- alt="" (decorativo): o rótulo do nível já vem no selo abaixo,
+                         e um alt com texto viraria "título" quebrado sobre o selo se a
+                         imagem falhasse. @error cai no placeholder antes disso. -->
+                    <img
+                        v-else-if="!item.imageFailed"
+                        :src="item.image_url"
+                        alt=""
+                        class="h-full w-full object-cover"
+                        @error="item.imageFailed = true"
+                    />
+                    <!-- Imagem indisponível (bytes ausentes → content.image 404):
+                         placeholder centrado, mesma proporção, sem cobrir o selo. -->
+                    <div
+                        v-else
+                        class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-surface-2 px-2 text-center"
+                    >
+                        <svg class="h-7 w-7 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 3l18 18M21 15l-5-5L5 21M3 16V5a2 2 0 0 1 2-2h11" />
+                        </svg>
+                        <span class="text-[11px] text-muted">Imagem indisponível</span>
+                    </div>
                     <span
                         class="absolute top-2 left-2 rounded-full bg-background/70 px-2 py-0.5 text-[10px] text-gold backdrop-blur"
                     >

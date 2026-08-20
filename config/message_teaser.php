@@ -15,6 +15,11 @@ return [
     | teaser nunca revela a mensagem INTEIRA — em mensagens curtas mostra no
     | máximo metade das palavras, independentemente deste número.
     |
+    | O corte para no que vier PRIMEIRO: `words` palavras ou `chars` caracteres.
+    | "O..."/"co..." (2 caracteres) não desperta curiosidade nenhuma — o teaser
+    | existe para levar ao pagamento, então revela ~40 caracteres ou 8 palavras.
+    |
     */
-    'words' => (int) env('MESSAGE_TEASER_WORDS', 3),
+    'words' => (int) env('MESSAGE_TEASER_WORDS', 8),
+    'chars' => (int) env('MESSAGE_TEASER_CHARS', 40),
 ];

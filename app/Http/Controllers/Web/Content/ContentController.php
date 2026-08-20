@@ -45,6 +45,12 @@ class ContentController extends Controller
         // O canView já garante READY, então o thumbnail existe para vídeo.
         $path = $content->isVideo() ? $content->thumbnail_path : $content->path;
 
+        // Bytes ausentes no disco (arquivo não sincronizado entre clones, thumbnail
+        // não gerado, upload/processamento que falhou): 404 DEFINIDO, não o 500 que
+        // `retrieve()` lançaria. O front trata o 404 com um placeholder decente
+        // (fix/chat-ux-mobile) em vez de deixar a <img> quebrar silenciosamente.
+        abort_if($path === null || ! $this->store->exists($path), 404);
+
         return $this->photoResponse($this->store->retrieve($path), 'conteudo.jpg');
     }
 

@@ -77,6 +77,7 @@ return [
         'performer.documents.accept',
         'performer.payouts.index',
         'performer.payouts.history',
+        'performer.earnings.index',
         'performer.payouts.store',
         'performer.followers',
         // Notas privadas da performer sobre membros (Sprint 11): lista, salvar,

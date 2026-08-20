@@ -1305,6 +1305,84 @@ do PR #197 (§E/§F de `docs/AUDITORIA_ECONOMIA_TOKENS.md`) fica **INTACTA** —
   (o membro paga ao abrir o acesso, `chat.access.open`), **nunca no envio da performer**
   (ela consome só a franquia diária do catálogo). Confirmado por teste.
 
+## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
+
+Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a
+performer só via histórico de SAQUES, nunca de ONDE veio cada crédito — o membro vê
+onde gastou, ela não via de onde ganhou. Depois da reforma que fez o 80% valer
+(`feat/chat-economy-v2`/#197), ela recebe 1,6000 e não tinha como conferir que é 80%
+de 2. **Nenhuma mudança na economia/ledger/cobrança — é leitura e apresentação.**
+
+- **[1] EXTRATO DE GANHOS (`performer.earnings.index`, seção Ganhos).** SOMENTE
+  LEITURA do ledger — dona única `App\Services\PerformerEarningsService`,
+  `EarningsController`, `Performer/Earnings/Index.vue`, subnav "Extrato" (1º item de
+  Ganhos, `performerNav.js`). Cada crédito de ganho mostra **bruto pago pelo membro ·
+  percentual congelado · líquido dela (4 casas)** — o bruto é DERIVADO (`líquido × 100
+  ÷ taxa`, bcmath exato, não 2ª fonte), a assinatura visual é a conta do split à
+  mostra. **Membro SEMPRE por FanAlias, nunca dado real (M.13.10):** a maioria dos
+  créditos já grava o alias na `description` (extraído por regex `Fã #\d{4}`); o CHAT,
+  que grava "Acesso ao chat recebido" sem alias, é resolvido pelo elo reverso
+  `chat_access.credit_ledger_id → member_id`. Allowlist de `entry_type` de ganho (tip/
+  chat/content/gift/call/call_noshow/live), filtro por período e por tipo, saldo atual
+  em destaque com casas decimais + a redação obrigatória M.13.5 ("80% … R$0,60/token").
+  Não cria/altera/recalcula nada. `PerformerEarningsTest` trava: créditos corretos,
+  FanAlias, **não vaza nome/e-mail do membro**, filtros, e wallet por-usuário (outra
+  performer vê vazio).
+- **[2] TEXTO CORTADO PELA BARRA INFERIOR (bug).** `Chat/Show.vue` usava
+  `h-[calc(100vh-9rem)]` FIXO, que ignora a folga inferior do `<main>` e joga o
+  compositor + a linha de custo ATRÁS da barra de navegação fixa (o saldo sumia).
+  Corrigido descontando a barra no mobile e usando `dvh`:
+  `h-[calc(100dvh-9rem-6rem-env(safe-area-inset-bottom))] md:h-[calc(100vh-9rem)]`.
+  **Varredura das outras telas do painel:** só o Chat usava altura de viewport FIXA com
+  conteúdo colado no rodapé; as demais (Feed, KYC, etc.) usam `min-h-screen` (fluem, a
+  folga do `<main>` já cobre) — nenhuma outra cortava.
+- **[3] TÍTULO DA CONVERSA COLIDINDO.** No retrato o cabeçalho do `Chat/Show` empilha
+  (nome em cima com `truncate`+`min-w-0`, etiqueta abaixo) e vira linha no desktop
+  (`sm:flex-row`); a etiqueta encurtou para "Expira em N dias" (texto completo no
+  `title`).
+- **[4] TEASER de 2 caracteres → inútil.** `App\Support\MessageTeaser` (dona única,
+  corte SERVER-SIDE) agora revela **~40 caracteres OU 8 palavras, o que vier primeiro**
+  (`config/message_teaser.php` `words`=8, `chars`=40, ajustável por env). **Piso de
+  segurança mantido:** nunca a mensagem inteira (no máximo metade das palavras numa
+  curta; 1 palavra → só um pedaço). Só aumentou QUANTO é revelado; o corpo completo
+  continua sem trafegar para o cliente não-pago. Aplica na lista, no card de pagamento
+  e no broadcast (uma dona só). `MessagePreviewTeaserTest` cobre o corte novo e o piso.
+- **[5] NOME TRUNCADO NO CARD (`PerformerCard.vue`).** No retrato as ações
+  (coração/chat) sobem para ACIMA da barra do nome (`bottom-16 ... sm:bottom-3`),
+  liberando a linha inteira para o nome (`p-3 sm:pr-24` — some o `pr-24` no mobile). O
+  nome tem prioridade sobre os botões; no desktop nada muda.
+- **[6] DOIS CAMINHOS DE PAGAMENTO NA MESMA TELA.** Quando a performer iniciou e o
+  membro não pagou, apareciam "Pagar para ler — 2 tokens" (card) E "Ao enviar, 2 tokens
+  abrem 30 dias" (compositor) — parecia cobrança dupla. São a MESMA janela: com o card
+  presente, o texto do compositor vira **"Responder também abre os 30 dias — 2 tokens,
+  cobrança única"**; e a linha redundante "Pague para ver as mensagens desta conversa."
+  (embaixo do card) foi removida quando o card já está acima. **A economia não muda** —
+  é uma cobrança só, agora explícita.
+- **[7] LISTA DE CONVERSAS mostrava o nome da PRÓPRIA performer em toda linha.** O
+  payload do `ChatController::index` só trazia `performer.stage_name`, então a performer
+  via o próprio nome em todas as conversas e não distinguia uma da outra. Agora cada
+  linha traz `title` = o OUTRO participante: à performer, o MEMBRO por **FanAlias**
+  (nunca dado real — M.13.10, resolvido por par); ao membro, a performer (nome público).
+  Prop `viewerIsPerformer` só ajusta a copy do estado vazio. `ChatListTitleTest` trava:
+  performer vê o alias do membro (não o próprio nome, não nome/e-mail reais), membro vê
+  a performer, e cada linha casa com o alias do SEU membro.
+- **[8] CARD DE CONTEÚDO QUEBRADO no perfil (mobile).** **Causa (diagnosticada):** o
+  card só quebra para quem PODE ver (membro/dona — o guest recebe o cadeado 🔒, sem
+  `image_url`, porque `canView` é false para `role != consumer`). Para quem vê,
+  `image_url = route('content.image', id)` (rota dinâmica — NÃO é asset estático do
+  Vite), e `content.image` serve `path` (foto) / `thumbnail_path` (vídeo) via
+  `ContentStore::retrieve`, que **lançava RuntimeException → HTTP 500** quando os bytes
+  faltavam no disco (arquivo não sincronizado entre clones, thumbnail não gerado, upload
+  que falhou). A `<img alt="performerName">` quebrada mostrava o glifo de imagem quebrada
+  + o **alt ("Bella") COBRINDO o selo "Aberto"** (o "título sobreposto ao selo" era o
+  alt). **Correções:** (a) `ContentController::image` faz `abort_if(path null || !exists,
+  404)` — 404 DEFINIDO, não 500; (b) `ContentGallery.vue` ganhou `@error` → placeholder
+  "Imagem indisponível" centrado, `alt=""` (o selo já rotula o nível; alt-texto quebrado
+  não cobre mais o selo), `aspect-square` mantido (proporção fixa, não estica/colapsa sem
+  imagem). `ContentImageFallbackTest` trava o 404 (arquivo ausente) e o 200 (bytes
+  presentes). Vale para as 3 telas que usam `ContentGallery` (Catalog/Show, Performers/
+  Show, Feed).
+
 ## Ícone "Conversar" do card no catálogo do membro — `fix/member-chat-click`
 
 > **SUPERADO por `feat/chat-economy-v2` (acima):** o chat deixou de ser interest-gated,

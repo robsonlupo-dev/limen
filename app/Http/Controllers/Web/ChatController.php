@@ -18,6 +18,7 @@ use App\Services\MemberPhotoService;
 use App\Services\PerformerCatalogService;
 use App\Services\TokenCreditPolicy;
 use App\Services\TokenService;
+use App\Support\FanAlias;
 use App\Support\MessageTeaser;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -201,17 +202,23 @@ class ChatController extends Controller
                 // Há mensagem, mas sem leitura: a UI mostra o gancho + "desbloqueie
                 // para ler" (antes era só cadeado). `locked` distingue os dois.
                 'locked' => ! $canRead && $c->last_message_at !== null,
-                'performer' => [
-                    'stage_name' => $c->performerProfile->stage_name,
-                    'slug' => $c->performerProfile->slug,
-                    'avatar_path' => $c->performerProfile->avatar_path,
-                ],
+                // Título = o OUTRO participante, por lado. A performer via SEMPRE o
+                // próprio nome em toda linha (o payload só trazia o dela) e não
+                // distinguia uma conversa da outra. Agora:
+                //  - performer vê o MEMBRO por FanAlias (nunca dado real — M.13.10);
+                //  - membro vê a performer (nome público).
+                'title' => $viewerIsPerformer
+                    ? ($c->member_id !== null
+                        ? FanAlias::label($user->performerProfile->id, $c->member_id)
+                        : 'Membro')
+                    : $c->performerProfile->stage_name,
             ];
         });
 
         return Inertia::render('Chat/Index', [
             'conversations' => $conversations,
             'accessCost' => $this->creditPolicy->chatCost($request->user()),
+            'viewerIsPerformer' => (bool) $viewerIsPerformer,
         ]);
     }
 
