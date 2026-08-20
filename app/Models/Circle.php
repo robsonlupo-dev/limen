@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -22,13 +23,27 @@ class Circle extends Model
     {
         return [
             'price_cents' => 'integer',
-            'monthly_tokens' => 'integer',
-            'discount_pct' => 'integer',
             'seat_limit' => 'integer',
             'invite_only' => 'boolean',
             'sort_order' => 'integer',
             'active' => 'boolean',
         ];
+    }
+
+    // Fonte ÚNICA de franquia e desconto = config/monetization.php (auditoria
+    // 19/08/2026). Antes a coluna do banco era um espelho sincronizado por teste
+    // (frágil) e o webhook de grant lia a coluna enquanto o command lia a config —
+    // podiam divergir. Agora os DOIS derivam da config por estes accessors, então o
+    // valor cobrado e o exibido nunca discordam. A coluna do banco continua (seed),
+    // mas a LEITURA vem sempre da config, chaveada pelo slug do tier.
+    protected function monthlyTokens(): Attribute
+    {
+        return Attribute::make(get: fn () => (int) config("monetization.franchises_by_tier.{$this->slug}", 0));
+    }
+
+    protected function discountPct(): Attribute
+    {
+        return Attribute::make(get: fn () => (int) config("monetization.discounts_by_tier.{$this->slug}", 0));
     }
 
     public function subscriptions(): HasMany

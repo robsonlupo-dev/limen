@@ -216,7 +216,7 @@ it('charges the tier cost for chat access and credits the performer 1 fixed toke
     expect($spend->entry_type)->toBe('spend_chat_access')
         ->and($spend->amount)->toBe(-2)
         ->and($credit->entry_type)->toBe('chat_access_credit')
-        ->and($credit->amount)->toBe(1); // M.13.1: fixo 1, fora do split
+        ->and($credit->amount)->toBe('1.6000'); // split 80/20 de 2 (M.13.1 superado 19/08/2026)
 
     // Agora consegue enviar.
     $this->actingAs($member)
@@ -303,8 +303,8 @@ it('charges Black/FC only 1 token to open chat (M.13.1 tier cost)', function () 
         ->assertJsonPath('new_balance', 0);
 
     $access = ChatAccess::sole();
-    expect(TokenLedger::find($access->spend_ledger_id)->amount)->toBe(-1)   // Black paga 1
-        ->and(TokenLedger::find($access->credit_ledger_id)->amount)->toBe(1); // performer +1 fixo
+    expect(TokenLedger::find($access->spend_ledger_id)->amount)->toBe(-1)          // Black paga 1
+        ->and(TokenLedger::find($access->credit_ledger_id)->amount)->toBe('0.8000'); // 80% de 1 (split, não mais fixo)
 });
 
 // --- Grace period: leitura bloqueada, corpo retido, sem envio ------------------

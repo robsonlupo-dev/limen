@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\InsufficientBalanceException;
+use App\Support\TokenMath;
 use App\Models\AuditLog;
 use App\Models\PerformerProfile;
 use App\Models\Tip;
@@ -58,7 +59,7 @@ class TipService
 
             $consumerWallet = $wallets->get($consumer->id);
 
-            if (! $consumerWallet || $consumerWallet->balance < $amount) {
+            if (! $consumerWallet || TokenMath::cmp($consumerWallet->balance, $amount) < 0) {
                 throw new InsufficientBalanceException($amount, $consumerWallet?->balance ?? 0);
             }
 

@@ -6,6 +6,7 @@ use App\Exceptions\CapExceededException;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Support\TokenMath;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -19,8 +20,10 @@ use Illuminate\Support\Facades\Log;
  *  - M.13.9  teto é do MOVIMENTO (entry_type), nunca da pessoa (role): respectsCap.
  *  - M.13.8  teto escalonado (capFor) + fila de pendência (grant/releaseAfterDebit)
  *            + gatilho de aviso (approachingCap).
- *  - M.13.7  arredondamento único do split (applyRate) + taxa congelada na linha.
- *  - M.13.1  chat: crédito fixo de 1 (chatOpenPerformerCredit) + custo por tier.
+ *  - M.13.7  (SUPERADO 19/08/2026) split agora é DECIMAL EXATO (applyRate via
+ *            bcmath), não mais round-half-up inteiro — a taxa segue congelada.
+ *  - M.13.1  (SUPERADO 19/08/2026) chat NÃO é mais crédito fixo de 1: a abertura
+ *            entra no split 80/20 como todo evento (2 → 1,60). Ver ChatAccessService.
  *  - M.13.5  payout R$0,60/token (payoutRatePerToken).
  *  - M.13.6  presente múltiplo de 4 (isValidGiftPrice).
  */
@@ -75,9 +78,10 @@ class TokenCreditPolicy
         );
     }
 
-    public function capRemaining(User $user): int
+    /** Espaço restante sob o teto, string decimal (o saldo da performer pode fracionar). */
+    public function capRemaining(User $user): string
     {
-        return $this->capFor($user) - $this->tokenService->balance($user);
+        return TokenMath::sub($this->capFor($user), $this->tokenService->balance($user));
     }
 
     /**
@@ -123,7 +127,7 @@ class TokenCreditPolicy
                 $wallet = TokenWallet::where('user_id', $user->id)->lockForUpdate()->first();
                 $cap = $this->capFor($user);
 
-                if ($wallet->balance + $amount > $cap) {
+                if (TokenMath::cmp(TokenMath::add($wallet->balance, $amount), $cap) > 0) {
                     throw new CapExceededException($amount, $wallet->balance, $cap);
                 }
 
@@ -173,7 +177,11 @@ class TokenCreditPolicy
             $wallet = TokenWallet::where('user_id', $user->id)->lockForUpdate()->first();
 
             $cap = $this->capFor($user);
-            $room = max(0, $cap - $wallet->balance);
+            // Grant é movimento INTEIRO: `room` é o espaço em tokens INTEIROS
+            // (intFloor) sob o teto — a "poeira" fracionária da carteira da performer
+            // (ex.: 0,20 de um split) nunca vira grant nem pendência fracionária
+            // (pending_grant_tokens é unsignedInteger). saldo > teto segue legítimo.
+            $room = TokenMath::intFloor(TokenMath::max(0, TokenMath::sub($cap, $wallet->balance)));
             $credited = min($amount, $room);
             $remainder = $amount - $credited;
 
@@ -207,13 +215,15 @@ class TokenCreditPolicy
             return;
         }
 
-        $room = $this->capFor($user) - $lockedWallet->balance;
+        // Espaço em tokens INTEIROS (a pendência liberada é sempre inteira). intFloor
+        // ignora a poeira fracionária da carteira da performer (não é grant).
+        $room = TokenMath::intFloor(TokenMath::sub($this->capFor($user), $lockedWallet->balance));
         if ($room <= 0) {
             return;
         }
 
         $release = min($pending, $room);
-        $newBalance = $lockedWallet->balance + $release;
+        $newBalance = TokenMath::add($lockedWallet->balance, $release);
 
         $lockedWallet->forceFill([
             'balance' => $newBalance,
@@ -236,7 +246,10 @@ class TokenCreditPolicy
     /** O saldo comporta esta compra sem passar do teto? (gate advisory de checkout) */
     public function canPurchase(User $user, int $amount): bool
     {
-        return $this->tokenService->balance($user) + $amount <= $this->capFor($user);
+        return TokenMath::cmp(
+            TokenMath::add($this->tokenService->balance($user), $amount),
+            $this->capFor($user),
+        ) <= 0;
     }
 
     /**
@@ -269,7 +282,7 @@ class TokenCreditPolicy
 
         $ledger = $this->tokenService->credit($user, $amount, 'purchase', $referenceType, $referenceId, $description);
 
-        if ($balanceBefore + $amount > $cap) {
+        if (TokenMath::cmp(TokenMath::add($balanceBefore, $amount), $cap) > 0) {
             Log::warning('token.purchase_over_cap', [
                 'user_id' => $user->id,
                 'amount' => $amount,
@@ -292,20 +305,27 @@ class TokenCreditPolicy
     }
 
     /**
-     * Split round-half-up, inteiros, nunca float (M.13.7):
-     *   credito = intdiv(valor × taxa + 50, 100); retencao = valor − credito.
-     * credito + retencao == valor SEMPRE (retenção é o complemento, não recalculada).
+     * Split DECIMAL EXATO (bcmath, escala 4) — substitui o round-half-up inteiro de
+     * M.13.7 (emenda 19/08/2026). O bruto `$amount` é sempre inteiro (o membro gasta
+     * inteiro); como `amount × rate` é inteiro e a divisão é por 100, o crédito tem
+     * no máximo 2 casas: é EXATO, sem arredondamento. "Nunca float" continua valendo
+     * — bcmath é decimal exato, não ponto flutuante.
      *
-     * @return array{credited:int, retained:int, rate:int}
+     *   credited = amount × rate ÷ 100  (ex.: 2 × 80 ÷ 100 = "1.6000")
+     *   retained = amount − credited     (o complemento, nunca recalculado)
+     * credited + retained == amount SEMPRE. Retornos são STRINGS de escala 4.
+     *
+     * @return array{credited:string, retained:string, rate:int}
      */
     public function applyRate(int $amount, string $rateKey): array
     {
         $rate = $this->rateFor($rateKey);
-        $credited = intdiv($amount * $rate + 50, 100);
+        // bcmul escala 0 → produto inteiro exato; bcdiv escala 4 → sem perda.
+        $credited = bcdiv(bcmul((string) $amount, (string) $rate, 0), '100', TokenMath::SCALE);
 
         return [
             'credited' => $credited,
-            'retained' => $amount - $credited,
+            'retained' => TokenMath::sub($amount, $credited),
             'rate' => $rate,
         ];
     }
@@ -315,6 +335,11 @@ class TokenCreditPolicy
      * (applied_rate). Nunca respeita teto (crédito de performer). O valor gravado é
      * o `amount` calculado — a leitura nunca recalcula a partir da taxa.
      */
+    // Nota da revisão (🟢#3): Tip/Gift chamam applyRate() para o espelho e depois
+    // creditWithSplit() recalcula applyRate() internamente. É DETERMINÍSTICO (mesmo
+    // input → mesmo output), então espelho e ledger não divergem; mantido assim de
+    // propósito — passar o split pré-computado por 6 call sites de dinheiro adicionaria
+    // superfície de erro maior que a divergência (inexistente) que evitaria.
     public function creditWithSplit(
         User $performer,
         int $gross,
@@ -356,7 +381,7 @@ class TokenCreditPolicy
         return $price >= $this->contentFloor() && $step > 0 && $price % $step === 0;
     }
 
-    // ── Chat (M.13.1) — sinais; o rewire do ChatAccessService é o PR de chat ──
+    // ── Chat / economia de mensagem (M.13.1 SUPERADO 19/08/2026) ─────────────
 
     /** Custo em tokens do membro para abrir chat, por tier (2, ou 1 em Black/FC). */
     public function chatCost(User $member): int
@@ -369,11 +394,12 @@ class TokenCreditPolicy
         );
     }
 
-    /** Crédito FIXO à performer em toda abertura de chat, qualquer tier. */
-    public function chatOpenPerformerCredit(): int
-    {
-        return (int) config('monetization.chat.performer_credit');
-    }
+    // A abertura de chat NÃO credita mais um token fixo (o modelo antigo, M.13.1). A
+    // performer tem contrato de 80%, e 80% de 2 = 1,60 — o `chatOpenPerformerCredit()`
+    // fixo entregava 1 (= 50%), quebrando esse contrato. Agora o crédito passa pelo
+    // split 80/20 como todo evento: `creditWithSplit($performer, $chatCost, 'chat',
+    // 'chat_access_credit', …)` no ChatAccessService. A taxa vive em
+    // `monetization.split_rates.chat`.
 
     // ── Aviso de aproximação do teto (M.13.8) ────────────────────────────────
 
@@ -410,10 +436,11 @@ class TokenCreditPolicy
     /**
      * Valor de cada token no saque em CENTAVOS inteiros (M.13.5). O caminho
      * autoritativo (token→R$) é inteiro puro — nunca float — para o valor mandado
-     * ao Asaas: centavos = tokens × payoutCentavosPerToken.
+     * ao Asaas: centavos = tokens × payoutCentavosPerToken. bcmul (não `round()`
+     * sobre float) fecha o 🟢#4 da revisão: R$0,60 → 60 centavos, exato.
      */
     public function payoutCentavosPerToken(): int
     {
-        return (int) round($this->payoutRatePerToken() * 100);
+        return (int) bcmul((string) config('monetization.payout_rate_per_token'), '100', 0);
     }
 }

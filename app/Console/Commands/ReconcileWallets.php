@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
+use App\Support\TokenMath;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -42,10 +43,13 @@ class ReconcileWallets extends Command
             // concurrent tip/purchase can't make the diff stale between read and write.
             DB::transaction(function () use ($wallet, &$adjusted, &$skippedNegative, $dryRun, $allowNegative) {
                 $locked = TokenWallet::whereKey($wallet->getKey())->lockForUpdate()->first();
-                $ledgerSum = (int) TokenLedger::where('wallet_id', $locked->id)->sum('amount');
-                $diff = (int) $locked->balance - $ledgerSum;
+                // Saldo e soma são DECIMAL desde a economia de mensagem: comparar e
+                // subtrair por bcmath (o antigo `(int)` truncava a fração e mascarava
+                // um invariante quebrado como se estivesse batido).
+                $ledgerSum = TokenMath::of(TokenLedger::where('wallet_id', $locked->id)->sum('amount'));
+                $diff = TokenMath::sub($locked->balance, $ledgerSum);
 
-                if ($diff === 0) {
+                if (TokenMath::cmp($diff, 0) === 0) {
                     return;
                 }
 
@@ -53,10 +57,10 @@ class ReconcileWallets extends Command
                 // sum — that is not seed residue (seed only over-set balance); it is a
                 // potential over-debit/loss. Reconciling here would erase the evidence,
                 // so skip loudly unless explicitly forced.
-                if ($diff < 0 && ! $allowNegative) {
+                if (TokenMath::cmp($diff, 0) < 0 && ! $allowNegative) {
                     $skippedNegative++;
                     $this->warn(sprintf(
-                        'wallet #%d: balance=%d < ledger_sum=%d (diff=%d) — NOT seed residue; SKIPPED. Investigate (or --allow-negative).',
+                        'wallet #%d: balance=%s < ledger_sum=%s (diff=%s) — NOT seed residue; SKIPPED. Investigate (or --allow-negative).',
                         $locked->id,
                         $locked->balance,
                         $ledgerSum,
@@ -68,7 +72,7 @@ class ReconcileWallets extends Command
 
                 $adjusted++;
                 $this->line(sprintf(
-                    'wallet #%d: balance=%d ledger_sum=%d diff=%+d%s',
+                    'wallet #%d: balance=%s ledger_sum=%s diff=%s%s',
                     $locked->id,
                     $locked->balance,
                     $ledgerSum,
@@ -87,7 +91,7 @@ class ReconcileWallets extends Command
                     'wallet_id' => $locked->id,
                     'entry_type' => 'staging_seed_backfill',
                     'amount' => $diff,
-                    'balance_after' => (int) $locked->balance,
+                    'balance_after' => TokenMath::of($locked->balance),
                     'reference_type' => null,
                     'reference_id' => null,
                     'description' => 'Backfill: ledger reconciled to materialized balance',

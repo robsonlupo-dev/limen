@@ -200,8 +200,10 @@ it('credito + retencao == valor para toda faixa 5..1000 nas taxas 70/75/80', fun
     foreach (['live', 'gift', 'content'] as $key) {
         for ($valor = 5; $valor <= 1000; $valor++) {
             $s = $policy->applyRate($valor, $key);
-            expect($s['credited'] + $s['retained'])->toBe($valor)
-                ->and($s['credited'])->toBeGreaterThan(0); // piso 5 nunca zera o crédito
+            // Split DECIMAL EXATO (bcmath): credited + retained == valor SEMPRE, sem
+            // arredondamento (M.13.7 superado 19/08/2026). Soma por TokenMath, nunca `+`.
+            expect(\App\Support\TokenMath::add($s['credited'], $s['retained']))->toBe(\App\Support\TokenMath::of($valor))
+                ->and(\App\Support\TokenMath::isPositive($s['credited']))->toBeTrue();
         }
     }
 });
@@ -223,17 +225,16 @@ it('a taxa gravada na linha congela e nao muda quando a config muda', function (
     expect($novo->amount)->toBe(50)->and($novo->applied_rate)->toBe(50);
 });
 
-// ─── CHAT (M.13.1) ───────────────────────────────────────────────────────────
+// ─── CHAT (M.13.1 SUPERADO 19/08/2026: split 80/20, não mais crédito fixo) ────
 
-it('credita SEMPRE 1 token fixo a performer na abertura, variancia zero entre tiers', function () {
-    // O crédito é constante (não depende de tier nem de valor) — a asserção é a
-    // MESMA para os quatro casos.
-    $credit = teePolicy()->chatOpenPerformerCredit();
-    expect($credit)->toBe(1);
-
-    foreach (['none', 'explorador', 'black', 'founders_circle'] as $_) {
-        expect(teePolicy()->chatOpenPerformerCredit())->toBe(1);
-    }
+it('credita 80% do custo de abertura à performer (split decimal), não mais o fixo de 1', function () {
+    // M.13.1 substituído pela economia decimal: o chat entrou no split 80/20 como
+    // todo evento. Custo 2 → performer 1,6000; custo 1 (Black/FC) → 0,8000. O
+    // crédito fixo de 1 (chatOpenPerformerCredit) foi REMOVIDO — era a única fonte
+    // sistemática de retenção indevida (50% com contrato dizendo 80%).
+    expect(teePolicy()->applyRate(2, 'chat'))->toMatchArray(['credited' => '1.6000', 'retained' => '0.4000', 'rate' => 80]);
+    expect(teePolicy()->applyRate(1, 'chat'))->toMatchArray(['credited' => '0.8000', 'retained' => '0.2000', 'rate' => 80]);
+    expect(method_exists(teePolicy(), 'chatOpenPerformerCredit'))->toBeFalse();
 });
 
 it('cobra 2 tokens de nao-assinante e Expl/Ins/Pres, 1 de Black e FC', function () {

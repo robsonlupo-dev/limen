@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\TokenMath;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -27,13 +29,23 @@ class GiftSend extends Model
     protected function casts(): array
     {
         return [
-            'tokens' => 'integer',
-            'performer_amount' => 'integer',
-            'platform_amount' => 'integer',
+            'tokens' => 'integer', // bruto: membro paga inteiro
             'applied_rate' => 'integer',
             'sender_ledger_id' => 'integer',
             'performer_ledger_id' => 'integer',
         ];
+    }
+
+    // Espelho do split fraciona (75% de 3 = 2,25) desde 19/08/2026. Contrato
+    // uniforme: INT quando inteiro ("30.00" → 30), STRING decimal quando fracionário.
+    protected function performerAmount(): Attribute
+    {
+        return Attribute::make(get: fn ($value) => TokenMath::readable($value ?? 0));
+    }
+
+    protected function platformAmount(): Attribute
+    {
+        return Attribute::make(get: fn ($value) => TokenMath::readable($value ?? 0));
     }
 
     protected static function booted(): void

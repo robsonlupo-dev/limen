@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\InsufficientBalanceException;
+use App\Support\TokenMath;
 use App\Exceptions\PayoutNotAllowedException;
 use App\Mail\PayoutNeedsReviewMail;
 use App\Models\PaymentEvent;
@@ -74,13 +75,43 @@ class PayoutService
     }
 
     /**
-     * Valor do saque em CENTAVOS (M.13.5): R$0,60/token FIXO, inteiro puro (nunca
-     * float no caminho autoritativo). Substitui o cálculo antigo por split_pct
-     * (divergência diferida dos PRs #131/#132, agora fechada).
+     * Valor do saque em CENTAVOS (M.13.5): R$0,60/token = 60 centavos/token FIXO. Este
+     * é o ÚNICO ponto de arredondamento da economia inteira (Regra R2): a conversão
+     * token→R$ no payout, sempre **FLOOR** (nunca half-up, nunca para cima). bcmath,
+     * nunca float. `$tokens` pode ser fracionário (o ganho da performer é decimal).
      */
-    public function calculatePayoutCentavos(int $tokens): int
+    public function calculatePayoutCentavos(int|string $tokens): int
     {
-        return $tokens * $this->creditPolicy->payoutCentavosPerToken();
+        // tokens × 60 em escala 4, depois floor ao centavo inteiro.
+        return TokenMath::intFloor(TokenMath::mul($tokens, $this->creditPolicy->payoutCentavosPerToken()));
+    }
+
+    /**
+     * Decomposição do saque (Regra R1–R3). Converte `$withdrawable` tokens em:
+     *  - `centavos`: R$ a pagar, FLOOR ao centavo (R2) — nunca overpaga real.
+     *  - `tokens_consumed`: os tokens que esses centavos representam (centavos ÷ 60),
+     *    o que se DEBITA da carteira. Truncado em escala 4 → tokens_consumed × 60 ≤
+     *    centavos, então a Limen paga no máximo uma sub-fração de centavo A MAIS do que
+     *    debita — nunca a menos (o arredondamento nunca favorece a Limen).
+     *  - `remainder`: `withdrawable − tokens_consumed`, a SOBRA que CONTINUA no saldo da
+     *    performer (R3) — não é debitada, não some, não vira da Limen.
+     *
+     * Ex. (R3): saldo 4,8733 → 4,8733×60 = 292,398 → floor 292 centavos (R$2,92);
+     * tokens_consumed = 292÷60 = 4,8666; remainder 0,0067 fica no saldo.
+     *
+     * @return array{centavos:int, tokens_consumed:string, remainder:string}
+     */
+    public function payoutBreakdown(int|string $withdrawable): array
+    {
+        $centavos = $this->calculatePayoutCentavos($withdrawable);
+        $perToken = (string) $this->creditPolicy->payoutCentavosPerToken(); // "60"
+        $consumed = bcdiv((string) $centavos, $perToken, TokenMath::SCALE);
+
+        return [
+            'centavos' => $centavos,
+            'tokens_consumed' => $consumed,
+            'remainder' => TokenMath::sub($withdrawable, $consumed),
+        ];
     }
 
     /**
@@ -93,7 +124,7 @@ class PayoutService
      * e permanecem como débito permanente num saque PAGO (nunca re-paga). Nunca
      * negativo.
      */
-    public function earningsOwed(User $performer): int
+    public function earningsOwed(User $performer): int|string
     {
         $walletId = TokenWallet::where('user_id', $performer->id)->value('id');
 
@@ -101,21 +132,27 @@ class PayoutService
             return 0;
         }
 
-        $earned = (int) TokenLedger::where('wallet_id', $walletId)
+        // Os ganhos são FRACIONÁRIOS desde a economia de mensagem (chat_access_credit
+        // = 1,60, etc.). Somar por bcmath — o antigo `(int) sum` TRUNCAVA a fração e
+        // subtraía do que a performer pode sacar (leak contra a performer).
+        $earned = TokenMath::of(TokenLedger::where('wallet_id', $walletId)
             ->whereIn('entry_type', config('monetization.payout.earning_entry_types'))
-            ->sum('amount');
+            ->sum('amount'));
 
         // reserved: amounts de payout_reserve são negativos; a soma é ≤ 0.
         // reversed: payout_reversal são positivos. earned + reserved(≤0) + reversed.
-        $reserved = (int) TokenLedger::where('wallet_id', $walletId)
+        $reserved = TokenMath::of(TokenLedger::where('wallet_id', $walletId)
             ->where('entry_type', 'payout_reserve')
-            ->sum('amount');
+            ->sum('amount'));
 
-        $reversed = (int) TokenLedger::where('wallet_id', $walletId)
+        $reversed = TokenMath::of(TokenLedger::where('wallet_id', $walletId)
             ->where('entry_type', 'payout_reversal')
-            ->sum('amount');
+            ->sum('amount'));
 
-        return max(0, $earned + $reserved + $reversed);
+        // int quando inteiro (o caso comum — o saque é inteiro), string decimal
+        // quando há "poeira" fracionária de ganho ainda devida. Mesmo contrato de
+        // TokenService::balance().
+        return TokenMath::readable(TokenMath::max(0, TokenMath::add(TokenMath::add($earned, $reserved), $reversed)));
     }
 
     /**
@@ -131,7 +168,7 @@ class PayoutService
      */
     public function createAndSendPayout(
         User $performer,
-        int $tokens,
+        int|string $withdrawable,
         string $pixKey,
         string $pixKeyType,
         ?int $periodYear = null,
@@ -140,17 +177,23 @@ class PayoutService
         // Teto de ganhos sacáveis (M.13.5): nunca saca mais do que ganhou. Best-
         // effort fora do lock (o débito é o guard duro do saldo); fecha o leak de
         // sacar tokens não-ganhos (subscription_grant/purchase/bonus) a R$0,60.
-        if ($tokens > $this->earningsOwed($performer)) {
-            throw new InsufficientBalanceException($tokens, $this->earningsOwed($performer));
+        if (TokenMath::cmp($withdrawable, $this->earningsOwed($performer)) > 0) {
+            throw new InsufficientBalanceException($withdrawable, $this->earningsOwed($performer));
         }
 
-        $centavos = $this->calculatePayoutCentavos($tokens);
+        // R1–R3: o ÚNICO arredondamento da economia é aqui — floor ao centavo. Debita
+        // só os tokens que os centavos pagos representam (`tokens_consumed`); a SOBRA
+        // (`remainder`) NÃO é debitada e fica no saldo da performer para o próximo saque.
+        $breakdown = $this->payoutBreakdown($withdrawable);
+        $centavos = $breakdown['centavos'];
+        $tokensConsumed = $breakdown['tokens_consumed'];
+        $tokensLabel = TokenMath::display($tokensConsumed);
         $amountBrl = sprintf('%d.%02d', intdiv($centavos, 100), $centavos % 100);
 
-        $payout = DB::transaction(function () use ($performer, $tokens, $pixKey, $pixKeyType, $amountBrl, $periodYear, $periodMonth) {
+        $payout = DB::transaction(function () use ($performer, $tokensConsumed, $tokensLabel, $pixKey, $pixKeyType, $amountBrl, $periodYear, $periodMonth) {
             $payout = Payout::create([
                 'performer_id' => $performer->id,
-                'tokens' => $tokens,
+                'tokens' => $tokensConsumed,
                 'amount_brl' => $amountBrl,
                 'pix_key' => $pixKey,
                 'pix_key_type' => $pixKeyType,
@@ -162,18 +205,18 @@ class PayoutService
 
             $this->tokenService->debit(
                 $performer,
-                $tokens,
+                $tokensConsumed,
                 'payout_reserve',
                 'payout',
                 $payout->id,
-                "Saque solicitado: {$tokens} tokens",
+                "Saque: {$tokensLabel} tokens",
             );
 
             return $payout;
         });
 
         Audit::log('payout.requested', $payout, [
-            'tokens' => $tokens,
+            'tokens' => $tokensLabel,
             'amount_brl' => $amountBrl,
         ]);
 
@@ -306,10 +349,17 @@ class PayoutService
             return ['bucket' => 'skipped_duplicate', 'tokens' => 0];
         }
 
-        $payable = min($this->earningsOwed($performer), $this->tokenService->balance($performer));
-        $payable = min($payable, $this->maxTokens());
+        // Nunca saca acima do devido, do saldo real, nem do teto. O saque FRACIONA
+        // (o floor é só na conversão p/ R$ — R2 —, e a sobra fica no saldo — R3), então
+        // NÃO se arredonda o token aqui.
+        $payable = TokenMath::min(
+            $this->earningsOwed($performer),
+            $this->tokenService->balance($performer),
+            $this->maxTokens(),
+        );
 
-        if ($payable < $this->minTokens()) {
+        // Mínimo de saque em TOKENS (M.10): abaixo de 100 não varre.
+        if (TokenMath::cmp($payable, $this->minTokens()) < 0) {
             return ['bucket' => 'skipped_below_min', 'tokens' => 0];
         }
 
@@ -326,7 +376,7 @@ class PayoutService
             return ['bucket' => 'skipped_no_key', 'tokens' => 0];
         }
 
-        $this->createAndSendPayout(
+        $payout = $this->createAndSendPayout(
             $performer,
             $payable,
             $lastPayout->pix_key,
@@ -335,7 +385,9 @@ class PayoutService
             $month,
         );
 
-        return ['bucket' => 'created', 'tokens' => $payable];
+        // Reporta os tokens EFETIVAMENTE consumidos (o que foi pago); a sobra do floor
+        // fica no saldo para o próximo ciclo (R3). Contrato readable: int quando inteiro.
+        return ['bucket' => 'created', 'tokens' => $payout->tokens];
     }
 
     public function handleWebhook(array $payload): void

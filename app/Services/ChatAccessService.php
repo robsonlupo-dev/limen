@@ -96,11 +96,15 @@ class ChatAccessService
                 "Acesso ao chat de {$performerProfile->stage_name}",
             );
 
-            // Crédito FIXO de 1 token à performer (M.13.1), fora do split, sempre
-            // (nunca zero). Via policy: chat_access_credit nunca respeita teto.
-            $creditEntry = $this->creditPolicy->credit(
+            // Economia de mensagem (19/08/2026): a performer recebe 80% do que o
+            // membro pagou pela abertura (split exato — 2 → 1,60; 1 → 0,80), no lugar
+            // do crédito fixo de 1 de M.13.1, que a 50% quebrava o contrato de 80%.
+            // applied_rate=80 congelado na linha; chat_access_credit nunca respeita
+            // teto (é *_credit) e segue no allowlist de payout.
+            $creditEntry = $this->creditPolicy->creditWithSplit(
                 $performerUser,
-                $this->creditPolicy->chatOpenPerformerCredit(),
+                $cost,
+                'chat',
                 'chat_access_credit',
                 ChatAccess::class,
                 $access?->id,

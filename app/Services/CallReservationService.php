@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\CallReservationCallStarted;
+use App\Support\TokenMath;
 use App\Events\CallReservationPerformerEntered;
 use App\Events\CallReservationReminder;
 use App\Events\CallReservationResolved;
@@ -82,7 +83,7 @@ class CallReservationService
         $price = (int) $profile->call_price_per_minute;
         $slotMinutes = $this->slotMinutesFor($profile);
 
-        if ($this->tokenService->balance($member) < $price) {
+        if (TokenMath::cmp($this->tokenService->balance($member), $price) < 0) {
             throw CallReservationException::insufficientBalance();
         }
 

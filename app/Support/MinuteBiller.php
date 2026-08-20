@@ -52,7 +52,7 @@ class MinuteBiller
                 $endedReason = 'max_duration';
                 break;
             }
-            if ($this->tokens->balance($member) < $price) {
+            if (TokenMath::cmp($this->tokens->balance($member), $price) < 0) {
                 $endedReason = 'insufficient_balance';
                 break;
             }
@@ -71,7 +71,7 @@ class MinuteBiller
         return [
             'minutes_billed' => $minutesBilled,
             'balance' => $balance,
-            'minutes_left' => $price > 0 ? intdiv($balance, $price) : 0,
+            'minutes_left' => $price > 0 ? (int) bcdiv($balance, (string) $price, 0) : 0,
             'can_continue' => $canContinue,
             'ended_reason' => $canContinue ? null : ($endedReason ?? 'insufficient_balance'),
         ];

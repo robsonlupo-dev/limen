@@ -6,13 +6,30 @@ use App\Exceptions\InsufficientBalanceException;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
+use App\Support\TokenMath;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Escritor bruto do ledger append-only. Desde a economia decimal (19/08/2026, M.14) o
+ * amount/balance são DECIMAL(20,4) e TODA aritmética passa por bcmath
+ * (App\Support\TokenMath) — decimal EXATO, nunca float. O saldo canônico é uma STRING
+ * de escala 4 ("1500.0000"/"4.8000"). Amounts de entrada aceitam int (custo/pacote
+ * inteiro) OU string (fatia fracionária do split); a normalização é interna.
+ */
 class TokenService
 {
-    public function balance(User $user): int
+    /**
+     * Saldo do usuário. INT quando inteiro (o caso do membro, "inteiro por
+     * construção", e toda carteira de saldo redondo), STRING decimal exata quando
+     * fracionário (carteira de performer que recebeu frações do split — ex.: "4.8000").
+     * Aritmética sobre o retorno passa por TokenMath (aceita int|string) — nunca
+     * operador nativo, nunca coerção a float.
+     */
+    public function balance(User $user): int|string
     {
-        return TokenWallet::where('user_id', $user->id)->value('balance') ?? 0;
+        $raw = TokenWallet::where('user_id', $user->id)->value('balance');
+
+        return $raw === null ? 0 : TokenMath::readable($raw);
     }
 
     /**
@@ -21,19 +38,23 @@ class TokenService
      * caminhos de crédito cap-críticos (purchase/bonus/subscription_grant) devem
      * passar pela policy, nunca chamar isto direto (travado por teste de arquitetura).
      *
-     * `$appliedRate` congela a taxa de split percentual na linha (M.13.7); null em
-     * todo crédito que não é split (grant, purchase, chat fixo, refund…).
+     * `$amount` pode ser inteiro (grant/compra) ou decimal (fatia do split, ex.
+     * "1.6000"); é normalizado para escala 4 e somado por bcmath. `$appliedRate`
+     * congela a taxa do split percentual na linha (M.13.7 superado por decimal
+     * exato); null em todo crédito que não é split.
      */
     public function credit(
         User $user,
-        int $amount,
+        int|string $amount,
         string $type,
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?string $description = null,
         ?int $appliedRate = null,
     ): TokenLedger {
-        if ($amount <= 0) {
+        $amount = TokenMath::of($amount);
+
+        if (! TokenMath::isPositive($amount)) {
             throw new \InvalidArgumentException('Credit amount must be positive.');
         }
 
@@ -45,7 +66,7 @@ class TokenService
 
             $wallet = TokenWallet::where('user_id', $user->id)->lockForUpdate()->first();
 
-            $newBalance = $wallet->balance + $amount;
+            $newBalance = TokenMath::add($wallet->balance, $amount);
             $wallet->update(['balance' => $newBalance]);
 
             return TokenLedger::create([
@@ -61,15 +82,22 @@ class TokenService
         });
     }
 
+    /**
+     * Débito bruto. `$amount` normalmente inteiro (todo gasto de membro é inteiro);
+     * aceita string por simetria. O saldo pode ser fracionário (carteira de
+     * performer), então a checagem de suficiência e a subtração são bcmath.
+     */
     public function debit(
         User $user,
-        int $amount,
+        int|string $amount,
         string $type,
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?string $description = null,
     ): TokenLedger {
-        if ($amount <= 0) {
+        $amount = TokenMath::of($amount);
+
+        if (! TokenMath::isPositive($amount)) {
             throw new \InvalidArgumentException('Debit amount must be positive.');
         }
 
@@ -81,17 +109,17 @@ class TokenService
 
             $wallet = TokenWallet::where('user_id', $user->id)->lockForUpdate()->first();
 
-            if ($wallet->balance < $amount) {
+            if (TokenMath::cmp($wallet->balance, $amount) < 0) {
                 throw new InsufficientBalanceException($amount, $wallet->balance);
             }
 
-            $newBalance = $wallet->balance - $amount;
+            $newBalance = TokenMath::sub($wallet->balance, $amount);
             $wallet->update(['balance' => $newBalance]);
 
             $entry = TokenLedger::create([
                 'wallet_id' => $wallet->id,
                 'entry_type' => $type,
-                'amount' => -$amount,
+                'amount' => TokenMath::sub(0, $amount), // negativo: "-2.0000"
                 'balance_after' => $newBalance,
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
@@ -102,9 +130,7 @@ class TokenService
             // policy credita o que couber da franquia pendente, na MESMA transação
             // e sobre o wallet JÁ TRAVADO (sem re-consultar), então dois gastos
             // concorrentes serializam no lock e nunca liberam a mesma pendência
-            // duas vezes. No-op quando não há pendência. Atômico com o débito por
-            // desenho: "mesma disciplina do débito atômico" (task 1b) — uma falha
-            // aqui reverte o gasto e o usuário retenta, nunca perde a pendência.
+            // duas vezes. No-op quando não há pendência. Atômico com o débito.
             app(TokenCreditPolicy::class)->releaseAfterDebit($user, $wallet);
 
             return $entry;

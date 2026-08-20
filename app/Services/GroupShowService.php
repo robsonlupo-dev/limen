@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\GroupEnded;
+use App\Support\TokenMath;
 use App\Events\GroupParticipantLeft;
 use App\Events\GroupUpgradeRequested;
 use App\Events\GroupUpgradeResolved;
@@ -175,7 +176,7 @@ class GroupShowService
         }
 
         $price = (int) $group->price_per_minute;
-        if ($this->tokenService->balance($member) < $price) {
+        if (TokenMath::cmp($this->tokenService->balance($member), $price) < 0) {
             throw CallException::insufficientBalance();
         }
 
@@ -569,7 +570,7 @@ class GroupShowService
 
             return [
                 'balance' => $balance,
-                'minutes_left' => $price > 0 ? intdiv($balance, $price) : 0,
+                'minutes_left' => $price > 0 ? (int) bcdiv($balance, (string) $price, 0) : 0,
                 'can_continue' => false,
                 'ended_reason' => 'ended',
             ];

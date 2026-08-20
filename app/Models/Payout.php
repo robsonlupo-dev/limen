@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\TokenMath;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,7 +18,6 @@ class Payout extends Model
     protected function casts(): array
     {
         return [
-            'tokens' => 'integer',
             'amount_brl' => 'decimal:2',
             'pix_key' => 'encrypted',
             'period_year' => 'integer',
@@ -25,6 +26,14 @@ class Payout extends Model
             'processed_at' => 'datetime',
             'unresolved_since' => 'datetime',
         ];
+    }
+
+    // DECIMAL(20,4) desde a economia decimal: o payout consome uma quantidade
+    // fracionária de token (conversão floored ao centavo — R2 —, sobra preservada —
+    // R3). Lê INT quando inteiro ("500.0000" → 500), string decimal quando fracionário.
+    protected function tokens(): Attribute
+    {
+        return Attribute::make(get: fn ($value) => TokenMath::readable($value ?? 0));
     }
 
     public function performer(): BelongsTo

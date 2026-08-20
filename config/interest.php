@@ -9,9 +9,10 @@ return [
     | binário, sem texto); o membro paga tokens para desbloquear quem enviou.
     */
 
-    // Custo, em tokens, para o membro desbloquear (revelar) uma performer.
-    // Débito 100% plataforma — a performer NÃO recebe crédito do desbloqueio.
-    'unlock_cost' => (int) env('INTEREST_UNLOCK_COST', 15),
+    // NOTA (auditoria 19/08/2026): o CUSTO do desbloqueio migrou para
+    // `config/monetization.php › interest_unlock_cost` — "um lugar só para preço"
+    // (débito 100% plataforma, a performer não recebe crédito). Aqui ficam só os
+    // limites diários e o cooldown (política de anti-spam, não preço).
 
     // Teto de interesses que uma performer pode enviar por dia. É o piso;
     // tiers superiores elevam o limite (tabela por tier é follow-up).
