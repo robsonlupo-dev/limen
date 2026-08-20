@@ -1377,6 +1377,12 @@ seguidores/visitantes; no catálogo o coração o substitui):
   por janela, performer recebe o crédito fixo de abertura). **A performer NÃO paga
   para enviar; só o membro paga para LER.** Franquia esgotada → 422
   `daily_message_limit` ("você usou suas N mensagens grátis de hoje").
+  - **`free_messages_per_day = 15` é DECISÃO DO PO (Robson, 20/08/2026):** 15
+    mensagens grátis/dia é o limite anti-spam adequado, e **o custo que o MEMBRO paga
+    para LER é o filtro principal** (não a cota da performer). **Não baixar para 5 sem
+    nova decisão de PO** (a spec de `feat/chat-economy-v2` cogitou "5/dia", o PO manteve
+    15). É **ajustável por `.env`** (`MEMBER_FREE_MESSAGES_PER_DAY`) **sem deploy** — a
+    config lê o env na leitura; nenhum código muda para trocar o número.
 
 Invariantes travadas (revisão de segurança rodada, sem 🔴):
 - **Alvo pela MESMA fonte da lista.** Coração e mensagem resolvem o `member_handle`
