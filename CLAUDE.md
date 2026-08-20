@@ -1366,6 +1366,22 @@ de 2. **Nenhuma mudança na economia/ledger/cobrança — é leitura e apresenta
   Prop `viewerIsPerformer` só ajusta a copy do estado vazio. `ChatListTitleTest` trava:
   performer vê o alias do membro (não o próprio nome, não nome/e-mail reais), membro vê
   a performer, e cada linha casa com o alias do SEU membro.
+- **[8] CARD DE CONTEÚDO QUEBRADO no perfil (mobile).** **Causa (diagnosticada):** o
+  card só quebra para quem PODE ver (membro/dona — o guest recebe o cadeado 🔒, sem
+  `image_url`, porque `canView` é false para `role != consumer`). Para quem vê,
+  `image_url = route('content.image', id)` (rota dinâmica — NÃO é asset estático do
+  Vite), e `content.image` serve `path` (foto) / `thumbnail_path` (vídeo) via
+  `ContentStore::retrieve`, que **lançava RuntimeException → HTTP 500** quando os bytes
+  faltavam no disco (arquivo não sincronizado entre clones, thumbnail não gerado, upload
+  que falhou). A `<img alt="performerName">` quebrada mostrava o glifo de imagem quebrada
+  + o **alt ("Bella") COBRINDO o selo "Aberto"** (o "título sobreposto ao selo" era o
+  alt). **Correções:** (a) `ContentController::image` faz `abort_if(path null || !exists,
+  404)` — 404 DEFINIDO, não 500; (b) `ContentGallery.vue` ganhou `@error` → placeholder
+  "Imagem indisponível" centrado, `alt=""` (o selo já rotula o nível; alt-texto quebrado
+  não cobre mais o selo), `aspect-square` mantido (proporção fixa, não estica/colapsa sem
+  imagem). `ContentImageFallbackTest` trava o 404 (arquivo ausente) e o 200 (bytes
+  presentes). Vale para as 3 telas que usam `ContentGallery` (Catalog/Show, Performers/
+  Show, Feed).
 
 ## Ícone "Conversar" do card no catálogo do membro — `fix/member-chat-click`
 
