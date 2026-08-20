@@ -1246,7 +1246,72 @@ oráculo para reconstruir quem a lista esconde — disciplina do
 - **Só membro verificado e ativo** (`role=consumer`, `status=active`,
   `email_verified_at` não-nulo) — throwaway não é exposto à performer.
 
+## Chat iniciado pelo membro + cobrança no envio — `feat/chat-economy-v2` (base `main` 34f1a30, PR pendente)
+
+**SUPERA o modelo interest-gated do chat e o `fix/member-chat-click` abaixo.**
+Decisão do PO (Robson, 20/08/2026). Muda o **FLUXO** do chat; a **economia decimal**
+do PR #197 (§E/§F de `docs/AUDITORIA_ECONOMIA_TOKENS.md`) fica **INTACTA** — mesmo
+`entry_type` (`chat_access_credit`, `applied_rate=80`), split exato 2 → 1,6000 /
+1 → 0,8000, R1–R4. **Sem migration, sem novo `entry_type`.**
+
+- **[1] Fim do interest-gate membro→performer.** Qualquer membro com saldo **inicia**
+  conversa com qualquer performer, sem ela ter demonstrado Interesse. **Motivo:** o
+  portão dependia de a performer descobrir o membro — em catálogo de **pré-lançamento**,
+  zero conversas. Endpoints novos (`routes/web.php`, grupo `auth`+`2fa`): **`chat.with`**
+  (GET `/chat/com/{slug}`, tela em modo compor — redireciona a `chat.show` se a conversa
+  já existe) e **`chat.start`** (POST `/chat/com/{slug}/iniciar`, envia a 1ª mensagem),
+  ambos `role:consumer` + `member.verified` + `documents.accepted`. `findBySlug`
+  (publicCatalog: verificada+ativa) barra performer suspensa/inexistente com **404**
+  (indistinguível), e `member_id` é sempre o `auth user` — sem IDOR. `com` não é número,
+  não colide com `/chat/{conversation}` (`whereNumber`).
+- **[2] A cobrança passou do desbloqueio prévio para o ATO DO 1º ENVIO.**
+  `ChatService::sendMessage`, para o MEMBRO:
+  - **sem linha de `chat_access`** (1º envio): `ChatAccessService::openForFirstSend`
+    abre e paga a janela de 30d no mesmo gesto — **débito do membro + crédito 80/20 +
+    criação da mensagem na MESMA transação** (ou os três, ou nenhum);
+  - **com janela ATIVA**: envia grátis (2ª+ mensagem não debita);
+  - **com linha em carência/expirada**: **BLOQUEIA** (`accessRequired`) — grace/expired
+    seguem exigindo **renovação EXPLÍCITA** por `chat.access.open` (pagar-para-ler).
+  A performer sempre envia grátis (não passa pelo gate). `openOrRenew` foi refatorado —
+  o núcleo virou `chargeAndOpen` privado, reusado pelos dois caminhos.
+- **[3] A RETENÇÃO NÃO FOI TOCADA (decisão explícita do PO).** `access_days` (30) +
+  `grace_days` (15) + `purgeExpired` + soft-delete das mensagens ficam **EXATAMENTE
+  como estão** — "comportamento idêntico ao existente daí em diante": aberta a janela,
+  expiração/carência/renovação/purge seguem o modelo de hoje, e por isso a cobrança
+  nova é só na PRIMEIRA abertura. **Revisitar a retenção só se houver reclamação** —
+  quem for mexer, leia `docs/AUDITORIA_ECONOMIA_TOKENS.md` §F antes.
+- **Integridade (travada por `tests/Feature/ChatEconomyV2Test.php`):** sem saldo
+  negativo / sem cobrança dupla (atômico; insuficiente → 422 `insufficient_balance`,
+  reverte tudo, sem conversa-fantasma); **charge-once sob concorrência**
+  (`openForFirstSend` serializa no lock da LINHA DA CONVERSA + relê `chat_access` com
+  `lockForUpdate` = última versão comitada, não o snapshot); **bloqueio (conversa
+  `archived`) recusa ANTES de qualquer débito** (guard de status FORA da transação),
+  token cobrado **não** estorna; **filtro de conteúdo ANTES do débito** (mensagem
+  barrada não gasta token, texto preservado no campo, audit do bloqueio persiste fora
+  da transação).
+- **`canMemberSendTo` deixou de gatear o CHAT** (o envio paga por conta própria) e
+  passou a ser **exclusivamente o gate da FOTO efêmera** (`MemberPhotoService::shareWith`)
+  — que continua exigindo janela paga ATIVA (des-anonimização consentida). O 4º
+  bloqueador do Sprint 9B (fonte única do gate da foto) segue travado; só o consumidor
+  chat saiu. `MemberPhotoModerationTest` atualizado para refletir a separação.
+- **Front:** `Chat/Show.vue` (compositor visível ao membro em qualquer estado, custo
+  mostrado ANTES da cobrança, envia por `chat.start` no modo compor ou `chat.messages.store`
+  na conversa existente, texto preservado no erro; o botão "Desbloquear acesso" PRÉ-envio
+  saiu — "Pagar para ler" só quando há conteúdo travado a ler); `PerformerCard.vue` e
+  `Catalog/Show.vue` (o "Conversar"/"Iniciar conversa" leva a `chat.with` quando não há
+  conversa, `chat.show` quando há). **Nada muda no lado da performer** (`sendCatalogMessage`,
+  direção oposta, intocada).
+- **Verificado (não mudou):** a cobrança do fluxo PERFORMER-inicia continua na LEITURA
+  (o membro paga ao abrir o acesso, `chat.access.open`), **nunca no envio da performer**
+  (ela consome só a franquia diária do catálogo). Confirmado por teste.
+
 ## Ícone "Conversar" do card no catálogo do membro — `fix/member-chat-click`
+
+> **SUPERADO por `feat/chat-economy-v2` (acima):** o chat deixou de ser interest-gated,
+> o ícone abre `chat.with` (modo compor) quando não há conversa em vez de cair no
+> perfil, e a cobrança acontece no envio. O texto abaixo é HISTÓRICO (o contrato do
+> payload `chat_conversation_id` do `CatalogController` continua valendo; só o destino
+> do fallback mudou de perfil para `chat.with`).
 
 Correção de UX (ago/2026, PR pendente, base `main`). O ícone de balão no card de
 performer do catálogo do membro (`PerformerCard.vue`) levava SEMPRE ao perfil, e a

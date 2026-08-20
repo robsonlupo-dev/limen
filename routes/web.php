@@ -409,6 +409,19 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->whereNumber('conversation')
         ->name('chat.show');
 
+    // feat/chat-economy-v2: o MEMBRO inicia o chat pela PERFORMER (slug), não por
+    // id de conversa — o card do catálogo aponta aqui quando ainda não há conversa.
+    // `com` não é número, então não colide com /chat/{conversation} (whereNumber).
+    // Só consumidor verificado; a cobrança dos tokens do tier acontece no ENVIO da
+    // 1ª mensagem (chat.start), nunca ao abrir a tela.
+    Route::get('/chat/com/{slug}', [ChatController::class, 'showWithPerformer'])
+        ->middleware(['throttle:60,1', 'role:consumer', 'member.verified', 'documents.accepted'])
+        ->name('chat.with');
+
+    Route::post('/chat/com/{slug}/iniciar', [ChatController::class, 'startWithPerformer'])
+        ->middleware(['throttle:30,1', 'role:consumer', 'member.verified', 'documents.accepted'])
+        ->name('chat.start');
+
     Route::post('/chat/{conversation}/mensagens', [ChatController::class, 'storeMessage'])
         ->middleware(['throttle:30,1', 'documents.accepted'])
         ->whereNumber('conversation')

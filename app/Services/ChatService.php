@@ -58,11 +58,12 @@ class ChatService
      * Envia uma mensagem numa conversa aberta. O remetente precisa participar; o
      * controller e a policy já garantem — aqui é guarda de defesa.
      *
-     * Cobrança é por ACESSO, não por mensagem: a performer sempre pode enviar;
-     * o membro só envia com Círculo ativo OU acesso pago em dia (can_send). Sem
-     * isso, ChatException::accessRequired — o controller mostra o CTA de compra.
+     * feat/chat-economy-v2: a performer sempre envia de graça; o membro paga o
+     * acesso no ATO DO 1º ENVIO (openForFirstSend) — depois da 1ª abertura a janela
+     * expira/renova EXATAMENTE como hoje. Ver o comentário do ramo abaixo.
      *
-     * @throws ChatException não-participante, conversa arquivada, ou sem acesso
+     * @throws ChatException não-participante, conversa arquivada, ou acesso em carência/expirado
+     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente no 1º envio
      */
     public function sendMessage(Conversation $conversation, User $sender, string $body): Message
     {
@@ -80,30 +81,92 @@ class ChatService
 
         $senderIsPerformer = $sender->id === $conversation->performerProfile->user_id;
 
-        // A performer sempre pode enviar (grátis). O membro depende do acesso, e
-        // quem decide isso é `canMemberSendTo()` — a mesma função que autoriza o
-        // compartilhamento de foto efêmera. Era código duplicado entre as duas
-        // portas (4º bloqueador do Sprint 9B); regra nova entra lá, não aqui.
+        // feat/chat-economy-v2: a cobrança do membro passou do desbloqueio prévio
+        // para o ATO DO 1º ENVIO. A performer sempre envia de graça. Para o membro:
         //
-        // O guard de conversa arquivada continua ACIMA, fora deste if, porque lá
-        // ele vale para os dois lados: a performer também não escreve em conversa
-        // arquivada, e `canMemberSendTo` é sobre o membro. A checagem de status
-        // aparece nos dois lugares de propósito — aqui como regra da conversa,
-        // lá como uma das duas portas do membro —, e é por isso que a exceção
-        // específica (`conversationArchived`) não se perde na unificação.
-        if (! $senderIsPerformer && ! $this->chatAccessService->canMemberSendTo($sender, $conversation->performerProfile)) {
-            throw ChatException::accessRequired();
+        //  - Sem linha de acesso (nunca abriu com esta performer): o envio ABRE e
+        //    paga a janela de 30 dias no mesmo gesto (openForFirstSend), débito +
+        //    crédito 80/20 na MESMA transação da criação da mensagem — ou os três
+        //    persistem, ou nenhum. Saldo insuficiente sobe InsufficientBalance-
+        //    Exception, revertendo tudo (sem mensagem, sem cobrança, sem negativo).
+        //  - Com janela ATIVA: envia de graça (2ª+ mensagem da janela não debita).
+        //  - Com linha em carência/expirada: BLOQUEIA (accessRequired). A retenção
+        //    fica EXATAMENTE como hoje — grace/expired exige renovação EXPLÍCITA
+        //    (pagar para ler, openOrRenew), não auto-renova no envio.
+        //
+        // A leitura de `accessFor` é sem-lock só para DECIDIR o ramo; a cobrança em
+        // si (openForFirstSend) re-lê sob lock e é charge-once por concorrência.
+        //
+        // O guard de conversa arquivada fica ACIMA, FORA da transação: conversa
+        // bloqueada recusa ANTES de qualquer débito (nem pagando o membro fura o
+        // bloqueio), e a exceção específica (conversationArchived) não se perde.
+        if (! $senderIsPerformer) {
+            $access = $this->chatAccessService->accessFor($conversation, $sender);
+
+            if ($access !== null && ! $access->hasFullAccess()) {
+                throw ChatException::accessRequired();
+            }
         }
 
-        $message = Message::forceCreate([
-            'conversation_id' => $conversation->id,
-            'sender_id' => $sender->id,
-            'body' => $body,
-        ]);
+        // Cobrança + criação da mensagem + carimbo de last_message_at: ATÔMICOS. O
+        // broadcast fica FORA (após o commit) — o padrão do projeto (tip/gift/call):
+        // o cliente re-busca via HTTP, que só chega depois deste commit, então não
+        // há corrida entre o evento e a escrita. (Na dev o driver é `log`.)
+        $message = DB::transaction(function () use ($conversation, $sender, $body, $senderIsPerformer) {
+            if (! $senderIsPerformer && $this->chatAccessService->accessFor($conversation, $sender) === null) {
+                $this->chatAccessService->openForFirstSend($conversation, $sender);
+            }
 
-        $this->finalize($conversation, $message);
+            $message = Message::forceCreate([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+            ]);
+
+            $conversation->forceFill(['last_message_at' => $message->created_at])->save();
+
+            return $message;
+        });
+
+        $this->broadcastMessage($conversation, $message);
 
         return $message;
+    }
+
+    /**
+     * feat/chat-economy-v2: o MEMBRO inicia a conversa com uma performer que ele
+     * descobriu no catálogo — sem ela ter demonstrado Interesse antes. É a inversão
+     * do portão histórico (o canal só nascia no unlock do Interesse, que dependia de
+     * a performer descobrir o membro — em catálogo de pré-lançamento, zero conversas).
+     *
+     * A conversa nasce aqui (idempotente por (member, performer)); a cobrança do
+     * tier acontece no ENVIO (sendMessage → openForFirstSend), não neste ponto.
+     *
+     * @throws ChatException conteúdo barrado (filtro), conversa arquivada
+     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente
+     */
+    public function memberSendToPerformer(PerformerProfile $performerProfile, User $member, string $body): Message
+    {
+        // Filtro ANTES de qualquer transação/criação: mensagem barrada audita e
+        // devolve 422 sem criar conversa nem cobrar token (mesma disciplina de
+        // sendCatalogMessage/performerMessageFromInterest). Roda fora da transação
+        // para o audit do bloqueio PERSISTIR (não ser revertido no rollback).
+        $this->assertContentAllowed($member, $body);
+
+        return DB::transaction(function () use ($performerProfile, $member, $body) {
+            // Cria (ou recupera) a conversa do par — o índice único (member,
+            // performer) fecha a corrida de dois inícios simultâneos.
+            $conversation = Conversation::firstOrCreate(
+                ['member_id' => $member->id, 'performer_profile_id' => $performerProfile->id],
+                ['status' => 'active'],
+            );
+            $conversation->loadMissing('performerProfile');
+
+            // sendMessage cobra no envio. Se o saldo não cobrir, a exceção sobe e
+            // ESTA transação reverte a conversa recém-criada — sem conversa-fantasma
+            // que a performer veria como thread vazia, sem cobrança.
+            return $this->sendMessage($conversation, $member, $body);
+        });
     }
 
     /**
@@ -386,13 +449,13 @@ class ChatService
     }
 
     /**
-     * Pós-persistência comum: carimba last_message_at e transmite o evento no
-     * canal privado.
+     * Transmite o evento no canal privado da conversa + a atualização da lista aos
+     * dois participantes. Chamado APÓS o commit da escrita (o carimbo de
+     * last_message_at fica na transação de sendMessage), para o broadcast nunca
+     * preceder a persistência.
      */
-    private function finalize(Conversation $conversation, Message $message): void
+    private function broadcastMessage(Conversation $conversation, Message $message): void
     {
-        $conversation->forceFill(['last_message_at' => $message->created_at])->save();
-
         // event() (não broadcast()) porque MessageSent é ShouldBroadcast: o
         // dispatcher transmite igual, e fica interceptável por Event::fake().
         event(new MessageSent($message));

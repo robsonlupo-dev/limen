@@ -288,6 +288,9 @@ return [
         // Chat (canal aberto pós-desbloqueio de Interesse)
         'chat.index',
         'chat.show',
+        // feat/chat-economy-v2: membro inicia o chat pela performer (slug).
+        'chat.with',
+        'chat.start',
         'chat.messages.store',
         'chat.access.open',
         'chat.performer.start',

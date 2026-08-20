@@ -251,3 +251,58 @@ arredondamento só no payout. Ver CLAUDE.md **M.14** (Regra Única de Arredondam
 5,2500) · conservação R4 (débito+crédito+comissão=0) · saldo do membro inteiro · payout
 4,8733 → R$2,92 com sobra 0,0067 preservada · dado inteiro migra sem perda · replay de
 chave cobra uma vez só.
+
+## F. `feat/chat-economy-v2` — chat iniciado pelo membro + cobrança no envio (20/08/2026)
+
+Decisão do PO (Robson). Segue a economia decimal (§E, PR #197) INTACTA — muda o
+FLUXO do chat, não a matemática. **Nenhum novo `entry_type`; nenhuma migration.** O
+crédito da performer continua `chat_access_credit` com `applied_rate=80`
+(2 → 1,6000; 1 → 0,8000, decimal exato). R1–R4 preservadas.
+
+### O que mudou
+
+1. **Fim do interest-gate membro→performer.** Antes, a conversa só nascia no unlock
+   do Interesse (a performer precisava descobrir o membro primeiro) — em catálogo de
+   **pré-lançamento** isso significava zero conversas. Agora **qualquer membro com
+   saldo inicia conversa com qualquer performer**, sem ela ter demonstrado interesse.
+   Endpoints novos: `chat.with` (GET, tela em modo compor por slug) e `chat.start`
+   (POST, envia a 1ª mensagem), gateados por `role:consumer` + `member.verified`;
+   `findBySlug` (publicCatalog) barra performer suspensa/inexistente com 404.
+2. **A cobrança passou do desbloqueio prévio para o ATO DO 1º ENVIO.** Antes o membro
+   comprava a janela por um endpoint separado ANTES de poder enviar. Agora
+   `ChatService::sendMessage`, para o membro:
+   - **sem linha de `chat_access`** (1º envio): `ChatAccessService::openForFirstSend`
+     abre e cobra a janela no mesmo gesto — débito do membro + crédito 80/20 da
+     performer + criação da mensagem na MESMA transação (ou os três, ou nenhum);
+   - **com janela ATIVA**: envia grátis (2ª+ mensagem não debita);
+   - **com linha em carência/expirada**: BLOQUEIA (`accessRequired`) — grace/expired
+     seguem exigindo renovação EXPLÍCITA por `chat.access.open`.
+3. **Custo inalterado:** o mesmo por tier (2; Black/FC 1) da TokenCreditPolicy.
+
+### A RETENÇÃO NÃO FOI TOCADA (decisão explícita do PO)
+
+`access_days` (30) + `grace_days` (15) + `purgeExpired` + soft-delete das mensagens
+ficam **EXATAMENTE como estão**. "Comportamento idêntico ao existente daí em diante":
+uma vez aberta a janela, expiração/carência/renovação/purge seguem o modelo de hoje —
+por isso a cobrança nova é só na PRIMEIRA abertura, e grace/expired continuam pela
+renovação explícita (o teste `ChatPhase1Test` "enters grace after expiry … sending
+blocked" segue verde). **Revisitar a retenção só se houver reclamação** — quem for
+mexer, leia esta análise antes (a assimetria membro-inteiro / performer-decimal e a
+janela/carência são invariantes, não acidente).
+
+### Integridade financeira (travada por `tests/Feature/ChatEconomyV2Test.php`)
+
+- **Sem saldo negativo / sem cobrança dupla:** débito+crédito+mensagem atômicos;
+  saldo insuficiente reverte tudo (sem mensagem, sem conversa-fantasma) → 422
+  `insufficient_balance`.
+- **Charge-once sob concorrência:** `openForFirstSend` serializa no lock da LINHA DA
+  CONVERSA e relê `chat_access` com `lockForUpdate` (última versão comitada, não o
+  snapshot REPEATABLE READ) — dois envios simultâneos cobram 1x; a 2ª mensagem da
+  janela não debita.
+- **Bloqueio não é furável pagando:** conversa `archived` recusa ANTES de qualquer
+  débito (guard de status FORA da transação); token já cobrado **não** é estornado.
+- **Filtro antes do débito:** `assertContentAllowed` roda antes de criar conversa/
+  cobrar; mensagem barrada não gasta token e o audit do bloqueio persiste (fora da
+  transação que reverteria).
+- **Privacidade:** nada novo expõe id/tier/PII do membro à performer; broadcast/
+  preview seguem paywallados.
