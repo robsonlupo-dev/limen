@@ -3052,6 +3052,16 @@ CHAT_FILTER_ENABLED=true · CHAT_FILTER_AUDIT_DEDUP_MINUTES=10
 
 ## MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS
 
+> **⚠️ FONTE CANÔNICA MOVIDA (`docs/split-business-rules`, ago/2026):** as regras de
+> NEGÓCIO da economia — preços, splits, tiers, descontos, franquias, teto, payout,
+> retenção de conversa e a regra única de arredondamento — passaram a viver em
+> **`docs/ECONOMIA.md`**, em linguagem de negócio para leitor não-técnico. **É lá a
+> fonte canônica agora.** As decisões de produto de agosto/2026 (portão de conversa
+> removido, chat 80/20, decimal exato) estão em **`docs/DECISOES_2026-08.md`**; as
+> pendências jurídicas em **`docs/PENDENCIAS_JURIDICAS.md`**. O texto histórico abaixo
+> (M.1–M.14) permanece como registro; onde divergir do `ECONOMIA.md`, o `ECONOMIA.md`
+> vence.
+
 > **Fechado pelo Product Owner (Robson) em 03/08/2026.** É a **referência
 > canônica para toda implementação futura de monetização** do Limen — pacotes de
 > tokens, chat, conteúdo, live, chamada privada, assinaturas dos Círculos, splits
@@ -4806,12 +4816,16 @@ mail · queue · reverb · sanctum · services · session · waitlist · ziggy
 ### Docs relevantes (`docs/`)
 
 ```
-CLAUDE.md (raiz — cérebro do projeto)
+CLAUDE.md (raiz — cérebro do projeto: só OPERACIONAL desde ago/2026)
 MASTER_HANDOFF_FINAL.md (este arquivo)
+ECONOMIA.md (⭐ FONTE CANÔNICA das regras de economia — negócio, leitor não-técnico)
+DECISOES_2026-08.md (decisões de produto de ago/2026, com o porquê de cada uma)
+PENDENCIAS_JURIDICAS.md (questões abertas para o advogado — filtro de chat, retenção, CNPJ)
 MASTER_HANDOFF_SPRINT6.md · MASTER_HANDOFF_SPRINT5.md
 SECURITY_ISSUES.md · LEGAL_GAP_ANALYSIS.md · PCI_SAQ_D.md
 GEOBLOCKING.md · INTEREST_SYSTEM_SPEC.md · INTEREST_ANONYMITY_FLOOR.md
-SUBSCRIPTION_TIERS.md · CIRCLES_SYSTEM_V4.md (⚠️ preços divergem — código vence)
+AUDITORIA_ECONOMIA_TOKENS.md (auditoria técnica da economia decimal)
+SUBSCRIPTION_TIERS.md · CIRCLES_SYSTEM_V4.md (⚠️ preços divergem — ECONOMIA.md vence)
 WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.md
 ```
 
