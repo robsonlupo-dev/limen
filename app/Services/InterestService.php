@@ -28,7 +28,9 @@ class InterestService
 
     private function unlockCost(): int
     {
-        return (int) config('interest.unlock_cost');
+        // Preço centralizado em monetization.php (auditoria 19/08/2026). Limites
+        // diários e cooldown (política) seguem em config/interest.php.
+        return (int) config('monetization.interest_unlock_cost');
     }
 
     /** Origens possíveis de um envio. Espelha o enum da coluna `source`. */

@@ -11,9 +11,9 @@
  */
 return [
 
-    // Custo do boost, em TOKENS (não em reais). A receita é indireta: a performer
-    // precisa comprar tokens via PIX para ter o que gastar aqui.
-    'cost_tokens' => (int) env('BOOST_COST_TOKENS', 50),
+    // NOTA (auditoria 19/08/2026): o CUSTO do boost migrou para
+    // `config/monetization.php › boost_cost_tokens` — "um lugar só para preço".
+    // Aqui ficam só duração e escassez (política de destaque, não preço).
 
     // Duração do destaque, em horas. É o quanto `boosted_until` fica no futuro a
     // partir do instante do boost. Um boost já ativo não muda se este valor mudar

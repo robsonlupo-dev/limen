@@ -103,9 +103,10 @@ it('os 6 presentes do catálogo dividem exatamente (múltiplos de 4)', function 
 
     Gift::active()->get()->each(function (Gift $gift) use ($policy) {
         $split = $policy->applyRate($gift->price_tokens, 'gift');
-        // Múltiplo de 4 → 75% é inteiro exato, retenção é o complemento.
-        expect($split['credited'] + $split['retained'])->toBe($gift->price_tokens)
-            ->and($split['credited'])->toBe(intdiv($gift->price_tokens * 3, 4))
+        // Split DECIMAL EXATO: credited + retained == preço SEMPRE. Múltiplo de 4 →
+        // 75% fecha em inteiro (credited termina em .0000). Soma por TokenMath, nunca `+`.
+        expect(\App\Support\TokenMath::add($split['credited'], $split['retained']))->toBe(\App\Support\TokenMath::of($gift->price_tokens))
+            ->and($split['credited'])->toBe(\App\Support\TokenMath::of(intdiv($gift->price_tokens * 3, 4)))
             ->and($gift->price_tokens % 4)->toBe(0);
     });
 

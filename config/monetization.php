@@ -76,8 +76,10 @@ return [
     | Split percentual por TIPO DE EVENTO, nunca por lugar/pessoa (M.13.6/M.13.7).
     | Taxa em INTEIRO, gravada e congelada na linha do ledger (applied_rate). A
     | leitura nunca recalcula: o `amount` da linha é a fonte de verdade; a taxa é
-    | auditoria. `effective_from` documenta a vigência (M.13.7 item 6).
-    | Chat NÃO está aqui: é crédito FIXO de 1 token, fora do percentual (M.13.1).
+    | auditoria. `effective_from` documenta a vigência.
+    | Desde 19/08/2026 (economia de mensagem) o split é DECIMAL EXATO (bcmath),
+    | não mais round-half-up inteiro (M.13.7 superado) — e o CHAT entrou aqui: a
+    | abertura é 80/20 como todo evento (2 → 1,60), fim do crédito fixo de M.13.1.
     */
     'split_rates' => [
         'content' => ['rate' => 80, 'effective_from' => '2026-08-03'],
@@ -85,6 +87,9 @@ return [
         'gift' => ['rate' => 75, 'effective_from' => '2026-08-03'],
         'live' => ['rate' => 70, 'effective_from' => '2026-08-03'],
         'call' => ['rate' => 70, 'effective_from' => '2026-08-03'],
+        // Economia de mensagem (19/08/2026): abertura de chat = 80% à performer,
+        // exato (80% de 2 = 1,60). entry_type continua `chat_access_credit`.
+        'chat' => ['rate' => 80, 'effective_from' => '2026-08-19'],
         // Agendamento de chamada (feat/scheduled-call-v1): no no-show do MEMBRO o
         // depósito vira 100% da performer (compensação pelo horário reservado, não
         // minuto de serviço) — split 100/0, applied_rate=100 congelado na linha.
@@ -155,14 +160,13 @@ return [
     ],
 
     /*
-    | Chat (M.13.1): crédito FIXO de 1 token à performer em toda abertura, qualquer
-    | tier, fora do split. Custo do membro por tier. ⚠️ Black e Expl/Ins/Pres
-    | MUDARAM vs. o modelo antigo — M.13.1 é a referência. Neste PR isto é SINAL
-    | (config + método da policy + teste); o rewire do ChatAccessService (que hoje
-    | assume "assinante = chat livre") é o PR de chat.
+    | Chat: custo do membro por tier para ABRIR a janela (M.13.1 mantido). O
+    | crédito da performer NÃO é mais fixo (o antigo `performer_credit => 1` foi
+    | REMOVIDO em 19/08/2026): a abertura passa pelo split `split_rates.chat` (80/20,
+    | 2 → 1,60), honrando o contrato de 80% da performer. ⚠️ Black/FC pagam 1 →
+    | performer recebe 0,80; os demais pagam 2 → 1,60.
     */
     'chat' => [
-        'performer_credit' => 1,
         'cost_by_tier' => [
             'none' => 2,
             'explorador' => 2,
@@ -200,12 +204,16 @@ return [
     'call_price_step' => 5,
 
     /*
-    | Split da live/chamada (70/30, M.13.6). Este é ESPELHO de exibição/cobrança;
-    | a AUTORIDADE do split gravado no ledger é `split_rates.live`/`split_rates.call`
-    | (lidos por TokenCreditPolicy::rateFor, applied_rate congelado). Mantido em
-    | sincronia por teste (mesma disciplina do espelho circles.discount_pct) — não
-    | edite um sem o outro.
+    | Sinks 100% Limen (não creditam ninguém), CENTRALIZADOS aqui (auditoria
+    | 19/08/2026 — "um lugar só para preço"). Antes viviam em config/boost.php e
+    | config/interest.php; a duração do boost e os limites diários do interesse
+    | (que são POLÍTICA, não preço) continuam nos seus arquivos.
     */
-    'live_split_rate' => 70,
+    'boost_cost_tokens' => (int) env('BOOST_COST_TOKENS', 50),
+    'interest_unlock_cost' => (int) env('INTEREST_UNLOCK_COST', 15),
+
+    // `live_split_rate` REMOVIDO (auditoria 19/08/2026): era espelho de
+    // `split_rates.live.rate`. Fonte única agora é `split_rates.live` — quem
+    // precisar da taxa da live lê de lá (TokenCreditPolicy::rateFor('live')).
 
 ];

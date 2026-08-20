@@ -220,9 +220,11 @@ it('reads livekit config with the expected defaults', function () {
         ->and(config('features.call_enabled'))->toBeBool();
 });
 
-it('enforces the 5-token/minute floor and keeps the live split mirror in sync', function () {
+it('enforces the 5-token/minute floor and has a single live-split source of truth', function () {
     expect(config('monetization.call_min_price_per_minute'))->toBe(5)
         ->and(config('monetization.call_price_step'))->toBe(5)
-        // O espelho de exibição casa com a autoridade do ledger (split_rates.live).
-        ->and(config('monetization.live_split_rate'))->toBe(config('monetization.split_rates.live.rate'));
+        // Fonte ÚNICA da taxa da live (o espelho `live_split_rate` foi removido na
+        // auditoria 19/08/2026 — dedup banco/config).
+        ->and(config('monetization.split_rates.live.rate'))->toBe(70)
+        ->and(config('monetization.live_split_rate'))->toBeNull();
 });

@@ -26,7 +26,9 @@ class BoostService
 
     public function cost(): int
     {
-        return (int) config('boost.cost_tokens');
+        // Preço centralizado em monetization.php (auditoria 19/08/2026). Duração e
+        // teto de vagas (política, não preço) seguem em config/boost.php.
+        return (int) config('monetization.boost_cost_tokens');
     }
 
     public function durationHours(): int

@@ -165,7 +165,7 @@ class AdminMetricsService
             ->map(fn (Payout $payout) => [
                 'id' => $payout->id,
                 'performer' => $payout->performer?->performerProfile?->stage_name ?? ('Performer #'.$payout->performer_id),
-                'tokens' => (int) $payout->tokens,
+                'tokens' => $payout->tokens, // readable: int quando inteiro, decimal exato se houver fração de sweep
                 'amount_brl' => $payout->amount_brl,
                 'period' => $payout->period_month
                     ? sprintf('%02d/%d', $payout->period_month, $payout->period_year)

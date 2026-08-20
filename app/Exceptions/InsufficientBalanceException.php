@@ -6,7 +6,9 @@ use RuntimeException;
 
 class InsufficientBalanceException extends RuntimeException
 {
-    public function __construct(int $requested, int $available)
+    // int (gasto de membro) OU string decimal (saldo/ganho fracionário da performer)
+    // desde a economia de mensagem (19/08/2026).
+    public function __construct(int|string $requested, int|string $available)
     {
         parent::__construct("Insufficient balance: requested {$requested}, available {$available}.");
     }

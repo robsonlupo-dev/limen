@@ -322,6 +322,88 @@ tipos novos no enum do ledger append-only (migration própria, princípio nº 2 
 A entrada bem-sucedida (minuto 1 pago pelo depósito) reusa `call_credit` (70/30) do
 PR #140 — sem tipo novo.
 
+## M.14 — Emenda de 19/08/2026: economia de tokens DECIMAL EXATA (SUBSTITUI M.13.1 e M.13.7 onde conflitar)
+
+Fechada pelo PO (Robson) após a auditoria da economia (`docs/AUDITORIA_ECONOMIA_TOKENS.md`).
+Branch `feat/fractional-token-ledger`. **Motivo:** o split inteiro (round-half-up) só
+fechava exato por COINCIDÊNCIA de configuração (preços múltiplos de 5/4); um conteúdo de
+7 ou gorjeta de 13 truncava dinheiro da performer, e o chat de crédito FIXO de 1 token
+entregava 50% com o contrato dizendo 80% — a única retenção sistemática indevida. Câmbio
+futuro (token→BRL→USD) gera fração por taxa que grade de preço nenhuma resolve.
+
+- **[M.14.1] `token_ledger.amount`/`balance_after` + `token_wallets.balance` são
+  DECIMAL(20,4).** 4 casas (não 2) por causa do câmbio futuro — guardar 4 e exibir 2 é
+  trivial, o contrário exige nova migração. Também fracionam: os espelhos de split
+  (`tips`/`gift_sends` `performer_amount`+`platform_amount`) e `payouts.tokens`. **NÃO**
+  fracionam: `token_wallets.pending_grant_tokens` (franquia é sempre inteira).
+- **[M.14.2] Toda aritmética de carteira é bcmath, escala 4** — dona única
+  `App\Support\TokenMath` (`of/add/sub/mul/cmp/min/max/intFloor/readable/display`). NUNCA
+  operador nativo (`+ - < (int) (float)`) sobre amount/balance. **"Nunca float" continua
+  valendo** — DECIMAL+bcmath é aritmética decimal EXATA, não ponto flutuante. Esta emenda
+  é a PRECISÃO da regra, não seu abandono.
+- **[M.14.3] `TokenCreditPolicy::applyRate` devolve decimal EXATO** (`bcdiv(bcmul(...))`),
+  sem `intdiv` nem round-half-up. **Ponto ÚNICO** para todos os fluxos percentuais.
+  Ex.: gorjeta 3 → 2,4000; conteúdo 7 → 5,6000; chamada 13 → 9,1000; presente 7 → 5,2500.
+- **[M.14.4] CHAT vira split 80/20 (SUBSTITUI M.13.1).** A abertura credita a performer
+  80% do que o membro pagou (`creditWithSplit($performer, $cost, 'chat', 'chat_access_credit')`,
+  `split_rates.chat=80`) — custo 2 → 1,6000; custo 1 (Black/FC) → 0,8000. **O crédito fixo
+  de 1 (`chatOpenPerformerCredit`) foi REMOVIDO.** entry_type continua `chat_access_credit`
+  (segue no allowlist de payout). O CUSTO por tier de M.13.1/M.13.13 (2, ou 1 Black/FC) NÃO
+  muda; só o crédito da performer.
+- **[M.14.5] O SALDO DO MEMBRO continua INTEIRO por construção** (compra/gasta tokens
+  cheios). Só o CRÉDITO DA PERFORMER fraciona. **Override registrado da convenção "tokens
+  são inteiros":** ela continua valendo para o saldo do membro e para PREÇOS; deixa de
+  valer para o crédito da performer.
+- **[M.14.6] Contrato de leitura uniforme (`TokenMath::readable`):** toda quantidade de
+  token lê **INT quando inteira** ("500.0000" → 500), **STRING decimal (4dp) quando
+  fracionária** ("1.6000"). Implementado por accessors nos models (TokenWallet.balance,
+  TokenLedger.amount/balance_after, Tip/GiftSend mirrors, Payout.tokens). `balance()` e
+  `earningsOwed()` seguem o mesmo contrato.
+
+### M.14.7 — REGRA ÚNICA DE ARREDONDAMENTO (vale para TODO fluxo, existente e futuro)
+
+- **R1. O LEDGER NUNCA ARREDONDA.** Todo lançamento guarda o valor exato com 4 casas.
+  Não existe arredondamento por transação, em fluxo nenhum.
+- **R2. O arredondamento acontece UMA ÚNICA VEZ: na conversão para reais no PAYOUT,
+  sempre FLOOR** (nunca half-up, nunca para cima). `PayoutService::calculatePayoutCentavos`
+  = `floor(tokens × 60)`; a decomposição vive em `PayoutService::payoutBreakdown`.
+- **R3. A SOBRA DO FLOOR NÃO SOME.** O payout debita só os tokens que os centavos pagos
+  representam (`tokens_consumed = paidCentavos ÷ 60`, escala 4); a diferença (`remainder`)
+  **continua no saldo da performer** para o próximo saque — não descartada, não apropriada
+  pela Limen. Ex.: saldo 4,8733 → R$2,92 (floor de R$2,92398); consome 4,8666; sobra 0,0067
+  fica. O truncamento de `tokens_consumed` é para BAIXO → a Limen nunca paga menos do que
+  debita (o arredondamento nunca a favorece).
+- **R4. Nenhum fluxo cria nem destrói token:** em toda operação de split, débito do membro
+  + crédito da performer + comissão da Limen fecha em ZERO (`credited + retained == gross`
+  sempre, por construção do complemento).
+
+### M.14.8 — Limpeza da auditoria (mesmo PR)
+
+- **Preços centralizados:** boost (50) e interesse (15) saíram de `config/boost.php`/
+  `config/interest.php` e entraram em `config/monetization.php`
+  (`boost_cost_tokens`/`interest_unlock_cost`) — "um lugar só para preço". Duração do boost
+  e limites diários do interesse (POLÍTICA, não preço) ficaram onde estavam.
+- **Duplicações banco↔config resolvidas — config é a fonte, o banco DERIVA:**
+  `circles.monthly_tokens`/`discount_pct` viraram accessors do model `Circle` que leem
+  `franchises_by_tier`/`discounts_by_tier` da config (fim da sincronia-por-teste frágil; o
+  webhook de grant lia a coluna e o command lia a config — podiam divergir, agora não).
+  `monetization.live_split_rate` (espelho de `split_rates.live.rate`) foi **removido**.
+- **entry_types inativos NÃO foram removidos** (são histórico do enum) — apenas
+  documentados: `spend_live`/`live_credit` (live pública é grátis, sem emitter),
+  `bonus` (pacote `bonus=0`, nunca creditado), `refund` (sem emitter), `spend_private`/
+  `spend_camera` (legado da 1ª migration, jamais usados).
+
+### M.14.9 — Correções de doc que esta emenda faz (o código passou a ser a verdade)
+
+- **M.13.1** (crédito fixo de chat de 1 token): **NÃO EXISTE MAIS** — chat é split 80/20
+  (M.14.4).
+- **M.13.5** (UI da performer "Você recebe 80%"): agora é **verdade também no chat** — não
+  há mais os 50% do fixo-1.
+- **M.13.7** (round-half-up inteiro): **SUBSTITUÍDO** por decimal exato (M.14.3); o
+  arredondamento existe só no payout, floor, com a sobra preservada (M.14.7).
+- **M.13.12** estava DESATUALIZADO: dizia que `token_packages` guardava números pré-M.13;
+  o `TokenPackageSeeder` já está em M.13.2 (50/105/220/580) desde antes desta emenda.
+
 ## Estado atual
 
 > **Estado atual** (`main`, `ae389c2`): **~2017 testes, 16083 asserts** (todos passam

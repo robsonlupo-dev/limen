@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ContentException;
+use App\Support\TokenMath;
 use App\Exceptions\InsufficientBalanceException;
 use App\Models\ContentUnlock;
 use App\Models\PerformerContent;
@@ -95,7 +96,7 @@ class ContentUnlockService
             $price = (int) $content->price_tokens;
 
             $memberWallet = TokenWallet::where('user_id', $member->id)->first();
-            if (! $memberWallet || $memberWallet->balance < $price) {
+            if (! $memberWallet || TokenMath::cmp($memberWallet->balance, $price) < 0) {
                 throw new InsufficientBalanceException($price, $memberWallet?->balance ?? 0);
             }
 

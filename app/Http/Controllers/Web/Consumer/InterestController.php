@@ -45,7 +45,7 @@ class InterestController extends Controller
             ]);
 
         return Inertia::render('Consumer/Interests/Index', [
-            'unlockCost' => (int) config('interest.unlock_cost'),
+            'unlockCost' => (int) config('monetization.interest_unlock_cost'),
             'balance' => $this->tokenService->balance($request->user()),
             'optOut' => (bool) $request->user()->interests_opt_out,
             'interests' => $interests,

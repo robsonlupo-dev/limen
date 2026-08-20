@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\CallAccepted;
+use App\Support\TokenMath;
 use App\Events\CallDeclined;
 use App\Events\CallEnded;
 use App\Events\CallRequested;
@@ -83,7 +84,7 @@ class CallService
 
         $price = (int) $profile->call_price_per_minute;
 
-        if ($this->tokenService->balance($member) < $price) {
+        if (TokenMath::cmp($this->tokenService->balance($member), $price) < 0) {
             throw CallException::insufficientBalance();
         }
 
@@ -185,7 +186,7 @@ class CallService
 
             // 1º minuto pré-pago ANTES da sala. InsufficientBalance vira 422 e o
             // rollback desfaz qualquer débito parcial (sem sala, sem cobrança).
-            if ($this->tokenService->balance($member) < $locked->price_per_minute) {
+            if (TokenMath::cmp($this->tokenService->balance($member), $locked->price_per_minute) < 0) {
                 throw CallException::insufficientBalance();
             }
             try {
@@ -600,7 +601,7 @@ class CallService
 
             return [
                 'balance' => $balance,
-                'minutes_left' => $price > 0 ? intdiv($balance, $price) : 0,
+                'minutes_left' => $price > 0 ? (int) bcdiv($balance, (string) $price, 0) : 0,
                 'can_continue' => false,
                 'ended_reason' => 'ended',
             ];
