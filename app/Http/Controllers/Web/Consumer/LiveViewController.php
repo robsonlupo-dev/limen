@@ -46,7 +46,12 @@ class LiveViewController extends Controller
         $bundle = $this->live->memberToken($session, $request->user());
 
         return Inertia::render('Live/Viewer', [
-            'performer' => new PerformerPublicResource($performer),
+            // `->resolve()` para o prop chegar ao Vue como o OBJETO da performer
+            // (slug, stage_name, …), NÃO embrulhado em `{ data: … }` — a mesma
+            // convenção do CatalogController/PublicCatalogController. Sem isto,
+            // `props.performer.slug` é undefined e todo POST da sala (gorjeta,
+            // presente, chat) vai sem `performer_slug`.
+            'performer' => (new PerformerPublicResource($performer))->resolve($request),
             'token' => $bundle['token'],
             'wsUrl' => $bundle['wsUrl'],
             'viewerCount' => $this->live->viewerCount($session),

@@ -2063,6 +2063,51 @@ presente 80/20 pelas rotas existentes). Base: `main`.
   gravar/difundir, silenciar impede novas mensagens + não reabre a sala, chat efêmero
   some no encerramento. `npm run build` limpo. Revisão de segurança rodada.
 
+### Ações da sala quebradas — `fix/live-room-actions` (base `feat/live-room-console`)
+
+Bug crítico achado no 1º teste real com dois navegadores: **chat, gorjeta e presente
+não funcionavam, e o contador do membro ficava em 0.** **Causa-raiz única:** o prop
+`performer` da página da live chegava ao Vue **embrulhado em `{ data: … }`** — o
+`LiveViewController::show` passava a `PerformerPublicResource` CRUA, enquanto todo o
+resto do app usa `->resolve($request)` (CatalogController, PublicCatalogController). Logo
+`props.performer.slug` era `undefined`, e **todo POST da sala saía sem `performer_slug`**
+(gorjeta/presente 422 "performer_slug obrigatório"; chat/overlay/contador inscritos em
+`live.${undefined}`). **Lição:** resource passada a `Inertia::render` **SEMPRE** com
+`->resolve($request)` — a crua embrulha em `data` e o `.campo` no Vue vira `undefined`.
+
+- **Correção 1 — desembrulho:** `(new PerformerPublicResource($performer))->resolve($request)`
+  no `show()`. Conserta gorjeta + presente + chat + contador de uma vez (todos dependiam
+  do slug).
+- **Correção 2 — fim do SUCESSO FALSO da gorjeta:** o `SendTipRequest` **não** usava
+  `FailsValidationAsJson` (o `SendGiftRequest` já usava). Sem o trait, a
+  `ValidationException` numa rota web vira **redirect 302**; o `fetch` do front SEGUE o
+  redirect até uma página 200, `response.ok` fica `true`, o `postJson` resolve e a tela
+  mostra **"Gorjeta enviada" para uma requisição que FALHOU** (sem debitar). Adicionado o
+  trait → **422 JSON** → o `fetch` lança → mostra o erro real. **A gorjeta NÃO chegava a
+  debitar** (a validação falha ANTES do controller/TipService) — **sem inconsistência de
+  ledger**, nada a corrigir nos dados.
+- **Correção 3 — guarda sistêmica em `resources/js/lib/http.js`:** um endpoint JSON NUNCA
+  responde com redirect; quando responde (rota web sem `FailsValidationAsJson`, sessão/
+  CSRF expirada → tela de login), o `fetch` segue o 302 e `response.ok` fica `true`. Agora
+  `response.redirected === true` **lança** com motivo real — elimina a classe inteira de
+  "sucesso falso" em toda a sala e no app.
+- **Correção 4 — contador igual dos dois lados:** o poll do membro (`live.viewer-count`)
+  usava o slug undefined → travava no valor inicial (0, medido no `show()` antes de o
+  membro entrar na sala). Com o slug consertado, o membro **repuxa a contagem ao conectar**
+  e depois a cada ~12s, a MESMA fonte cacheada (presença real do LiveKit) que a performer
+  pola — número igual dos dois lados.
+- **Economia inalterada (reconfirmado com o PO, 21/08/2026):** gorjeta na live é **80/20**
+  (10 → **8,0000**), presente **80/20** (Rosa 4 → **3,2000**). O `70/30` é do MINUTO de
+  live/chamada PAGA (`live_credit`/`call_credit`) — a live pública é grátis, não há minuto
+  cobrado; nela só existem gorjeta e presente, ambos 80/20. **Não** se aplica taxa de live
+  a gorjeta.
+- **Teste e2e `LiveRoomActionsTest` (7):** trava as duas regressões (`performer.slug`
+  desembrulhado; gorjeta sem slug é 422 JSON e não move token) + o fluxo com dois
+  participantes (gorjeta 10 → −10/+8,0000; presente Rosa 4 → −4/+3,2000; ganho acumulado
+  bate; chat nos dois sentidos; contador igual). `TipWebTest` "rejects invalid input"
+  atualizado (o teste codificava o redirect antigo → agora 422). Suíte MySQL verde (só o
+  `GeoBlockTest` 451 do clone de dev), `npm run build` limpo, revisão de segurança rodada.
+
 ## PanicButton — Saída rápida flutuante (Sprint 6; re-apresentada em `feat/performer-nav-restructure`)
 
 Botão de saída rápida da sessão — tira a Limen da tela quando alguém entra na
