@@ -36,10 +36,12 @@ const props = defineProps({
     contents: { type: Array, default: () => [] },
     // Alvo da denúncia ({ type, id }). Ver PublicCatalogController::show.
     report: { type: Object, default: null },
-    // Estado do chat para o CTA "Iniciar conversa" do badge de disponibilidade
-    // (Sprint 11). Null = membro sem conversa / performer / admin — chat é
-    // interest-gated, não há chat frio. Ver CatalogController::chatStateFor.
+    // Estado do chat (Sprint 11). Null = membro sem conversa / performer / admin.
+    // Ver CatalogController::chatStateFor.
     chat: { type: Object, default: null },
+    // Custo por tier para abrir a conversa (item 4), mostrado na ação primária.
+    // Null para não-membro (performer/admin).
+    chatCost: { type: Number, default: null },
 })
 
 // Localizações (Sprint 13): UFs → nomes por extenso, "São Paulo · Rio de
@@ -109,13 +111,17 @@ function onTipSent(data) {
 <template>
     <AppLayout :title="performer.stage_name">
         <div class="bg-limen-bg">
-            <!-- Hero / cover 1200x400 (crop interativo no upload) -->
-            <div class="relative h-64 md:h-80 bg-limen-surface-2 overflow-hidden">
+            <!-- Hero / cover 3:1 (a performer enquadra no upload — ImageCropper). O
+                 frame É 3:1 e a imagem é `object-contain`: capa bem recortada preenche
+                 exato (sem barra); imagem fora de 3:1 (ex.: semente antiga) aparece
+                 INTEIRA, com faixa escura nas sobras, em vez de ampliar o centro
+                 (item 3, fallback). -->
+            <div class="relative aspect-[3/1] bg-limen-surface-2 overflow-hidden">
                 <img
                     v-if="performer.cover_url"
                     :src="performer.cover_url"
                     :alt="performer.stage_name"
-                    class="h-full w-full object-cover"
+                    class="h-full w-full object-contain"
                 />
                 <div v-else class="h-full w-full bg-gradient-to-br from-limen-gold/20 via-limen-surface-2 to-limen-bg" />
                 <div class="absolute inset-0 bg-gradient-to-t from-limen-bg via-limen-bg/20 to-transparent" />
@@ -131,11 +137,14 @@ function onTipSent(data) {
                 <!-- Avatar circular -->
                 <div class="-mt-16 flex items-end gap-5">
                     <div class="h-32 w-32 rounded-full border-4 border-limen-gold bg-limen-surface-2 overflow-hidden flex items-center justify-center shrink-0 shadow-2xl">
+                        <!-- object-contain: avatar 1:1 preenche o círculo; imagem fora
+                             de 1:1 aparece INTEIRA (faixa escura) em vez de cortar o
+                             rosto (item 3, fallback). -->
                         <img
                             v-if="performer.avatar_url"
                             :src="performer.avatar_url"
                             :alt="performer.stage_name"
-                            class="h-full w-full object-cover"
+                            class="h-full w-full object-contain"
                         />
                         <span v-else class="font-serif text-5xl text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
                     </div>
@@ -161,24 +170,50 @@ function onTipSent(data) {
                         />
                     </div>
 
-                    <div class="flex items-center gap-3">
-                        <FollowButton
-                            :slug="performer.slug"
-                            :following="performer.is_following"
-                            :reload-only="['performer']"
-                        />
-                        <!-- Salvar: bookmark PRIVADO, ao lado de Seguir, que é
-                             público. Só para membro — performer e admin também
-                             chegam nesta tela e só `role:consumer` alcança a
-                             rota do toggle. -->
-                        <FavoriteButton
-                            v-if="canFavorite"
-                            :slug="performer.slug"
-                            :saved="!!performer.is_favorited"
-                            :reload-only="['performer']"
-                            variant="button"
-                        />
-                        <Button variant="ghost" @click="showTipModal = true">Enviar gorjeta</Button>
+                    <!-- Ações do perfil em ordem de importância (item 4). No retrato,
+                         a primária ocupa a largura cheia e as secundárias vêm numa
+                         grade abaixo, com alturas iguais e rótulos curtos que não
+                         quebram. Ao vivo tem destaque acima de tudo. -->
+                    <div v-if="canFavorite" class="flex w-full flex-col gap-2.5 md:w-auto md:min-w-[20rem]">
+                        <!-- Ao vivo: destaque acima de tudo (só com a feature ligada). -->
+                        <Link
+                            v-if="performer.is_live && features.live_enabled"
+                            :href="route('live.show', performer.slug)"
+                            class="mi-glow inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-limen-live px-4 text-sm font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                        >
+                            <span class="h-2 w-2 animate-pulse rounded-full bg-white" /> Ao vivo — assistir
+                        </Link>
+
+                        <!-- Primária: Conversar, com o custo de abertura. -->
+                        <Link
+                            :href="chatHref"
+                            class="mi-glow inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg bg-limen-gold px-4 text-sm font-semibold text-limen-bg no-underline transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
+                        >
+                            Conversar
+                            <span v-if="chatCost" class="font-normal opacity-80">· {{ chatCost }} tokens</span>
+                        </Link>
+
+                        <!-- Secundárias: Gorjeta · Seguir · Salvar. Grade de 3, alturas
+                             iguais, rótulos curtos. -->
+                        <div class="grid grid-cols-3 gap-2">
+                            <Button variant="ghost" size="sm" class="min-h-[44px] w-full justify-center" @click="showTipModal = true">Gorjeta</Button>
+                            <FollowButton
+                                :slug="performer.slug"
+                                :following="performer.is_following"
+                                :reload-only="['performer']"
+                                size="sm"
+                                short
+                                class="min-h-[44px] w-full justify-center"
+                            />
+                            <!-- Salvar: bookmark PRIVADO — nada daqui chega à performer. -->
+                            <FavoriteButton
+                                :slug="performer.slug"
+                                :saved="!!performer.is_favorited"
+                                :reload-only="['performer']"
+                                variant="button"
+                                class="min-h-[44px] w-full justify-center"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -222,25 +257,13 @@ function onTipSent(data) {
                 </div>
 
                 <!-- "Online agora" (fix/panel-polish-v1): presença DERIVADA da
-                     sessão (is_available = isOnline), com destaque. Some quando
-                     is_live (o LiveBadge do topo já sinaliza presença ao vivo). O
-                     CTA "Iniciar conversa" aparece para qualquer membro
-                     (feat/chat-economy-v2: o chat deixou de ser interest-gated) e
-                     leva à tela de chat, onde ele paga ao ENVIAR a 1ª mensagem. -->
+                     sessão. Só o INDICADOR — a ação de conversar virou a primária
+                     das ações acima (item 4), então o CTA duplicado saiu daqui. -->
                 <div
                     v-if="performer.is_available && !performer.is_live"
-                    class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-limen-gold/40 bg-limen-gold/5 px-4 py-3"
+                    class="mt-4 inline-flex items-center gap-2 rounded-lg border border-limen-gold/40 bg-limen-gold/5 px-4 py-2 text-sm text-limen-ink"
                 >
-                    <p class="text-sm text-limen-ink flex items-center gap-2">
-                        <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-success" /> Online agora
-                    </p>
-                    <Link
-                        v-if="canFavorite"
-                        :href="chatHref"
-                        class="no-underline bg-limen-gold text-limen-bg px-4 py-1.5 rounded-lg text-sm hover:opacity-90 transition-opacity"
-                    >
-                        Iniciar conversa
-                    </Link>
+                    <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-success" /> Online agora
                 </div>
 
                 <!-- Estado por extenso; ausente para quem não preencheu. A

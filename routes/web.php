@@ -181,6 +181,15 @@ Route::get('/performers/{profile}/apresentacao-de-voz', [VoiceIntroPublicControl
     ->whereNumber('profile')
     ->name('voice-intro.audio');
 
+// Prévia BORRADA de conteúdo bloqueado (feat/content-showcase, item 7). GUEST — o
+// perfil público mostra tile bloqueado a visitante deslogado, então a isca borrada
+// precisa ser servível sem login. É IRREVERSÍVEL (baixa resolução + blur no
+// servidor), nunca a imagem original — esta continua atrás do `canView`.
+Route::get('/conteudo/{content}/preview', [ContentController::class, 'blur'])
+    ->middleware('throttle:120,1')
+    ->whereNumber('content')
+    ->name('content.blur');
+
 // Auth (guest only)
 Route::middleware('guest')->group(function () {
     Route::get('/cadastro', [RegisterController::class, 'create'])->name('register');

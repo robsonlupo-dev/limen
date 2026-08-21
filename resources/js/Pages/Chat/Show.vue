@@ -105,6 +105,28 @@ function isMine(message) {
     return message.sender_id === myId.value
 }
 
+// Data/hora no padrão de app de mensagem (item 8), no FUSO DO USUÁRIO (o navegador
+// formata em local por padrão). Separador de dia entre blocos + hora em cada mensagem.
+const DAY_MS = 86400000
+function dayStart(iso) {
+    const d = new Date(iso)
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+}
+function dayLabel(iso) {
+    const diff = Math.round((dayStart(new Date()) - dayStart(iso)) / DAY_MS)
+    if (diff === 0) return 'Hoje'
+    if (diff === 1) return 'Ontem'
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+function timeLabel(iso) {
+    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+// Mostra o separador antes da 1ª mensagem do dia (lista em ordem crescente).
+function showDaySeparator(i) {
+    return i === 0 || dayStart(orderedMessages.value[i].created_at) !== dayStart(orderedMessages.value[i - 1].created_at)
+}
+
 async function send() {
     const body = draft.value.trim()
     if (!body || sending.value) return
@@ -275,40 +297,47 @@ watch(() => props.messages.data.length, scrollToBottom)
                     Nenhuma mensagem ainda.
                 </p>
 
-                <div
-                    v-for="m in orderedMessages"
-                    :key="m.id"
-                    class="flex"
-                    :class="isMine(m) ? 'justify-end' : 'justify-start'"
-                >
-                    <!-- Mensagem bloqueada (grace): tarja "Pague para ler", sem corpo. -->
-                    <div
-                        v-if="m.locked"
-                        class="relative max-w-[75%] rounded-2xl border border-frame bg-surface px-4 py-3 overflow-hidden"
-                    >
-                        <div class="blur-sm select-none text-sm text-muted">████████ ████ ██████</div>
-                        <div class="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-sm">
-                            <span class="text-xs text-gold flex items-center gap-1">🔒 Pague para ler</span>
-                        </div>
+                <template v-for="(m, i) in orderedMessages" :key="m.id">
+                    <!-- Separador de dia (padrão de app): Hoje / Ontem / data. -->
+                    <div v-if="showDaySeparator(i)" class="flex justify-center py-1">
+                        <span class="rounded-full bg-surface/80 px-3 py-0.5 text-[11px] text-muted">
+                            {{ dayLabel(m.created_at) }}
+                        </span>
                     </div>
-                    <!-- Mensagem legível -->
-                    <div v-else class="max-w-[75%] flex flex-col" :class="isMine(m) ? 'items-end' : 'items-start'">
+
+                    <div class="flex" :class="isMine(m) ? 'justify-end' : 'justify-start'">
+                        <!-- Mensagem bloqueada (grace): tarja "Pague para ler", sem corpo. -->
                         <div
-                            class="rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line break-words"
-                            :class="isMine(m)
-                                ? 'bg-gold text-background rounded-br-sm'
-                                : 'bg-surface border border-frame text-cream rounded-bl-sm'"
+                            v-if="m.locked"
+                            class="relative max-w-[75%] rounded-2xl border border-frame bg-surface px-4 py-3 overflow-hidden"
                         >
-                            {{ m.body }}
+                            <div class="blur-sm select-none text-sm text-muted">████████ ████ ██████</div>
+                            <div class="absolute inset-0 flex items-center justify-center gap-2 bg-background/40 backdrop-blur-sm">
+                                <span class="text-xs text-gold flex items-center gap-1">🔒 Pague para ler</span>
+                            </div>
+                            <span class="relative mt-1 block text-right text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
                         </div>
-                        <!-- Confirmação de leitura: só nas minhas mensagens e só
-                             quando de fato houve leitura confirmada. Ausência não
-                             é "não leu" — pode ser leitor com read receipts
-                             desligados (perk Black/FC) — por isso a UI não tem
-                             estado "não lida": ou confirmou, ou não diz nada. -->
-                        <span v-if="isMine(m) && m.read_at" class="pt-1 pr-1 text-[11px] text-muted">Lida</span>
+                        <!-- Mensagem legível -->
+                        <div v-else class="max-w-[75%] flex flex-col" :class="isMine(m) ? 'items-end' : 'items-start'">
+                            <div
+                                class="rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line break-words"
+                                :class="isMine(m)
+                                    ? 'bg-gold text-background rounded-br-sm'
+                                    : 'bg-surface border border-frame text-cream rounded-bl-sm'"
+                            >
+                                {{ m.body }}
+                            </div>
+                            <!-- Hora (fuso do usuário) + confirmação de leitura. A
+                                 confirmação só nas minhas mensagens e só quando houve
+                                 leitura; ausência é ambígua de propósito (pode ser
+                                 read receipts desligados — perk Black/FC). -->
+                            <span class="flex items-center gap-1.5 pt-1 pr-1 text-[10px] text-muted">
+                                {{ timeLabel(m.created_at) }}
+                                <span v-if="isMine(m) && m.read_at">· Lida</span>
+                            </span>
+                        </div>
                     </div>
-                </div>
+                </template>
             </div>
 
             <!-- Compositor -->

@@ -286,6 +286,11 @@ class CatalogController extends Controller
             // (performer/admin, ou membro sem conversa) → o badge sai sem CTA.
             // Mesma forma do PublicCatalogController::chatStateFor.
             'chat' => $this->chatStateFor($request, $profile->id),
+            // Custo por tier para ABRIR a conversa (item 4): mostrado na ação
+            // primária "Conversar". Só membro; performer/admin → null.
+            'chatCost' => $request->user()?->role === 'consumer'
+                ? $this->creditPolicy->chatCost($request->user())
+                : null,
         ]);
     }
 

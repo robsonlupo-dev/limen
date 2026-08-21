@@ -1063,6 +1063,70 @@ do PR #197 (§E/§F de `docs/AUDITORIA_ECONOMIA_TOKENS.md`) fica **INTACTA** —
   (o membro paga ao abrir o acesso, `chat.access.open`), **nunca no envio da performer**
   (ela consome só a franquia diária do catálogo). Confirmado por teste.
 
+## Vitrine de conteúdo, perfil público e correções de UX — `feat/content-showcase` (base `main`, PR pendente)
+
+Oito itens (mobile primeiro). **Nenhuma mudança de economia/split/cobrança** — é
+leitura, apresentação e uma prévia de imagem derivada. Suíte MySQL 2092/2093 (só o
+`GeoBlockTest` 451 do clone de dev), `npm run build` limpo. Revisão de segurança rodada
+(item 7 mexe em exposição de conteúdo pago).
+
+- **[1] Ícones sobre o rosto no card (regressão do #199).** Os ícones de chat/coração
+  estavam no MEIO da foto (`bottom-16`). Agora ficam EMPILHADOS em UMA coluna no canto
+  inferior direito (`PerformerCard.vue`, `bottom-3 right-3 flex-col`): abaixo da linha
+  do olhar, fora do rosto, e ocupando só uma faixa estreita na borda — o nome (à
+  esquerda) fica com quase toda a linha (`pr-12`).
+- **[2] Nome técnico de lançamento vazando.** O histórico da carteira mostrava
+  `spend_content`/`spend_chat_access` crus. **Dona única `App\Support\LedgerEntryLabel`**
+  traduz TODO o enum (`WalletController` + `PerformerEarningsService` usam-na; a Vue usa
+  `entry.label`). Fallback genérico ("Movimento") nunca devolve o nome de banco.
+  `LedgerEntryLabelTest` varre o enum REAL (information_schema) e falha se um tipo novo
+  não ganhar rótulo.
+- **[3] Fotos deformadas no perfil.** **NÃO é bug de código** — o `ImageCropper`
+  (cropperjs, 1:1 avatar / 3:1 capa) JÁ está no upload de avatar e capa
+  (`Performer/Profile/Edit.vue:406-421`, client-crop + preview, mobile por toque). As
+  imagens ruins são **dado semeado** (`LimenStagingSeeder::storeAvatar` baixa o pravatar
+  e grava `avatar_path` DIRETO, sem passar pelo cropper; `LimenTestSeeder` usa SVG). Para
+  as ruins existentes, a performer reenvia. **Fallback aplicado (item do PO):** capa vira
+  frame `aspect-[3/1]` + `object-contain` e avatar `object-contain` (`Catalog/Show` +
+  `Performers/Show`) — imagem fora de proporção aparece INTEIRA com faixa escura, em vez
+  de ampliar o centro. Capa/avatar bem recortados (3:1/1:1) preenchem exato, sem barra.
+  **Não** foi feito corte ancorado no topo (quebra paisagem/foto de longe).
+- **[4] Botões do perfil** (`Catalog/Show.vue`, só membro). Reorganizados por
+  importância: **Ao vivo** (destaque acima de tudo, só com a feature) → **Conversar**
+  (primária, largura cheia, com o custo `chatCost`) → secundárias **Gorjeta · Seguir ·
+  Salvar** em grade de 3, alturas iguais (`min-h-[44px]`), rótulos curtos (`FollowButton`
+  ganhou prop `short` → "Seguindo"). O CTA "Iniciar conversa" duplicado saiu do badge
+  "Online agora" (agora só indicador).
+- **[5] "Últimas gorjetas" → "Últimos gastos"** (`Consumer/Dashboard`). O card listava só
+  gorjeta, mas "Ver extrato" leva ao histórico COMPLETO. Agora lista débitos de QUALQUER
+  tipo (`DashboardController::recentSpends`, `amount < 0`), com o tipo TRADUZIDO
+  (LedgerEntryLabel), o destinatário (a performer — resolvido por `reference_id` p/
+  conteúdo/interesse, ou da descrição "para/de X" p/ gorjeta/presente/chat; nunca id de
+  banco), valor e data.
+- **[6] Vitrine de conteúdo agrupada por acesso** (`ContentGallery.vue`). Com 40
+  Exclusivos, o membro free rolava 40 cadeados e desistia. Agora agrupa: **"Disponível
+  para você"** (acessível OU comprável avulso — uma peça por linha, imagem grande, preço
+  em destaque, vitrine de venda) → **"No Black — N fotos"** / **"No Círculo de
+  Fundadores — N fotos"** (bloqueados por tier, grade compacta de 3, o grupo leva aos
+  Círculos). Resumo no topo ("N fotos · M disponíveis para você"); grupo vazio não
+  renderiza. Agrupa no CLIENTE por `can_unlock`/`required_tier_label`, mas a decisão de
+  acesso continua 100% no servidor (o item já vem resolvido).
+- **[7] Prévia BORRADA no lugar do placeholder cinza** — item de SEGURANÇA. O tile
+  bloqueado mostra uma prévia borrada da imagem real, gerada NO SERVIDOR (baixa
+  resolução ~40px + blur pesado, IRREVERSÍVEL — `ImageProcessingService::blurredPreview`),
+  servida por rota PRÓPRIA (`content.blur`, `/conteudo/{id}/preview`, GUEST, throttle).
+  **NUNCA a imagem original com filtro CSS** (removível no inspetor). Gerada no upload
+  (`ContentStore::store`/`putSanitizedVideo`, best-effort) e retroativamente por
+  `content:generate-blurs`. `blur_url` no presenter só para `!canView` (bloqueado); quem
+  já vê recebe a imagem real e `blur_url=null`. Sem blur no disco → a rota 404 → o front
+  cai no placeholder (`@error`). **A imagem ORIGINAL (`content.image`/`content.video`)
+  continua atrás de `abort_unless(canView, 404)`.** `ContentBlurPreviewTest`: original
+  404 para não-viewer mesmo com prévia, prévia ≤40px (irreversível), presenter só no
+  bloqueado, 404 sem arquivo, comando retroativo.
+- **[8] Data e hora no chat** (`Chat/Show.vue`, padrão de app): separador de dia entre
+  blocos ("Hoje"/"Ontem"/data) + hora em cada mensagem, no **fuso do usuário** (o
+  navegador formata em local). Sem lib nova.
+
 ## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
 
 Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a

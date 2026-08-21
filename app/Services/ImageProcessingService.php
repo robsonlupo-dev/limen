@@ -134,6 +134,39 @@ class ImageProcessingService
         return $target;
     }
 
+    /** Largura (px) da prévia borrada — baixa o suficiente para ser irreversível. */
+    private const BLUR_WIDTH = 40;
+
+    /** Intensidade do blur (0-100) sobre a imagem já minúscula. */
+    private const BLUR_AMOUNT = 25;
+
+    private const BLUR_QUALITY = 45;
+
+    /**
+     * Prévia BORRADA irreversível para o tile bloqueado (feat/content-showcase,
+     * item 7): reduz a imagem a ~40px e aplica blur pesado. A baixa resolução
+     * DESTRÓI o detalhe — não dá para reconstruir o original de um thumb de 40px —,
+     * e o blur reforça. É seguro servir a quem NÃO pode ver o original. Recebe os
+     * bytes JÁ HIGIENIZADOS do conteúdo; devolve os bytes do JPEG borrado.
+     *
+     * @throws ImageProcessingException imagem indecodificável
+     */
+    public function blurredPreview(string $sourceBytes): string
+    {
+        try {
+            $image = $this->manager()->read($sourceBytes);
+            // Constrange OS DOIS eixos (não só a largura): um retrato cabe em 40×40,
+            // então o maior lado é sempre ≤40px — a garantia de irreversibilidade
+            // vale para qualquer proporção, não só quadrada/paisagem.
+            $image->scaleDown(self::BLUR_WIDTH, self::BLUR_WIDTH);
+            $image->blur(self::BLUR_AMOUNT);
+
+            return (string) $image->toJpeg(quality: self::BLUR_QUALITY)->toString();
+        } catch (Throwable) {
+            throw ImageProcessingException::unreadable();
+        }
+    }
+
     /**
      * Recusa a imagem-bomba lendo SÓ o cabeçalho.
      *

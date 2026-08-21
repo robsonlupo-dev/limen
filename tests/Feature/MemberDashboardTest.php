@@ -48,7 +48,9 @@ function mdTip(User $member, PerformerProfile $profile, int $amount): Tip
 {
     // O ledger é append-only e as FKs do tip apontam para ele; criamos as duas
     // pontas para o registro ser realista.
-    $debit = app(TokenService::class)->debit($member, $amount, 'spend_tip');
+    // Descrição como em produção (TipService grava "Gorjeta para {nome}") — é dela
+    // que o painel resolve o destinatário do gasto.
+    $debit = app(TokenService::class)->debit($member, $amount, 'spend_tip', null, null, "Gorjeta para {$profile->stage_name}");
     $credit = app(TokenService::class)->credit($profile->user, $amount, 'tip_credit');
 
     return Tip::create([
@@ -80,9 +82,11 @@ it('renders the member dashboard with balance, follows, interests and tips', fun
             ->where('following.0.stage_name', $followed->stage_name)
             ->where('tipsSummary.count', 1)
             ->where('tipsSummary.tokens', 30)
-            ->has('tips', 1)
-            ->where('tips.0.performer', $followed->stage_name)
-            ->where('tips.0.amount', 30)
+            // "Últimos gastos" (item 5): lançamento traduzido, destinatário e valor.
+            ->has('spends', 1)
+            ->where('spends.0.label', 'Gorjeta enviada')
+            ->where('spends.0.recipient', $followed->stage_name)
+            ->where('spends.0.amount', -30)
         );
 });
 
@@ -181,7 +185,7 @@ it('shows another member nothing of this member on the dashboard', function () {
             ->where('followingCount', 0)
             ->where('interests.locked', 0)
             ->where('tipsSummary.count', 0)
-            ->has('tips', 0)
+            ->has('spends', 0)
         );
 });
 
@@ -195,7 +199,7 @@ it('renders an empty dashboard for a brand-new member', function () {
             ->has('following', 0)
             ->where('interests.locked', 0)
             ->where('tipsSummary.tokens', 0)
-            ->has('tips', 0)
+            ->has('spends', 0)
         );
 });
 

@@ -47,6 +47,10 @@ class ContentPresenter
             // por content.video, só quando canView (mesmo paywall).
             'image_url' => $canView ? route('content.image', $content->id) : null,
             'video_url' => ($canView && $content->isVideo()) ? route('content.video', $content->id) : null,
+            // Prévia BORRADA só do tile BLOQUEADO (item 7): a isca para quem não pode
+            // ver. Nunca para quem já vê (tem a imagem real). O serving 404 se não
+            // houver blur no disco → o front cai no placeholder. Irreversível.
+            'blur_url' => (! $canView && $content->isReady()) ? route('content.blur', $content->id) : null,
         ];
     }
 

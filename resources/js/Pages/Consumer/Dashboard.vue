@@ -11,7 +11,9 @@ const props = defineProps({
     following: { type: Array, required: true },
     followingCount: { type: Number, required: true },
     interests: { type: Object, required: true },
-    tips: { type: Array, required: true },
+    // "Últimos gastos" (item 5): lançamentos de débito de QUALQUER tipo, já com o
+    // rótulo traduzido pelo servidor (label), o destinatário, valor e data.
+    spends: { type: Array, required: true },
     tipsSummary: { type: Object, required: true },
     photos: { type: Array, default: () => [] },
     photoLimit: { type: Number, default: 5 },
@@ -168,13 +170,15 @@ const interestHeadline = computed(() => {
                 </div>
             </section>
 
-            <!-- Últimas gorjetas — livro-caixa discreto, divisores em bronze fino,
-                 não tabela pesada. -->
+            <!-- Últimos gastos — livro-caixa discreto (item 5): antes só gorjetas,
+                 mas o "Ver extrato" leva ao histórico COMPLETO; agora o card lista
+                 gastos de qualquer tipo, casando com o link. Tipo + destinatário à
+                 esquerda; valor + data à direita. -->
             <section class="space-y-5">
                 <div class="flex items-end justify-between gap-4">
-                    <ArchHeading eyebrow="Registro" title="Últimas gorjetas" />
+                    <ArchHeading eyebrow="Registro" title="Últimos gastos" />
                     <Link
-                        v-if="tips.length > 0"
+                        v-if="spends.length > 0"
                         :href="route('wallet.history')"
                         class="shrink-0 text-sm text-gold transition-colors hover:text-gold-light"
                     >
@@ -183,12 +187,12 @@ const interestHeadline = computed(() => {
                 </div>
 
                 <div
-                    v-if="tips.length === 0"
+                    v-if="spends.length === 0"
                     class="rounded-2xl border border-gold/15 bg-surface/60 px-6 py-10 text-center"
                 >
-                    <p class="font-serif text-lg text-cream">Nenhuma gorjeta ainda</p>
+                    <p class="font-serif text-lg text-cream">Nenhum gasto ainda</p>
                     <p class="mx-auto mt-2 max-w-md text-sm text-muted">
-                        Uma gorjeta é a forma mais direta de ser notado. Comece pelo catálogo.
+                        Uma gorjeta, um conteúdo ou uma conversa aparecem aqui. Comece pelo catálogo.
                     </p>
                     <Link
                         :href="route('catalog')"
@@ -200,14 +204,17 @@ const interestHeadline = computed(() => {
 
                 <ul v-else class="rounded-2xl border border-gold/15 bg-surface/60 px-2">
                     <li
-                        v-for="tip in tips"
-                        :key="tip.id"
+                        v-for="spend in spends"
+                        :key="spend.id"
                         class="flex items-center justify-between gap-4 border-b border-gold/10 px-5 py-4 last:border-b-0"
                     >
-                        <span class="truncate text-cream">{{ tip.performer ?? '—' }}</span>
+                        <span class="min-w-0">
+                            <span class="block truncate text-cream">{{ spend.label }}</span>
+                            <span v-if="spend.recipient" class="block truncate text-xs text-muted">{{ spend.recipient }}</span>
+                        </span>
                         <span class="flex shrink-0 items-baseline gap-3">
-                            <span class="font-serif text-lg text-gold">{{ tip.amount }}</span>
-                            <span class="text-xs text-muted">{{ tip.created_at }}</span>
+                            <span class="font-serif text-lg text-gold tabular-nums">{{ spend.amount }}</span>
+                            <span class="text-xs text-muted">{{ spend.created_at }}</span>
                         </span>
                     </li>
                 </ul>
