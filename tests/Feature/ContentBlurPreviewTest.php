@@ -85,3 +85,21 @@ it('o comando gera a previa retroativa das pecas que nao tem', function () {
 
     expect($store->exists($store->blurPathFor($content->path)))->toBeTrue();
 });
+
+it('o comando RELATA o motivo de cada falha (id + motivo), nao so o total', function () {
+    $profile = pcPerformer();
+    $content = pcPublish($profile, PerformerContent::LEVEL_EXCLUSIVE, 50);
+    $store = app(ContentStore::class);
+
+    // Apaga a prévia E o arquivo-fonte → a geração falha por "arquivo-fonte ausente".
+    $store->delete($store->blurPathFor($content->path));
+    $store->delete($content->path);
+
+    $exit = \Illuminate\Support\Facades\Artisan::call('content:generate-blurs');
+    $output = \Illuminate\Support\Facades\Artisan::output();
+
+    expect($exit)->toBe(0)                                     // não aborta o resto
+        ->and($output)->toContain("#{$content->id}")          // o id da peça
+        ->and($output)->toContain('arquivo-fonte ausente')    // e o motivo concreto
+        ->and($output)->toContain('falhas: 1');               // contabilizada
+});

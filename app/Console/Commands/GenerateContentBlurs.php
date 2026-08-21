@@ -33,7 +33,10 @@ class GenerateContentBlurs extends Command
                 foreach ($chunk as $content) {
                     $source = $content->isVideo() ? $content->thumbnail_path : $content->path;
 
+                    // Silêncio em comando que mexe em arquivo é inaceitável: cada
+                    // falha imprime id + motivo (arquivo ausente vs. falha de escrita).
                     if ($source === null) {
+                        $this->warn("  #{$content->id}: sem arquivo-fonte (path/thumbnail_path nulo).");
                         $failed++;
 
                         continue;
@@ -45,11 +48,24 @@ class GenerateContentBlurs extends Command
                         continue;
                     }
 
-                    $store->generateBlur($source) !== null ? $done++ : $failed++;
+                    try {
+                        $store->generateBlur($source);
+                        $done++;
+                    } catch (\Throwable $e) {
+                        $this->warn("  #{$content->id}: {$e->getMessage()}");
+                        $failed++;
+                    }
                 }
             });
 
+        $this->newLine();
         $this->info("Prévias geradas: {$done} · já existentes: {$skipped} · falhas: {$failed}.");
+
+        if ($failed > 0) {
+            $this->warn('Cada falha acima traz o id, o motivo e o caminho absoluto no disco '.
+                '"performer_content" (root storage/app/private/performer-content) — confira ali se o '.
+                'arquivo-fonte existe e se o diretório é gravável pelo usuário que rodou o comando.');
+        }
 
         return self::SUCCESS;
     }
