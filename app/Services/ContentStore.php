@@ -6,6 +6,7 @@ use App\Exceptions\ImageProcessingException;
 use App\Models\User;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -67,8 +68,13 @@ class ContentStore
             }
 
             // Prévia borrada (item 7) para o tile bloqueado. Best-effort: se falhar,
-            // o serving 404 e o front cai no placeholder — nunca quebra o upload.
-            $this->generateBlur($path, $bytes);
+            // o serving 404 e o front cai no placeholder — nunca quebra o upload. O
+            // motivo vai para o log (o comando retroativo é quem relata na tela).
+            try {
+                $this->generateBlur($path, $bytes);
+            } catch (\Throwable $e) {
+                Log::warning('content.blur.generate_failed', ['path' => $path, 'error' => $e->getMessage()]);
+            }
 
             return ['path' => $path, 'hash' => $hash];
         } finally {
@@ -134,8 +140,12 @@ class ContentStore
             throw new RuntimeException('Falha ao gravar o thumbnail no disco.');
         }
 
-        // Prévia borrada a partir do POSTER (item 7). Best-effort.
-        $this->generateBlur($thumbnailPath);
+        // Prévia borrada a partir do POSTER (item 7). Best-effort (log no motivo).
+        try {
+            $this->generateBlur($thumbnailPath);
+        } catch (\Throwable $e) {
+            Log::warning('content.blur.generate_failed', ['path' => $thumbnailPath, 'error' => $e->getMessage()]);
+        }
 
         return ['path' => $videoPath, 'thumbnail_path' => $thumbnailPath, 'hash' => $hash];
     }
@@ -169,28 +179,45 @@ class ContentStore
     }
 
     /**
-     * Gera e grava a prévia borrada de um arquivo-fonte já no disco. Best-effort:
-     * fonte ausente, imagem indecodificável ou falha de escrita devolvem null (o
-     * serving 404 → placeholder no front). `$sourceBytes` evita reler o disco quando
-     * o chamador já tem os bytes (o store da foto).
+     * Gera e grava a prévia borrada de um arquivo-fonte já no disco. LANÇA com o
+     * motivo em cada modo de falha — fonte ausente, imagem indecodificável ou falha
+     * de escrita —, para o chamador (o comando) poder RELATAR o porquê por peça. Os
+     * chamadores do UPLOAD (store/putSanitizedVideo) engolem a exceção (best-effort:
+     * o serving 404 → placeholder). `$sourceBytes` evita reler o disco quando o
+     * chamador já tem os bytes (o store da foto).
+     *
+     * @throws RuntimeException fonte ausente ou falha de escrita
+     * @throws ImageProcessingException imagem indecodificável
      */
-    public function generateBlur(string $sourcePath, ?string $sourceBytes = null): ?string
+    public function generateBlur(string $sourcePath, ?string $sourceBytes = null): string
     {
         $bytes = $sourceBytes ?? Storage::disk(self::DISK)->get($sourcePath);
 
         if ($bytes === null) {
-            return null;
+            throw new RuntimeException(sprintf(
+                'arquivo-fonte ausente no disco "%s": %s (%s)',
+                self::DISK,
+                $sourcePath,
+                Storage::disk(self::DISK)->path($sourcePath),
+            ));
         }
 
-        try {
-            $blur = $this->images->blurredPreview($bytes);
-        } catch (\Throwable) {
-            return null;
-        }
+        // Pode lançar ImageProcessingException se os bytes não decodificam.
+        $blur = $this->images->blurredPreview($bytes);
 
         $blurPath = $this->blurPathFor($sourcePath);
 
-        return Storage::disk(self::DISK)->put($blurPath, $blur) ? $blurPath : null;
+        if (! Storage::disk(self::DISK)->put($blurPath, $blur)) {
+            // Disco com throw => false: put devolve false em silêncio (ex.: diretório
+            // sem permissão de escrita para o usuário do CLI). Explicitamos o motivo.
+            throw new RuntimeException(sprintf(
+                'falha ao gravar a prévia (permissão de escrita ou disco cheio?): %s (%s)',
+                $blurPath,
+                Storage::disk(self::DISK)->path($blurPath),
+            ));
+        }
+
+        return $blurPath;
     }
 
     /**
