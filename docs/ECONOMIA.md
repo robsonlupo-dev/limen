@@ -112,12 +112,20 @@ gorjeta é 80/20 seja na live, no chat ou no perfil).
 | Conteúdo permanente          | 80%              | 20%         |
 | Gorjeta                      | 80%              | 20%         |
 | Abertura de conversa (chat)  | 80%              | 20%         |
-| Presente virtual             | 75%              | 25%         |
+| Presente virtual (*)         | 75%              | 25%         |
 | Live pública (por bloco)     | 70%              | 30%         |
 | Chamada privada (por minuto) | 70%              | 30%         |
 | Destaque no catálogo (boost) | 0% (100% Limen)  | 100%        |
 | Interesse revelado           | 0% (100% Limen)  | 100%        |
 | Assinatura de Círculo        | 0% (100% Limen)  | 100%        |
+
+> (*) **Presente: mudança aprovada, pendente de implementação** — passa a 80/20 (igual
+> à gorjeta e ao conteúdo), porque não tem custo de infraestrutura. Até o PR que
+> implementa, o valor vigente é 75/25. Ver `docs/DECISOES_2026-08.md`, decisão 11.
+>
+> **Princípio final da economia:** **80% no que não custa infraestrutura** (conteúdo,
+> gorjeta, presente, abertura de conversa) e **70% no que custa** (live e chamada, que
+> consomem vídeo em tempo real).
 
 > **Nenhuma transação cria nem destrói token.** Em toda divisão, o que sai do membro
 > = o que entra para a performer + o que fica com a Limen. Sempre fecha em zero.
@@ -256,6 +264,9 @@ preço/minuto congelado naquele momento). O que acontece com o depósito:
 - **Gorjeta:** valor livre em tokens. **80% performer / 20% Limen.**
 - **Presente virtual:** catálogo fixo da Limen, com preços em múltiplos de 4 tokens.
   **75% performer / 25% Limen.**
+  > **Mudança aprovada, pendente de implementação:** o presente passa a **80/20** (igual
+  > à gorjeta), porque não tem custo de infraestrutura. Entra em PR separado; até lá o
+  > valor vigente é 75/25. Ver `docs/DECISOES_2026-08.md`, decisão 11.
 
 Catálogo de presentes: Rosa 4 · Chocolate 12 · Champagne 40 · Joia 100 · Coroa 200 ·
 Diamante 400 tokens.

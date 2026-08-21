@@ -121,3 +121,23 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
   **"Anfitrião"** (para a performer). O valor técnico por trás continua o mesmo.
 - **Motivo:** linguagem mais alinhada ao posicionamento premium/clube da marca. É só o
   texto visível — nenhuma regra por trás muda.
+
+## 11. Presente virtual passa a 80/20 — APROVADO, PENDENTE DE IMPLEMENTAÇÃO
+
+- **Status:** decisão **aprovada** pelo dono do produto (21/08/2026). **Ainda não
+  implementada** — o código continua em 75/25, e `docs/ECONOMIA.md` reflete o código
+  atual (75/25). A mudança para 80/20 entra em **um PR separado**, junto com a
+  atualização do `ECONOMIA.md`.
+- **Contexto:** hoje o presente virtual divide **75% performer / 25% Limen**, enquanto
+  a gorjeta e o conteúdo permanente dividem **80/20**. Presente e gorjeta são
+  economicamente parecidos — transferência de valor do membro para a performer sem
+  serviço de infraestrutura por trás.
+- **Decisão:** o presente virtual passa a dividir **80% performer / 20% Limen**, igual
+  a gorjeta e conteúdo.
+- **Motivo:** o presente **não tem custo de infraestrutura** (ao contrário de live e
+  chamada, que consomem vídeo em tempo real). Sem esse custo, não há razão para a
+  performer receber menos do que recebe numa gorjeta ou num conteúdo.
+- **Regra final da economia (o princípio que passa a valer):** **80% no que NÃO custa
+  infraestrutura** (conteúdo, gorjeta, presente, abertura de conversa) e **70% no que
+  CUSTA** (live pública e chamada privada, que consomem vídeo em tempo real). O 70/30 de
+  live e chamada permanece; só o presente sobe de 75 para 80.
