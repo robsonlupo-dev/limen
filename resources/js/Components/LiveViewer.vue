@@ -111,8 +111,12 @@ function sendChat(body) {
 onMounted(async () => {
     try {
         await connect(props.token)
+        // A contagem inicial vem do show() ANTES do membro entrar na sala LiveKit
+        // (conta a si mesmo a menos). Repuxa já que conectou, e depois no ritmo da
+        // mesma fonte cacheada (~12s) que a performer usa — igual dos dois lados.
+        refreshViewers()
         refreshTimer = setInterval(refresh, 4 * 60 * 1000)
-        viewersTimer = setInterval(refreshViewers, 20000)
+        viewersTimer = setInterval(refreshViewers, 12000)
         const data = await getJson(route('gifts.catalog'))
         gifts.value = data?.gifts ?? []
     } catch (e) {

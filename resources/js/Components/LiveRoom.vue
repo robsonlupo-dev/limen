@@ -84,7 +84,8 @@ function requestEnd() {
 
 function startConsolePolling() {
     refreshConsole()
-    consoleTimer = setInterval(refreshConsole, 15000)
+    // Mesma fonte cacheada (~12s) que o membro pola — contagem igual dos dois lados.
+    consoleTimer = setInterval(refreshConsole, 12000)
 }
 
 // Dados ao vivo. O ganho vem EXATO do ledger (nunca somado no cliente): cada reação

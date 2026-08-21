@@ -15,6 +15,19 @@ async function request(method, url, body) {
         body: body ? JSON.stringify(body) : undefined,
     })
 
+    // Um endpoint JSON NUNCA responde com redirect. Quando responde (validação de
+    // rota web sem FailsValidationAsJson, sessão/CSRF expirada → volta pra tela de
+    // login), o fetch SEGUE o 302 até uma página 200 e `response.ok` fica true — o
+    // chamador leria como SUCESSO uma ação que na verdade falhou (o sucesso falso da
+    // gorjeta na sala ao vivo). Trata redirect como falha, sempre, com motivo real.
+    if (response.redirected) {
+        const error = new Error('Request redirected')
+        error.status = response.status
+        error.redirected = true
+        error.data = { message: 'Não foi possível confirmar a ação. Recarregue a página e tente novamente.' }
+        throw error
+    }
+
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
@@ -63,6 +76,16 @@ export async function postForm(url, formData) {
         },
         body: formData,
     })
+
+    // Mesma guarda do request() JSON: um redirect seguido (sessão/validação de rota
+    // web) não é sucesso, mesmo que o fetch termine em 200.
+    if (response.redirected) {
+        const error = new Error('Request redirected')
+        error.status = response.status
+        error.redirected = true
+        error.data = { message: 'Não foi possível confirmar a ação. Recarregue a página e tente novamente.' }
+        throw error
+    }
 
     const data = await response.json().catch(() => null)
 

@@ -3295,6 +3295,20 @@ barra compacta que não cobre o vídeo, contagem polada. Tabelas `live_chat_mess
 `live_chat_mutes` (efêmeras: some no fim da live e no Hard Delete, nos dois sentidos; corpo
 nunca em `audit_logs`). Rotas sob `feature:live` + os gates existentes, no `only[]` do Ziggy.
 
+**Follow-up `fix/live-room-actions` (base `feat/live-room-console`, PR pendente):** o 1º teste
+real com dois navegadores revelou chat/gorjeta/presente/contador QUEBRADOS. Causa-raiz única: o
+prop `performer` chegava embrulhado em `{data:…}` (o `LiveViewController::show` passava a resource
+CRUA em vez de `->resolve($request)`), então `props.performer.slug` era undefined e todo POST saía
+sem `performer_slug`. Corrigido com `->resolve()`. Mais: (a) `SendTipRequest` ganhou
+`FailsValidationAsJson` — sem ele a validação virava redirect 302, o fetch seguia até 200 e a tela
+mostrava "gorjeta enviada" para uma requisição que FALHOU (sucesso falso; a gorjeta NÃO debitava —
+validação antes do controller —, então SEM inconsistência de ledger); (b) guarda em `http.js`
+trata qualquer redirect num POST/GET JSON como falha; (c) contador do membro repuxa ao conectar,
+igual dos dois lados. **Economia reconfirmada com o PO (21/08/2026): gorjeta/presente na live são
+80/20** (a spec citou 70/30, que é do MINUTO de live/chamada PAGA — a live pública é grátis, sem
+minuto cobrado). `LiveRoomActionsTest` (7) trava tudo; `TipWebTest` "rejects invalid input"
+atualizado (codificava o redirect antigo → agora 422).
+
 ### Vitrine de conteúdo, perfil público e correções de UX (`feat/content-showcase`, PR pendente)
 
 Sobre `main`. Oito itens, **mobile primeiro**, sem tocar economia/split/cobrança. Suíte

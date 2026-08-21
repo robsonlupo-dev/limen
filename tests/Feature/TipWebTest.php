@@ -134,10 +134,11 @@ it('forbids a performer from using the consumer tip route', function () {
 });
 
 it('rejects invalid input without creating a tip', function () {
-    // Nota: por convenção do projeto (bootstrap/app.php: shouldRenderJsonWhen só
-    // em api/*), falhas de validação em rota web redirecionam (302) em vez de 422
-    // JSON. O front-end nunca chega aqui — o modal valida valor (1–1000) e gera o
-    // idempotency_key. O contrato garantido aqui: entrada inválida não vira gorjeta.
+    // O SendTipRequest usa FailsValidationAsJson (fix/live-room-actions): falha de
+    // validação numa rota web consumida por fetch vira 422 JSON, NÃO redirect 302.
+    // Sem isso, o fetch seguia o redirect até uma página 200 e o front mostrava
+    // "gorjeta enviada" para uma requisição que falhou (o sucesso falso da sala ao
+    // vivo). O contrato garantido aqui: entrada inválida não vira gorjeta.
     $consumer = tipWebConsumer(100);
     $profile = tipWebPerformer(65);
 
@@ -145,7 +146,7 @@ it('rejects invalid input without creating a tip', function () {
         'performer_slug' => $profile->slug,
         'amount' => 50,
         // idempotency_key ausente → ValidationException
-    ])->assertRedirect();
+    ])->assertStatus(422)->assertJsonValidationErrors('idempotency_key');
 
     expect(Tip::count())->toBe(0);
 });
