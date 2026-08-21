@@ -111,298 +111,56 @@ um erro na main derruba o site em produção.
 - Commits de documentação pura (ex: atualização de MASTER_HANDOFF_FINAL.md ou CLAUDE.md)
   podem ir direto na main, desde que não toquem em código PHP, Vue ou configuração.
 
-## Modelo de tokens (resumo — implementado na fundação)
-- Cliente compra pacotes de tokens via PIX.
-- Cliente gasta tokens (gorjeta, sessão privada).
-- No gasto, a plataforma retém um split por nível do performer; o restante credita o performer.
-- Tudo isso é registrado no `token_ledger` (append-only).
+## Economia e monetização — ver `docs/ECONOMIA.md`
 
-## Modelo de monetização — DECISÕES FECHADAS pelo PO (referência canônica)
+**As regras de NEGÓCIO da economia saíram deste guia** (`docs/split-business-rules`).
+A fonte canônica de preços, pacotes, splits, tiers, descontos, franquias, teto de
+acúmulo, payout, retenção de conversa e arredondamento é **`docs/ECONOMIA.md`** — em
+linguagem de negócio, para leitor não-técnico. As decisões de produto de agosto/2026
+(portão de conversa removido, chat 80/20, decimal exato, preço simétrico, etc.) estão
+em **`docs/DECISOES_2026-08.md`**; as questões que dependem do jurídico em
+**`docs/PENDENCIAS_JURIDICAS.md`**.
 
-**Fechado pelo PO (Robson) em 03/08/2026. É a referência para TODA implementação
-futura de monetização** — pacotes, chat, conteúdo, live, chamada, assinatura,
-payout. O detalhe completo (com os porquês) vive em `docs/MASTER_HANDOFF_FINAL.md`,
-seção **"MODELO DE MONETIZAÇÃO LIMEN — DECISÕES FECHADAS"**. Este resumo situa; ao
-implementar, leia a seção lá. **Onde este modelo conflita com `docs/SUBSCRIPTION_TIERS.md`
-ou `docs/CIRCLES_SYSTEM_V4.md` (a divergência do §19.2 do handoff), ESTE modelo
-vence** — e os slugs de tier são os do `Circle::TIER_ORDER`
+O que ANTES vivia aqui como "M.1–M.14" (o modelo de monetização fechado + a emenda
+decimal + a regra única de arredondamento R1–R4) foi consolidado nesses documentos. Os
+rótulos `M.x` seguem citados nas seções de feature abaixo como **referência histórica**;
+a redação canônica agora é a do `ECONOMIA.md`. **Precedência inalterada:** o modelo
+fechado vence `docs/SUBSCRIPTION_TIERS.md` e `docs/CIRCLES_SYSTEM_V4.md`; os slugs de
+tier são os de `Circle::TIER_ORDER`
 (`explorador / insider / prestige / black / founders_circle`).
 
-- **[M.1] Moeda única: TOKENS.** Tudo (chat, conteúdo, live, gorjeta, presente) passa
-  por tokens. Tokens **NUNCA expiram**. Teto de acúmulo **5.000**: no teto, o
-  assinante continua pagando a assinatura mas os tokens **não creditam** até
-  gastar (vale inclusive para a franquia mensal do tier). A performer vê o **R$
-  equivalente** ao lado do preço em tokens.
-- **[M.2] Pacotes (compra via PIX), preço cheio:** Starter R$49,90=50 · Popular
-  R$99,90=110 · Premium R$199,90=240 · VIP R$499,90=650. **Desconto por tier**
-  (aplica sobre a compra): Explorador/Insider 10% · Prestige 20% · Black 30% ·
-  FC 40%.
-- **[M.3] Chat:** abrir custa 2 tokens (não-assinante), 1 token (Explorador/Insider/
-  Prestige), **grátis** (Black/FC — a Limen subsidia e paga 1 token à performer).
-  Aberto → mensagens ilimitadas por **30 dias**. Performer recebe **75%** do custo
-  de abertura.
-- **[M.4] Conteúdo (fotos/vídeos PERMANENTES):** a performer define nível
-  (**Aberto / Premium / Exclusivo / FC Only**) + preço em tokens. Aberto é grátis
-  para todo assinante; Premium exige Prestige+; Exclusivo exige Black+; FC Only só
-  FC. Explorador/Insider só veem o Aberto (incentiva upgrade). Desbloqueado é
-  **permanente**. Split **80% performer / 20% Limen**.
-- **[M.5] Live pública:** performer define X tokens por bloco de **10 min**; **todos
-  pagam** (inclusive FC, com inclusos ou comprados); não-assinante assiste pagando
-  cheio. Split **70/30**. Gorjeta/presente durante a live: **80/20**.
-- **[M.6] Chamada privada (1:1 vídeo):** performer define X tokens/minuto; **todos
-  pagam**. Split **70/30**.
-- **[M.7] Assinaturas dos Círculos** (100% Limen, sem split): Explorador R$89,90 (chat
-  1 tk, 50 inclusos, −10%) · Insider R$189,90 (chat 1 tk, 120 inclusos, −10%) ·
-  Prestige R$389,90 (chat 1 tk, +Premium, 250 inclusos, read receipts (atualizado
-  por M.13.13: read receipts para todos os assinantes), −20%) ·
-  Black R$749,90 (chat GRÁTIS, +Exclusivo, 500 inclusos, Ghost Mode + Modo
-  Discreto, −30%, cap 500) · FC R$1.490,00 (chat GRÁTIS, TUDO, 1.200 inclusos,
-  número permanente + milestones, −40%, cap 100).
-- **[M.8] Tokens inclusos:** creditados no 1º dia do ciclo, **não expiram** (entram no
-  saldo normal, `subscription_grant` no ledger), sujeitos ao teto de 5.000 (no
-  teto, não credita até gastar).
-- **[M.9] Split por tipo de evento:** conteúdo 80/20 · chat (abertura) 75/25 · live
-  70/30 · chamada 70/30 · gorjeta 80/20 · presente 75/25 · **boost 100% Limen** ·
-  **interesse revelado 100% Limen** · **assinatura 100% Limen**.
-- **[M.10] Payout da performer:** **sweep automático mensal no dia 1** referente ao
-  mês anterior (`payouts:process-monthly`, idempotente por (performer, ano, mês)),
-  **mais** saque **on-demand** disponível a qualquer momento (os dois convivem —
-  decisão do PO 04/08/2026, PR #134). Mínimo **100 tokens** em ambos, via PIX
-  (Asaas). **Só ganhos são sacáveis** (M.13.5): `payable = min(ganhos_devidos,
-  saldo)`, somando só o allowlist de `*_credit` de ganho (tip_credit,
-  chat_access_credit, …) — NUNCA purchase/bonus/subscription_grant/refund (sacá-los
-  a R$0,60 seria leak). R$ equivalente (R$0,60/token fixo) visível no dashboard.
-- **[M.11] LiveKit (infra de live/chamada):** Fase 1 lançamento = LiveKit Cloud Build
-  (grátis, 5.000 min/mês); Fase 2 crescimento = Cloud Ship ($50/mês); Fase 3
-  escala = self-hosted Hetzner (~R$230/mês fixo). Custo real ~R$0,01/min por
-  participante (margem 98%+).
-- **[M.12] Presentes virtuais (BACKLOG, não implementado):** catálogo fixo da Limen,
-  preços fixos (ex.: Rosa 5 tk, Champagne 50 tk), split **75/25**, animação na
-  tela durante a live.
+### Invariantes de ENGENHARIA da economia (ficam aqui — é COMO implementar, não o preço)
 
-> **Nota de implementação vs. estado atual:** este é o modelo-alvo fechado, **não
-> um inventário do que já roda**. Hoje o ledger só tem os `entry_type` do §6.2 do
-> handoff (não há `spend_content`, `spend_live`, `spend_call`, `gift_*`); live,
-> chamada, conteúdo permanente e presentes **não estão implementados**. Cada novo
-> tipo de gasto/crédito é **migration no enum de `entry_type`** (princípio nº 2,
-> ledger append-only) — nunca `UPDATE` de saldo.
+Os NÚMEROS e o PORQUÊ de negócio estão em `docs/ECONOMIA.md`. O que fica neste guia é o
+contrato técnico que um dev quebraria sem saber:
 
-## M.13 — Emenda de 03/08/2026: invariantes da economia de tokens (SUBSTITUI M.1–M.9 onde conflitar). M.10 (Payout), M.11 (LiveKit) e M.12 (Presentes) seguem vigentes — M.13.5 e M.13.6 os complementam sem substituir.
-
-Fechado pelo PO após benchmark de mercado e simulação de margem. Cada item é invariante — mudar exige decisão de PO registrada.
-
-### M.13.1 — Chat: crédito fixo, sem percentual (SUBSTITUI M.3 e coluna "Chat" de M.7)
-
-Split percentual superado para chat. Não existe arredondamento que preserve 75/25 sobre base de 1 ou 2 tokens.
-
-| Quem abre                          | Membro paga | Performer recebe | Resultado Limen |
-|------------------------------------|-------------|------------------|-----------------|
-| Não-assinante                      | 2 tk        | 1 tk (fixo)      | +1 tk           |
-| Explorador / Insider / Prestige    | 2 tk        | 1 tk (fixo)      | +1 tk           |
-| Black                              | 1 tk        | 1 tk (fixo)      | 0               |
-| FC                                 | 1 tk        | 1 tk (fixo)      | 0               |
-
-Black passou de grátis para 1 token (mudança pré-lançamento). Explorador/Insider/Prestige passaram de 1 para 2 tokens (benefício real desses tiers é franquia e conteúdo, não chat). Subsídio eliminado — nenhum tier gera custo para a Limen no chat. entry_type continua chat_access_credit; NÃO criar tipo separado. Chat é canal, não receita.
-
-### M.13.2 — Pacotes achatados (SUBSTITUI tabela de M.1)
-
-| Pacote  | Preço     | Tokens | R$/token |
-|---------|-----------|--------|----------|
-| Starter | R$ 49,90  | 50     | R$ 1,00  |
-| Popular | R$ 99,90  | 105    | R$ 0,95  |
-| Premium | R$ 199,90 | 220    | R$ 0,91  |
-| VIP     | R$ 499,90 | 580    | R$ 0,86  |
-
-Âncora de R$1,00/token no Starter é inviolável.
-
-### M.13.3 — Desconto por tier (SUBSTITUI M.2)
-
-Explorador 10% · Insider 10% · Prestige 15% · Black 20% · FC 25%. Invariante: nenhuma combinação de pacote + desconto pode levar custo efetivo abaixo de R$0,625/token (margem mínima 25%).
-
-### M.13.4 — Franquia mensal dos Círculos (SUBSTITUI inclusos de M.7)
-
-| Tier        | Assinatura    | Inclusos/mês | R$/token implícito |
-|-------------|---------------|--------------|---------------------|
-| Explorador  | R$ 89,90      | 105          | R$ 0,86             |
-| Insider     | R$ 189,90     | 230          | R$ 0,83             |
-| Prestige    | R$ 389,90     | 490          | R$ 0,80             |
-| Black       | R$ 749,90     | 1.000        | R$ 0,75             |
-| FC          | R$ 1.490,00   | 2.100        | R$ 0,71             |
-
-Tokens inclusos: subscription_grant, não expiram, sujeitos ao teto (M.13.8).
-
-### M.13.5 — Payout: R$0,60/token fixo (NOVO)
-
-Cada token vale R$0,60 no saque, sempre, independente da origem. Redação obrigatória na interface da performer: "Você recebe 80% dos tokens da transação. Cada token vale R$0,60 no saque." NUNCA escrever porcentagem sobre valor em reais.
-
-### M.13.6 — Split: do tipo de evento, nunca do lugar (SUBSTITUI M.5; CONFIRMA M.9)
-
-| Tipo de evento              | Split (performer / Limen) |
-|-----------------------------|---------------------------|
-| Conteúdo permanente         | 80 / 20                   |
-| Gorjeta                     | 80 / 20                   |
-| Chat (abertura)             | fixo 1 tk (fora do %)     |
-| Presente virtual            | 75 / 25                   |
-| Live pública (por bloco)    | 70 / 30                   |
-| Chamada privada (por min)   | 70 / 30                   |
-| Boost / Interesse revelado  | 100% Limen                |
-| Assinatura de Círculo       | 100% Limen                |
-
-Catálogo de presentes em múltiplos de 4 tokens (invariante validada): Rosa 4 · Chocolate 12 · Champagne 40 · Joia 100 · Coroa 200 · Diamante 400.
-
-### M.13.7 — Arredondamento: regra única para split percentual
-
-1. Taxa gravada na linha do ledger em inteiro (70, 75, 80). 2. Congelada na transação, nunca recalculada. 3. credito = intdiv(valor * taxa + 50, 100); retencao = valor - credito. 4. Round-half-up, inteiros, nunca float. 5. Piso de 5 tokens em conteúdo/live/chamada. 6. Tabela em config/monetization.php por entry_type com data de vigência.
-
-### M.13.8 — Teto de acúmulo: escalonado + fila de pendência (SUBSTITUI teto fixo de M.1)
-
-Teto = max(5.000, 4 × franquia), com FC fixado em 8.000 pelo PO. Sem assinatura até Black = 5.000; FC = 8.000. O teto é incentivo a gastar, não confisco. Fila de grant pendente: credita o que couber, pendura o resto; pendência máxima = 1 franquia (ciclo novo substitui, não empilha); não expira; consumo automático parcial a cada gasto. Aviso quando espaço_restante ≤ 2 × franquia_do_tier (4.500 fixo para não-assinante).
-
-### M.13.9 — O teto é propriedade do MOVIMENTO, não da pessoa
-
-saldo > teto é estado legítimo. NÃO criar constraint. Invariante real: purchase, bonus e subscription_grant não creditam acima do teto. Chave é entry_type, nunca role (performer pode assinar Círculo). Respeitam teto: purchase, bonus, subscription_grant. Nunca respeitam: tip_credit, chat_access_credit, refund, payout_reversal, adjustment, todo *_credit. Compra acima do teto: barrada no checkout; webhook que chegar mesmo assim credita e loga.
-
-### M.13.10 — Tier do membro NÃO é visível para a performer
-
-Performer não vê tier nem bit "assinante". Exceção única: FC Only revela FC no desbloqueio. Mostrar depois é fácil, esconder depois é impossível.
-
-### M.13.11 — Margem mínima de 25%
-
-Nenhuma transação pode resultar em margem bruta abaixo de 25%. Piso de custo efetivo: R$0,625/token. Se mudar payout, split ou desconto, recalcular antes de implementar.
-
-### M.13.13 — Tabela consolidada de benefícios por Círculo
-
-Regra geral: o tier dá a chave de acesso; o conteúdo é pago com tokens (preço definido pela performer). "Paga tokens" = tem acesso, paga para desbloquear. "Grátis" = acesso sem custo. "❌" = sem acesso ao nível.
-
-Tipos de conteúdo (foto, álbum ou vídeo — mesma estrutura, mesmos níveis):
-- Aberto: vitrine da performer; grátis para assinantes, pago para não-assinante (degustação que incentiva assinatura).
-- Premium: primeiro nível pago; acesso a partir de Prestige.
-- Exclusivo: acesso a partir de Black; conteúdo mais íntimo, preço mais alto.
-- FC Only: só FC pode desbloquear; é o perk que justifica R$1.490/mês e a única situação onde a performer sabe que o membro é FC (M.13.10).
-
-| Benefício | Não-assinante | Explorador | Insider | Prestige | Black | FC |
-|---|---|---|---|---|---|---|
-| Chat (abertura) | 2 tk | 2 tk | 2 tk | 2 tk | 1 tk | 1 tk |
-| Conteúdo Aberto | Paga tokens | Grátis | Grátis | Grátis | Grátis | Grátis |
-| Conteúdo Premium | ❌ | ❌ | ❌ | Paga tokens | Paga tokens | Paga tokens |
-| Conteúdo Exclusivo | ❌ | ❌ | ❌ | ❌ | Paga tokens | Paga tokens |
-| Conteúdo FC Only | ❌ | ❌ | ❌ | ❌ | ❌ | Paga tokens |
-| Live pública | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
-| Chamada privada | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
-| Gorjeta | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
-| Presentes | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
-| Read receipts | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Tokens inclusos/mês | — | 105 | 230 | 490 | 1.000 | 2.100 |
-| Desconto pacote avulso | — | 10% | 10% | 15% | 20% | 25% |
-| Ghost Mode | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Modo Discreto | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Número FC permanente | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Milestones físicos | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Teto de acúmulo | 5.000 | 5.000 | 5.000 | 5.000 | 5.000 | 8.000 |
-| Cap de vagas | ∞ | ∞ | ∞ | ∞ | 500 | 100 |
-
-Read receipts atualizado: todos os assinantes (Explorador a FC), não apenas Prestige+ como no M.7 original. Não-assinante não tem (chat dele já é limitado a 2 tk + 30 dias).
-
-### M.13.12 — Estado de implementação
-
-Nada de M.13 está implementado até o PR #130. O bloco de monetização acima (seção "Modelo de monetização — DECISÕES FECHADAS", antes desta emenda) (pacotes, chat, descontos, inclusos) fica superado por M.13 — ambos presentes, M.13 tem precedência.
-
-**`entry_type` do agendamento de chamada (PR #170, `feat/scheduled-call-v1`).** Três
-tipos novos no enum do ledger append-only (migration própria, princípio nº 2 — nunca
-`UPDATE` de saldo), somados aos de live/chamada do Sprint 15
-(`spend_live`/`live_credit`/`spend_call`/`call_credit`):
-- **`spend_call_reservation`** — débito do depósito do membro no ato do agendamento
-  (trava os tokens; preço/min congelado na reserva).
-- **`call_reservation_refund`** — crédito 100% ao membro (cancel grátis, reserva não
-  confirmada, no-show da performer). É devolução, não ganho: **NUNCA respeita teto**
-  (M.13.9, fora de `cap_respecting_entry_types`) e **fora** do `payout.earning_entry_types`.
-- **`call_noshow_credit`** — crédito 100/0 à performer no no-show do MEMBRO
-  (compensação pela reserva do horário; `applied_rate=100`). É **ganho sacável** →
-  entra no `payout.earning_entry_types`.
-A entrada bem-sucedida (minuto 1 pago pelo depósito) reusa `call_credit` (70/30) do
-PR #140 — sem tipo novo.
-
-## M.14 — Emenda de 19/08/2026: economia de tokens DECIMAL EXATA (SUBSTITUI M.13.1 e M.13.7 onde conflitar)
-
-Fechada pelo PO (Robson) após a auditoria da economia (`docs/AUDITORIA_ECONOMIA_TOKENS.md`).
-Branch `feat/fractional-token-ledger`. **Motivo:** o split inteiro (round-half-up) só
-fechava exato por COINCIDÊNCIA de configuração (preços múltiplos de 5/4); um conteúdo de
-7 ou gorjeta de 13 truncava dinheiro da performer, e o chat de crédito FIXO de 1 token
-entregava 50% com o contrato dizendo 80% — a única retenção sistemática indevida. Câmbio
-futuro (token→BRL→USD) gera fração por taxa que grade de preço nenhuma resolve.
-
-- **[M.14.1] `token_ledger.amount`/`balance_after` + `token_wallets.balance` são
-  DECIMAL(20,4).** 4 casas (não 2) por causa do câmbio futuro — guardar 4 e exibir 2 é
-  trivial, o contrário exige nova migração. Também fracionam: os espelhos de split
-  (`tips`/`gift_sends` `performer_amount`+`platform_amount`) e `payouts.tokens`. **NÃO**
-  fracionam: `token_wallets.pending_grant_tokens` (franquia é sempre inteira).
-- **[M.14.2] Toda aritmética de carteira é bcmath, escala 4** — dona única
-  `App\Support\TokenMath` (`of/add/sub/mul/cmp/min/max/intFloor/readable/display`). NUNCA
-  operador nativo (`+ - < (int) (float)`) sobre amount/balance. **"Nunca float" continua
-  valendo** — DECIMAL+bcmath é aritmética decimal EXATA, não ponto flutuante. Esta emenda
-  é a PRECISÃO da regra, não seu abandono.
-- **[M.14.3] `TokenCreditPolicy::applyRate` devolve decimal EXATO** (`bcdiv(bcmul(...))`),
-  sem `intdiv` nem round-half-up. **Ponto ÚNICO** para todos os fluxos percentuais.
-  Ex.: gorjeta 3 → 2,4000; conteúdo 7 → 5,6000; chamada 13 → 9,1000; presente 7 → 5,2500.
-- **[M.14.4] CHAT vira split 80/20 (SUBSTITUI M.13.1).** A abertura credita a performer
-  80% do que o membro pagou (`creditWithSplit($performer, $cost, 'chat', 'chat_access_credit')`,
-  `split_rates.chat=80`) — custo 2 → 1,6000; custo 1 (Black/FC) → 0,8000. **O crédito fixo
-  de 1 (`chatOpenPerformerCredit`) foi REMOVIDO.** entry_type continua `chat_access_credit`
-  (segue no allowlist de payout). O CUSTO por tier de M.13.1/M.13.13 (2, ou 1 Black/FC) NÃO
-  muda; só o crédito da performer.
-- **[M.14.5] O SALDO DO MEMBRO continua INTEIRO por construção** (compra/gasta tokens
-  cheios). Só o CRÉDITO DA PERFORMER fraciona. **Override registrado da convenção "tokens
-  são inteiros":** ela continua valendo para o saldo do membro e para PREÇOS; deixa de
-  valer para o crédito da performer.
-- **[M.14.6] Contrato de leitura uniforme (`TokenMath::readable`):** toda quantidade de
-  token lê **INT quando inteira** ("500.0000" → 500), **STRING decimal (4dp) quando
-  fracionária** ("1.6000"). Implementado por accessors nos models (TokenWallet.balance,
-  TokenLedger.amount/balance_after, Tip/GiftSend mirrors, Payout.tokens). `balance()` e
-  `earningsOwed()` seguem o mesmo contrato.
-
-### M.14.7 — REGRA ÚNICA DE ARREDONDAMENTO (vale para TODO fluxo, existente e futuro)
-
-- **R1. O LEDGER NUNCA ARREDONDA.** Todo lançamento guarda o valor exato com 4 casas.
-  Não existe arredondamento por transação, em fluxo nenhum.
-- **R2. O arredondamento acontece UMA ÚNICA VEZ: na conversão para reais no PAYOUT,
-  sempre FLOOR** (nunca half-up, nunca para cima). `PayoutService::calculatePayoutCentavos`
-  = `floor(tokens × 60)`; a decomposição vive em `PayoutService::payoutBreakdown`.
-- **R3. A SOBRA DO FLOOR NÃO SOME.** O payout debita só os tokens que os centavos pagos
-  representam (`tokens_consumed = paidCentavos ÷ 60`, escala 4); a diferença (`remainder`)
-  **continua no saldo da performer** para o próximo saque — não descartada, não apropriada
-  pela Limen. Ex.: saldo 4,8733 → R$2,92 (floor de R$2,92398); consome 4,8666; sobra 0,0067
-  fica. O truncamento de `tokens_consumed` é para BAIXO → a Limen nunca paga menos do que
-  debita (o arredondamento nunca a favorece).
-- **R4. Nenhum fluxo cria nem destrói token:** em toda operação de split, débito do membro
-  + crédito da performer + comissão da Limen fecha em ZERO (`credited + retained == gross`
-  sempre, por construção do complemento).
-
-### M.14.8 — Limpeza da auditoria (mesmo PR)
-
-- **Preços centralizados:** boost (50) e interesse (15) saíram de `config/boost.php`/
-  `config/interest.php` e entraram em `config/monetization.php`
-  (`boost_cost_tokens`/`interest_unlock_cost`) — "um lugar só para preço". Duração do boost
-  e limites diários do interesse (POLÍTICA, não preço) ficaram onde estavam.
-- **Duplicações banco↔config resolvidas — config é a fonte, o banco DERIVA:**
-  `circles.monthly_tokens`/`discount_pct` viraram accessors do model `Circle` que leem
-  `franchises_by_tier`/`discounts_by_tier` da config (fim da sincronia-por-teste frágil; o
-  webhook de grant lia a coluna e o command lia a config — podiam divergir, agora não).
-  `monetization.live_split_rate` (espelho de `split_rates.live.rate`) foi **removido**.
-- **entry_types inativos NÃO foram removidos** (são histórico do enum) — apenas
-  documentados: `spend_live`/`live_credit` (live pública é grátis, sem emitter),
-  `bonus` (pacote `bonus=0`, nunca creditado), `refund` (sem emitter), `spend_private`/
-  `spend_camera` (legado da 1ª migration, jamais usados).
-
-### M.14.9 — Correções de doc que esta emenda faz (o código passou a ser a verdade)
-
-- **M.13.1** (crédito fixo de chat de 1 token): **NÃO EXISTE MAIS** — chat é split 80/20
-  (M.14.4).
-- **M.13.5** (UI da performer "Você recebe 80%"): agora é **verdade também no chat** — não
-  há mais os 50% do fixo-1.
-- **M.13.7** (round-half-up inteiro): **SUBSTITUÍDO** por decimal exato (M.14.3); o
-  arredondamento existe só no payout, floor, com a sobra preservada (M.14.7).
-- **M.13.12** estava DESATUALIZADO: dizia que `token_packages` guardava números pré-M.13;
-  o `TokenPackageSeeder` já está em M.13.2 (50/105/220/580) desde antes desta emenda.
+- **Ledger append-only (princípio nº 2, acima):** todo movimento é uma LINHA NOVA; o
+  saldo é a soma. NUNCA `UPDATE ... saldo = saldo + x`. **Cada novo tipo de gasto/crédito
+  é uma migration no enum de `entry_type`** — nunca um `UPDATE` de saldo.
+- **Aritmética de carteira é DECIMAL EXATA (bcmath, escala 4), dona única
+  `App\Support\TokenMath`.** `amount`/`balance_after`/`token_wallets.balance` são
+  `DECIMAL(20,4)`. NUNCA operador nativo (`+ - < (int) (float)`) sobre valor/saldo.
+  "Nunca float" continua valendo — DECIMAL+bcmath é decimal EXATO, não ponto flutuante.
+  O split percentual tem ponto ÚNICO em `TokenCreditPolicy::applyRate` (exato, sem
+  `intdiv`/round-half-up).
+- **O SALDO DO MEMBRO é INTEIRO por construção** (compra/gasta inteiro); só o CRÉDITO da
+  performer fraciona. Override registrado da convenção "tokens são inteiros": ela vale
+  para o saldo do membro e para PREÇOS, não para o crédito da performer.
+- **Arredondamento: UMA única vez, no PAYOUT, sempre FLOOR**
+  (`PayoutService::calculatePayoutCentavos` = `floor(tokens × 60)`); a **sobra do floor
+  FICA** no saldo da performer (`tokens_consumed = centavos ÷ 60`). O LEDGER nunca
+  arredonda. `credited + retained == gross` por construção do complemento. (Regra R1–R4
+  em `docs/ECONOMIA.md` §13.)
+- **Contrato de leitura uniforme (`TokenMath::readable`):** INT quando inteiro
+  ("500.0000" → 500), STRING decimal de 4 casas quando fracionário ("1.6000").
+- **Ganho sacável vs. entrada que respeita o teto:** a chave é o `entry_type`, NUNCA o
+  `role`. Ganho (todo `*_credit`) nunca respeita o teto e entra no allowlist de payout;
+  compra/bônus/`subscription_grant` respeitam o teto e não são sacáveis.
+- **`entry_type` do agendamento de chamada:** `spend_call_reservation` (débito do
+  depósito), `call_reservation_refund` (devolução 100% ao membro — nunca respeita teto,
+  fora do payout: é devolução, não ganho), `call_noshow_credit` (no-show do MEMBRO →
+  100% à performer, `applied_rate=100`, ganho sacável). O minuto 1 da chamada agendada
+  reusa `call_credit` (70/30) — sem tipo novo. Regras de negócio em `docs/ECONOMIA.md` §8.
 
 ## Estado atual
 
