@@ -80,18 +80,19 @@ function pcBalance(User $user): int
 
 // ─── Gate de tier por nível (M.13.13) ────────────────────────────────────────
 
-it('premium so desbloqueia a partir de Prestige', function () {
+it('premium virou compra avulsa — qualquer membro compra pagando o preço cheio (21/08/2026)', function () {
     $profile = pcPerformer();
     $content = pcPublish($profile, PerformerContent::LEVEL_PREMIUM);
 
-    $insider = pcMember('insider');   // abaixo de Prestige
-    $prestige = pcMember('prestige');
-    $black = pcMember('black');
+    $free = pcMember();               // sem assinatura
+    $insider = pcMember('insider');   // era "abaixo de Prestige"
 
-    expect(pcVis()->tierAllows($insider, $content))->toBeFalse()
-        ->and(pcVis()->tierAllows($prestige, $content))->toBeTrue()
-        ->and(pcVis()->tierAllows($black, $content))->toBeTrue()
-        ->and(pcVis()->canUnlock($insider, $content))->toBeFalse();
+    // Tier alcança para TODOS (premium = compra avulsa), e o Free CONSEGUE comprar.
+    // Não é upsell de tier (só Exclusivo/FC Only têm upsell).
+    expect(pcVis()->tierAllows($free, $content))->toBeTrue()
+        ->and(pcVis()->tierAllows($insider, $content))->toBeTrue()
+        ->and(pcVis()->canUnlock($free, $content))->toBeTrue()
+        ->and(pcVis()->upsellTierLabel($free, $content))->toBeNull();
 });
 
 it('exclusivo so desbloqueia a partir de Black', function () {
@@ -109,12 +110,15 @@ it('fc_only so desbloqueia FC', function () {
         ->and(pcVis()->tierAllows(pcMember('founders_circle'), $content))->toBeTrue();
 });
 
-it('nao-assinante e sem-tier caem no fail-closed dos niveis pagos', function () {
-    $content = pcPublish(pcPerformer(), PerformerContent::LEVEL_PREMIUM);
+it('nao-assinante cai no fail-closed dos niveis TRAVADOS por tier (Exclusivo/FC)', function () {
+    // Premium virou avulso; o fail-closed agora é dos níveis que SEGUEM travados.
+    $content = pcPublish(pcPerformer(), PerformerContent::LEVEL_EXCLUSIVE);
     $nonSub = pcMember();
 
     expect(pcVis()->tierAllows($nonSub, $content))->toBeFalse()
-        ->and(pcVis()->canView($nonSub, $content))->toBeFalse();
+        ->and(pcVis()->canView($nonSub, $content))->toBeFalse()
+        ->and(pcVis()->canUnlock($nonSub, $content))->toBeFalse()
+        ->and(pcVis()->upsellTierLabel($nonSub, $content))->toBe('Black');
 });
 
 // ─── Aberto: não-assinante paga, assinante grátis (M.13.13) ──────────────────
@@ -319,16 +323,17 @@ it('serving nega 404 sem acesso e entrega os bytes com desbloqueio', function ()
 });
 
 it('endpoint de unlock: 403 para tier insuficiente, 200 no sucesso', function () {
-    $content = pcPublish(pcPerformer(), PerformerContent::LEVEL_PREMIUM, 20);
+    // Premium virou avulso; o tier gate agora só barra Exclusivo/FC Only.
+    $content = pcPublish(pcPerformer(), PerformerContent::LEVEL_EXCLUSIVE, 20);
 
-    $insider = pcMember('insider');
-    pcFund($insider, 100);
-    $this->actingAs($insider)->postJson("/conteudo/{$content->id}/desbloquear")->assertStatus(403);
-
-    $prestige = pcMember('prestige');
+    $prestige = pcMember('prestige'); // abaixo de Black → barrado
     pcFund($prestige, 100);
-    $this->actingAs($prestige)->postJson("/conteudo/{$content->id}/desbloquear")->assertOk();
-    expect(pcVis()->canView($prestige->refresh(), $content))->toBeTrue();
+    $this->actingAs($prestige)->postJson("/conteudo/{$content->id}/desbloquear")->assertStatus(403);
+
+    $black = pcMember('black');
+    pcFund($black, 100);
+    $this->actingAs($black)->postJson("/conteudo/{$content->id}/desbloquear")->assertOk();
+    expect(pcVis()->canView($black->refresh(), $content))->toBeTrue();
 });
 
 // ─── Serving para de entregar quando a performer sai do ar (B1) ──────────────

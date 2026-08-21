@@ -122,14 +122,14 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
 - **Motivo:** linguagem mais alinhada ao posicionamento premium/clube da marca. É só o
   texto visível — nenhuma regra por trás muda.
 
-## 11. Presente virtual passa a 80/20 — APROVADO, PENDENTE DE IMPLEMENTAÇÃO
+## 11. Presente virtual passa a 80/20 — IMPLEMENTADO
 
-- **Status:** decisão **aprovada** pelo dono do produto (21/08/2026). **Ainda não
-  implementada** — o código continua em 75/25, e `docs/ECONOMIA.md` reflete o código
-  atual (75/25). A mudança para 80/20 entra em **um PR separado**, junto com a
-  atualização do `ECONOMIA.md`.
-- **Contexto:** hoje o presente virtual divide **75% performer / 25% Limen**, enquanto
-  a gorjeta e o conteúdo permanente dividem **80/20**. Presente e gorjeta são
+- **Status:** decisão aprovada e **implementada** (21/08/2026, PR
+  `feat/gift-split-and-tier-visibility`). A partir daqui todo presente novo divide
+  80/20; **lançamentos antigos mantêm 75/25 congelado** (a taxa é gravada em cada
+  transação e nunca recalculada).
+- **Contexto:** o presente virtual dividia **75% performer / 25% Limen**, enquanto a
+  gorjeta e o conteúdo permanente dividem **80/20**. Presente e gorjeta são
   economicamente parecidos — transferência de valor do membro para a performer sem
   serviço de infraestrutura por trás.
 - **Decisão:** o presente virtual passa a dividir **80% performer / 20% Limen**, igual
@@ -141,3 +141,29 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
   infraestrutura** (conteúdo, gorjeta, presente, abertura de conversa) e **70% no que
   CUSTA** (live pública e chamada privada, que consomem vídeo em tempo real). O 70/30 de
   live e chamada permanece; só o presente sobe de 75 para 80.
+
+## 12. Conteúdo Premium vira compra avulsa + tiles bloqueados visíveis — IMPLEMENTADO
+
+- **Status:** aprovada e **implementada** (21/08/2026, mesmo PR).
+- **Contexto:** antes, uma peça acima do tier do membro **sumia** da galeria do perfil —
+  o membro nem sabia que existia. Isso não protegia a assinatura; escondia o valor
+  dela. E o Premium só era acessível a partir de Prestige.
+- **Decisão (duas partes):**
+  1. **Todos os níveis passam a APARECER no perfil**, mesmo os que o membro não pode
+     comprar — como **tile bloqueado** (espaço reservado, selo do nível e preço/tier).
+     A imagem original **nunca** é servida a quem não pagou (bloqueio no servidor, não
+     por filtro visual removível).
+  2. **Premium vira compra avulsa:** qualquer membro compra pagando o **preço cheio em
+     tokens**. **Exclusivo e FC Only continuam travados por tier** (Black+ / FC):
+     aparecem bloqueados, com o caminho para assinar, mas não são compráveis avulso.
+- **Como o desconto do assinante se aplica (decisão do PO nesta sessão):** o desconto
+  por tier **continua só na compra de tokens** (o assinante já paga menos em reais pelos
+  tokens). **Não** há desconto sobre o preço em tokens da peça no desbloqueio — o membro
+  paga o preço cheio, e a performer recebe **80% do preço cheio**. O incentivo do
+  assinante passa a ser o desconto (tokens mais baratos), não o bloqueio.
+- **Motivo:** mostrar o conteúdo bloqueado (em vez de escondê-lo) expõe o valor da
+  assinatura e do catálogo; abrir o Premium à compra avulsa aumenta a monetização sem
+  tirar o que é exclusivo dos tiers altos (Exclusivo/FC Only).
+- **Texto dos tiles (regra):** nomear sempre o **TIER de assinatura**, nunca o nível de
+  conteúdo. "Disponível no Black", "Disponível no Círculo de Fundadores" — jamais
+  "Assinantes Exclusivo" (Exclusivo é nível de conteúdo, não um tier).

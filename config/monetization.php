@@ -84,7 +84,13 @@ return [
     'split_rates' => [
         'content' => ['rate' => 80, 'effective_from' => '2026-08-03'],
         'tip' => ['rate' => 80, 'effective_from' => '2026-08-03'],
-        'gift' => ['rate' => 75, 'effective_from' => '2026-08-03'],
+        // Presente subiu de 75 para 80 em 21/08/2026 (decisão do PO): presente NÃO
+        // tem custo de infraestrutura (ao contrário de live/chamada, que justificam
+        // o 70), então não há razão para pagar menos que gorjeta e conteúdo. Regra
+        // final: 80% no que NÃO custa infra (mensagem, gorjeta, conteúdo, presente),
+        // 70% no que CUSTA (live, chamada). Lançamentos ANTIGOS mantêm applied_rate=75
+        // congelado na linha — a taxa é gravada na transação, nunca recalculada.
+        'gift' => ['rate' => 80, 'effective_from' => '2026-08-21'],
         'live' => ['rate' => 70, 'effective_from' => '2026-08-03'],
         'call' => ['rate' => 70, 'effective_from' => '2026-08-03'],
         // Economia de mensagem (19/08/2026): abertura de chat = 80% à performer,

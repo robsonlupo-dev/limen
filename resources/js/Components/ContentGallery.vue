@@ -138,8 +138,28 @@ async function confirmUnlock() {
                     </div>
                 </button>
 
-                <!-- Bloqueado e SEM desbloqueio aqui (visitante / performer / admin):
-                     leva ao cadastro. Mesmo caminho de toda ação da página pública. -->
+                <!-- Bloqueado POR TIER (Exclusivo/FC Only sem o Círculo): não é
+                     comprável avulso. O upsell NOMEIA O TIER (nunca o nível de
+                     conteúdo) e leva aos Círculos — ao cadastro se for visitante. -->
+                <Link
+                    v-else-if="item.required_tier_label"
+                    :href="signupHref ?? route('subscribe.index')"
+                    class="group relative aspect-square rounded-xl overflow-hidden border border-frame bg-gradient-to-br from-surface-2 to-background flex items-center justify-center no-underline"
+                >
+                    <div class="absolute inset-0 backdrop-blur-sm bg-background/30" />
+                    <div class="relative flex flex-col items-center gap-1.5 text-center px-2">
+                        <span class="text-2xl" aria-hidden="true">🔒</span>
+                        <span class="text-[11px] text-muted">
+                            {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
+                        </span>
+                        <span class="text-xs text-gold font-medium group-hover:underline">
+                            Disponível no {{ item.required_tier_label }}
+                        </span>
+                    </div>
+                </Link>
+
+                <!-- Bloqueado e SEM desbloqueio aqui (visitante deslogado em peça
+                     comprável / performer / admin): leva ao cadastro. -->
                 <Link
                     v-else
                     :href="signupHref ?? '#'"

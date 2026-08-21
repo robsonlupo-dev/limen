@@ -31,15 +31,31 @@ use App\Support\ContentPresenter;
 class ContentVisibilityService
 {
     /**
-     * Tier mínimo por nível. `null` = aberto a todos (inclusive não-assinante).
-     * Comparado por RANK (Circle::tierAtLeast, fail-closed): tier novo acima de
-     * Black herda o acesso sem editar aqui. Nível fora deste mapa → nega.
+     * Tier mínimo para COMPRAR (avulso) cada nível. `null` = qualquer membro pode
+     * comprar pagando o preço cheio em tokens (inclusive não-assinante). Comparado
+     * por RANK (Circle::tierAtLeast, fail-closed). Nível fora deste mapa → nega.
+     *
+     * Premium virou COMPRA AVULSA em 21/08/2026 (decisão do PO): qualquer membro
+     * compra pagando o preço cheio — o incentivo do assinante passou a ser o desconto
+     * (na compra de tokens), não o bloqueio. Exclusivo e FC Only CONTINUAM travados
+     * por tier (Black+ / FC): aparecem bloqueados, mas não são compráveis avulso.
      */
     public const LEVEL_MIN_TIER = [
         PerformerContent::LEVEL_OPEN => null,
-        PerformerContent::LEVEL_PREMIUM => 'prestige',
+        PerformerContent::LEVEL_PREMIUM => null,
         PerformerContent::LEVEL_EXCLUSIVE => 'black',
         PerformerContent::LEVEL_FC_ONLY => 'founders_circle',
+    ];
+
+    /**
+     * Rótulo do TIER de assinatura por slug, para o upsell dos tiles bloqueados por
+     * tier. Nomeia o TIER (Black, Círculo de Fundadores), NUNCA o nível de conteúdo
+     * ("Exclusivo" é nível; o tier que o destrava é Black).
+     */
+    private const TIER_LABELS = [
+        'prestige' => 'Prestige',
+        'black' => 'Black',
+        'founders_circle' => 'Círculo de Fundadores',
     ];
 
     /** O membro é a dona desta peça? (nunca é cobrada, sempre vê.) */
@@ -205,15 +221,17 @@ class ContentVisibilityService
     }
 
     /**
-     * A galeria de conteúdo permanente que ESTE espectador vê no perfil (M.13.13),
-     * já no shape do ContentPresenter (locked/price/image_url/can_unlock) — a MESMA
-     * fonte do serving, para presenter e listagem nunca divergirem.
+     * A galeria de conteúdo permanente que ESTE espectador vê no perfil, já no shape
+     * do ContentPresenter (locked/price/image_url/can_unlock/required_tier_label) — a
+     * MESMA fonte do serving, para presenter e listagem nunca divergirem.
      *
-     * Só os níveis que o TIER do espectador alcança APARECEM: "❌ = sem acesso ao
-     * nível" (M.13.13). O Free vê só o Aberto (pago, para desbloquear), nunca
-     * Premium/Exclusivo/FC Only — que não são upsell de tile bloqueado aqui. Por
-     * `tierAllows`: Aberto → todos; Premium → Prestige+; Exclusivo → Black+; FC
-     * Only → só FC. Ordem: mais recente primeiro (id desc), como forOwner.
+     * TODOS os níveis PRONTOS aparecem (mudança de 21/08/2026): antes, peça acima do
+     * tier SUMIA da galeria — o membro nem sabia que existia, o que escondia o valor
+     * da assinatura em vez de protegê-lo. Agora aparecem como TILE BLOQUEADO (imagem
+     * NUNCA servida a quem não pode ver — `image_url` vem null, o front desenha
+     * placeholder). O que muda por nível é só o que o tile OFERECE: Premium →
+     * comprável por qualquer um; Exclusivo/FC Only → bloqueado com upsell do tier.
+     * Ordem: mais recente primeiro (id desc).
      *
      * @return array<int, array<string, mixed>>
      */
@@ -228,10 +246,27 @@ class ContentVisibilityService
             ->ready() // vídeo em processing/failed não aparece na vitrine
             ->orderByDesc('id')
             ->get()
-            ->filter(fn (PerformerContent $content) => $this->tierAllows($viewer, $content))
             ->map(fn (PerformerContent $content) => ContentPresenter::one($content, $viewer))
             ->values()
             ->all();
+    }
+
+    /**
+     * Rótulo do TIER de assinatura que destrava este nível — para o upsell do tile
+     * bloqueado POR TIER (Exclusivo/FC Only sem o Círculo). `null` quando o espectador
+     * já vê, PODE comprar avulso (Aberto/Premium, ou o tier alcança), ou é Aberto.
+     * Nomeia o TIER (Black, Círculo de Fundadores), NUNCA o nível de conteúdo.
+     */
+    public function upsellTierLabel(?User $viewer, PerformerContent $content): ?string
+    {
+        // Já vê, ou o tier alcança (então pode comprar avulso) → sem upsell de tier.
+        if ($this->canView($viewer, $content) || $this->tierAllows($viewer, $content)) {
+            return null;
+        }
+
+        $minTier = self::LEVEL_MIN_TIER[$content->access_level] ?? null;
+
+        return $minTier === null ? null : (self::TIER_LABELS[$minTier] ?? null);
     }
 
     /**
