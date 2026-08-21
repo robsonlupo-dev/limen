@@ -7,6 +7,7 @@ use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Support\FanAlias;
+use App\Support\LedgerEntryLabel;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -179,7 +180,10 @@ class PerformerEarningsService
      */
     private function present(TokenLedger $entry, array $aliases): array
     {
-        [$label, $group] = self::TYPE_MAP[$entry->entry_type] ?? [$entry->entry_type, 'other'];
+        // Fallback nunca vaza o nome cru de banco (LedgerEntryLabel, dona única): um
+        // entry_type de ganho novo aparece traduzido mesmo antes de ganhar grupo aqui.
+        [$label, $group] = self::TYPE_MAP[$entry->entry_type]
+            ?? [LedgerEntryLabel::for($entry->entry_type), 'other'];
 
         // Sempre 4 casas: o líquido é o valor que a performer confere contra o bruto.
         $net = $entry->getRawOriginal('amount'); // "1.6000"

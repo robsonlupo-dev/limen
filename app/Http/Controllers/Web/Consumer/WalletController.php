@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\WalletPurchaseRequest;
 use App\Models\Payment;
 use App\Models\TokenLedger;
+use App\Support\LedgerEntryLabel;
 use App\Models\TokenPackage;
 use App\Models\TokenWallet;
 use App\Models\User;
@@ -118,6 +119,7 @@ class WalletController extends Controller
             ->paginate(15)
             ->through(fn (TokenLedger $entry) => [
                 'entry_type' => $entry->entry_type,
+                'label' => LedgerEntryLabel::for($entry->entry_type),
                 'amount' => $entry->amount,
                 'balance_after' => $entry->balance_after,
                 'created_at' => $entry->created_at->format('d/m/Y H:i'),
@@ -142,6 +144,7 @@ class WalletController extends Controller
             ->get()
             ->map(fn (TokenLedger $entry) => [
                 'entry_type' => $entry->entry_type,
+                'label' => LedgerEntryLabel::for($entry->entry_type),
                 'amount' => $entry->amount,
                 'balance_after' => $entry->balance_after,
                 'created_at' => $entry->created_at->format('d/m/Y H:i'),

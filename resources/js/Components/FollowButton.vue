@@ -7,6 +7,9 @@ const props = defineProps({
     following: { type: Boolean, required: true },
     reloadOnly: { type: Array, default: undefined },
     size: { type: String, default: 'md' },
+    // Rótulo curto ("Seguindo") para caber numa linha na grade de ações do perfil
+    // (item 4): "Deixar de seguir" quebrava em 3 linhas.
+    short: { type: Boolean, default: false },
 })
 
 const form = useForm({})
@@ -32,6 +35,6 @@ function toggle() {
         :loading="form.processing"
         @click="toggle"
     >
-        {{ following ? 'Deixar de seguir' : 'Seguir' }}
+        {{ following ? (short ? 'Seguindo' : 'Deixar de seguir') : 'Seguir' }}
     </Button>
 </template>

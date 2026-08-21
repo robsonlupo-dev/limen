@@ -1,21 +1,22 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import { postJson } from '@/lib/http'
 
-// Galeria de conteúdo permanente pago (M.4/M.13.13). Cada item chega JÁ resolvido
-// pelo servidor (ContentVisibilityService) para ESTE espectador:
-//   { id, kind, access_level, price_tokens, locked, state, can_unlock, image_url }
-// Só os níveis que o tier do espectador alcança chegam aqui — o Free recebe só o
-// Aberto. Bloqueado NÃO traz image_url: blur em CSS não é paywall.
+// Galeria de conteúdo permanente (M.4/M.13.13). Cada item chega JÁ resolvido pelo
+// servidor (ContentVisibilityService) para ESTE espectador:
+//   { id, kind, access_level, price_tokens, locked, state, can_unlock,
+//     image_url, video_url, required_tier_label, blur_url }
+// Bloqueado NÃO traz image_url/video_url (paywall server-side). `blur_url`, quando
+// existe, é uma PRÉVIA borrada gerada no servidor (baixa resolução + blur pesado,
+// irreversível) — nunca a imagem original com filtro CSS.
 const props = defineProps({
     contents: { type: Array, default: () => [] },
     performerName: { type: String, default: '' },
     // Destino de quem NÃO pode desbloquear aqui (visitante deslogado / performer /
-    // admin na página pública): o cadastro. Membro logado recebe null e usa o
-    // botão de desbloquear (a peça traz can_unlock).
+    // admin): o cadastro. Membro logado recebe null e usa o botão de desbloquear.
     signupHref: { type: String, default: null },
 })
 
@@ -26,13 +27,37 @@ const LEVEL_LABELS = {
     fc_only: 'FC Only',
 }
 
-// Cópia local reativa: o desbloqueio troca o item em memória (locked → unlocked,
-// agora com image_url) sem recarregar a página. As props do Inertia não mudam
-// neste fluxo — a galeria não está no `only` de nenhum reload parcial.
-// `imageFailed` começa falso: quando os bytes não carregam (content.image 404 —
-// arquivo ausente no disco), o @error liga e a peça cai no placeholder decente,
-// em vez do ícone de imagem quebrada + o alt cobrindo o selo de nível.
-const items = ref(props.contents.map((c) => ({ ...c, imageFailed: false })))
+// Cópia local reativa: o desbloqueio troca o item em memória (locked → unlocked, com
+// image_url) sem recarregar. `imageFailed`/`blurFailed` caem no placeholder decente
+// quando os bytes não carregam, sem quebrar e sem vazar.
+const items = ref(props.contents.map((c) => ({ ...c, imageFailed: false, blurFailed: false })))
+
+// AGRUPAMENTO POR ACESSO (item 6): com 40 peças bloqueadas, uma pilha única de
+// cadeados faz o membro concluir que não há nada para ele. Agrupar mostra primeiro
+// o que ele PODE ter.
+//  - "Disponível para você": acessível (não bloqueado) OU comprável avulso.
+//  - blocos bloqueados por tier: agrupados pelo Círculo que os destrava.
+const available = computed(() => items.value.filter((i) => ! i.locked || i.can_unlock))
+
+const TIER_ORDER = { Black: 1, 'Círculo de Fundadores': 2 }
+const tierGroups = computed(() => {
+    const groups = {}
+    for (const i of items.value) {
+        if (i.required_tier_label) {
+            ;(groups[i.required_tier_label] ??= []).push(i)
+        }
+    }
+    return Object.entries(groups)
+        .map(([tier, list]) => ({ tier, list }))
+        .sort((a, b) => (TIER_ORDER[a.tier] ?? 99) - (TIER_ORDER[b.tier] ?? 99))
+})
+
+const total = computed(() => items.value.length)
+const tierHref = computed(() => props.signupHref ?? route('subscribe.index'))
+
+function fotos(n) {
+    return `${n} ${n === 1 ? 'foto' : 'fotos'}`
+}
 
 const selected = ref(null)
 const unlocking = ref(false)
@@ -57,7 +82,7 @@ async function confirmUnlock() {
         const data = await postJson(route('content.unlock', selected.value.id))
         const idx = items.value.findIndex((c) => c.id === selected.value.id)
         if (idx !== -1 && data.content) {
-            items.value[idx] = data.content
+            items.value[idx] = { ...data.content, imageFailed: false, blurFailed: false }
         }
         selected.value = null
     } catch (e) {
@@ -72,110 +97,89 @@ async function confirmUnlock() {
 </script>
 
 <template>
-    <!-- Some por inteiro quando a performer não publicou conteúdo permanente. -->
-    <div v-if="items.length" class="mt-8 space-y-3">
-        <h2 class="font-serif text-xl text-cream">Conteúdo</h2>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <template v-for="item in items" :key="item.id">
-                <!-- Desbloqueado / grátis / dona: mostra a imagem real. Proporção
-                     FIXA (aspect-square) — sem depender da imagem carregar, então
-                     não estica nem colapsa quando os bytes faltam. -->
-                <div
-                    v-if="!item.locked && item.image_url"
-                    class="relative aspect-square rounded-xl overflow-hidden border border-frame bg-surface-2"
-                >
-                    <video
-                        v-if="item.kind === 'video' && item.video_url"
-                        :src="item.video_url"
-                        :poster="item.image_url"
-                        controls
-                        playsinline
-                        class="h-full w-full object-cover bg-black"
-                    />
-                    <!-- alt="" (decorativo): o rótulo do nível já vem no selo abaixo,
-                         e um alt com texto viraria "título" quebrado sobre o selo se a
-                         imagem falhasse. @error cai no placeholder antes disso. -->
-                    <img
-                        v-else-if="!item.imageFailed"
-                        :src="item.image_url"
-                        alt=""
-                        class="h-full w-full object-cover"
-                        @error="item.imageFailed = true"
-                    />
-                    <!-- Imagem indisponível (bytes ausentes → content.image 404):
-                         placeholder centrado, mesma proporção, sem cobrir o selo. -->
-                    <div
-                        v-else
-                        class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-surface-2 px-2 text-center"
-                    >
-                        <svg class="h-7 w-7 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M3 3l18 18M21 15l-5-5L5 21M3 16V5a2 2 0 0 1 2-2h11" />
-                        </svg>
-                        <span class="text-[11px] text-muted">Imagem indisponível</span>
-                    </div>
-                    <span
-                        class="absolute top-2 left-2 rounded-full bg-background/70 px-2 py-0.5 text-[10px] text-gold backdrop-blur"
-                    >
-                        {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
-                    </span>
-                </div>
-
-                <!-- Bloqueado, e o espectador PODE desbloquear (membro): botão que
-                     dispara a compra. -->
-                <button
-                    v-else-if="item.can_unlock"
-                    type="button"
-                    class="group relative aspect-square rounded-xl overflow-hidden border border-frame bg-gradient-to-br from-surface-2 to-background flex items-center justify-center"
-                    @click="openConfirm(item)"
-                >
-                    <div class="absolute inset-0 backdrop-blur-sm bg-background/30" />
-                    <div class="relative flex flex-col items-center gap-1.5 text-center px-2">
-                        <span class="text-2xl" aria-hidden="true">🔒</span>
-                        <span class="text-[11px] text-muted group-hover:text-gold transition-colors">
-                            {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
-                        </span>
-                        <span class="text-xs text-gold font-medium">{{ item.price_tokens }} tokens</span>
-                    </div>
-                </button>
-
-                <!-- Bloqueado POR TIER (Exclusivo/FC Only sem o Círculo): não é
-                     comprável avulso. O upsell NOMEIA O TIER (nunca o nível de
-                     conteúdo) e leva aos Círculos — ao cadastro se for visitante. -->
-                <Link
-                    v-else-if="item.required_tier_label"
-                    :href="signupHref ?? route('subscribe.index')"
-                    class="group relative aspect-square rounded-xl overflow-hidden border border-frame bg-gradient-to-br from-surface-2 to-background flex items-center justify-center no-underline"
-                >
-                    <div class="absolute inset-0 backdrop-blur-sm bg-background/30" />
-                    <div class="relative flex flex-col items-center gap-1.5 text-center px-2">
-                        <span class="text-2xl" aria-hidden="true">🔒</span>
-                        <span class="text-[11px] text-muted">
-                            {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
-                        </span>
-                        <span class="text-xs text-gold font-medium group-hover:underline">
-                            Disponível no {{ item.required_tier_label }}
-                        </span>
-                    </div>
-                </Link>
-
-                <!-- Bloqueado e SEM desbloqueio aqui (visitante deslogado em peça
-                     comprável / performer / admin): leva ao cadastro. -->
-                <Link
-                    v-else
-                    :href="signupHref ?? '#'"
-                    class="group relative aspect-square rounded-xl overflow-hidden border border-frame bg-gradient-to-br from-surface-2 to-background flex items-center justify-center no-underline"
-                >
-                    <div class="absolute inset-0 backdrop-blur-sm bg-background/30" />
-                    <div class="relative flex flex-col items-center gap-1.5 text-center px-2">
-                        <span class="text-2xl" aria-hidden="true">🔒</span>
-                        <span class="text-[11px] text-muted group-hover:text-gold transition-colors">
-                            {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
-                        </span>
-                        <span class="text-xs text-gold font-medium">{{ item.price_tokens }} tokens</span>
-                    </div>
-                </Link>
-            </template>
+    <div v-if="items.length" class="mt-8 space-y-8">
+        <!-- Resumo no topo: total e quanto está disponível para o espectador. -->
+        <div>
+            <h2 class="font-serif text-xl text-cream">Conteúdo</h2>
+            <p class="mt-0.5 text-sm text-muted">
+                {{ fotos(total) }} · {{ available.length }} disponíve{{ available.length === 1 ? 'l' : 'is' }} para você
+            </p>
         </div>
+
+        <!-- (a) DISPONÍVEL PARA VOCÊ — vitrine de venda: uma peça por linha, imagem
+             grande, preço em destaque. Aberto + Premium (e o que o tier alcança). -->
+        <section v-if="available.length" class="space-y-4">
+            <h3 class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Disponível para você</h3>
+
+            <div class="space-y-4">
+                <div
+                    v-for="item in available"
+                    :key="item.id"
+                    class="relative aspect-[4/3] overflow-hidden rounded-2xl border border-frame bg-surface-2"
+                >
+                    <!-- Acessível: mídia real. -->
+                    <template v-if="!item.locked && item.image_url">
+                        <video
+                            v-if="item.kind === 'video' && item.video_url"
+                            :src="item.video_url"
+                            :poster="item.image_url"
+                            controls
+                            playsinline
+                            class="h-full w-full object-cover bg-black"
+                        />
+                        <img v-else-if="!item.imageFailed" :src="item.image_url" alt="" class="h-full w-full object-cover" @error="item.imageFailed = true" />
+                        <div v-else class="absolute inset-0 flex items-center justify-center text-sm text-muted">Imagem indisponível</div>
+                        <span class="absolute top-3 left-3 rounded-full bg-background/70 px-2.5 py-1 text-[11px] text-gold backdrop-blur">
+                            {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
+                        </span>
+                    </template>
+
+                    <!-- Comprável: prévia BORRADA (servidor) + preço em destaque + comprar. -->
+                    <button
+                        v-else
+                        type="button"
+                        class="group absolute inset-0 h-full w-full text-left"
+                        @click="openConfirm(item)"
+                    >
+                        <img v-if="item.blur_url && !item.blurFailed" :src="item.blur_url" alt="" class="h-full w-full object-cover" @error="item.blurFailed = true" />
+                        <div v-else class="h-full w-full bg-gradient-to-br from-surface-2 to-background" />
+                        <div class="absolute inset-0 bg-background/40" />
+                        <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
+                            <span class="rounded-full bg-background/70 px-2.5 py-1 text-[11px] text-gold backdrop-blur">
+                                {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
+                            </span>
+                            <span class="font-serif text-2xl text-gold">{{ item.price_tokens }} tokens</span>
+                            <span class="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-background transition-opacity group-hover:opacity-90">
+                                Desbloquear
+                            </span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- (b)(c) BLOQUEADO POR TIER — grade compacta 3 colunas; o grupo inteiro leva
+             aos Círculos. Prévia borrada quando existe, senão placeholder. -->
+        <section v-for="g in tierGroups" :key="g.tier" class="space-y-3">
+            <Link :href="tierHref" class="flex items-center justify-between gap-3 no-underline">
+                <h3 class="text-sm text-cream">No {{ g.tier }} — {{ fotos(g.list.length) }}</h3>
+                <span class="shrink-0 text-sm text-gold transition-colors hover:text-gold-light">Assinar &rarr;</span>
+            </Link>
+
+            <Link :href="tierHref" class="grid grid-cols-3 gap-2 no-underline">
+                <div
+                    v-for="item in g.list"
+                    :key="item.id"
+                    class="relative aspect-square overflow-hidden rounded-lg border border-frame bg-surface-2"
+                >
+                    <img v-if="item.blur_url && !item.blurFailed" :src="item.blur_url" alt="" class="h-full w-full object-cover" @error="item.blurFailed = true" />
+                    <div v-else class="h-full w-full bg-gradient-to-br from-surface-2 to-background" />
+                    <div class="absolute inset-0 flex items-center justify-center bg-background/40">
+                        <span class="text-lg" aria-hidden="true">🔒</span>
+                    </div>
+                </div>
+            </Link>
+        </section>
 
         <!-- Confirmação de desbloqueio: gasta tokens, então pede confirmação. -->
         <Modal :show="selected !== null" max-width="sm" @close="closeConfirm">

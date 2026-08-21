@@ -6,12 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Follow;
 use App\Models\MemberPhoto;
+use App\Models\PerformerContent;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\Tip;
+use App\Models\TokenLedger;
+use App\Models\TokenWallet;
 use App\Models\User;
 use App\Services\MemberPhotoService;
 use App\Services\TokenService;
+use App\Support\LedgerEntryLabel;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -27,6 +31,8 @@ class DashboardController extends Controller
 
     private const TIPS_PREVIEW = 5;
 
+    private const SPENDS_PREVIEW = 5;
+
     public function __construct(
         private TokenService $tokenService,
         private MemberPhotoService $photos,
@@ -41,8 +47,10 @@ class DashboardController extends Controller
             'following' => $this->following($request, $user),
             'followingCount' => $this->followingQuery($user)->count(),
             'interests' => $this->interestSummary($user),
-            'tips' => $this->recentTips($user),
             'tipsSummary' => $this->tipsSummary($user),
+            // "Últimos gastos" (item 5): gastos de QUALQUER tipo (gorjeta, conteúdo,
+            // chat…), não só gorjeta — o card agora combina com o "Ver extrato".
+            'spends' => $this->recentSpends($user),
             // Fotos efêmeras ativas (Sprint 9B). Cada uma sai pelo apresentador
             // do model: id, faixa de tempo e o agregado "compartilhada com N
             // performers" do § 1.1. Nunca `expires_at`, nunca o TTL escolhido.
@@ -125,25 +133,89 @@ class DashboardController extends Controller
     }
 
     /**
-     * Gorjetas enviadas. Revelar a performer aqui é seguro: foi o próprio
-     * membro que escolheu mandar a gorjeta para ela.
+     * Últimos GASTOS do membro (débitos do ledger), de qualquer tipo — gorjeta,
+     * conteúdo, chat, presente, interesse. Cada um traz o tipo TRADUZIDO (nunca o
+     * nome de banco), o destinatário (a performer — seguro, foi o próprio membro que
+     * escolheu gastar com ela), o valor e a data.
      *
      * @return array<int, array<string, mixed>>
      */
-    private function recentTips(User $user): array
+    private function recentSpends(User $user): array
     {
-        return Tip::where('consumer_id', $user->id)
-            ->with('performerProfile:id,stage_name')
+        $wallet = TokenWallet::where('user_id', $user->id)->first();
+
+        if (! $wallet) {
+            return [];
+        }
+
+        $entries = TokenLedger::where('wallet_id', $wallet->id)
+            ->where('amount', '<', 0) // gastos = débitos
             ->orderByDesc('id')
-            ->limit(self::TIPS_PREVIEW)
-            ->get()
-            ->map(fn (Tip $tip) => [
-                'id' => $tip->id,
-                'performer' => $tip->performerProfile?->stage_name,
-                'amount' => $tip->amount,
-                'created_at' => $tip->created_at?->format('d/m/Y H:i'),
-            ])
-            ->all();
+            ->limit(self::SPENDS_PREVIEW)
+            ->get();
+
+        $recipients = $this->resolveSpendRecipients($entries);
+
+        return $entries->map(fn (TokenLedger $e) => [
+            'id' => $e->id,
+            'label' => LedgerEntryLabel::for($e->entry_type),
+            'recipient' => $recipients[$e->id] ?? null,
+            'amount' => $e->amount, // "-2" (readable)
+            'created_at' => $e->created_at?->format('d/m/Y H:i'),
+        ])->all();
+    }
+
+    /**
+     * Resolve a performer de cada gasto (ledger.id → nome artístico). Conteúdo e
+     * interesse referenciam a peça por id → performer (batched); gorjeta, presente e
+     * chat gravam o nome na própria descrição ("… para X" / "… de X"), extraído no
+     * fallback. Nunca vaza id de banco — só o nome público da performer.
+     *
+     * @param  \Illuminate\Support\Collection<int, TokenLedger>  $entries
+     * @return array<int, ?string>
+     */
+    private function resolveSpendRecipients($entries): array
+    {
+        $refMap = [PerformerContent::class => [], PerformerInterest::class => []];
+        foreach ($entries as $e) {
+            if (array_key_exists($e->reference_type, $refMap) && $e->reference_id) {
+                $refMap[$e->reference_type][$e->id] = $e->reference_id;
+            }
+        }
+
+        $byLedger = [];
+        foreach ($refMap as $model => $map) {
+            if ($map === []) {
+                continue;
+            }
+            $rows = $model::whereIn('id', array_values($map))
+                ->with('performerProfile:id,stage_name')
+                ->get()
+                ->keyBy('id');
+            foreach ($map as $ledgerId => $refId) {
+                $byLedger[$ledgerId] = $rows[$refId]?->performerProfile?->stage_name;
+            }
+        }
+
+        $out = [];
+        foreach ($entries as $e) {
+            $out[$e->id] = $byLedger[$e->id]
+                ?? (in_array($e->entry_type, ['spend_tip', 'spend_gift', 'spend_chat_access'], true)
+                    ? $this->recipientFromDescription($e->description)
+                    : null);
+        }
+
+        return $out;
+    }
+
+    /** Extrai "… para X" / "… de X" da descrição (nome já gravado no débito). */
+    private function recipientFromDescription(?string $description): ?string
+    {
+        if ($description === null) {
+            return null;
+        }
+
+        return preg_match('/ (?:para|de) (.+)$/u', $description, $m) === 1 ? trim($m[1]) : null;
     }
 
     /** @return array<string, int> */

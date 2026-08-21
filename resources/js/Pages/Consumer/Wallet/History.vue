@@ -6,20 +6,10 @@ const props = defineProps({
     entries: { type: Object, required: true },
 })
 
-const entryTypeLabels = {
-    purchase: 'Compra',
-    spend_tip: 'Gorjeta enviada',
-    tip_credit: 'Gorjeta recebida',
-    spend_private: 'Sessão privada',
-    spend_camera: 'Câmera',
-    payout_reserve: 'Reserva de repasse',
-    refund: 'Reembolso',
-    bonus: 'Bônus',
-    adjustment: 'Ajuste',
-}
-
-function entryLabel(type) {
-    return entryTypeLabels[type] ?? type
+// O rótulo de usuário vem PRONTO do servidor (App\Support\LedgerEntryLabel, dona
+// única) — nunca o nome cru de banco. Fallback só de defesa se o prop faltar.
+function entryLabel(entry) {
+    return entry.label ?? 'Movimento'
 }
 </script>
 
@@ -50,7 +40,7 @@ function entryLabel(type) {
                         </thead>
                         <tbody>
                             <tr v-for="(entry, i) in entries.data" :key="i" class="border-b border-frame/50 last:border-b-0">
-                                <td class="px-5 py-3 text-cream">{{ entryLabel(entry.entry_type) }}</td>
+                                <td class="px-5 py-3 text-cream">{{ entryLabel(entry) }}</td>
                                 <td class="px-5 py-3" :class="entry.amount >= 0 ? 'text-success' : 'text-danger'">
                                     {{ entry.amount >= 0 ? '+' : '' }}{{ entry.amount }}
                                 </td>

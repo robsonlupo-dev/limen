@@ -96,12 +96,12 @@ const workModeLabels = {
     <GuestLayout :title="meta.title">
         <div class="bg-limen-bg">
             <!-- Hero / cover 1200x400 (crop interativo no upload) -->
-            <div class="relative h-64 md:h-80 bg-limen-surface-2 overflow-hidden">
+            <div class="relative aspect-[3/1] bg-limen-surface-2 overflow-hidden">
                 <img
                     v-if="performer.cover_url"
                     :src="performer.cover_url"
                     :alt="performer.stage_name"
-                    class="h-full w-full object-cover"
+                    class="h-full w-full object-contain"
                 />
                 <div v-else class="h-full w-full bg-gradient-to-br from-limen-gold/20 via-limen-surface-2 to-limen-bg" />
                 <div class="absolute inset-0 bg-gradient-to-t from-limen-bg via-limen-bg/20 to-transparent" />
@@ -119,7 +119,7 @@ const workModeLabels = {
                             v-if="performer.avatar_url"
                             :src="performer.avatar_url"
                             :alt="performer.stage_name"
-                            class="h-full w-full object-cover"
+                            class="h-full w-full object-contain"
                         />
                         <span v-else class="font-serif text-5xl text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
                     </div>

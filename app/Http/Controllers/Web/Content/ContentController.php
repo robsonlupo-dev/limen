@@ -55,6 +55,29 @@ class ContentController extends Controller
     }
 
     /**
+     * Prévia BORRADA do tile bloqueado (feat/content-showcase, item 7). NÃO exige
+     * canView — é a isca para quem NÃO pode ver o original. Segura porque é
+     * irreversível (baixa resolução + blur pesado, gerada no servidor); jamais a
+     * imagem original. Só de peça de pé (ready + performer alcançável). Sem blur no
+     * disco → 404, e o front cai no placeholder.
+     */
+    public function blur(Request $request, PerformerContent $content): Response
+    {
+        abort_unless(
+            $content->isReady() && $this->visibility->performerIsReachable($content->performerProfile),
+            404,
+        );
+
+        $source = $content->isVideo() ? $content->thumbnail_path : $content->path;
+        abort_if($source === null, 404);
+
+        $blurPath = $this->store->blurPathFor($source);
+        abort_unless($this->store->exists($blurPath), 404);
+
+        return $this->photoResponse($this->store->retrieve($blurPath), 'preview.jpg');
+    }
+
+    /**
      * Bytes do VÍDEO (MP4 já higienizado). BinaryFileResponse streama do disco
      * local com suporte a Range (seek do player), sem carregar tudo em memória.
      * Content-Type FIXO video/mp4 (nós controlamos os bytes) + nosniff.

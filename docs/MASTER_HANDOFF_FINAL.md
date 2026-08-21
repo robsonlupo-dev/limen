@@ -3253,6 +3253,35 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 > título descritivo único (o nome da feature), nunca o "próximo número"**. As entradas
 > abaixo foram convertidas; os antigos rótulos `A.0.x` foram removidos.
 
+### Vitrine de conteúdo, perfil público e correções de UX (`feat/content-showcase`, PR pendente)
+
+Sobre `main`. Oito itens, **mobile primeiro**, sem tocar economia/split/cobrança. Suíte
+MySQL **2092/2093** (só o `GeoBlockTest` 451 do clone de dev), `npm run build` limpo,
+revisão de segurança rodada (item 7). Detalhe canônico no `CLAUDE.md`, § "Vitrine de
+conteúdo, perfil público e correções de UX".
+
+1. **Ícones sobre o rosto no card** (regressão do #199) — ações empilhadas no canto
+   inferior direito, fora do rosto, liberando o nome.
+2. **Nome técnico de lançamento** — `LedgerEntryLabel` (dona única) traduz TODO o enum
+   nas duas telas (carteira do membro + extrato da performer); teste varre o enum real.
+3. **Fotos deformadas no perfil** — NÃO é bug: o `ImageCropper` (1:1/3:1) já está no
+   upload; as ruins são semente (seeder grava avatar/cover direto). Fallback: capa 3:1 +
+   `object-contain` e avatar `object-contain` → imagem fora de proporção aparece inteira
+   (faixa escura) em vez de ampliar o centro. Existentes: reenviar.
+4. **Botões do perfil** — ordenados: Ao vivo → Conversar (primária, com custo) →
+   Gorjeta · Seguir · Salvar (grade, alturas iguais, rótulos curtos).
+5. **"Últimas gorjetas" → "Últimos gastos"** — o card do painel do membro lista débitos
+   de qualquer tipo (tipo traduzido, destinatário, valor, data), casando com "Ver extrato".
+6. **Vitrine de conteúdo agrupada** — "Disponível para você" (Aberto+Premium, imagem
+   grande) → "No Black — N fotos" / "No Círculo de Fundadores — N fotos" (grade compacta,
+   leva aos Círculos); resumo no topo; grupo vazio some.
+7. **Prévia borrada (segurança)** — tile bloqueado mostra prévia borrada gerada NO
+   SERVIDOR (baixa resolução + blur, irreversível), rota própria `content.blur` (guest),
+   gerada no upload + comando retroativo `content:generate-blurs`. A imagem ORIGINAL
+   nunca é servida a quem não pode ver (segue atrás de `canView`). Nunca blur de CSS
+   sobre a original.
+8. **Data e hora no chat** — separador de dia + hora por mensagem, fuso do usuário.
+
 ### Extrato de ganhos da performer + correções de UX do chat no mobile (`fix/chat-ux-mobile`, PR pendente)
 
 Sobre a `feat/chat-economy-v2` (base `main` 34f1a30). Seis correções de UX, **mobile
