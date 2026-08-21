@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\LiveSession;
 use App\Models\PerformerProfile;
+use App\Models\TokenLedger;
+use App\Models\TokenWallet;
 use App\Models\User;
+use App\Support\TokenMath;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -27,6 +30,7 @@ class LiveSessionService
     public function __construct(
         private LiveKitService $livekit,
         private LivePreviewService $previews,
+        private LiveChatService $chat,
     ) {}
 
     /**
@@ -146,9 +150,10 @@ class LiveSessionService
         });
 
         // Live abandonada (sala morreu no LiveKit) reconciliada na leitura: o frame
-        // não passa por endSession, então apaga aqui. O `live-previews:purge` é a
-        // rede de segurança para o que escapar.
+        // e o chat não passam por endSession, então apaga aqui. O `live-previews:purge`
+        // é a rede de segurança para o que escapar.
         $this->previews->delete($session->id);
+        $this->chat->purgeForSession($session);
 
         return null;
     }
@@ -187,6 +192,31 @@ class LiveSessionService
         });
     }
 
+    /**
+     * Ganho ACUMULADO nesta transmissão — o que o console da performer mostra em
+     * tempo real (feat/live-room-console). Soma os créditos de GANHO da live (gorjeta
+     * + presente) da carteira dela desde `started_at`. Lê o DECIMAL cru do banco
+     * (SUM ignora o accessor) e devolve pelo contrato uniforme de token
+     * (TokenMath::readable: int quando inteiro, string 4dp quando fracionário) — bate
+     * com o ledger por construção, sem recalcular split. A live em si é grátis (sem
+     * live_credit); só gorjeta/presente creditam.
+     */
+    public function earnedThisLive(LiveSession $session): int|string
+    {
+        $walletId = TokenWallet::where('user_id', $session->performerProfile->user_id)->value('id');
+
+        if ($walletId === null) {
+            return 0;
+        }
+
+        $sum = TokenLedger::where('wallet_id', $walletId)
+            ->whereIn('entry_type', ['tip_credit', 'gift_credit'])
+            ->where('created_at', '>=', $session->started_at)
+            ->sum('amount');
+
+        return TokenMath::readable(TokenMath::of((string) ($sum ?: '0')));
+    }
+
     private function endSession(LiveSession $session, PerformerProfile $profile): void
     {
         // Snapshot histórico do ÚLTIMO valor cacheado — sem chamada de rede DENTRO
@@ -208,6 +238,9 @@ class LiveSessionService
         // reconciliada na leitura sem passar por endSession — é varrido pelo
         // command `live-previews:purge` (1h por mtime).
         $this->previews->delete($session->id);
+
+        // O chat da live é efêmero: some com a transmissão (não é histórico).
+        $this->chat->purgeForSession($session);
     }
 
     private function safeDeleteRoom(string $room): void

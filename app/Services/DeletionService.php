@@ -312,6 +312,14 @@ class DeletionService
             $summary['performer_hearts_received'] = $this->purgePerformerHearts($user);
             $summary['performer_hearts_sent'] = $this->purgePerformerHeartsByPerformer($user);
             $summary['performer_message_quotas'] = $this->purgePerformerMessageQuotas($user);
+            // Chat da live (feat/live-room-console): mensagens e mutes NOS DOIS
+            // sentidos — as ENVIADAS pelo titular (sender/member) e as das SESSÕES
+            // da performer que encerra (de outros). Efêmero (some no fim da live),
+            // mas a live em curso deixaria linhas órfãs sem esta varredura — a FK
+            // cascade não dispara (live_sessions nunca é apagada; users é
+            // soft-delete). O CORPO nunca esteve em audit (só metadado do bloqueio).
+            $summary['live_chat_messages'] = $this->purgeLiveChatMessages($user);
+            $summary['live_chat_mutes'] = $this->purgeLiveChatMutes($user);
             // Chamadas privadas 1:1 (Sprint 15): o histórico de sessões FEITAS pelo
             // membro (por member_id) e RECEBIDAS pela performer (por perfil). Sem
             // conteúdo/bytes — só metadados (preço, minutos, horário); nada a
@@ -733,6 +741,47 @@ class DeletionService
         }
 
         return DB::table('performer_message_quotas')->where('performer_profile_id', $profileId)->delete();
+    }
+
+    /**
+     * Mensagens do chat da live nos dois sentidos: as que o titular ENVIOU
+     * (sender_id) e as das SESSÕES da performer que encerra (de qualquer autor). A
+     * FK live_session_id → cascade não dispara (a live_session permanece); DELETE
+     * explícito. Chat da live é efêmero e o corpo nunca teve valor fiscal/legal.
+     */
+    private function purgeLiveChatMessages(User $user): int
+    {
+        $deleted = DB::table('live_chat_messages')->where('sender_id', $user->id)->delete();
+
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+        if ($profileId !== null) {
+            $sessionIds = DB::table('live_sessions')->where('performer_profile_id', $profileId)->pluck('id');
+            if ($sessionIds->isNotEmpty()) {
+                $deleted += DB::table('live_chat_messages')->whereIn('live_session_id', $sessionIds)->delete();
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Mutes do chat da live nos dois sentidos: o titular SILENCIADO em qualquer sala
+     * (member_id) e os que a performer que encerra APLICOU nas suas sessões. Mesma
+     * armadilha do cascade que não dispara.
+     */
+    private function purgeLiveChatMutes(User $user): int
+    {
+        $deleted = DB::table('live_chat_mutes')->where('member_id', $user->id)->delete();
+
+        $profileId = DB::table('performer_profiles')->where('user_id', $user->id)->value('id');
+        if ($profileId !== null) {
+            $sessionIds = DB::table('live_sessions')->where('performer_profile_id', $profileId)->pluck('id');
+            if ($sessionIds->isNotEmpty()) {
+                $deleted += DB::table('live_chat_mutes')->whereIn('live_session_id', $sessionIds)->delete();
+            }
+        }
+
+        return $deleted;
     }
 
     /**
