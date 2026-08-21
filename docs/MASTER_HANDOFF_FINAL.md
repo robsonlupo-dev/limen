@@ -3253,6 +3253,48 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 > título descritivo único (o nome da feature), nunca o "próximo número"**. As entradas
 > abaixo foram convertidas; os antigos rótulos `A.0.x` foram removidos.
 
+### Console de live da performer + chat da sala (`feat/live-room-console`, PR pendente)
+
+Sobre `main`, **mobile primeiro**, sem tocar economia/split/cobrança. A live pública
+(LiveKit, GRÁTIS, 1:N — PR #139) subia **"no escuro"**: a performer via só o próprio
+vídeo + "Encerrar live", e toda a informação estava do lado do MEMBRO — sem contagem de
+espectadores para ela, sem feed de gorjeta/presente, sem ganho acumulado, e **sem chat de
+texto nenhum** (o data channel do LiveKit sobe `canPublishData:false` de propósito). Esta
+branch **vira a informação para o lado da performer** e **adiciona chat nos dois lados**,
+pelo Reverb que já roda. Detalhe canônico no `CLAUDE.md`, § "Console de live da performer
++ chat da sala". Suíte MySQL verde (`LiveConsoleTest` +13; só o `GeoBlockTest` 451 do
+clone de dev falha), `npm run build` limpo, revisão de segurança rodada.
+
+**Diagnóstico (o que existia antes, com arquivo:linha):**
+1. **Chat durante a live NÃO existia** — adiado por design: `LiveSessionService::memberToken`
+   emitia `canPublishData:false` ("fecha por design qualquer chat de texto P2P não
+   moderado (adiado, ver PR)"), e o comentário do `LiveViewer.vue` ("nem abre chat P2P").
+2. **A contagem de espectadores existia SÓ do lado do membro E era ESTÁTICA** — a prop
+   `viewerCount` do `Live/Viewer` era carregada uma vez no `show()` e nunca atualizada;
+   o `LiveRoom.vue` (performer) não recebia contagem alguma. Não era limite técnico: a
+   fonte (`LiveSessionService::viewerCount`, presença real do LiveKit) já estava disponível
+   ao servidor dos dois lados — o console da performer só nunca foi cablado.
+3. **A performer recebia só:** o próprio vídeo (local), as ANIMAÇÕES de gorjeta/presente do
+   `<LiveOverlay>` (o `LiveReaction` que ela via voar, sem feed que persiste) e os botões
+   start/stop. Sem contagem, sem feed, sem ganho, sem chat.
+
+**Decisão de chat GRÁTIS (confirmada — recomendação do PO):** o que monetiza a live é
+gorjeta/presente; cobrar para falar mata a sala. O chat não move token, fica fora do
+ledger.
+
+**Entregue:** (1) **console da performer** (`LiveRoom.vue` reescrito) — espectadores ao
+vivo (poll `performer.live.console` + após cada reação), ganho acumulado da transmissão
+(`earnedThisLive`, leitura decimal-exata do ledger — soma tip/gift desde `started_at`),
+feed de gorjeta/presente (`LiveReactionFeed`), chat no centro, vídeo próprio como prévia
+pequena, "Encerrar live" em dois toques; (2) **chat da sala nos dois lados** — `LiveChat.vue`
+(compartilhado), evento `LiveChatSent` no canal `live.{slug}`, filtro `ChatContentFilter`
+antes de gravar/difundir, moderação (silenciar → barra no send E no show/refresh + expulsa
+do LiveKit; alvo por `message_id`, nunca member_id/handle); (3) **layout da sala do membro**
+(`LiveViewer.vue` reescrito) — vídeo dominante, chat em coluna/abaixo, gorjeta/presente em
+barra compacta que não cobre o vídeo, contagem polada. Tabelas `live_chat_messages`/
+`live_chat_mutes` (efêmeras: some no fim da live e no Hard Delete, nos dois sentidos; corpo
+nunca em `audit_logs`). Rotas sob `feature:live` + os gates existentes, no `only[]` do Ziggy.
+
 ### Vitrine de conteúdo, perfil público e correções de UX (`feat/content-showcase`, PR pendente)
 
 Sobre `main`. Oito itens, **mobile primeiro**, sem tocar economia/split/cobrança. Suíte

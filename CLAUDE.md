@@ -2000,6 +2000,69 @@ chamada".
   no `AppLayout` (aviso não-modal T-5min + "performer entrou" com contador de 2min;
   divide o canal `user.{id}` com o `MessageToast` — `stopListening`, nunca `Echo.leave`).
 
+## Console de live da performer + chat da sala — `feat/live-room-console`
+
+A live pública (LiveKit, GRÁTIS, 1:N — PR #139) subia **"no escuro"**: a performer
+via SÓ o próprio vídeo + "Encerrar live"; toda a informação (espectadores, gorjetas)
+estava do lado do MEMBRO, e não havia chat de texto nenhum (o data channel do LiveKit
+sobe `canPublishData:false` de propósito — decisão do #138). Esta branch **vira a
+informação para o lado da performer** e **adiciona chat de texto nos dois lados**, pelo
+Reverb que já roda (não pelo LiveKit). **A economia NÃO muda** (live grátis; gorjeta/
+presente 80/20 pelas rotas existentes). Base: `main`.
+
+- **O chat da live é GRÁTIS** (decisão do PO — o que monetiza a live é gorjeta/presente;
+  cobrar para falar mata a sala). Não move token, fora do ledger. Dona única:
+  `app/Services/LiveChatService.php`.
+- **Anda pelo Reverb no MESMO canal `live.{slug}` do `<LiveOverlay>`** — evento
+  `LiveChatSent` (`broadcastAs 'live.chat'`), ao lado do `LiveReaction` (`.live.reaction`).
+  O canal já autoriza performer (dona) + qualquer membro ativo (`routes/channels.php`).
+  No front, `LiveChat.vue` e `LiveReactionFeed.vue` fazem `stopListening('.live.chat')`/
+  `.live.reaction'`, **nunca `Echo.leave`** (o canal é compartilhado — padrão do
+  MessageToast/ReservationNotice).
+- **O MESMO filtro de conteúdo do chat 1:1 vale aqui** (`ChatContentFilter`): risco legal
+  e conduta são barrados ANTES de gravar/difundir (mensagem barrada não vira linha nem
+  broadcast), auditados por repetição (`live_chat.message_blocked`, regra em HMAC, **nunca
+  o corpo** — mesma disciplina do `ChatService::auditBlock`, que é privado e foi copiado,
+  não reusado).
+- **Só FanAlias, nunca o membro (M.13.10).** O broadcast leva `id` da mensagem + `label`
+  (FanAlias 4 díg. do membro, ou o `stage_name` da performer) + corpo filtrado +
+  `is_performer` — **nunca** member_id/tier/saldo/handle 16 hex. É o mesmo contrato do
+  `LiveReaction` (que já difunde o label a todos na sala).
+- **Persistência efêmera, só para MODERAR.** `live_chat_messages` grava a mensagem para a
+  performer silenciar clicando NELA — o servidor resolve o AUTOR pelo `message_id`, sem
+  expor o handle aos espectadores. Some no fim da live (`purgeForSession` no
+  `endSession` E na reconciliação-na-leitura do `activeFor`) e no Hard Delete (nos dois
+  sentidos — por `sender_id` e pelas sessões da performer). O corpo **nunca** entra em
+  `audit_logs`.
+- **Moderação = silenciar + remover.** `live_chat_mutes` (UNIQUE por sessão+membro,
+  idempotente): o silenciado é barrado no `send` (403 `muted`), **e não reabre a sala**
+  (`live.show`/`live.refresh` conferem `isMuted` → 403) e é **expulso do LiveKit**
+  (`removeParticipant`, best-effort). O par de respostas do mute (409 p/ mensagem
+  inexistente **ou** da própria performer) é o MESMO — não vira oráculo.
+- **Console da performer (`LiveRoom.vue` reescrito):** contagem de espectadores AO VIVO
+  (poll `performer.live.console` ~15s + após cada reação — `listParticipants` do LiveKit
+  menos a publisher, cache 12s), **ganho acumulado NESTA transmissão** (`earnedThisLive`
+  — SOMENTE LEITURA do ledger: soma `tip_credit`+`gift_credit` da carteira dela desde
+  `started_at`, decimal exato via `TokenMath`, bate por construção, **nunca** somado no
+  cliente nem `UPDATE` de saldo), **feed** de gorjeta/presente (`LiveReactionFeed`, a
+  LISTA que persiste — o membro tem a ANIMAÇÃO do `<LiveOverlay>`), **chat no centro** (ela
+  lê e responde), o **próprio vídeo vira prévia pequena** no canto, e **"Encerrar live" em
+  DOIS toques** (arma/confirma em 3s — acessível sem clique acidental que derruba a
+  transmissão).
+- **Sala do membro (`LiveViewer.vue` reescrito):** **vídeo DOMINANTE**; chat em **coluna
+  ao lado** (desktop) / **preenchendo o resto abaixo do vídeo** (mobile, sem rolar a
+  página); gorjeta/presente numa **barra compacta que NÃO cobre o vídeo** (presentes abrem
+  inline sob a barra, somem ao enviar). A contagem de espectadores agora é **polada**
+  (`live.viewer-count` ~20s), não mais estática.
+- **`limen-live` (#e24b4a) no badge "Ao vivo"** — a cor exclusiva do estado ao vivo.
+- **Rotas novas** (todas sob `feature:live` + os gates existentes; no `only[]` do Ziggy):
+  `performer.live.console`/`.chat`/`.mute` (performer) e `live.chat`/`live.viewer-count`
+  (membro). Migration `2026_08_21_000001_create_live_chat_tables`. Testes:
+  `LiveConsoleTest` (13) — espectadores refletem presença real, ganho bate com o ledger e
+  ignora créditos anteriores ao início, chat grátis por FanAlias, filtro barra sem
+  gravar/difundir, silenciar impede novas mensagens + não reabre a sala, chat efêmero
+  some no encerramento. `npm run build` limpo. Revisão de segurança rodada.
+
 ## PanicButton — Saída rápida flutuante (Sprint 6; re-apresentada em `feat/performer-nav-restructure`)
 
 Botão de saída rápida da sessão — tira a Limen da tela quando alguém entra na

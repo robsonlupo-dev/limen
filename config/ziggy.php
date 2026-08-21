@@ -98,6 +98,11 @@ return [
         'performer.live.stop',
         // Preview do catálogo (Sprint 15): o LiveRoom envia o frame periódico
         'performer.live.preview',
+        // Console da performer (feat/live-room-console): poll de espectadores/ganho,
+        // chat da sala e moderação (silenciar).
+        'performer.live.console',
+        'performer.live.chat',
+        'performer.live.mute',
         'performer.interests.send',
         'performer.interests.send-visitor',
         'performer.interests.index',
@@ -190,6 +195,9 @@ return [
         // Live pública GRÁTIS (Sprint 15): viewer do membro (LiveViewer.vue) —
         // gorjeta/presente durante a live + renovação do token.
         'live.refresh',
+        // Chat da sala do lado do membro (feat/live-room-console) + poll de espectadores.
+        'live.chat',
+        'live.viewer-count',
         // Preview animado no hover do card do catálogo (Sprint 15): o card entra
         // na live (live.show) e repuxa o frame (live.preview).
         'live.show',

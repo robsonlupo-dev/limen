@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Web\Consumer;
 
+use App\Exceptions\LiveChatException;
 use App\Http\Controllers\Concerns\ServesPhotoBytes;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Web\SendLiveChatRequest;
 use App\Http\Resources\PerformerPublicResource;
+use App\Services\LiveChatService;
 use App\Services\LivePreviewService;
 use App\Services\LiveSessionService;
 use App\Services\PerformerCatalogService;
@@ -26,6 +29,7 @@ class LiveViewController extends Controller
 
     public function __construct(
         private LiveSessionService $live,
+        private LiveChatService $chat,
         private PerformerCatalogService $catalog,
     ) {}
 
@@ -36,6 +40,9 @@ class LiveViewController extends Controller
         $session = $this->live->activeFor($performer);
         abort_if($session === null, 404);
 
+        // Membro removido pela performer não reabre a sala.
+        abort_if($this->chat->isMuted($session, $request->user()), 403);
+
         $bundle = $this->live->memberToken($session, $request->user());
 
         return Inertia::render('Live/Viewer', [
@@ -43,12 +50,14 @@ class LiveViewController extends Controller
             'token' => $bundle['token'],
             'wsUrl' => $bundle['wsUrl'],
             'viewerCount' => $this->live->viewerCount($session),
+            'initialChat' => $this->chat->recent($session),
         ]);
     }
 
     /**
      * Renovação do JWT (a cada ~4 min, antes do TTL de 5). Reautoriza na leitura:
-     * live encerrada → 410 Gone (o front desconecta). JSON explícito (fetch).
+     * live encerrada → 410 Gone; membro removido → 403 (o front desconecta nos dois).
+     * JSON explícito (fetch).
      */
     public function refresh(Request $request, string $slug): JsonResponse
     {
@@ -59,7 +68,47 @@ class LiveViewController extends Controller
             return response()->json(['message' => 'A live foi encerrada.'], 410);
         }
 
+        if ($this->chat->isMuted($session, $request->user())) {
+            return response()->json(['message' => 'Você foi removido desta live.'], 403);
+        }
+
         return response()->json($this->live->memberToken($session, $request->user()));
+    }
+
+    /**
+     * Contagem AO VIVO de espectadores para o membro (polada ~20s). Mesma fonte
+     * cacheada do console da performer; live encerrada → 410. Nunca em faixa: é
+     * agregado de audiência, não exposição de indivíduo.
+     */
+    public function viewers(string $slug): JsonResponse
+    {
+        $performer = $this->catalog->findPublicBySlug($slug);
+        $session = $this->live->activeFor($performer);
+
+        if ($session === null) {
+            return response()->json(['message' => 'A live foi encerrada.'], 410);
+        }
+
+        return response()->json(['viewers' => $this->live->viewerCount($session)]);
+    }
+
+    /** O membro fala no chat da sala. Free; passa pelo filtro; silenciado → 403. */
+    public function sendChat(SendLiveChatRequest $request, string $slug): JsonResponse
+    {
+        $performer = $this->catalog->findPublicBySlug($slug);
+        $session = $this->live->activeFor($performer);
+
+        if ($session === null) {
+            return response()->json(['reason' => 'not_live', 'message' => 'A live foi encerrada.'], 410);
+        }
+
+        try {
+            $message = $this->chat->send($session, $request->user(), false, $request->validated('body'));
+        } catch (LiveChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json(['id' => $message->id]);
     }
 
     /**

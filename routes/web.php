@@ -594,6 +594,22 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->middleware('throttle:20,1')
                 ->name('performer.live.preview')
                 ->can('performer-active');
+
+            // Console da performer (feat/live-room-console): dados ao vivo (poll ~15s
+            // + após cada gorjeta/presente), chat da sala e moderação. Throttle largo
+            // no console (poll frequente) — os de escrita ficam no grupo (30/min).
+            Route::get('/performer/live/console', [PerformerLiveController::class, 'console'])
+                ->middleware('throttle:60,1')
+                ->name('performer.live.console')
+                ->can('performer-active');
+
+            Route::post('/performer/live/chat', [PerformerLiveController::class, 'sendChat'])
+                ->name('performer.live.chat')
+                ->can('performer-active');
+
+            Route::post('/performer/live/mute', [PerformerLiveController::class, 'mute'])
+                ->name('performer.live.mute')
+                ->can('performer-active');
         });
 
         // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer
@@ -998,6 +1014,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::post('/live/{slug}/token-refresh', [LiveViewController::class, 'refresh'])
                 ->middleware('throttle:30,1')
                 ->name('live.refresh');
+
+            // Chat da sala (feat/live-room-console): o membro fala (free, filtrado,
+            // silenciável) e pola a contagem ao vivo de espectadores (~20s).
+            Route::post('/live/{slug}/chat', [LiveViewController::class, 'sendChat'])
+                ->middleware('throttle:30,1')
+                ->name('live.chat');
+
+            Route::get('/live/{slug}/viewer-count', [LiveViewController::class, 'viewers'])
+                ->middleware('throttle:60,1')
+                ->name('live.viewer-count');
 
             // Preview animado da live no catálogo (PR #143). Por SLUG (o card tem o
             // slug; o resource não expõe o id). Só membro autenticado (o grupo já é

@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers\Web\Performer;
 
+use App\Exceptions\LiveChatException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Web\MuteLiveViewerRequest;
+use App\Http\Requests\Web\SendLiveChatRequest;
 use App\Http\Requests\Web\StoreLivePreviewFrameRequest;
+use App\Services\LiveChatService;
 use App\Services\LivePreviewService;
 use App\Services\LiveSessionService;
 use Illuminate\Http\JsonResponse;
@@ -22,16 +26,85 @@ use Inertia\Response;
  */
 class PerformerLiveController extends Controller
 {
-    public function __construct(private LiveSessionService $live) {}
+    public function __construct(
+        private LiveSessionService $live,
+        private LiveChatService $chat,
+    ) {}
 
-    /** Estúdio de transmissão da performer (o LiveRoom conecta pelo start). */
+    /**
+     * Console de transmissão da performer (feat/live-room-console). O <LiveRoom>
+     * conecta pelo start; o slug alimenta o canal `live.{slug}` (feed de gorjeta/
+     * presente + chat da sala). Se ela recarrega no meio da live, pré-carrega o
+     * chat recente para a sala não voltar vazia.
+     */
     public function page(Request $request): Response
     {
-        // O slug alimenta o canal `live.{slug}` do <LiveOverlay> no estúdio — a
-        // performer também vê as animações de gorjeta/presente (prova social).
+        $session = $this->live->activeFor($request->user()->performerProfile);
+
         return Inertia::render('Performer/Live', [
             'performerSlug' => $request->user()->performerProfile->slug,
+            'initialChat' => $session ? $this->chat->recent($session) : [],
         ]);
+    }
+
+    /**
+     * Dados AO VIVO do console, polados a cada ~15s e após cada gorjeta/presente:
+     * contagem real de espectadores (listParticipants do LiveKit, cache ~12s) e o
+     * ganho acumulado NESTA transmissão (soma do ledger — bate por construção). Sem
+     * live ativa → is_live:false (o console mostra o estado ocioso).
+     */
+    public function console(Request $request): JsonResponse
+    {
+        $session = $this->live->activeFor($request->user()->performerProfile);
+
+        if ($session === null) {
+            return response()->json(['is_live' => false]);
+        }
+
+        return response()->json([
+            'is_live' => true,
+            'viewers' => $this->live->viewerCount($session),
+            'earned' => $this->live->earnedThisLive($session),
+        ]);
+    }
+
+    /** A performer responde no chat da sala. Free; passa pelo filtro de conteúdo. */
+    public function sendChat(SendLiveChatRequest $request): JsonResponse
+    {
+        $session = $this->live->activeFor($request->user()->performerProfile);
+
+        if ($session === null) {
+            return response()->json(['reason' => 'not_live', 'message' => 'Nenhuma live ativa.'], 409);
+        }
+
+        try {
+            $message = $this->chat->send($session, $request->user(), true, $request->validated('body'));
+        } catch (LiveChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json(['id' => $message->id]);
+    }
+
+    /**
+     * A performer silencia (e expulsa) o autor de uma mensagem da sala. O alvo é o ID
+     * da mensagem; o serviço resolve o membro sem expor a identidade ao front.
+     */
+    public function mute(MuteLiveViewerRequest $request): JsonResponse
+    {
+        $session = $this->live->activeFor($request->user()->performerProfile);
+
+        if ($session === null) {
+            return response()->json(['reason' => 'not_live', 'message' => 'Nenhuma live ativa.'], 409);
+        }
+
+        try {
+            $label = $this->chat->mute($session, (int) $request->validated('message_id'));
+        } catch (LiveChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json(['muted' => $label]);
     }
 
     public function start(Request $request): JsonResponse
