@@ -298,7 +298,7 @@ class TokenCreditPolicy
 
     // ── Split percentual (M.13.6 / M.13.7) ───────────────────────────────────
 
-    /** Taxa inteira do tipo de evento (70/75/80), da config. */
+    /** Taxa inteira do tipo de evento vigente (70/80/100), da config. (75 sobrevive só congelado em presentes antigos.) */
     public function rateFor(string $rateKey): int
     {
         return (int) config("monetization.split_rates.{$rateKey}.rate");
@@ -335,7 +335,7 @@ class TokenCreditPolicy
      * (applied_rate). Nunca respeita teto (crédito de performer). O valor gravado é
      * o `amount` calculado — a leitura nunca recalcula a partir da taxa.
      */
-    // Nota da revisão (🟢#3): Tip/Gift chamam applyRate() para o espelho e depois
+    // Nota da revisão: Tip/Gift chamam applyRate() para o espelho e depois
     // creditWithSplit() recalcula applyRate() internamente. É DETERMINÍSTICO (mesmo
     // input → mesmo output), então espelho e ledger não divergem; mantido assim de
     // propósito — passar o split pré-computado por 6 call sites de dinheiro adicionaria

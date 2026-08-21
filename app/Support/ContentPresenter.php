@@ -38,6 +38,10 @@ class ContentPresenter
             'locked' => ! $canView,
             'state' => $state, // owner | unlocked | free | locked (dado do próprio membro)
             'can_unlock' => $canUnlock,
+            // Tile bloqueado POR TIER (Exclusivo/FC Only sem o Círculo): o rótulo do
+            // TIER que o destrava, para o upsell. null quando já vê / pode comprar
+            // avulso (Premium para todos) / é Aberto.
+            'required_tier_label' => $visibility->upsellTierLabel($viewer, $content),
             // Bloqueado → sem URL (o paywall vive aqui, não num blur de CSS).
             // Para vídeo, image_url é o POSTER (thumbnail); os bytes do vídeo saem
             // por content.video, só quando canView (mesmo paywall).

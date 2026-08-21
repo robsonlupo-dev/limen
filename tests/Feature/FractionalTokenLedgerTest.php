@@ -28,7 +28,7 @@ it('computes every percentage split as EXACT decimal (no intdiv, no round-half-u
     expect($p->applyRate(7, 'content'))->toMatchArray(['credited' => '5.6000', 'retained' => '1.4000', 'rate' => 80]);
     expect($p->applyRate(2, 'chat'))->toMatchArray(['credited' => '1.6000', 'retained' => '0.4000', 'rate' => 80]);
     expect($p->applyRate(13, 'call'))->toMatchArray(['credited' => '9.1000', 'retained' => '3.9000', 'rate' => 70]);
-    expect($p->applyRate(7, 'gift'))->toMatchArray(['credited' => '5.2500', 'retained' => '1.7500', 'rate' => 75]);
+    expect($p->applyRate(7, 'gift'))->toMatchArray(['credited' => '5.6000', 'retained' => '1.4000', 'rate' => 80]); // presente subiu para 80/20 (21/08/2026)
 });
 
 // ── A PROVA central: 3 × 1,60 == 4,8000 exato pelo caminho REAL (bcmath) ─────

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * Envio de um presente do catálogo da Limen para uma performer (M.13.6). Espelha
  * TipService/ContentUnlockService: trava as DUAS carteiras em ordem crescente de
  * user_id numa transação, cobra o membro (spend_gift) e credita a performer pelo
- * split de evento (gift_credit, 75/25 com applied_rate congelado na linha).
+ * split de evento (gift_credit, 80/20 com applied_rate congelado na linha).
  *
  * Idempotência por idempotency_key (client UUID), escopada por sender_id — o
  * mesmo envio nunca cobra duas vezes, e uma chave não devolve o registro de outro
@@ -120,8 +120,9 @@ class GiftService
                 throw new InsufficientBalanceException($price, $memberWallet?->balance ?? 0);
             }
 
-            // Split por TIPO DE EVENTO (M.13.6): presente é 75/25, round-half-up.
-            // retido é o COMPLEMENTO (nunca recalculado): credited + retained == price.
+            // Split por TIPO DE EVENTO: presente é 80/20 desde 21/08/2026 (era 75/25),
+            // decimal exato. A taxa vem da config no ato e congela na linha; lançamentos
+            // antigos mantêm 75. retido é o COMPLEMENTO: credited + retained == price.
             $split = $this->creditPolicy->applyRate($price, 'gift');
             $performerAmount = $split['credited'];
             $platformAmount = $split['retained'];
@@ -137,8 +138,8 @@ class GiftService
             );
 
             // Crédito da performer pelo split (gift_credit é *_credit → nunca
-            // respeita teto). applied_rate=75 congelado na linha. Descrição por
-            // FanAlias, nunca o id cru do membro (disciplina do FanAlias).
+            // respeita teto). applied_rate (80, ou 75 em lançamentos antigos) congelado
+            // na linha. Descrição por FanAlias, nunca o id cru do membro.
             $credit = $this->creditPolicy->creditWithSplit(
                 $performerUser,
                 $price,

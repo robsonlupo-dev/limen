@@ -196,7 +196,7 @@ it('cada gasto libera no maximo o espaco que ele abriu, nunca a pendencia inteir
 
 it('credito + retencao == valor para toda faixa 5..1000 nas taxas 70/75/80', function () {
     $policy = teePolicy();
-    // live=70, gift=75, content=80 cobrem as três taxas.
+    // live=70, gift=80, content=80 cobrem as taxas (presente subiu p/ 80 em 21/08/2026).
     foreach (['live', 'gift', 'content'] as $key) {
         for ($valor = 5; $valor <= 1000; $valor++) {
             $s = $policy->applyRate($valor, $key);

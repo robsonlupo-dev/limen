@@ -98,21 +98,34 @@ it('não mostra conteúdo de performer que o membro NÃO segue', function () {
 
 // ─── Gate de tier (M.13.13): só os níveis que o tier alcança APARECEM ────────
 
-it('esconde do não-assinante os níveis que o tier não alcança', function () {
+it('esconde do não-assinante os níveis TRAVADOS que o tier não alcança', function () {
     $member = feedMember(); // sem tier
     $performer = feedPerformer();
     feedFollow($member, $performer);
 
     $open = feedPublish($performer, PerformerContent::LEVEL_OPEN);
-    feedPublish($performer, PerformerContent::LEVEL_PREMIUM, 20); // exige Prestige+
+    feedPublish($performer, PerformerContent::LEVEL_EXCLUSIVE, 20); // exige Black+ (travado)
 
-    // Só o Aberto aparece (Premium fica fora da query por allowedLevelsFor).
+    // No FEED, só o Aberto aparece — Exclusivo fica fora da query (allowedLevelsFor).
+    // (Premium virou avulso e agora APARECE no feed; Exclusivo/FC seguem travados.)
     $this->actingAs($member)->get(route('feed'))
         ->assertInertia(fn (Assert $page) => $page
             ->has('feed.data', 1)
             ->where('feed.data.0.id', $open->id)
             ->where('feed.data.0.access_level', 'open')
         );
+});
+
+it('mostra Premium (compra avulsa) no feed até para o não-assinante', function () {
+    $member = feedMember(); // sem tier
+    $performer = feedPerformer();
+    feedFollow($member, $performer);
+
+    feedPublish($performer, PerformerContent::LEVEL_OPEN);
+    feedPublish($performer, PerformerContent::LEVEL_PREMIUM, 20); // avulso desde 21/08/2026
+
+    $this->actingAs($member)->get(route('feed'))
+        ->assertInertia(fn (Assert $page) => $page->has('feed.data', 2));
 });
 
 it('mostra Premium para o assinante Prestige', function () {

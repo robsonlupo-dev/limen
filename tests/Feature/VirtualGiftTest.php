@@ -62,39 +62,62 @@ function gSend(User $member, PerformerProfile $performer, Gift $gift, ?string $k
 
 // ─── Split 75/25 e débito/crédito ────────────────────────────────────────────
 
-it('debita o membro e credita a performer com split 75/25', function () {
+it('debita o membro e credita a performer com split 80/20', function () {
     $performer = gPerformer();
     $member = gMember();
     gFund($member, 100);
 
-    $gift = gGift(40); // 75% = 30, 25% = 10
+    $gift = gGift(40); // 80% = 32, 20% = 8 (presente subiu para 80/20 em 21/08/2026)
     $send = gSend($member, $performer, $gift);
 
     expect($send->tokens)->toBe(40)
-        ->and($send->performer_amount)->toBe(30)
-        ->and($send->platform_amount)->toBe(10)
+        ->and($send->performer_amount)->toBe(32)
+        ->and($send->platform_amount)->toBe(8)
         ->and($send->performer_amount + $send->platform_amount)->toBe($send->tokens)
         ->and(gBalance($member))->toBe(60)
-        ->and(gBalance($performer->user))->toBe(30);
+        ->and(gBalance($performer->user))->toBe(32);
 });
 
-it('congela applied_rate=75 na linha do gift_send E do ledger', function () {
+it('congela applied_rate=80 na linha do gift_send E do ledger', function () {
     $performer = gPerformer();
     $member = gMember();
     gFund($member, 100);
 
     $send = gSend($member, $performer, gGift(40));
 
-    expect($send->applied_rate)->toBe(75);
+    expect($send->applied_rate)->toBe(80);
 
     $creditLine = TokenLedger::find($send->performer_ledger_id);
     expect($creditLine->entry_type)->toBe('gift_credit')
-        ->and((int) $creditLine->applied_rate)->toBe(75)
-        ->and((int) $creditLine->amount)->toBe(30);
+        ->and((int) $creditLine->applied_rate)->toBe(80)
+        ->and((int) $creditLine->amount)->toBe(32);
 
     $spendLine = TokenLedger::find($send->sender_ledger_id);
     expect($spendLine->entry_type)->toBe('spend_gift')
         ->and((int) $spendLine->amount)->toBe(-40);
+});
+
+it('presente de 7 credita 5,6000 (80%) e a taxa ANTIGA (75) fica congelada na linha', function () {
+    // applyRate reflete a config VIGENTE (80): 80% de 7 = 5,6000 (era 5,2500 a 75%).
+    $policy = app(TokenCreditPolicy::class);
+    expect($policy->applyRate(7, 'gift'))
+        ->toMatchArray(['credited' => '5.6000', 'retained' => '1.4000', 'rate' => 80]);
+
+    // Lançamento ANTIGO (feito quando a config era 75) mantém applied_rate=75
+    // congelado na linha — a taxa é gravada na transação, nunca recalculada. Simulo
+    // o "antigo" enviando com a config em 75 e conferindo que a linha guarda 75
+    // mesmo depois de a config voltar a 80.
+    config()->set('monetization.split_rates.gift.rate', 75);
+    $performer = gPerformer();
+    $member = gMember();
+    gFund($member, 100);
+    $old = gSend($member, $performer, gGift(40)); // 75% de 40 = 30
+
+    config()->set('monetization.split_rates.gift.rate', 80);
+
+    expect($old->applied_rate)->toBe(75)                       // espelho congelado
+        ->and((int) TokenLedger::find($old->performer_ledger_id)->applied_rate)->toBe(75) // linha congelada
+        ->and((int) $old->performer_amount)->toBe(30);
 });
 
 it('os 6 presentes do catálogo dividem exatamente (múltiplos de 4)', function () {
@@ -103,10 +126,12 @@ it('os 6 presentes do catálogo dividem exatamente (múltiplos de 4)', function 
 
     Gift::active()->get()->each(function (Gift $gift) use ($policy) {
         $split = $policy->applyRate($gift->price_tokens, 'gift');
-        // Split DECIMAL EXATO: credited + retained == preço SEMPRE. Múltiplo de 4 →
-        // 75% fecha em inteiro (credited termina em .0000). Soma por TokenMath, nunca `+`.
+        // Split DECIMAL EXATO: credited + retained == preço SEMPRE. A 80% (21/08/2026)
+        // um múltiplo de 4 pode dar fração (Rosa 4 → 3,2000), e o decimal cobre isso
+        // sem perda. Soma por TokenMath, nunca `+`; credited = 80% exato do preço.
         expect(\App\Support\TokenMath::add($split['credited'], $split['retained']))->toBe(\App\Support\TokenMath::of($gift->price_tokens))
-            ->and($split['credited'])->toBe(\App\Support\TokenMath::of(intdiv($gift->price_tokens * 3, 4)))
+            ->and($split['credited'])->toBe(bcdiv(bcmul((string) $gift->price_tokens, '80', 0), '100', 4))
+            ->and($split['rate'])->toBe(80)
             ->and($gift->price_tokens % 4)->toBe(0);
     });
 
@@ -162,7 +187,7 @@ it('envio duplicado com a mesma chave não debita duas vezes', function () {
     expect($second->id)->toBe($first->id)
         ->and(GiftSend::count())->toBe(1)
         ->and(gBalance($member))->toBe(60)
-        ->and(gBalance($performer->user))->toBe(30)
+        ->and(gBalance($performer->user))->toBe(32) // 80% de 40 (era 30 a 75%)
         ->and(TokenLedger::where('entry_type', 'spend_gift')->count())->toBe(1);
 });
 
@@ -218,9 +243,9 @@ it('gift_credit entra no allowlist de ganho do payout', function () {
     $member = gMember();
     gFund($member, 100);
 
-    gSend($member, $performer, gGift(40)); // performer ganha 30
+    gSend($member, $performer, gGift(40)); // performer ganha 32 (80% de 40)
 
-    expect(app(PayoutService::class)->earningsOwed($performer->user))->toBe(30);
+    expect(app(PayoutService::class)->earningsOwed($performer->user))->toBe(32);
 });
 
 it('gift_credit NÃO respeita o teto (é *_credit)', function () {
@@ -295,7 +320,7 @@ it('envia um presente pela rota web com sessão', function () {
     ]);
 
     expect(GiftSend::count())->toBe(1)
-        ->and(gBalance($performer->user))->toBe(30);
+        ->and(gBalance($performer->user))->toBe(32); // 80% de 40
 });
 
 it('saldo insuficiente devolve 422 com reason para a UI', function () {

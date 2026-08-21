@@ -69,59 +69,75 @@ function r2Contents($response): array
 
 // ─── #1 Conteúdo permanente visível no perfil ────────────────────────────────
 
-it('mostra so o conteudo Aberto (pago) para o membro Free, no catalogo autenticado', function () {
+it('mostra TODOS os niveis como tile ao Free — Premium compravel, Exclusivo/FC bloqueados (21/08/2026)', function () {
     $profile = r2Performer();
     r2Publish($profile, PerformerContent::LEVEL_OPEN, 15);
-    r2Publish($profile, PerformerContent::LEVEL_PREMIUM);
-    r2Publish($profile, PerformerContent::LEVEL_EXCLUSIVE);
-    r2Publish($profile, PerformerContent::LEVEL_FC_ONLY);
+    r2Publish($profile, PerformerContent::LEVEL_PREMIUM, 20);
+    r2Publish($profile, PerformerContent::LEVEL_EXCLUSIVE, 50);
+    r2Publish($profile, PerformerContent::LEVEL_FC_ONLY, 80);
 
     $free = r2Member(); // sem assinatura
 
-    $contents = r2Contents(test()->actingAs($free)->get(route('catalog.show', $profile->slug)));
+    $contents = collect(r2Contents(test()->actingAs($free)->get(route('catalog.show', $profile->slug))))
+        ->keyBy('access_level');
 
-    // Só o Aberto aparece — Premium/Exclusivo/FC Only NÃO chegam ao Free (M.13.13).
-    expect($contents)->toHaveCount(1)
-        ->and($contents[0]['access_level'])->toBe(PerformerContent::LEVEL_OPEN)
-        // Aberto para não-assinante é PAGO: bloqueado, com preço, desbloqueável.
-        ->and($contents[0]['locked'])->toBeTrue()
-        ->and($contents[0]['can_unlock'])->toBeTrue()
-        ->and($contents[0]['price_tokens'])->toBe(15)
-        // Bloqueado NÃO recebe URL de bytes (paywall não é blur de CSS).
-        ->and($contents[0]['image_url'])->toBeNull();
+    // Os 4 níveis APARECEM como tile (nenhum some da galeria).
+    expect($contents)->toHaveCount(4);
+
+    // Aberto (pago p/ não-assinante) e Premium (avulso): compráveis, bloqueados, e
+    // CRÍTICO — sem bytes (paywall server-side, não blur de CSS).
+    foreach (['open', 'premium'] as $lvl) {
+        expect($contents[$lvl]['locked'])->toBeTrue()
+            ->and($contents[$lvl]['can_unlock'])->toBeTrue()
+            ->and($contents[$lvl]['image_url'])->toBeNull()
+            ->and($contents[$lvl]['required_tier_label'])->toBeNull();
+    }
+    expect($contents['premium']['price_tokens'])->toBe(20);
+
+    // Exclusivo e FC Only: bloqueados, NÃO compráveis, com upsell do TIER (nunca o
+    // nível de conteúdo), e sem bytes.
+    expect($contents['exclusive']['can_unlock'])->toBeFalse()
+        ->and($contents['exclusive']['required_tier_label'])->toBe('Black')
+        ->and($contents['exclusive']['image_url'])->toBeNull()
+        ->and($contents['fc_only']['can_unlock'])->toBeFalse()
+        ->and($contents['fc_only']['required_tier_label'])->toBe('Círculo de Fundadores')
+        ->and($contents['fc_only']['image_url'])->toBeNull();
 });
 
-it('mostra Aberto + Premium para um membro Prestige', function () {
+it('mostra Aberto+Premium compraveis e Exclusivo bloqueado (upsell Black) ao Prestige', function () {
     $profile = r2Performer();
     r2Publish($profile, PerformerContent::LEVEL_OPEN);
-    r2Publish($profile, PerformerContent::LEVEL_PREMIUM);
-    r2Publish($profile, PerformerContent::LEVEL_EXCLUSIVE);
+    r2Publish($profile, PerformerContent::LEVEL_PREMIUM, 20);
+    r2Publish($profile, PerformerContent::LEVEL_EXCLUSIVE, 50);
 
     $prestige = r2Member('prestige');
 
-    $levels = collect(r2Contents(test()->actingAs($prestige)->get(route('catalog.show', $profile->slug))))
-        ->pluck('access_level')
-        ->sort()
-        ->values()
-        ->all();
+    $contents = collect(r2Contents(test()->actingAs($prestige)->get(route('catalog.show', $profile->slug))))
+        ->keyBy('access_level');
 
-    // Prestige alcança Aberto e Premium; Exclusivo (Black+) fica de fora.
-    expect($levels)->toBe([PerformerContent::LEVEL_OPEN, PerformerContent::LEVEL_PREMIUM]);
+    // Prestige vê os 3 tiles: Aberto grátis, Premium comprável, Exclusivo bloqueado.
+    expect($contents)->toHaveCount(3)
+        ->and($contents['open']['locked'])->toBeFalse()      // Aberto grátis p/ assinante
+        ->and($contents['premium']['can_unlock'])->toBeTrue()
+        ->and($contents['exclusive']['can_unlock'])->toBeFalse()
+        ->and($contents['exclusive']['required_tier_label'])->toBe('Black');
 });
 
-it('na pagina publica o visitante deslogado ve so o Aberto, bloqueado e sem desbloqueio', function () {
+it('na pagina publica o visitante deslogado ve TODOS os tiles, bloqueados e sem bytes', function () {
     $profile = r2Performer();
     r2Publish($profile, PerformerContent::LEVEL_OPEN);
-    r2Publish($profile, PerformerContent::LEVEL_PREMIUM);
+    r2Publish($profile, PerformerContent::LEVEL_PREMIUM, 20);
 
-    $contents = r2Contents(test()->get(route('performers.public.show', $profile->slug)));
+    $contents = collect(r2Contents(test()->get(route('performers.public.show', $profile->slug))))
+        ->keyBy('access_level');
 
-    expect($contents)->toHaveCount(1)
-        ->and($contents[0]['access_level'])->toBe(PerformerContent::LEVEL_OPEN)
-        ->and($contents[0]['locked'])->toBeTrue()
-        // Visitante deslogado não desbloqueia aqui — cai no cadastro.
-        ->and($contents[0]['can_unlock'])->toBeFalse()
-        ->and($contents[0]['image_url'])->toBeNull();
+    expect($contents)->toHaveCount(2)
+        ->and($contents['open']['locked'])->toBeTrue()
+        ->and($contents['open']['can_unlock'])->toBeFalse()   // deslogado não desbloqueia
+        ->and($contents['open']['image_url'])->toBeNull()
+        ->and($contents['premium']['locked'])->toBeTrue()
+        ->and($contents['premium']['can_unlock'])->toBeFalse()
+        ->and($contents['premium']['image_url'])->toBeNull();
 });
 
 it('o assinante ve o conteudo Aberto liberado (gratis) com a URL de bytes', function () {

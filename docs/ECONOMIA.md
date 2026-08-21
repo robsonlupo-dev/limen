@@ -81,7 +81,7 @@ tokens" = tem acesso, mas paga para desbloquear. "Sem acesso" = não vê aquele 
 |------------------------------|---------------|------------|---------|----------|-------|----|
 | Abrir conversa (custo)       | 2 tk          | 2 tk       | 2 tk    | 2 tk     | 1 tk  | 1 tk |
 | Conteúdo Aberto              | Paga tokens   | Grátis     | Grátis  | Grátis   | Grátis | Grátis |
-| Conteúdo Premium             | Sem acesso    | Sem acesso | Sem acesso | Paga tokens | Paga tokens | Paga tokens |
+| Conteúdo Premium             | Paga tokens   | Paga tokens | Paga tokens | Paga tokens | Paga tokens | Paga tokens |
 | Conteúdo Exclusivo           | Sem acesso    | Sem acesso | Sem acesso | Sem acesso | Paga tokens | Paga tokens |
 | Conteúdo FC Only             | Sem acesso    | Sem acesso | Sem acesso | Sem acesso | Sem acesso | Paga tokens |
 | Live pública                 | Paga tokens   | Paga tokens| Paga tokens| Paga tokens| Paga tokens| Paga tokens |
@@ -112,20 +112,19 @@ gorjeta é 80/20 seja na live, no chat ou no perfil).
 | Conteúdo permanente          | 80%              | 20%         |
 | Gorjeta                      | 80%              | 20%         |
 | Abertura de conversa (chat)  | 80%              | 20%         |
-| Presente virtual (*)         | 75%              | 25%         |
+| Presente virtual             | 80%              | 20%         |
 | Live pública (por bloco)     | 70%              | 30%         |
 | Chamada privada (por minuto) | 70%              | 30%         |
 | Destaque no catálogo (boost) | 0% (100% Limen)  | 100%        |
 | Interesse revelado           | 0% (100% Limen)  | 100%        |
 | Assinatura de Círculo        | 0% (100% Limen)  | 100%        |
 
-> (*) **Presente: mudança aprovada, pendente de implementação** — passa a 80/20 (igual
-> à gorjeta e ao conteúdo), porque não tem custo de infraestrutura. Até o PR que
-> implementa, o valor vigente é 75/25. Ver `docs/DECISOES_2026-08.md`, decisão 11.
->
-> **Princípio final da economia:** **80% no que não custa infraestrutura** (conteúdo,
-> gorjeta, presente, abertura de conversa) e **70% no que custa** (live e chamada, que
-> consomem vídeo em tempo real).
+> **Princípio final da economia (fechado em 21/08/2026):** **80% no que NÃO custa
+> infraestrutura** (conteúdo, gorjeta, presente, abertura de conversa) e **70% no que
+> CUSTA** (live e chamada, que consomem vídeo em tempo real). O presente subiu de 75
+> para 80 justamente por não ter custo de infra — não havia razão para pagar menos que
+> gorjeta e conteúdo. **Lançamentos antigos de presente mantêm a taxa antiga (75%)
+> congelada** — a taxa é gravada em cada transação e nunca recalculada.
 
 > **Nenhuma transação cria nem destrói token.** Em toda divisão, o que sai do membro
 > = o que entra para a performer + o que fica com a Limen. Sempre fecha em zero.
@@ -204,16 +203,30 @@ paga para ler.**
 
 - A performer publica uma peça, escolhe o **nível** (Aberto, Premium, Exclusivo ou FC
   Only) e o **preço em tokens**.
-- **Quem alcança cada nível** (ver tabela da seção 3.1): Aberto — grátis para qualquer
-  assinante, pago para não-assinante; Premium — a partir de Prestige; Exclusivo — a
-  partir de Black; FC Only — só FC.
+- **Quem pode COMPRAR cada nível** (ver tabela da seção 3.1): Aberto — grátis para
+  qualquer assinante, pago para não-assinante; **Premium — QUALQUER membro compra
+  avulso, pagando o preço cheio** (desde 21/08/2026); Exclusivo — a partir de Black;
+  FC Only — só FC.
 - **O desbloqueio é permanente:** uma vez comprado, o membro vê aquela peça para
   sempre.
 - **Divisão: 80% performer / 20% Limen.**
 
-> **Consequência de negócio:** um membro sem assinatura **não vê** conteúdo Premium ou
-> Exclusivo — nem como item bloqueado. Ele precisa subir de Círculo para alcançar o
-> nível. É o incentivo de upgrade, por desenho.
+**Todos os níveis APARECEM no perfil, mesmo os que o membro não pode comprar** (mudança
+de 21/08/2026). Antes, uma peça acima do tier do membro **sumia** da galeria — ele nem
+sabia que existia, o que escondia o valor da assinatura em vez de protegê-lo. Agora:
+
+- **Premium:** aparece com o preço e um botão de comprar, para qualquer membro.
+- **Exclusivo / FC Only:** aparecem **bloqueados**, com a indicação do Círculo que os
+  destrava ("Disponível no Black" / "Disponível no Círculo de Fundadores") e um caminho
+  para assinar. **Não são compráveis avulso** — seguem exclusivos do tier.
+- **A imagem real nunca é entregue a quem não pagou.** O tile bloqueado mostra um
+  espaço reservado (placeholder), nunca a foto original com um filtro — o bloqueio é
+  feito no servidor, não por efeito visual que qualquer um removeria.
+
+> **O incentivo do assinante passou a ser o desconto, não o bloqueio.** Como o Premium
+> agora é comprável por todos, o benefício de assinar é pagar os tokens mais barato (o
+> desconto na compra de pacotes), não ter acesso exclusivo ao Premium. Exclusivo e FC
+> Only continuam sendo o acesso que só o tier dá.
 
 ---
 
@@ -263,10 +276,9 @@ preço/minuto congelado naquele momento). O que acontece com o depósito:
 
 - **Gorjeta:** valor livre em tokens. **80% performer / 20% Limen.**
 - **Presente virtual:** catálogo fixo da Limen, com preços em múltiplos de 4 tokens.
-  **75% performer / 25% Limen.**
-  > **Mudança aprovada, pendente de implementação:** o presente passa a **80/20** (igual
-  > à gorjeta), porque não tem custo de infraestrutura. Entra em PR separado; até lá o
-  > valor vigente é 75/25. Ver `docs/DECISOES_2026-08.md`, decisão 11.
+  **80% performer / 20% Limen** (desde 21/08/2026 — antes era 75/25; ver a regra final
+  logo abaixo). O caminho decimal cobre frações: um presente de 4 tokens (Rosa) credita
+  3,2000; múltiplos maiores fecham redondo (Champagne 40 → 32).
 
 Catálogo de presentes: Rosa 4 · Chocolate 12 · Champagne 40 · Joia 100 · Coroa 200 ·
 Diamante 400 tokens.
