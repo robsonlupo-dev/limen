@@ -3321,6 +3321,20 @@ estado ocioso, que o Vue desmontava ao virar 'live'; corrigido anexando após `s
 muda (`muted`, sem microfonia), motivo se a câmera falhar (`cameraError`). `LiveGiftAndSelfViewTest`
 cobre os dois (backend + fonte, sem Vitest).
 
+**Follow-up `feat/live-broadcast-controls` (base `main`, PR pendente):** controles de
+estúdio da performer no `LiveRoom.vue` (client-side LiveKit, **zero backend novo** — não
+toca economia/split/contador/chat). Mobile primeiro, alvos ≥44px, `aria-pressed`/`aria-live`.
+(1) **Mutar/desmutar o microfone PUBLICADO** (`setMicrophoneEnabled` — muda o que o membro
+ouve, distinto do `muted` da prévia local que evita o eco dela) com ícone cortado + aviso
+permanente enquanto mudo. (2) **Ligar/desligar a câmera sem encerrar** (`setCameraEnabled`
+muta a faixa; o membro vê "A transmissão voltará em instantes" via `TrackMuted/Unmuted`, não
+tela preta). (3) **Qualidade de UPLOAD 1080p/720p/480p, padrão 720p** (o valor é ESTABILIDADE
+— baixar salva a live no 4G); troca por `restartTrack` **sem derrubar a sala**; sugere baixar
+quando `ConnectionQuality.Poor` (nunca troca sozinha). **NÃO implementado (PO, DECISOES §13/§14):**
+seletor de qualidade do MEMBRO (transcodificação = custo/min; ajuste automático do player
+segue) e legenda automática (backlog — transcrição de terceiro manda o áudio para fora:
+gate jurídico). `LiveBroadcastControlsTest` por fonte (sem Vitest).
+
 ### Vitrine de conteúdo, perfil público e correções de UX (`feat/content-showcase`, PR pendente)
 
 Sobre `main`. Oito itens, **mobile primeiro**, sem tocar economia/split/cobrança. Suíte
