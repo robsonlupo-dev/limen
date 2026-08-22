@@ -2108,6 +2108,51 @@ resto do app usa `->resolve($request)` (CatalogController, PublicCatalogControll
   atualizado (o teste codificava o redirect antigo → agora 422). Suíte MySQL verde (só o
   `GeoBlockTest` 451 do clone de dev), `npm run build` limpo, revisão de segurança rodada.
 
+### Presente e prévia do próprio vídeo — `fix/live-gift-and-selfview` (base `main`)
+
+Dois bugs achados em teste real de dois navegadores. **A gorjeta funcionava; o presente
+falhava; e a performer não se via.**
+
+- **[1] Presente falhava mostrando só a mensagem GENÉRICA do front.** O backend do
+  presente está CORRETO (débito 80/20, credita 3,2000 num Rosa de 4 — provado por teste).
+  O problema era de SUPERFÍCIE de erro: o caminho do presente tem uma busca a mais que a
+  gorjeta não tem — `SendGiftRequest::resolvedGift()` — e ela usava **`firstOrFail()` →
+  404 HTML**. O `fetch` do front não consegue ler HTML (`response.json()` = null), então
+  caía no genérico "Não foi possível enviar o presente", **escondendo o 404 real**. Um
+  `gift_slug` que não resolve (catálogo defasado no browser, presente reseedado/
+  desativado) produzia exatamente esse sintoma; a gorjeta, sem busca de presente, nunca
+  batia nesse 404. **Correção:** `resolvedGift()` devolve `?Gift` (o catálogo é PÚBLICO,
+  sem PII) e o `GiftController` responde **422 JSON** com motivo real (`gift_unavailable`)
+  quando null — o front lê e mostra. A resolução da PERFORMER segue `firstOrFail` 404
+  uniforme (anti-oráculo intocado). O split/idempotência/self-gift do presente **não
+  mudaram**.
+- **[2] Nunca esconder o erro real (dona `resources/js/lib/http.js::errorMessage`).**
+  Novo helper que traduz QUALQUER erro do `request()` na melhor mensagem — o
+  `data.message` do servidor quando há, senão um texto por faixa de status (404/429/5xx/
+  redirect). A sala (LiveViewer gorjeta/presente + LiveChat) usa `errorMessage(e, …)` no
+  catch, então um 404/500/redirect nunca mais vira um genérico cego. É o pedido "mostre o
+  erro real do servidor, não a mensagem genérica do front".
+- **[3] A performer não se via — prévia PRETA.** Diagnóstico: em `goLive()` a faixa de
+  vídeo LOCAL era anexada a `videoEl` enquanto `status` ainda era `'starting'` → prendia
+  ao `<video>` do estado OCIOSO (`v-if status !== 'live'`); ao virar `'live'`, o Vue
+  desmontava esse elemento e montava o `<video>` do console (`v-else`), que **nunca
+  recebia a faixa** → quadro preto (e a captura do preview do catálogo também saía preta).
+  **Correção:** `status='live'` PRIMEIRO, `await nextTick()`, DEPOIS `attachLocalCamera()`
+  (anexa ao elemento do console já montado). Mais os requisitos do PO: prévia **maior**
+  (`w-36 sm:w-52`, ainda canto, sem competir com o chat) e **ampliável** (botão ⤢ →
+  overlay grande, `expanded`), **espelhada** (`-scale-x-100`, padrão de espelho), **muda**
+  (`muted`, sem microfonia), e se a câmera falhar mostra o **motivo** (`cameraError`) em
+  vez de quadro preto mudo. `<video>` é UM só (só a classe muda entre pequeno/ampliado),
+  então a faixa não se solta ao ampliar.
+- **Economia inalterada.** Testes: `LiveGiftAndSelfViewTest` (presente inexistente → 422
+  JSON e não 404 HTML; Rosa 4 → −4/+3,2000 no feed com alias; front usa `errorMessage`;
+  self-view anexa após `status='live'`, espelhada/muda/erro/ampliar por FONTE, sem Vitest).
+  Suíte MySQL verde (só o `GeoBlockTest` 451 do clone de dev), `npm run build` limpo,
+  revisão de segurança rodada. **Nota:** `VirtualGiftTest` tem uma asserção latente frágil
+  (`not->toContain((string) $member->id)` sobre o label FanAlias de 4 díg.) que pode
+  colidir conforme o auto-increment do MySQL não zera sob `RefreshDatabase` transacional —
+  passa na suíte cheia; registrado, não corrigido (fora de escopo).
+
 ## PanicButton — Saída rápida flutuante (Sprint 6; re-apresentada em `feat/performer-nav-restructure`)
 
 Botão de saída rápida da sessão — tira a Limen da tela quando alguém entra na

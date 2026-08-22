@@ -40,6 +40,23 @@ async function request(method, url, body) {
     return data
 }
 
+/**
+ * Extrai a MELHOR mensagem de um erro do request() — nunca esconde o motivo real
+ * atrás de um genérico. Usa a mensagem JSON do servidor quando há; senão traduz o
+ * status (404/5xx/redirect) num texto acionável. Sem isso, um 404/500 (resposta
+ * HTML, sem `data.message`) virava só "não foi possível…", escondendo o erro real —
+ * foi o que mascarou a falha de presente na sala ao vivo.
+ */
+export function errorMessage(error, fallback = 'Algo deu errado. Tente novamente.') {
+    if (error?.data?.message) return error.data.message
+    if (error?.redirected) return 'Sua sessão expirou ou a ação não pôde ser confirmada. Recarregue a página.'
+    if (error?.status === 404) return `${fallback} Atualize a página e tente de novo.`
+    if (error?.status === 429) return 'Muitas ações em pouco tempo. Aguarde um instante.'
+    if (error?.status >= 500) return 'Erro no servidor. Tente novamente em instantes.'
+    if (error?.status) return `${fallback} (erro ${error.status})`
+    return fallback
+}
+
 export function postJson(url, body) {
     return request('POST', url, body)
 }
