@@ -1,7 +1,7 @@
 <script setup>
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, nextTick, onBeforeUnmount } from 'vue'
 import { Room, Track } from 'livekit-client'
-import { postJson, getJson } from '@/lib/http'
+import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveChat from '@/Components/LiveChat.vue'
 import LiveReactionFeed from '@/Components/LiveReactionFeed.vue'
 
@@ -23,6 +23,8 @@ const props = defineProps({
 const videoEl = ref(null)
 const status = ref('idle') // idle | starting | live | stopping | error
 const error = ref('')
+const cameraError = ref('')
+const expanded = ref(false)
 const viewers = ref(0)
 const earned = ref(0)
 const mobileTab = ref('chat')
@@ -36,24 +38,48 @@ let confirmTimer = null
 async function goLive() {
     status.value = 'starting'
     error.value = ''
+    cameraError.value = ''
     try {
         const { token, wsUrl } = await postJson(route('performer.live.start'))
 
         room = new Room()
         await room.connect(wsUrl, token)
-        await room.localParticipant.setCameraEnabled(true)
-        await room.localParticipant.setMicrophoneEnabled(true)
 
-        const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
-        if (camPub?.track && videoEl.value) camPub.track.attach(videoEl.value)
+        // Câmera e microfone separados: se a CÂMERA falhar (permissão negada, sem
+        // dispositivo), mostramos o motivo na prévia em vez de um quadro preto mudo,
+        // mas a transmissão ainda sobe (áudio).
+        try {
+            await room.localParticipant.setCameraEnabled(true)
+        } catch (camErr) {
+            cameraError.value = 'Não foi possível acessar a câmera. Verifique as permissões do navegador e recarregue.'
+        }
+        await room.localParticipant.setMicrophoneEnabled(true).catch(() => {})
 
+        // status='live' PRIMEIRO, DEPOIS anexar: o <video> do console (v-else) só
+        // MONTA quando status vira 'live'. Anexar antes prendia a faixa ao <video> do
+        // estado ocioso, que o Vue então desmonta — a prévia do console nascia preta.
         status.value = 'live'
+        await nextTick()
+        attachLocalCamera()
+
         startPreviewCapture()
         startConsolePolling()
     } catch (e) {
-        error.value = e?.data?.message ?? 'Não foi possível iniciar a live.'
+        error.value = errorMessage(e, 'Não foi possível iniciar a live.')
         status.value = 'error'
         await disconnectRoom()
+    }
+}
+
+// Anexa a faixa de vídeo LOCAL ao elemento de prévia do console (já montado).
+function attachLocalCamera() {
+    if (!room || !videoEl.value) return
+    const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+    if (camPub?.track) {
+        camPub.track.attach(videoEl.value)
+        cameraError.value = ''
+    } else if (!cameraError.value) {
+        cameraError.value = 'Câmera não detectada.'
     }
 }
 
@@ -173,9 +199,42 @@ onBeforeUnmount(disconnectRoom)
     <div v-else class="space-y-4">
         <!-- Barra de status: presença, ganho, prévia pequena e encerrar. -->
         <div class="flex flex-wrap items-center gap-3 rounded-xl border border-frame bg-surface p-3">
-            <div class="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg border border-frame bg-black sm:w-36">
-                <video ref="videoEl" autoplay muted playsinline class="h-full w-full object-cover" />
-                <span class="absolute left-1 top-1 rounded bg-limen-live px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Ao vivo</span>
+            <!-- Prévia do próprio vídeo: espelhada, sem áudio (sem microfonia),
+                 ampliável para conferir o enquadramento. O MESMO <video> serve os
+                 dois tamanhos (só a classe muda), então a faixa não se solta ao
+                 ampliar/reduzir. -->
+            <div
+                :class="expanded
+                    ? 'fixed inset-0 z-30 flex items-center justify-center bg-black/85 p-4'
+                    : 'relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg border border-frame bg-black sm:w-52'"
+            >
+                <video
+                    ref="videoEl"
+                    autoplay
+                    muted
+                    playsinline
+                    :class="expanded
+                        ? 'max-h-full w-auto max-w-4xl -scale-x-100 rounded-lg bg-black'
+                        : 'h-full w-full -scale-x-100 object-cover'"
+                />
+
+                <!-- Câmera falhou: o motivo, nunca um quadro preto mudo. -->
+                <div v-if="cameraError" class="absolute inset-0 flex items-center justify-center bg-black/80 p-3 text-center text-[11px] leading-snug text-cream/90">
+                    {{ cameraError }}
+                </div>
+
+                <span v-if="!expanded" class="absolute left-1 top-1 rounded bg-limen-live px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Ao vivo</span>
+
+                <button
+                    type="button"
+                    class="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-cream hover:bg-black/80"
+                    :aria-label="expanded ? 'Reduzir prévia' : 'Ampliar prévia para conferir o enquadramento'"
+                    @click="expanded = !expanded"
+                >
+                    {{ expanded ? '✕ Fechar' : '⤢ Ampliar' }}
+                </button>
+
+                <span v-if="expanded" class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-[11px] text-cream/80">Prévia espelhada — só você vê</span>
             </div>
 
             <div class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2">

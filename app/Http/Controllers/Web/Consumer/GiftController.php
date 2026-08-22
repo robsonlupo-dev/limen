@@ -28,7 +28,17 @@ class GiftController extends Controller
     public function store(SendGiftRequest $request): JsonResponse
     {
         $performer = $request->resolvedPerformer();
+
+        // Presente não encontrado/inativo → 422 JSON com motivo REAL (o catálogo é
+        // público, sem PII). Antes era um 404 HTML do firstOrFail, ilegível para o
+        // fetch → mensagem genérica na sala ao vivo.
         $gift = $request->resolvedGift();
+        if ($gift === null) {
+            return response()->json([
+                'reason' => 'gift_unavailable',
+                'message' => 'Este presente não está mais disponível. Atualize a página e tente de novo.',
+            ], 422);
+        }
 
         try {
             $send = $this->giftService->send(

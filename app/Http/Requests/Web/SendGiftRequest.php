@@ -43,11 +43,18 @@ class SendGiftRequest extends FormRequest
             ->firstOrFail();
     }
 
-    /** Só presente ATIVO do catálogo resolve; inexistente/inativo → 404 uniforme. */
-    public function resolvedGift(): Gift
+    /**
+     * Só presente ATIVO do catálogo resolve. Devolve NULL (não `firstOrFail`) quando
+     * não há: o catálogo de presentes é PÚBLICO (presentes da Limen, sem PII), então
+     * o controller converte o não-encontrado num 422 JSON com motivo REAL — em vez do
+     * 404 HTML que o `firstOrFail` produzia, que o fetch do front não consegue ler e
+     * vira a mensagem genérica "não foi possível enviar o presente" (o bug da sala ao
+     * vivo: um gift_slug que não resolve — catálogo defasado — escondia o 404 real).
+     */
+    public function resolvedGift(): ?Gift
     {
         return Gift::active()
             ->where('slug', $this->validated('gift_slug'))
-            ->firstOrFail();
+            ->first();
     }
 }

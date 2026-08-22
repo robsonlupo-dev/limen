@@ -3309,6 +3309,18 @@ igual dos dois lados. **Economia reconfirmada com o PO (21/08/2026): gorjeta/pre
 minuto cobrado). `LiveRoomActionsTest` (7) trava tudo; `TipWebTest` "rejects invalid input"
 atualizado (codificava o redirect antigo → agora 422).
 
+**Follow-up `fix/live-gift-and-selfview` (base `main`, PR pendente):** dois bugs do teste
+real. (1) **Presente falhava com mensagem genérica** — o backend do presente está correto
+(prova: Rosa 4 → −4/+3,2000); o `SendGiftRequest::resolvedGift()` usava `firstOrFail` → 404
+HTML, ilegível para o fetch → genérico que escondia o erro. Agora `?Gift` + 422 JSON
+`gift_unavailable` (catálogo é público, sem PII; a performer segue 404 uniforme). Novo helper
+`http.js::errorMessage` faz a sala nunca mostrar um genérico cego (mostra o erro REAL). (2)
+**Performer não se via (prévia preta)** — a faixa de vídeo local era anexada ao `<video>` do
+estado ocioso, que o Vue desmontava ao virar 'live'; corrigido anexando após `status='live'` +
+`nextTick`. Requisitos do PO: prévia maior + ampliável (`expanded`), espelhada (`-scale-x-100`),
+muda (`muted`, sem microfonia), motivo se a câmera falhar (`cameraError`). `LiveGiftAndSelfViewTest`
+cobre os dois (backend + fonte, sem Vitest).
+
 ### Vitrine de conteúdo, perfil público e correções de UX (`feat/content-showcase`, PR pendente)
 
 Sobre `main`. Oito itens, **mobile primeiro**, sem tocar economia/split/cobrança. Suíte

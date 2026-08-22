@@ -1,5 +1,6 @@
 <script setup>
 import { ref, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
+import { errorMessage } from '@/lib/http'
 
 /**
  * Chat da sala de live (feat/live-room-console), usado pelos DOIS lados — console da
@@ -54,7 +55,7 @@ async function submit() {
         await props.onSend(body)
         draft.value = ''
     } catch (e) {
-        error.value = e?.data?.message ?? 'Não foi possível enviar sua mensagem.'
+        error.value = errorMessage(e, 'Não foi possível enviar sua mensagem.')
     } finally {
         sending.value = false
     }

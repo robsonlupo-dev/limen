@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Room, RoomEvent } from 'livekit-client'
-import { postJson, getJson } from '@/lib/http'
+import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveOverlay from '@/Components/LiveOverlay.vue'
 import LiveChat from '@/Components/LiveChat.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
@@ -89,7 +89,7 @@ async function sendTip(amount) {
         await postJson(route('tips.send'), { performer_slug: slug, amount, idempotency_key: crypto.randomUUID() })
         notice.value = `Gorjeta de ${amount} enviada 💛`
     } catch (e) {
-        notice.value = e?.data?.message ?? 'Não foi possível enviar a gorjeta.'
+        notice.value = errorMessage(e, 'Não foi possível enviar a gorjeta.')
     }
 }
 
@@ -100,7 +100,7 @@ async function sendGift(gift) {
         notice.value = `${gift.name} enviado ✨`
         showGifts.value = false
     } catch (e) {
-        notice.value = e?.data?.message ?? 'Não foi possível enviar o presente.'
+        notice.value = errorMessage(e, 'Não foi possível enviar o presente.')
     }
 }
 
