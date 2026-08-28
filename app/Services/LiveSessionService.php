@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Events\LiveStateChanged;
+use App\Models\CallSession;
 use App\Models\LiveSession;
 use App\Models\PerformerProfile;
 use App\Models\TokenLedger;
@@ -123,6 +125,16 @@ class LiveSessionService
             return null;
         }
 
+        // Rede de segurança da PAUSA (feat/private-call-from-live): pausada mas SEM
+        // chamada ativa (a performer caiu/fechou a aba no meio, ou a chamada morreu
+        // por ban/reap) → retoma na leitura, para os viewers não ficarem presos no
+        // "volta já". Só roda quando está pausada (a consulta extra não pesa no caso
+        // comum). Precedente "expiração vale na leitura".
+        if ($session->paused_at !== null && ! $this->performerHasActiveCall($profile->id)) {
+            $this->clearPause($session, $profile);
+            $session->paused_at = null;
+        }
+
         try {
             $roomExists = $this->livekit->roomExists($session->room_name);
         } catch (\Throwable) {
@@ -156,6 +168,87 @@ class LiveSessionService
         $this->chat->purgeForSession($session);
 
         return null;
+    }
+
+    // ── Pausa por chamada privada (feat/private-call-from-live) ──────────────────
+
+    /**
+     * PAUSA a live ativa da performer (ela aceitou uma chamada privada). Sub-estado:
+     * a sessão segue `status='live'` (viewers NÃO caem em 410), só ganha `paused_at`.
+     * Idempotente (já pausada → no-op) e só pausa se há de fato uma chamada 1:1 ATIVA
+     * dela — sem isso não há por que pausar, e a rede de segurança do `activeFor`
+     * retomaria na leitura seguinte. Difunde `LiveStateChanged(paused=true)` para os
+     * espectadores mostrarem "volta já" em tempo real.
+     */
+    public function pause(User $performer): void
+    {
+        $profile = $performer->performerProfile;
+        if ($profile === null) {
+            return;
+        }
+
+        $changed = DB::transaction(function () use ($profile) {
+            $session = LiveSession::live()
+                ->where('performer_profile_id', $profile->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($session === null || $session->paused_at !== null) {
+                return false;
+            }
+            if (! $this->performerHasActiveCall($profile->id)) {
+                return false;
+            }
+
+            $session->forceFill(['paused_at' => now()])->save();
+
+            return true;
+        });
+
+        if ($changed) {
+            LiveStateChanged::dispatch($profile->slug, true);
+        }
+    }
+
+    /** RETOMA a live (chamada encerrada). Idempotente (não pausada → no-op). */
+    public function resume(User $performer): void
+    {
+        $profile = $performer->performerProfile;
+        if ($profile === null) {
+            return;
+        }
+
+        $session = LiveSession::live()->where('performer_profile_id', $profile->id)->first();
+        if ($session !== null) {
+            $this->clearPause($session, $profile);
+        }
+    }
+
+    /** Há uma chamada 1:1 ATIVA desta performer? (gate da pausa e da rede de segurança) */
+    private function performerHasActiveCall(int $performerProfileId): bool
+    {
+        return CallSession::where('performer_profile_id', $performerProfileId)
+            ->whereNotNull('member_id')
+            ->active()
+            ->exists();
+    }
+
+    /** Limpa `paused_at` sob lock (re-checa para não difundir "retomou" duas vezes). */
+    private function clearPause(LiveSession $session, PerformerProfile $profile): void
+    {
+        $changed = DB::transaction(function () use ($session) {
+            $fresh = LiveSession::whereKey($session->getKey())->lockForUpdate()->first();
+            if ($fresh === null || $fresh->paused_at === null) {
+                return false;
+            }
+            $fresh->forceFill(['paused_at' => null])->save();
+
+            return true;
+        });
+
+        if ($changed) {
+            LiveStateChanged::dispatch($profile->slug, false);
+        }
     }
 
     /**

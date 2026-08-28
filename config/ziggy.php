@@ -103,6 +103,8 @@ return [
         'performer.live.console',
         'performer.live.chat',
         'performer.live.mute',
+        'performer.live.pause',
+        'performer.live.resume',
         'performer.interests.send',
         'performer.interests.send-visitor',
         'performer.interests.index',

@@ -2188,6 +2188,63 @@ backend** — nenhuma rota/economia muda). Mobile primeiro.
   corpo→perfil, selo→live, ≥44px, atraso 150–300ms, hover-only, `v-show` (por fonte — sem
   Vitest). Suíte MySQL verde (só o `GeoBlockTest` 451 do clone de dev), `npm run build` limpo.
 
+## Chamada privada a partir da live — `feat/private-call-from-live` (base `main`)
+
+Durante uma live pública, o membro pede uma chamada privada 1:1; a performer aceita ou
+recusa; ao aceitar, a live **PAUSA** (não encerra). **A economia REUSA integralmente
+`CallService`/`MinuteBiller`** — nada da cobrança foi reescrito (o motor único do #140/
+#170). Regras de negócio em `docs/DECISOES_2026-08.md` §15/§16 e `docs/ECONOMIA.md` §8.1.
+
+- **Minuto INTEIRO pré-pago (regra adotada), split 70/30.** `MinuteBiller::reconcile`:
+  `required = floor(elapsed/60)+1` — o minuto é pago no início; sem fração. Escolhido por
+  ser o motor ÚNICO (bifurcar seria o risco crítico que o #140 tratou), por nunca cobrar
+  minuto não concedido, e pela idempotência do contador `minutes_billed`. **O relógio só
+  começa quando ela aceita E conecta** (`started_at` = aceite); a espera pedido→resposta
+  nunca é cobrada; recusa/expiração não movem token. Débito `spend_call` + crédito
+  `call_credit` (`applied_rate=70`), R1–R4, saldo nunca negativo — tudo do CallService.
+- **A live PAUSA via `live_sessions.paused_at`** (sub-estado, NÃO um valor novo do enum
+  `status`): a sessão segue `status='live'`, então `activeFor`/`scopeLive`/`viewerCount`
+  continuam achando-a e **os viewers NÃO caem em 410**. `paused_at` fora do `$fillable`
+  (forceFill). Dona: `LiveSessionService::pause/resume` (broadcast `LiveStateChanged` no
+  canal `live.{slug}` — payload só `{paused:bool}`). `pause()` só pausa se há chamada 1:1
+  ATIVA da performer; **reconcile-on-read no `activeFor`**: pausada mas sem chamada ativa
+  (ban/reap/queda da aba) → retoma na leitura, para os viewers não ficarem presos no
+  "volta já". Endpoints `performer.live.pause/resume` (role:performer + performer-active).
+- **PRIVACIDADE (travada por teste, exigência do PO): o A/V da chamada NÃO vaza para a
+  live.** A chamada 1:1 roda numa **sala LiveKit SEPARADA** (`call_sessions.room_name` !=
+  `live_sessions.room_name`); o token do viewer da live concede **só** a sala da live e é
+  **view-only** (sem publish). Durante a pausa a performer libera a câmera/mic da sala
+  pública (`setCameraEnabled(false)`) e publica só na sala da chamada. `LiveStateChanged`
+  não leva nada do membro.
+- **Aviso de saldo é SÓ do MEMBRO (M.13.10).** A performer NUNCA vê o financeiro dele. O
+  `PrivateCall` roda um **heartbeat imediato** no início (não cobra — minuto 1 já pago no
+  aceite) só para trazer `minutes_left`: quando o saldo não cobre o próximo minuto
+  (`minutesLeft==0`), o aviso forte + contagem + "comprar" aparecem DENTRO do 1º minuto
+  (ex.: 40 tk a 30/min → aviso já no início, ~1min de margem).
+- **Comprar SOBRE a chamada, sem cair (`InCallBuyPanel`).** Painel PIX POR CIMA do vídeo
+  (nunca outra aba/janela — pop-up/troca de aba derrubam a conexão; mobile não cobre o
+  vídeo inteiro nem empurra o layout). Reusa `wallet.purchase` (PIX) + `wallet.pending`
+  (pola status+saldo) — o crédito entra pelo **webhook idempotente**, nada inventado no
+  cliente. O relógio segue correndo; ao compensar, o saldo novo vale na hora e o aviso
+  some, sem recarregar. **Se zerar antes de comprar:** encerra limpo (nunca negativo); um
+  PIX em trânsito compensa depois e credita a carteira (a mensagem de fim diz isso —
+  "nada se perde"); com saldo, é só pedir de novo (sem auto-retomar).
+- **Exclusividade (C):** em chamada, a performer não aceita 2º pedido (o `occupying()`/
+  `memberIsBusy` do CallService já gateia — 409) nem inicia outra live. Reuso do gate.
+- **Orquestração client-side:** `LiveViewer` (membro) pede a chamada, mostra "volta já"
+  para os OUTROS viewers (via `LiveStateChanged`), monta `<PrivateCall>` para quem está na
+  chamada (e **reanexa a faixa da live ao voltar** — padrão anti-#206). `LiveRoom`
+  (performer) recebe o pedido via `<CallIncoming>` (antes não montado em lugar nenhum),
+  pausa + libera a câmera, monta `<PrivateCall role=performer>`; ao encerrar, resume +
+  republica. **Ressalva de QA:** o handoff de câmera (sala pública ↔ sala da chamada) é
+  runtime de navegador — testar em dispositivo real (não coberto por teste unitário).
+- **Teste `PrivateCallFromLiveTest` (11):** recusa/expiração não movem token; espera não é
+  cobrada; 3min@10 → −30/+21,0000; insuficiente encerra sem negativar + aviso no 1º minuto;
+  compra mid-call vale no minuto seguinte; pausa não desconecta viewer + retoma; reconcile
+  retoma se a chamada morreu; privacidade (salas distintas + token view-only da live);
+  exclusividade (2º pedido → 409). Suíte MySQL verde (só o `GeoBlockTest` 451 do clone),
+  `npm run build` limpo. Revisão de segurança rodada.
+
 ## PanicButton — Saída rápida flutuante (Sprint 6; re-apresentada em `feat/performer-nav-restructure`)
 
 Botão de saída rápida da sessão — tira a Limen da tela quando alguém entra na

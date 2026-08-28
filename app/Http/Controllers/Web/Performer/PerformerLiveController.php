@@ -44,6 +44,8 @@ class PerformerLiveController extends Controller
         return Inertia::render('Performer/Live', [
             'performerSlug' => $request->user()->performerProfile->slug,
             'initialChat' => $session ? $this->chat->recent($session) : [],
+            // Canal user.{id} p/ receber pedidos de chamada privada durante a live.
+            'myUserId' => $request->user()->id,
         ]);
     }
 
@@ -65,7 +67,29 @@ class PerformerLiveController extends Controller
             'is_live' => true,
             'viewers' => $this->live->viewerCount($session),
             'earned' => $this->live->earnedThisLive($session),
+            'paused' => $session->isPaused(),
         ]);
+    }
+
+    /**
+     * PAUSA a live (feat/private-call-from-live): a performer aceitou uma chamada
+     * privada e sai de cena da sala pública sem encerrá-la. Idempotente; no-op se não
+     * há chamada 1:1 ativa dela (o service gateia). 204 (gravou ou no-op — mesma
+     * resposta).
+     */
+    public function pause(Request $request): \Illuminate\Http\Response
+    {
+        $this->live->pause($request->user());
+
+        return response()->noContent();
+    }
+
+    /** RETOMA a live após a chamada. Idempotente. */
+    public function resume(Request $request): \Illuminate\Http\Response
+    {
+        $this->live->resume($request->user());
+
+        return response()->noContent();
     }
 
     /** A performer responde no chat da sala. Free; passa pelo filtro de conteúdo. */

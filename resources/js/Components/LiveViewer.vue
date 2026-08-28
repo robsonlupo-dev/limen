@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { Room, RoomEvent } from 'livekit-client'
 import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveOverlay from '@/Components/LiveOverlay.vue'
 import LiveChat from '@/Components/LiveChat.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
+import PrivateCall from '@/Components/PrivateCall.vue'
 
 /**
  * Sala de live — lado do MEMBRO (feat/live-room-console). O vídeo DOMINA; o chat da
@@ -23,6 +24,14 @@ const props = defineProps({
     wsUrl: { type: String, required: true },
     viewerCount: { type: Number, default: 0 },
     initialChat: { type: Array, default: () => [] },
+    // Live começa pausada? (performer já em chamada quando o membro entrou.)
+    paused: { type: Boolean, default: false },
+    // Chamada privada A PARTIR da live (feat/private-call-from-live).
+    profileId: { type: Number, default: 0 },
+    callPricePerMinute: { type: Number, default: null },
+    myUserId: { type: Number, default: 0 },
+    tokenPackages: { type: Array, default: () => [] },
+    needsCpf: { type: Boolean, default: false },
 })
 
 const videoEl = ref(null)
@@ -33,9 +42,19 @@ const gifts = ref([])
 const showGifts = ref(false)
 const notice = ref('')
 
+// PAUSA: a performer entrou numa chamada privada. Os OUTROS espectadores veem
+// "volta já"; quem está NA chamada vê a <PrivateCall> (callState='in-call').
+const paused = ref(props.paused)
+const callState = ref('idle') // idle | requesting | waiting | declined | in-call
+const activeCall = ref(null)
+const callError = ref('')
+const canRequestCall = computed(() => props.callPricePerMinute && props.myUserId && callState.value === 'idle')
+
 let room = null
 let refreshTimer = null
 let viewersTimer = null
+let liveChannel = null
+let userChannel = null
 
 const slug = props.performer.slug
 
@@ -72,14 +91,93 @@ async function refreshViewers() {
     try {
         const data = await getJson(route('live.viewer-count', slug))
         viewers.value = data.viewers
+        // Reconcilia o estado de pausa para quem perdeu o broadcast LiveStateChanged.
+        if (typeof data.paused === 'boolean') paused.value = data.paused
     } catch (e) {
         // Poll perdido é inócuo; o encerramento chega pelo refresh do JWT.
     }
 }
 
+// ── Chamada privada A PARTIR da live (feat/private-call-from-live) ─────────────
+
+function subscribeLiveState() {
+    if (!window.Echo) return
+    // MESMO canal do chat/overlay — stopListening no fim, nunca Echo.leave.
+    liveChannel = window.Echo.private(`live.${slug}`)
+    liveChannel.listen('.live.state', (e) => { paused.value = !!e.paused })
+}
+
+async function requestCall() {
+    callState.value = 'requesting'
+    callError.value = ''
+    try {
+        const { call_id } = await postJson(route('call.request', props.profileId))
+        callState.value = 'waiting'
+        listenForCallAnswer(call_id)
+    } catch (e) {
+        callState.value = 'idle'
+        callError.value = errorMessage(e, 'Não foi possível pedir a chamada agora.')
+    }
+}
+
+function listenForCallAnswer(callId) {
+    if (!window.Echo) return
+    // user.{id} é COMPARTILHADO (MessageToast/ReservationNotice no AppLayout) —
+    // stopListening dos eventos da chamada no fim, NUNCA Echo.leave.
+    userChannel = window.Echo.private(`user.${props.myUserId}`)
+    userChannel.listen('.call.accepted', async (e) => {
+        if (e.call_id !== callId) return
+        stopCallAnswer()
+        try {
+            const { token, wsUrl } = await postJson(route('call.token-refresh', callId))
+            activeCall.value = { callId, token, wsUrl }
+            callState.value = 'in-call'
+        } catch (err) {
+            callState.value = 'idle'
+            callError.value = 'A chamada foi aceita, mas não foi possível conectar.'
+        }
+    })
+    userChannel.listen('.call.declined', (e) => {
+        if (e.call_id !== callId) return
+        stopCallAnswer()
+        // Some discretamente, sem constranger.
+        callState.value = 'declined'
+        setTimeout(() => { if (callState.value === 'declined') callState.value = 'idle' }, 4000)
+    })
+}
+
+function stopCallAnswer() {
+    if (userChannel) {
+        userChannel.stopListening('.call.accepted')
+        userChannel.stopListening('.call.declined')
+        userChannel = null
+    }
+}
+
+function onCallEnded() {
+    activeCall.value = null
+    callState.value = 'idle'
+    stopCallAnswer()
+    // O <video> da live foi DESMONTADO enquanto ela via a chamada; ao voltar, o
+    // elemento remonta VAZIO — reanexa a faixa da live já recebida (padrão do #206:
+    // faixa não pode ficar órfã num elemento que o Vue remontou). A performer retoma
+    // sozinha (chama resume); `paused=false` chega pelo broadcast e o vídeo volta.
+    nextTick(reattachLiveTracks)
+}
+
+function reattachLiveTracks() {
+    if (!room) return
+    room.remoteParticipants.forEach((p) =>
+        p.trackPublications.forEach((pub) => { if (pub.track) attach(pub.track) }),
+    )
+}
+
 async function teardown() {
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null }
     if (viewersTimer) { clearInterval(viewersTimer); viewersTimer = null }
+    // Canal compartilhado: stopListening, nunca Echo.leave.
+    if (liveChannel) { liveChannel.stopListening('.live.state'); liveChannel = null }
+    stopCallAnswer()
     if (room) { await room.disconnect(); room = null }
 }
 
@@ -111,6 +209,7 @@ function sendChat(body) {
 onMounted(async () => {
     try {
         await connect(props.token)
+        subscribeLiveState()
         // A contagem inicial vem do show() ANTES do membro entrar na sala LiveKit
         // (conta a si mesmo a menos). Repuxa já que conectou, e depois no ritmo da
         // mesma fonte cacheada (~12s) que a performer usa — igual dos dois lados.
@@ -131,6 +230,22 @@ onBeforeUnmount(teardown)
     <div class="flex flex-col gap-4 lg:h-[calc(100dvh-9rem)] lg:flex-row">
         <!-- Vídeo dominante + barra de ações compacta. -->
         <div class="flex min-h-0 flex-col gap-3 lg:flex-1">
+            <!-- Em chamada privada 1:1: a sala substitui o vídeo da live (só para
+                 QUEM está na chamada; os demais espectadores veem "volta já"). -->
+            <div v-if="callState === 'in-call' && activeCall" class="min-h-0 lg:flex-1">
+                <PrivateCall
+                    :call-id="activeCall.callId"
+                    :token="activeCall.token"
+                    :ws-url="activeCall.wsUrl"
+                    role="member"
+                    :price-per-minute="callPricePerMinute"
+                    :token-packages="tokenPackages"
+                    :needs-cpf="needsCpf"
+                    @ended="onCallEnded"
+                />
+            </div>
+
+            <template v-else>
             <div class="relative aspect-video overflow-hidden rounded-xl border border-frame bg-black lg:aspect-auto lg:flex-1">
                 <video ref="videoEl" autoplay playsinline class="h-full w-full object-contain" />
                 <audio ref="audioEl" autoplay />
@@ -141,6 +256,14 @@ onBeforeUnmount(teardown)
                     <span v-if="status === 'connecting'">Conectando à live…</span>
                     <span v-else-if="status === 'ended'">A live foi encerrada.</span>
                     <span v-else>Não foi possível carregar a live.</span>
+                </div>
+
+                <!-- PAUSA: a performer entrou numa chamada privada. O vídeo dela some
+                     (a chamada roda numa sala LiveKit SEPARADA — nada dela vaza aqui),
+                     mas o membro NÃO é desconectado e o chat continua. -->
+                <div v-else-if="paused" role="status" aria-live="polite" class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/75 px-6 text-center">
+                    <span class="font-serif text-lg text-cream">Em chamada privada — volta já</span>
+                    <span class="text-xs text-cream/70">A performer voltará em instantes. O chat continua funcionando.</span>
                 </div>
 
                 <div class="absolute left-3 top-3 flex items-center gap-2">
@@ -157,6 +280,24 @@ onBeforeUnmount(teardown)
             <!-- Barra de ações: nunca cobre o vídeo. -->
             <div class="shrink-0 space-y-2">
                 <p v-if="notice" class="rounded-lg border border-gold/30 bg-surface px-3 py-2 text-sm text-cream">{{ notice }}</p>
+                <p v-if="callError" class="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ callError }}</p>
+
+                <!-- Chamada privada A PARTIR da live (feat/private-call-from-live). -->
+                <button
+                    v-if="canRequestCall"
+                    type="button"
+                    :disabled="status !== 'live'"
+                    class="mi-press flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-gold/50 bg-gold/10 px-4 text-sm font-semibold text-gold hover:bg-gold/20 disabled:opacity-40"
+                    @click="requestCall"
+                >
+                    📹 Pedir chamada privada · {{ callPricePerMinute }} 🪙/min
+                </button>
+                <div v-else-if="callState === 'requesting' || callState === 'waiting'" class="rounded-lg border border-frame bg-surface px-4 py-2.5 text-sm text-cream">
+                    Aguardando a performer aceitar a chamada…
+                </div>
+                <div v-else-if="callState === 'declined'" class="rounded-lg border border-frame bg-surface px-4 py-2.5 text-sm text-muted">
+                    A performer não pôde atender agora.
+                </div>
 
                 <div class="flex items-center gap-2 overflow-x-auto rounded-xl border border-frame bg-surface p-2">
                     <span class="shrink-0 pl-1 text-[11px] uppercase tracking-wide text-muted">Gorjeta</span>
@@ -202,6 +343,7 @@ onBeforeUnmount(teardown)
                     </button>
                 </div>
             </div>
+            </template>
         </div>
 
         <!-- Chat: coluna no desktop, preenche o resto no mobile (sem rolar a página). -->

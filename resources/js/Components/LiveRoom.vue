@@ -4,6 +4,8 @@ import { Room, Track } from 'livekit-client'
 import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveChat from '@/Components/LiveChat.vue'
 import LiveReactionFeed from '@/Components/LiveReactionFeed.vue'
+import CallIncoming from '@/Components/CallIncoming.vue'
+import PrivateCall from '@/Components/PrivateCall.vue'
 
 /**
  * Console da PERFORMER (feat/live-room-console). Antes ela transmitia "no escuro":
@@ -18,6 +20,8 @@ import LiveReactionFeed from '@/Components/LiveReactionFeed.vue'
 const props = defineProps({
     performerSlug: { type: String, required: true },
     initialChat: { type: Array, default: () => [] },
+    // Canal user.{id} para receber pedidos de chamada privada (feat/private-call-from-live).
+    myUserId: { type: Number, default: 0 },
 })
 
 const videoEl = ref(null)
@@ -29,6 +33,8 @@ const viewers = ref(0)
 const earned = ref(0)
 const mobileTab = ref('chat')
 const confirmingEnd = ref(false)
+// Chamada privada aceita DURANTE a live: pausa a transmissão e assume a tela.
+const activeCall = ref(null) // { callId, token, wsUrl }
 
 let room = null
 let previewTimer = null
@@ -167,6 +173,38 @@ function muteViewer(messageId) {
     return postJson(route('performer.live.mute'), { message_id: messageId })
 }
 
+// ── Chamada privada a partir da live (feat/private-call-from-live) ────────────
+
+// Ela aceitou um pedido de chamada (via <CallIncoming>): PAUSA a live e libera a
+// câmera/mic da sala PÚBLICA para a chamada 1:1 (sala LiveKit SEPARADA — o A/V da
+// chamada NUNCA chega aos espectadores da live). A <PrivateCall> abre a própria
+// captura na sala da chamada.
+async function onCallAccepted({ callId, token, wsUrl }) {
+    try { await postJson(route('performer.live.pause')) } catch (e) { /* rede de segurança do server retoma */ }
+    try {
+        if (room) {
+            await room.localParticipant.setCameraEnabled(false)
+            await room.localParticipant.setMicrophoneEnabled(false)
+        }
+    } catch (e) { /* segue: a chamada abre a captura por conta própria */ }
+    activeCall.value = { callId, token, wsUrl }
+}
+
+// Chamada encerrada (por ela, pelo membro ou por saldo): RETOMA a live e volta a
+// publicar câmera/mic na sala pública. `attachLocalCamera` reanexa a prévia do console.
+async function onCallEnded() {
+    activeCall.value = null
+    try { await postJson(route('performer.live.resume')) } catch (e) { /* idempotente */ }
+    try {
+        if (room && status.value === 'live') {
+            await room.localParticipant.setCameraEnabled(true)
+            await room.localParticipant.setMicrophoneEnabled(true)
+            await nextTick()
+            attachLocalCamera()
+        }
+    } catch (e) { /* a próxima leitura reconcilia */ }
+}
+
 onBeforeUnmount(disconnectRoom)
 </script>
 
@@ -197,6 +235,21 @@ onBeforeUnmount(disconnectRoom)
 
     <!-- Console ao vivo. -->
     <div v-else class="space-y-4">
+        <!-- Em chamada privada: a live está PAUSADA e a sala 1:1 assume a tela. -->
+        <div v-if="activeCall" class="space-y-3">
+            <p class="rounded-lg border border-limen-live/40 bg-limen-live/10 px-3 py-2 text-sm text-cream">
+                Sua live está pausada — o público vê "volta já". Encerre a chamada para retomar a transmissão.
+            </p>
+            <PrivateCall
+                :call-id="activeCall.callId"
+                :token="activeCall.token"
+                :ws-url="activeCall.wsUrl"
+                role="performer"
+                @ended="onCallEnded"
+            />
+        </div>
+
+        <template v-else>
         <!-- Barra de status: presença, ganho, prévia pequena e encerrar. -->
         <div class="flex flex-wrap items-center gap-3 rounded-xl border border-frame bg-surface p-3">
             <!-- Prévia do próprio vídeo: espelhada, sem áudio (sem microfonia),
@@ -295,5 +348,10 @@ onBeforeUnmount(disconnectRoom)
                 <LiveReactionFeed :performer-slug="performerSlug" class="h-full" @reaction="refreshConsole" />
             </div>
         </div>
+        </template>
+
+        <!-- Pedido de chamada privada recebido (some se ela não atender em 60s). O
+             aceite pausa a live; a recusa some discreta. -->
+        <CallIncoming :my-user-id="myUserId" @accepted="onCallAccepted" />
     </div>
 </template>

@@ -3334,6 +3334,25 @@ preso). **Prévia preta NÃO é o bug do #206:** o `<video>` do catálogo é `v-
 montado), então a faixa anexa a um alvo estável — diferente do `v-if` que remontava na
 prévia da performer. `CatalogLiveNavigationTest` (7, server + fonte).
 
+**Follow-up `feat/private-call-from-live` (base `main`, PR pendente):** durante uma live
+pública, o membro pede chamada privada 1:1; a performer aceita/recusa; ao aceitar, a live
+**PAUSA** (não encerra) — os viewers seguem conectados, veem "volta já", o chat continua, e
+ao fim a live **retoma sozinha**. **A economia REUSA integralmente CallService/MinuteBiller**
+(70/30 por minuto, minuto INTEIRO pré-pago, R1–R4; `spend_call`/`call_credit`) — `git diff`
+desses dois arquivos = 0 linhas. O relógio só começa no aceite (espera não é cobrada; recusa/
+expiração não movem token). **Pausa = `live_sessions.paused_at`** (sub-estado, a sessão segue
+`status='live'` → viewers não caem em 410); `LiveSessionService::pause/resume` + broadcast
+`LiveStateChanged` + reconcile-on-read (retoma se a chamada morreu). **Privacidade travada por
+teste (exigência do PO):** a chamada roda numa sala LiveKit SEPARADA e o token do viewer da
+live só concede a sala da live, view-only — o A/V da chamada NUNCA vaza. **Aviso de saldo é só
+do MEMBRO** (heartbeat imediato → `minutes_left`=0 já no 1º minuto); **compra SOBRE a chamada**
+(`InCallBuyPanel`, PIX por cima do vídeo, reusa wallet.purchase/pending + webhook idempotente,
+sem cair); saldo zerado encerra limpo (nunca negativo) e o PIX em trânsito credita depois.
+Exclusividade (2º pedido → 409) reusa o `occupying()` do CallService. `CallIncoming` (antes não
+montado em lugar nenhum) passa a ser montado no console da live. `PrivateCallFromLiveTest` (11).
+Ressalva: o handoff de câmera sala-pública↔sala-da-chamada é runtime de navegador — QA em
+dispositivo real. Ver DECISOES §15/§16 e ECONOMIA §8.1.
+
 ### Vitrine de conteúdo, perfil público e correções de UX (`feat/content-showcase`, PR pendente)
 
 Sobre `main`. Oito itens, **mobile primeiro**, sem tocar economia/split/cobrança. Suíte
