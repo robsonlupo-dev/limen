@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onBeforeUnmount } from 'vue'
-import { Link, router, usePage } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
 import { postJson } from '@/lib/http'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
 
@@ -76,18 +76,39 @@ function loadPreview() {
     previewSrc.value = route('live.preview', props.performer.slug) + '?t=' + Date.now()
 }
 
+// Atraso de INTENÇÃO de hover (feat/catalog-live-navigation): a prévia só começa se
+// o cursor FICAR sobre o card ~200ms — passagem rápida não carrega nada (o motivo do
+// atraso), mas curto o bastante para não parecer travado. Um ÚNICO timer porta o
+// snapshot E o WebRTC, então o quick-pass não abre nem a imagem nem a conexão.
+const HOVER_INTENT_MS = 200
+let intentTimer = null
+
+// Só onde há hover REAL (desktop, ponteiro fino). Em toque não há hover, então nada
+// da prévia roda no mobile — e o card não fica com estado preso depois do tap.
+function hoverCapable() {
+    return typeof window !== 'undefined'
+        && window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches === true
+}
+
 function startPreview() {
-    if (!canPreview.value) return
+    if (!canPreview.value || !hoverCapable() || intentTimer) return
+    intentTimer = setTimeout(activatePreview, HOVER_INTENT_MS)
+}
+
+function activatePreview() {
+    intentTimer = null
     previewActive.value = true
     previewBroken.value = false
     loadPreview()
     if (!previewTimer) previewTimer = setInterval(loadPreview, 10000)
-    // Em paralelo, tenta o preview REAL por WebRTC (v2). O snapshot fica de
-    // fundo/fallback e o vídeo entra por cima quando (e se) conectar.
-    startWebrtcPreview()
+    // Preview REAL por WebRTC (v2) por cima do snapshot, quando/se conectar.
+    connectWebrtc()
 }
 
+// Cancela IMEDIATAMENTE ao sair do card: mata a intenção pendente, o snapshot e o
+// subscriber WebRTC — conexão nenhuma fica aberta.
 function stopPreview() {
+    if (intentTimer) { clearTimeout(intentTimer); intentTimer = null }
     previewActive.value = false
     if (previewTimer) { clearInterval(previewTimer); previewTimer = null }
     stopWebrtcPreview()
@@ -109,31 +130,17 @@ function stopPreview() {
 const webrtcVideoEl = ref(null)
 const webrtcActive = ref(false)
 const WEBRTC_CONNECT_TIMEOUT_MS = 5000
-const HOVER_DEBOUNCE_MS = 350
 let room = null
-let hoverTimer = null
 let connectTimer = null
 // Gera um "token de tentativa": cada stop incrementa, e todo passo assíncrono
 // confere se ainda é a tentativa corrente — um connect que resolve DEPOIS do
 // mouse-leave é descartado (e a sala, desconectada).
 let previewGen = 0
 
-function webrtcSupported() {
-    return typeof window !== 'undefined'
-        && typeof window.RTCPeerConnection !== 'undefined'
-        // Só onde há hover de verdade (desktop): em toque o mouseenter é ruído.
-        && window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches === true
-}
-
-function startWebrtcPreview() {
-    if (!canPreview.value || !webrtcSupported() || room || hoverTimer) return
-    // Debounce: só conecta se o cursor ficar sobre o card — evita abrir/fechar
-    // subscriber a cada passagem rápida (custo de minuto no LiveKit).
-    hoverTimer = setTimeout(connectWebrtc, HOVER_DEBOUNCE_MS)
-}
-
 async function connectWebrtc() {
-    hoverTimer = null
+    // O debounce agora é a intenção de hover (activatePreview, 200ms); aqui só o
+    // guard: já há sala, ou o ambiente não faz WebRTC.
+    if (!canPreview.value || room || typeof window.RTCPeerConnection === 'undefined') return
     const gen = previewGen
     connectTimer = setTimeout(stopWebrtcPreview, WEBRTC_CONNECT_TIMEOUT_MS)
 
@@ -177,7 +184,6 @@ async function connectWebrtc() {
 
 function stopWebrtcPreview() {
     previewGen += 1 // invalida qualquer tentativa em voo
-    if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null }
     if (connectTimer) { clearTimeout(connectTimer); connectTimer = null }
     webrtcActive.value = false
     if (room) {
@@ -187,20 +193,11 @@ function stopWebrtcPreview() {
     }
 }
 
-// Clique sobre a foto de uma performer ao vivo entra na LIVE, não no perfil.
-// Desktop: o hover já mostrou o preview, o clique entra. Mobile (sem hover):
-// 1º tap mostra o preview, 2º tap entra — o pedido da spec do PR #143.
-function onImageClick(e) {
-    if (!canPreview.value) return // card normal: deixa o <Link> abrir o perfil
-    e.preventDefault()
-    e.stopPropagation()
-    if (previewActive.value) {
-        router.visit(route('live.show', props.performer.slug))
-    } else {
-        startPreview()
-    }
-}
-
+// O CORPO do card SEMPRE leva ao PERFIL (feat/catalog-live-navigation), ao vivo ou
+// não — o membro precisa poder ver o perfil antes de entrar. Entrar na transmissão é
+// pelo SELO "Ao vivo" (Link próprio, abaixo) ou pelo anel da trilha "Agora". Não há
+// mais interceptação de clique aqui: o hover só mostra a prévia (teaser); o clique
+// segue o <Link> do perfil.
 onBeforeUnmount(stopPreview)
 </script>
 
@@ -252,15 +249,21 @@ onBeforeUnmount(stopPreview)
              deles (feat/activity-badges) — sinal de entrada recente, discreto e
              dourado (nunca limen-live, que é exclusivo do "ao vivo"). -->
         <div class="absolute top-3 left-3 z-20 flex flex-col items-start gap-1.5">
-            <span
+            <!-- Selo AO VIVO agora é CLICÁVEL e entra na transmissão (o corpo do card
+                 leva ao perfil). Link IRMÃO do link do card, z-20, com área de toque
+                 ≥44px (o Link é 44px de altura; a pílula visível fica menor, então
+                 acertar o selo não dispara o link do perfil por baixo). -->
+            <Link
                 v-if="showLive"
-                role="img"
-                aria-label="Ao vivo"
-                class="inline-flex items-center gap-1.5 rounded-full bg-limen-live px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-white shadow-lg"
+                :href="route('live.show', performer.slug)"
+                aria-label="Entrar na transmissão ao vivo"
+                class="group/live inline-flex min-h-[44px] items-center no-underline focus:outline-none"
             >
-                <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                Ao vivo
-            </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-limen-live px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white shadow-lg transition group-hover/live:brightness-110 group-focus-visible/live:ring-2 group-focus-visible/live:ring-white/80">
+                    <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                    Ao vivo
+                </span>
+            </Link>
             <!-- Story não visto (Sprint 9C): `has_unseen_stories` é dado do
                  MEMBRO — a performer não recebe nada daqui (ver
                  StoryVisibilityService). Leva ao perfil, onde o StoryStrip abre
@@ -310,15 +313,14 @@ onBeforeUnmount(stopPreview)
             Maison
         </span>
 
-        <!-- Link de navegação: cobre o card inteiro (foto + barra de texto). As
-             ações ficam por cima (z-20). Para performer ao vivo, onImageClick
-             intercepta e entra na live. -->
+        <!-- Link de navegação: cobre o card inteiro (foto + barra de texto) e leva
+             SEMPRE ao PERFIL, ao vivo ou não. As ações e o selo "Ao vivo" ficam por
+             cima (z-20) e navegam por conta própria. O hover só mostra a prévia. -->
         <Link :href="profileHref" class="block h-full no-underline" :aria-label="performer.stage_name">
             <div
                 class="relative h-full w-full"
                 @mouseenter="startPreview"
                 @mouseleave="stopPreview"
-                @click="onImageClick"
             >
                 <img
                     v-if="photoUrl"
@@ -334,10 +336,9 @@ onBeforeUnmount(stopPreview)
                     </svg>
                 </div>
 
-                <!-- Preview animado da live (PR #143): sobrepõe a foto no
-                     hover/tap. pointer-events-none para o clique cair no
-                     container (onImageClick → entra na live). Se o frame falha,
-                     some e fica só o badge. -->
+                <!-- Preview animado da live (PR #143): sobrepõe a foto no hover.
+                     pointer-events-none para o clique atravessar até o <Link> do
+                     perfil. Se o frame falha, some e fica só o selo. -->
                 <transition name="live-preview">
                     <img
                         v-if="previewActive && !previewBroken && showLive"
