@@ -2153,6 +2153,41 @@ falhava; e a performer não se via.**
   colidir conforme o auto-increment do MySQL não zera sob `RefreshDatabase` transacional —
   passa na suíte cheia; registrado, não corrigido (fora de escopo).
 
+### Navegação do catálogo e prévia ao vivo — `feat/catalog-live-navigation` (base `main`)
+
+Correção de navegação do catálogo do MEMBRO (client-side, `PerformerCard.vue`; **zero
+backend** — nenhuma rota/economia muda). Mobile primeiro.
+
+- **O CORPO do card leva SEMPRE ao PERFIL** (`route('catalog.show')`), ao vivo ou não — o
+  membro precisa ver o perfil antes de entrar na transmissão. **Removida a interceptação
+  `onImageClick`** (que levava o clique da foto DIRETO à live, PR #143); `router` saiu do card.
+- **O selo "Ao vivo" virou LINK** (`route('live.show', slug)`), irmão do link do card
+  (z-20), **com área de toque ≥44px** — o `<Link>` tem `min-h-[44px]` e a pílula visível
+  fica menor dentro, então acertar o selo não dispara o link do perfil por baixo.
+- **O anel da trilha "Agora" (`NowStrip`) continua DIRETO à live** (`enterLive` →
+  `router.visit(live.show)` no `Catalog/Index`) — ali o atalho é o esperado (superfície de
+  "ao vivo agora"). **Não mexer.**
+- **No perfil (`Catalog/Show`) o botão "Ao vivo — assistir" já existe** e em destaque acima
+  das demais ações (gateado por `performer.is_live && features.live_enabled`, min-h 44px) —
+  este PR só confirma/testa.
+- **Prévia de hover (item 2):** o atraso virou **intenção de hover única `HOVER_INTENT_MS`
+  = 200ms** (era 350ms só do WebRTC, com o snapshot JPEG carregando na hora). Agora UM timer
+  porta o snapshot E o WebRTC, então passagem rápida do mouse **não carrega nada**;
+  `stopPreview` **cancela na hora**. Guardado por `hoverCapable()` (`(hover:hover) and
+  (pointer:fine)`) → **em TOQUE nada roda** (mobile sem hover, sem estado preso após o tap;
+  a lógica antiga "1º tap prévia, 2º tap live" saiu junto com o `onImageClick`).
+- **Prévia preta (investigação do item 2):** **NÃO** sofre o bug do #206. Lá o `<video>` da
+  prévia da PERFORMER era `v-if` e o Vue o DESMONTAVA na troca de estado, deixando a faixa
+  órfã. Aqui o `<video>` da prévia WebRTC do catálogo é **`v-show="webrtcActive && showLive"`**
+  — fica SEMPRE montado no DOM, então o `track.attach(webrtcVideoEl)` mira um alvo estável.
+  Prévia preta aqui teria outra causa (WebRTC não conectou → cai no snapshot JPEG; ou o
+  snapshot 404 → `previewBroken`), não o remount.
+- **Sem lib nova, `prefers-reduced-motion` honrado** (o pulso do selo é `animate-pulse`, já
+  desligado sob reduced-motion pela `micro-interactions.css`; o hover do selo é brilho, não
+  movimento). `CatalogLiveNavigationTest` (7): perfil ao vivo carrega is_live+flag (server),
+  corpo→perfil, selo→live, ≥44px, atraso 150–300ms, hover-only, `v-show` (por fonte — sem
+  Vitest). Suíte MySQL verde (só o `GeoBlockTest` 451 do clone de dev), `npm run build` limpo.
+
 ### Controles de transmissão da performer — `feat/live-broadcast-controls` (base `main`)
 
 A live é **unidirecional por design** (só a performer transmite A/V; o membro participa

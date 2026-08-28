@@ -3321,6 +3321,19 @@ estado ocioso, que o Vue desmontava ao virar 'live'; corrigido anexando após `s
 muda (`muted`, sem microfonia), motivo se a câmera falhar (`cameraError`). `LiveGiftAndSelfViewTest`
 cobre os dois (backend + fonte, sem Vitest).
 
+**Follow-up `feat/catalog-live-navigation` (base `main`, PR pendente):** navegação do
+catálogo do MEMBRO (client-side, `PerformerCard.vue`, **zero backend**). (1) O **corpo do
+card leva SEMPRE ao PERFIL** (`catalog.show`), ao vivo ou não — removida a interceptação
+`onImageClick` que ia direto à live; o **selo "Ao vivo" virou Link** para `live.show` com
+área de toque ≥44px (`min-h-[44px]`, pílula menor dentro). O **anel da trilha "Agora"
+(`NowStrip`) segue direto à live** (não mexer), e o perfil (`Catalog/Show`) já tem o botão
+"Ao vivo — assistir" em destaque. (2) **Prévia de hover:** atraso virou intenção única
+`HOVER_INTENT_MS=200` (um timer porta snapshot+WebRTC; passagem rápida não carrega nada;
+cancela na hora ao sair); `hoverCapable()` garante que **nada roda em toque** (sem estado
+preso). **Prévia preta NÃO é o bug do #206:** o `<video>` do catálogo é `v-show` (sempre
+montado), então a faixa anexa a um alvo estável — diferente do `v-if` que remontava na
+prévia da performer. `CatalogLiveNavigationTest` (7, server + fonte).
+
 **Follow-up `feat/live-broadcast-controls` (base `main`, PR pendente):** controles de
 estúdio da performer no `LiveRoom.vue` (client-side LiveKit, **zero backend novo** — não
 toca economia/split/contador/chat). Mobile primeiro, alvos ≥44px, `aria-pressed`/`aria-live`.
