@@ -167,3 +167,37 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
 - **Texto dos tiles (regra):** nomear sempre o **TIER de assinatura**, nunca o nível de
   conteúdo. "Disponível no Black", "Disponível no Círculo de Fundadores" — jamais
   "Assinantes Exclusivo" (Exclusivo é nível de conteúdo, não um tier).
+
+## 13. Seletor de qualidade para o MEMBRO (espectador) — NÃO nesta etapa
+
+- **Status:** decidida (22/08/2026, PR `feat/live-broadcast-controls`). **Não implementada
+  de propósito.**
+- **Contexto:** a performer passou a escolher a resolução que ENVIA (1080p/720p/480p, §
+  "Controles de transmissão da performer"). Surgiu a pergunta de dar ao espectador o mesmo
+  seletor.
+- **Decisão:** **o membro NÃO ganha seletor de qualidade agora.** O ajuste automático do
+  player conforme a conexão do espectador continua valendo (é do transporte, não custa
+  nada à parte).
+- **Motivo:** oferecer VÁRIAS resoluções ao espectador exige **transcodificação em tempo
+  real** (gerar 1080/720/480 do mesmo stream), que é **custo por minuto de transmissão** e
+  **comprime a margem do fluxo de live**. Além disso, **o membro nunca recebe melhor do que
+  a performer envia** — oferecer "1080p/4K" quando ela transmite em 720p seria uma opção
+  falsa. Enquanto a live é a economia atual (live 70/30, § 11), o custo de transcodificação
+  não se justifica.
+- **Quando revisitar:** se/quando houver orçamento de infraestrutura para transcodificação
+  (SFU com camadas/simulcast já cobre parte disso sem transcodificar — avaliar simulcast
+  antes de transcodificação plena).
+
+## 14. Legenda automática (transcrição de áudio da live) — BACKLOG, gate jurídico
+
+- **Status:** **backlog futuro.** Não implementada, e **não implementar sem passar pelo
+  jurídico primeiro.**
+- **Contexto:** legenda automática ao vivo melhora acessibilidade, mas o áudio da performer
+  precisaria ser transcrito.
+- **Ressalva (o motivo de não ser trivial):** transcrição ao vivo exige **serviço de
+  terceiro cobrado por minuto** E **enviaria o áudio das performers para FORA da
+  plataforma** (o subprocessador de transcrição). Isso é **decisão de privacidade** — o
+  áudio é conteúdo íntimo de uma trabalhadora verificada — que tem de ser **avaliada com o
+  jurídico** (base legal, DPA, registro de subprocessador, aviso à performer) **antes de
+  qualquer implementação**. Mesma disciplina do captcha/KYC (subprocessador que vê dado
+  sensível entra na política + DPA antes de ligar).
