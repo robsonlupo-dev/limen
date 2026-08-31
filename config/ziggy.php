@@ -176,6 +176,8 @@ return [
         'consumer.profile.edit',
         'consumer.profile.update',
         'consumer.profile.lifestyle-tier',
+        'consumer.profile.photo',
+        'consumer.profile.photo.destroy',
 
         // Favoritos do membro (bookmark privado — a performer não tem rota
         // irmã aqui, e não é para ganhar uma).

@@ -1,8 +1,9 @@
 <script setup>
-import { computed } from 'vue'
-import { Link, useForm } from '@inertiajs/vue3'
+import { computed, ref } from 'vue'
+import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
+import ImageCropper from '@/Components/ImageCropper.vue'
 import { TAG_GROUPS, MAX_TAGS } from '@/lib/performerAttributes'
 
 // Os interesses do membro usam o MESMO conjunto de slugs das tags da performer
@@ -56,6 +57,42 @@ function toggleInterest(value) {
     form.interests.push(value)
 }
 
+// ── Foto de perfil (fix/member-photo-and-crop) ───────────────────────────────
+// Mesmo cropper 1:1 da performer; o corte definitivo é server-side. A foto é
+// enquadrada em quadrado, então object-cover preenche o círculo sem barra.
+const avatarForm = useForm({ file: null })
+const pendingAvatarFile = ref(null)
+const avatarPreview = ref(null)
+const removingAvatar = ref(false)
+const currentAvatar = computed(() => avatarPreview.value ?? props.profile.avatar_url)
+
+function pickAvatar(event) {
+    const file = event.target.files[0]
+    event.target.value = ''
+    if (!file) return
+    pendingAvatarFile.value = file
+}
+
+function onAvatarCropped(file) {
+    pendingAvatarFile.value = null
+    avatarPreview.value = URL.createObjectURL(file)
+    avatarForm.file = file
+    avatarForm.post(route('consumer.profile.photo'), {
+        forceFormData: true,
+        preserveScroll: true,
+        onError: () => (avatarPreview.value = null),
+    })
+}
+
+function removeAvatar() {
+    removingAvatar.value = true
+    router.delete(route('consumer.profile.photo.destroy'), {
+        preserveScroll: true,
+        onSuccess: () => (avatarPreview.value = null),
+        onFinish: () => (removingAvatar.value = false),
+    })
+}
+
 function save() {
     form.put(route('consumer.profile.update'), { preserveScroll: true })
 }
@@ -76,6 +113,69 @@ function saveLifestyle() {
                 <Link :href="route('consumer.dashboard')" class="text-sm text-gold hover:text-gold-light transition-colors shrink-0">
                     Voltar ao painel
                 </Link>
+            </div>
+
+            <!-- Foto de perfil (fix/member-photo-and-crop). Ao contrário dos campos
+                 abaixo, a foto é VISÍVEL para as performers no catálogo — a copy
+                 avisa isso ANTES, não nos Termos, como a tela da performer avisa
+                 que o campo dela é público. Opcional: pode adicionar depois. -->
+            <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
+                <div class="space-y-1">
+                    <h2 class="font-serif text-xl text-cream">Foto de perfil</h2>
+                    <p class="text-xs text-muted">
+                        Opcional. Diferente do resto desta tela, sua foto <span class="text-cream">aparece para as
+                        performers</span> no catálogo. JPG, PNG ou WebP, até 5 MB. Você enquadra em
+                        quadrado antes de salvar.
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-5">
+                    <div class="h-24 w-24 shrink-0 rounded-full border-2 border-gold bg-surface-2 overflow-hidden flex items-center justify-center">
+                        <!-- Foto enquadrada 1:1 pela pessoa → object-cover preenche
+                             o círculo sem barra. -->
+                        <img v-if="currentAvatar" :src="currentAvatar" alt="Sua foto de perfil" class="h-full w-full object-cover" />
+                        <svg v-else viewBox="0 0 24 24" fill="none" class="h-12 w-12 text-muted" aria-hidden="true">
+                            <circle cx="12" cy="8" r="4" fill="currentColor" opacity="0.5" />
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" opacity="0.5" />
+                        </svg>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="cursor-pointer inline-block">
+                            <span class="inline-flex min-h-[44px] items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
+                                {{ avatarForm.processing ? 'Enviando...' : (currentAvatar ? 'Trocar foto' : 'Adicionar foto') }}
+                            </span>
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                class="hidden"
+                                :disabled="avatarForm.processing"
+                                @change="pickAvatar"
+                            />
+                        </label>
+                        <button
+                            v-if="currentAvatar"
+                            type="button"
+                            class="min-h-[44px] text-left text-sm text-muted hover:text-danger transition-colors disabled:opacity-40"
+                            :disabled="removingAvatar"
+                            @click="removeAvatar"
+                        >
+                            {{ removingAvatar ? 'Removendo...' : 'Remover foto' }}
+                        </button>
+                    </div>
+                </div>
+
+                <p v-if="avatarForm.errors.file" class="text-xs text-danger">{{ avatarForm.errors.file }}</p>
+
+                <ImageCropper
+                    :file="pendingAvatarFile"
+                    :aspect-ratio="1"
+                    :output-width="512"
+                    title="Enquadre sua foto de perfil"
+                    hint="Arraste e ajuste o zoom. A foto fica quadrada no seu perfil."
+                    @crop="onAvatarCropped"
+                    @cancel="pendingAvatarFile = null"
+                />
             </div>
 
             <!-- A copy de privacidade fica ANTES do formulário, não num rodapé:

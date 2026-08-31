@@ -6,6 +6,7 @@ import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Captcha from '@/Components/Captcha.vue'
+import ImageCropper from '@/Components/ImageCropper.vue'
 import PerformerOnboardingWizard from '@/Components/Onboarding/PerformerOnboardingWizard.vue'
 
 const props = defineProps({
@@ -35,8 +36,35 @@ const form = useForm({
     accept_terms: false,
     lgpd_consent: false,
     preferred_world: '',
+    // Foto de perfil OPCIONAL (fix/member-photo-and-crop). null = pulou (o
+    // caminho normal). Com um File, o Inertia manda multipart automaticamente e o
+    // register.store roda o mesmo pipeline (sanitização + anti-CSAM) do perfil.
+    avatar: null,
     captcha_token: '',
 })
+
+// Cropper 1:1 opcional no cadastro. Só ABRE ao escolher arquivo; o corte
+// definitivo é server-side. Membro pode pular e completar depois no perfil.
+const pendingAvatarFile = ref(null)
+const avatarPreview = ref(null)
+
+function pickAvatar(event) {
+    const file = event.target.files[0]
+    event.target.value = ''
+    if (!file) return
+    pendingAvatarFile.value = file
+}
+
+function onAvatarCropped(file) {
+    pendingAvatarFile.value = null
+    avatarPreview.value = URL.createObjectURL(file)
+    form.avatar = file
+}
+
+function clearAvatar() {
+    form.avatar = null
+    avatarPreview.value = null
+}
 
 // Desligado (o padrão) o widget nem monta, e o servidor não exige o campo.
 const captchaConfig = usePage().props.captcha ?? { enabled: false, provider: null, sitekey: null }
@@ -165,6 +193,58 @@ function submit() {
                             </div>
                             <p v-if="form.errors.preferred_world" class="text-xs text-danger mt-1">{{ form.errors.preferred_world }}</p>
                         </div>
+
+                        <!-- Foto de perfil OPCIONAL (fix/member-photo-and-crop).
+                             Pode pular e completar depois no perfil. A foto aparece
+                             para as performers no catálogo — dito aqui, não nos Termos. -->
+                        <div>
+                            <label class="text-sm font-medium text-cream">
+                                Foto de perfil
+                                <span class="text-muted font-normal">(opcional)</span>
+                            </label>
+                            <div class="mt-2 flex items-center gap-4">
+                                <div class="h-16 w-16 shrink-0 rounded-full border border-frame bg-surface-2 overflow-hidden flex items-center justify-center">
+                                    <img v-if="avatarPreview" :src="avatarPreview" alt="Prévia da sua foto" class="h-full w-full object-cover" />
+                                    <svg v-else viewBox="0 0 24 24" fill="none" class="h-8 w-8 text-muted" aria-hidden="true">
+                                        <circle cx="12" cy="8" r="4" fill="currentColor" opacity="0.5" />
+                                        <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" opacity="0.5" />
+                                    </svg>
+                                </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="cursor-pointer inline-block">
+                                        <span class="inline-flex min-h-[44px] items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">
+                                            {{ avatarPreview ? 'Trocar foto' : 'Escolher foto' }}
+                                        </span>
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            class="hidden"
+                                            @change="pickAvatar"
+                                        />
+                                    </label>
+                                    <button
+                                        v-if="avatarPreview"
+                                        type="button"
+                                        class="min-h-[44px] text-left text-xs text-muted hover:text-danger transition-colors"
+                                        @click="clearAvatar"
+                                    >
+                                        Remover
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-muted mt-1">Aparece para as performers no catálogo. Você pode adicionar depois.</p>
+                            <p v-if="form.errors.avatar" class="text-xs text-danger mt-1">{{ form.errors.avatar }}</p>
+                        </div>
+
+                        <ImageCropper
+                            :file="pendingAvatarFile"
+                            :aspect-ratio="1"
+                            :output-width="512"
+                            title="Enquadre sua foto de perfil"
+                            hint="Arraste e ajuste o zoom. A foto fica quadrada no seu perfil."
+                            @crop="onAvatarCropped"
+                            @cancel="pendingAvatarFile = null"
+                        />
 
                         <!-- Checkboxes -->
                         <div class="space-y-3">

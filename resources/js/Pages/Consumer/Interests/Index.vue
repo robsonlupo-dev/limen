@@ -153,7 +153,7 @@ async function toggleOptOut() {
                                 v-if="performerOf(interest).avatar_url"
                                 :src="performerOf(interest).avatar_url"
                                 :alt="performerOf(interest).stage_name"
-                                class="h-full w-full object-cover"
+                                class="h-full w-full object-contain"
                             />
                             <span v-else class="font-serif text-xl text-gold">
                                 {{ performerOf(interest).stage_name?.charAt(0) }}

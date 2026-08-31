@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\CallController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\MemberMediaController;
 use App\Http\Controllers\Web\Consumer\CallReservationController as ConsumerCallReservationController;
 use App\Http\Controllers\Web\Performer\CallReservationController as PerformerCallReservationController;
 use App\Http\Controllers\Web\GroupShowController;
@@ -83,6 +84,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 Route::get('/entrada', [EntradaController::class, 'index'])->name('entrada');
+
+// Serving da foto de perfil do MEMBRO (fix/member-photo-and-crop). Gêmeo do
+// performer.media: disco privado, rota ASSINADA (sem sessão), chaveada pelo
+// avatar_token OPACO — nunca o user_id, que o FanAlias esconde. Autorização é a
+// posse da URL assinada de 60min, como o avatar/cover da performer.
+Route::get('/membro/midia', MemberMediaController::class)
+    ->middleware('signed')
+    ->name('member.media');
 
 // Public link-in-bio hub (Linktree replacement, no auth). Allowlisted on the
 // public domain (thelimen.com.br) — see deploy/nginx/thelimen.com.br.
@@ -1086,6 +1095,18 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::put('/meu-perfil', [ConsumerProfileController::class, 'update'])
             ->middleware('throttle:20,1')
             ->name('consumer.profile.update');
+
+        // Foto de perfil do membro (fix/member-photo-and-crop). Mesmo pipeline da
+        // performer (ImageProcessingService + anti-CSAM), disco privado, servida
+        // por member.media assinada. Opcional: adicionar/trocar (POST) e remover
+        // (DELETE). Throttle apertado como o avatar da performer (20/min).
+        Route::post('/meu-perfil/foto', [ConsumerProfileController::class, 'avatar'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.profile.photo');
+
+        Route::delete('/meu-perfil/foto', [ConsumerProfileController::class, 'deleteAvatar'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.profile.photo.destroy');
 
         // Estilo de Vida (Sprint 10). Rota PRÓPRIA, e não mais um campo no PUT
         // acima: `lifestyle_tier` está fora do $fillable (mesma disciplina do

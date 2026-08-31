@@ -1306,6 +1306,77 @@ Invariantes travadas (revisão de segurança rodada, sem 🔴):
   + o contador (`purgePerformerMessageQuotas`). FKs `restrictOnDelete` não disparam
   (soft-delete) — DELETE explícito.
 
+## Foto de perfil do membro — `fix/member-photo-and-crop` (base `main`, PR pendente)
+
+**REVERTE a invariante documentada "membro não tem avatar no produto"** (decisão do
+PO, ago/2026, via AskUserQuestion): até aqui só a performer tinha foto; o membro era
+imageless (nenhuma coluna, nenhum upload). Agora o membro tem UMA foto de perfil,
+**opcional**, e ela é **exibida à performer** no catálogo de membros. **Só o avatar
+único — v1 SEM galeria** (não há estrutura de galeria do lado do membro; fica para
+decisão de produto futura).
+
+- **NÃO é caminho paralelo — reusa o MESMO pipeline endurecido da performer.**
+  `App\Services\MemberAvatarService` (dona única) chama `ImageProcessingService::process(
+  …, crop:true)` (guarda de imagem-bomba lendo o header antes de decodificar, strip de
+  EXIF/GPS, re-encode que mata polyglot, crop 1:1 FORÇADO no servidor) e
+  `CsamScanService::scanBytes(…, 'member_avatar', …)` **ANTES de gravar** — os 6 caminhos
+  de imagem viraram 7. `UploadMediaRequest` (5 MB, jpeg/png/webp) é a MESMA validação do
+  avatar da performer. `ImageCropper.vue` (1:1) é o MESMO cropper. Gêmea de
+  `PerformerProfileService::replaceAvatar`.
+- **Coluna `users.avatar_path` + `users.avatar_token`** (migration
+  `2026_08_31_000001`), ambas **fora do `$fillable` e em `$hidden`** (disciplina de
+  `discrete_mode`/2FA): escrita só pelo `MemberAvatarService` via `forceFill`. Path
+  fixo `member-media/{user_id}/avatar.jpg` no disco privado `local`.
+- **PRIVACIDADE — a URL de serving é chaveada no `avatar_token` OPACO, NUNCA no
+  `user_id`.** O FanAlias existe para a performer nunca ver o `member_id`; uma URL de
+  foto com o id cru desfaria isso. `User::avatarUrl()` monta `URL::temporarySignedRoute(
+  'member.media', …, ['token' => $avatar_token])` (rota assinada de 60min, disco
+  privado, `MemberMediaController` serve por token — 404 para token desconhecido/foto
+  ausente, 403 sem assinatura). O token é `Str::random(48)` e **rotaciona a cada
+  upload** (URLs assinadas antigas morrem). É até mais forte que o `performer.media`,
+  que usa `profile_id` enumerável. `MemberCatalogService::page()` seleciona as duas
+  colunas e o `mask` emite só `avatar_url` (nunca path/token/id crus).
+- **RESSALVA de segurança registrada (não redescobrir como novidade): o ROSTO é uma
+  chave de join global entre performers** — mesma natureza da Foto Efêmera ("o rosto é
+  chave de join que o TTL não protege"). Duas performers que veem o mesmo membro no
+  catálogo comparam as fotos fora da plataforma e desfazem o isolamento por-par do
+  FanAlias. É **exposição CONSENTIDA** pela visibilidade do catálogo (só entra quem
+  optou por `visible_to_performers`; Modo Discreto e Black/FC-ocultos NÃO são exibidos,
+  e sua foto nunca é emitida), **não anonimato**. Copy no cadastro e no perfil avisa
+  "aparece para as performers" ANTES, não nos Termos.
+- **Dois pontos de entrada, ambos opcionais:** (a) **cadastro** — campo `avatar`
+  opcional no `RegisterWebRequest`, processado no `RegisterController::store` DEPOIS de
+  `registerConsumer`; a foto é ACESSÓRIA: imagem corrompida ou match anti-CSAM **não
+  derruba o registro** (o membro entra sem foto, a conta fica `csam_flagged_at` para a
+  moderação) — nunca 500 nem conta órfã. (b) **perfil** (`consumer.profile.photo`
+  POST/DELETE) — adicionar/trocar/remover a qualquer momento; a exceção do pipeline
+  volta 422 (`back()->withErrors`), como os 10 caminhos peer, nunca 500.
+- **Hard Delete (LGPD):** os BYTES saem em `DeletionService::collectFilePaths` (é o
+  rosto — PII sensível) e `anonymizeUser` zera `avatar_path`+`avatar_token` (sem o
+  token, URL assinada remanescente para de resolver). A FK não dispara (soft-delete).
+- **UI (mobile primeiro, alvos ≥44px):** seção de foto no `Consumer/Profile/Edit.vue`
+  (silhueta/foto, cropper 1:1, add/trocar/remover, com o aviso de visibilidade), picker
+  opcional no `Auth/Register.vue`, foto no menu do avatar da `MemberNav` (cai no
+  monograma sem foto), e o `<MemberCard>` que já tinha o `v-if="avatar_url"` passa a
+  renderizar a foto (full-bleed 3:4, object-cover — reenquadramento intencional do card).
+
+### Padronização do fallback object-contain (problema 2 do mesmo PR)
+
+O fallback `object-contain` do PR #202 (imagem fora de proporção aparece INTEIRA, com
+faixa escura, em vez de ampliar o centro) estava **só** em `Catalog/Show.vue` e
+`Performers/Show.vue`. Padronizado para **todos os frames de MESMA proporção** — onde
+center-crop de uma imagem fora de razão é o bug ("imagem deitada cortada no topo"):
+- **Capa 3:1 e avatar 1:1 circular** → `object-contain`. Além das duas telas de perfil
+  (já feitas), agora também as **prévias de edição da performer** (`Performer/Profile/
+  Edit.vue`, para ela ver o que o visitante vê) e os **avatares circulares 1:1** das
+  listas do membro (`Feed`, `Interests`).
+- **Reenquadramento INTENCIONAL fica `object-cover`** (NÃO é o bug): os cards full-bleed
+  3:4 (`PerformerCard`/`PublicPerformerCard`/`MemberCard`) e os tiles/arco 3:4 (`Hearts`,
+  `Visitors`, `Dashboard`) reenquadram de propósito um avatar 1:1 num frame 3:4 —
+  `object-contain` ali letterboxaria e quebraria a vitrine. A regra: **frame de mesma
+  proporção que o corte → `object-contain`; frame de proporção diferente (reenquadra de
+  propósito) → `object-cover`.**
+
 ## Visitas bidirecionais — `feat/bidirectional-visits` (item 5 da fila, PR #178, mergeado na `main`)
 
 **Item 5 da fila.** O sistema de visitas era unidirecional — **membro → performer**

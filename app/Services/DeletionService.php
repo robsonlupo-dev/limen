@@ -493,6 +493,14 @@ class DeletionService
             }
         }
 
+        // Foto de perfil do MEMBRO (fix/member-photo-and-crop). Vive em `users`,
+        // não em `performer_profiles` — anonymizeUser() só soft-deleta a linha e
+        // zera as colunas, então este é o último varredor que enxerga os bytes no
+        // disco. Sem cifra e sem TTL, some no encerramento como avatar/cover.
+        if ($user->avatar_path) {
+            $paths[] = ['disk' => 'local', 'path' => $user->avatar_path];
+        }
+
         // Fotos da galeria do perfil (Sprint 10). Conteúdo PÚBLICO da própria
         // performer, sem cifra e sem TTL — some no encerramento como avatar/cover.
         // Uma direção só, ao contrário do favorito: foto é sempre da performer,
@@ -1671,6 +1679,12 @@ class DeletionService
             // conta existe; depois do encerramento é só um identificador de
             // quem pediu para sumir.
             'registration_ip_hash' => null,
+            // Foto de perfil do membro (fix/member-photo-and-crop). Os BYTES saem
+            // em collectFilePaths (é o rosto — PII sensível, chave de join entre
+            // performers); aqui zeram o caminho e o token de serving. Sem o token,
+            // qualquer URL assinada remanescente deixa de resolver na hora.
+            'avatar_path' => null,
+            'avatar_token' => null,
             'discrete_mode' => false,
             'interests_opt_out' => false,
             // Perks de privacidade: voltam ao lado PÚBLICO, como o discrete_mode

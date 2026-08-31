@@ -351,7 +351,10 @@ function save() {
 
                     <div class="flex items-center gap-6">
                         <div class="h-24 w-24 rounded-full overflow-hidden bg-surface-2 border border-frame flex items-center justify-center shrink-0">
-                            <img v-if="currentAvatar" :src="currentAvatar" alt="Sua foto de perfil" class="h-full w-full object-cover" />
+                            <!-- object-contain: espelha o display público (Catalog/Show),
+                                 então a prévia mostra a imagem inteira em vez de ampliar o
+                                 centro — a performer vê o que o visitante vê. -->
+                            <img v-if="currentAvatar" :src="currentAvatar" alt="Sua foto de perfil" class="h-full w-full object-contain" />
                             <span v-else class="font-serif text-3xl text-gold">{{ profile.stage_name?.charAt(0) }}</span>
                         </div>
 
@@ -379,7 +382,9 @@ function save() {
                     <h2 class="font-serif text-xl text-cream">Foto de capa</h2>
 
                     <div class="aspect-[3/1] w-full overflow-hidden rounded-lg bg-surface-2 border border-frame flex items-center justify-center">
-                        <img v-if="currentCover" :src="currentCover" alt="Sua foto de capa" class="h-full w-full object-cover" />
+                        <!-- object-contain: espelha o display público (a capa 3:1 do
+                             Catalog/Show), imagem inteira em vez de cortar o centro. -->
+                        <img v-if="currentCover" :src="currentCover" alt="Sua foto de capa" class="h-full w-full object-contain" />
                         <span v-else class="text-sm text-muted">Nenhuma foto de capa</span>
                     </div>
 

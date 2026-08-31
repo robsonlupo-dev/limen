@@ -75,6 +75,11 @@ class HandleInertiaRequests extends Middleware
                     // (mensagem/gorjeta/chamada) chegue. Já resolvido com o padrão
                     // "ausente = ON" — o front nunca reimplementa esse default.
                     'notification_preferences' => $user->notificationSoundPreferences(),
+                    // Foto de perfil do próprio usuário (fix/member-photo-and-crop).
+                    // URL assinada (nunca o caminho/token crus); null → o layout cai
+                    // no avatar de inicial. É a foto DELE, servida a ele mesmo —
+                    // sem questão de FanAlias aqui.
+                    'avatar_url' => $user->avatarUrl(),
                 ] : null,
             ],
             'flash' => [

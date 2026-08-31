@@ -91,6 +91,14 @@ class User extends Authenticatable implements MustVerifyEmail
         // tela de corações. Escondê-lo aqui impede o instante de pegar carona num
         // prop de Inertia genérico, como o last_active_at acima.
         'hearts_seen_at',
+        // Foto de perfil do membro (fix/member-photo-and-crop). O caminho no disco
+        // e o token de serving NUNCA saem em serialização — a URL vem por
+        // avatarUrl() (rota assinada), montada explicitamente onde é permitida. O
+        // token é o que esconde o member_id na URL servida à performer; expô-lo cru
+        // num prop de Inertia genérico seria o vazamento que ele existe para evitar.
+        // Fora do $fillable também: escrita só pelo MemberAvatarService (forceFill).
+        'avatar_path',
+        'avatar_token',
     ];
 
     protected function casts(): array
@@ -376,6 +384,31 @@ class User extends Authenticatable implements MustVerifyEmail
     public function activeCircleSlug(): ?string
     {
         return $this->activeCircle()?->slug;
+    }
+
+    /**
+     * URL assinada e temporária da foto de perfil do membro, ou null se não tem.
+     * fix/member-photo-and-crop.
+     *
+     * A URL é chaveada pelo `avatar_token` OPACO, NUNCA pelo user_id — este é o
+     * mesmo cuidado do performer.media (que usa profile_id "para não expor
+     * identificadores internos"). O membro é servido à performer no catálogo sob
+     * FanAlias justamente para o member_id não vazar; uma URL de foto com o id
+     * cru desfaria isso. Serving por `member.media` (disco privado, rota assinada
+     * com expiração — bearer curto, como o avatar/cover da performer). Sem token
+     * (nunca subiu foto) → null → o front cai na silhueta.
+     */
+    public function avatarUrl(): ?string
+    {
+        if (! $this->avatar_path || ! $this->avatar_token) {
+            return null;
+        }
+
+        return \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'member.media',
+            now()->addMinutes(60),
+            ['token' => $this->avatar_token],
+        );
     }
 
     // ─── Estado da conta ─────────────────────────────────────────────────────
