@@ -3367,6 +3367,32 @@ montado em lugar nenhum) passa a ser montado no console da live. `PrivateCallFro
 Ressalva: o handoff de câmera sala-pública↔sala-da-chamada é runtime de navegador — QA em
 dispositivo real. Ver DECISOES §15/§16 e ECONOMIA §8.1.
 
+**Follow-up `fix/member-photo-and-crop` (base `main`, PR pendente):** o MEMBRO passou a
+ter foto de perfil (até aqui só a performer tinha; o membro era imageless por design).
+**Decisão do PO (via AskUserQuestion): a foto é OPCIONAL e é EXIBIDA à performer no
+catálogo — reverte a invariante "membro não tem avatar no produto".** v1 **só o avatar
+único, sem galeria** (não há estrutura de galeria do lado do membro — decisão de produto
+futura). **Reusa o MESMO pipeline da performer** (`MemberAvatarService` → `ImageProcessing
+Service::process(crop:true)` strip EXIF/imagem-bomba/re-encode + `CsamScanService` ANTES de
+gravar — os 6 caminhos de imagem viraram 7; `UploadMediaRequest` e `ImageCropper` 1:1 os
+mesmos). Colunas novas `users.avatar_path`+`avatar_token` (fora do `$fillable`, em
+`$hidden`, forceFill). **Privacidade: a URL é chaveada no `avatar_token` OPACO, NUNCA no
+`user_id`** — o FanAlias segue escondendo o `member_id`; serving por `member.media`
+assinada (60min, disco privado), token rotaciona a cada upload. **Ressalva registrada: o
+ROSTO é chave de join global entre performers** (natureza da Foto Efêmera) — exposição
+CONSENTIDA pela visibilidade do catálogo (Modo Discreto/Black-FC-ocultos nunca emitem
+foto), não anonimato. Dois pontos de entrada opcionais: **cadastro** (foto acessória —
+imagem ruim/CSAM não derruba o registro, só não entra + conta sinalizada) e **perfil**
+(add/trocar/remover, exceção → 422 como os peers, nunca 500). Hard Delete leva os bytes +
+zera path/token. **Problema 2 (mesmo PR):** o fallback `object-contain` do #202
+(imagem fora de proporção aparece inteira, sem cortar o centro) foi **padronizado para
+todos os frames de MESMA proporção** (capa 3:1, avatar 1:1 circular — telas de perfil,
+prévias de edição da performer, listas Feed/Interests); os reenquadramentos INTENCIONAIS
+3:4 (cards full-bleed, tiles Hearts/Visitors/Dashboard) ficam `object-cover` de propósito.
+Revisão de segurança rodada (1 🟡 corrigido: exceção do pipeline nos 2 novos callers virava
+500 → agora 422/registro-segue). `MemberAvatarTest` (14) + Ziggy allowlist. Mobile primeiro,
+alvos ≥44px.
+
 ### Vitrine de conteúdo, perfil público e correções de UX (`feat/content-showcase`, PR pendente)
 
 Sobre `main`. Oito itens, **mobile primeiro**, sem tocar economia/split/cobrança. Suíte

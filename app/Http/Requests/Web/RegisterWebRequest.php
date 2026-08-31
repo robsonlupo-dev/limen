@@ -88,6 +88,12 @@ class RegisterWebRequest extends FormRequest
             // "mulheres" in the catalog), required in the UI.
             'preferred_world' => ['nullable', Rule::in(PerformerProfile::WORLDS)],
 
+            // Foto de perfil OPCIONAL do membro no cadastro (fix/member-photo-and-crop).
+            // Mesma regra do UploadMediaRequest da performer (5 MB, jpeg/png/webp).
+            // `nullable`: pular é o caminho normal — ele completa depois no perfil.
+            // A sanitização + anti-CSAM acontecem no store(), pelo MemberAvatarService.
+            'avatar' => ['nullable', 'file', 'mimes:jpeg,png,webp', 'max:5120'],
+
             // Captcha. Vale para os DOIS caminhos desta rota — o formulário de
             // membro e o wizard da performer, que postam no mesmo
             // register.store. No-op com CAPTCHA_PROVIDER=none.

@@ -85,7 +85,11 @@ class MemberCatalogService
     public function page(PerformerProfile $performerProfile, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $paginator = $this->visibleQuery()
-            ->select('users.id', 'users.last_login_at', 'users.invisible_status', 'users.created_at')
+            // avatar_path/avatar_token alimentam a foto do membro no card
+            // (fix/member-photo-and-crop) via User::avatarUrl() no mask — sem
+            // elas no select, o accessor leria null e a foto sumiria.
+            ->select('users.id', 'users.last_login_at', 'users.invisible_status', 'users.created_at',
+                'users.avatar_path', 'users.avatar_token')
             ->orderByDesc('users.id')
             ->paginate($perPage)
             ->withQueryString();
@@ -140,9 +144,17 @@ class MemberCatalogService
         return [
             'fan_alias_label' => FanAlias::label($performerProfile->id, $member->id, 'Membro #'),
             'member_handle' => FanAlias::handle($performerProfile->id, $member->id),
-            // Membro não tem avatar no produto (só a performer tem) — placeholder
-            // no front. Mantido no contrato por clareza ("avatar se tiver").
-            'avatar_url' => null,
+            // Foto de perfil do membro (fix/member-photo-and-crop). Decisão do PO
+            // (ago/2026): o membro passou a ter avatar, e ELE é exibido à performer
+            // no catálogo — reverte o antigo "membro não tem avatar no produto".
+            // Sem foto → null → o MemberCard cai na silhueta (o padrão de antes).
+            //
+            // A URL é chaveada no avatar_token OPACO, NUNCA no member_id — o
+            // FanAlias acima segue escondendo o id; a foto não o reintroduz na URL.
+            // RESSALVA registrada: o ROSTO é uma chave de join global entre
+            // performers (mesma natureza da Foto Efêmera) — exposição consentida
+            // pela visibilidade do catálogo (só entra quem optou), não anonimato.
+            'avatar_url' => $member->avatarUrl(),
             // Faixa grossa, nunca relógio; suprimida para quem tem Status
             // Invisível (presença não exposta). Sinal = last_login_at.
             'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),

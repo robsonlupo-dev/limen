@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers\Web\Consumer;
 
+use App\Exceptions\CsamDetectedException;
+use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UploadMediaRequest;
 use App\Http\Requests\Web\UpdateLifestyleTierRequest;
 use App\Http\Requests\Web\UpdateMemberProfileRequest;
 use App\Models\User;
+use App\Services\MemberAvatarService;
 use App\Support\Audit;
 use App\Support\LifestyleTier;
 use Illuminate\Http\RedirectResponse;
@@ -66,7 +70,40 @@ class ProfileController extends Controller
             // o mesmo texto é lido pelo formulário do membro e pelo painel da
             // performer, e duas listas divergiriam justo no lado que ele não vê.
             'lifestyleOptions' => LifestyleTier::options(),
+            // Foto de perfil (fix/member-photo-and-crop). URL assinada montada
+            // pelo model (nunca o caminho/token crus); null quando não subiu foto,
+            // e a tela cai na silhueta. É a PRÓPRIA foto do membro — o member_id
+            // não vaza para si mesmo.
+            'avatar_url' => $user->avatarUrl(),
         ]);
+    }
+
+    /**
+     * Adiciona/troca a foto de perfil do membro. Reusa o pipeline da performer
+     * via MemberAvatarService (sanitização + anti-CSAM); UploadMediaRequest é a
+     * MESMA validação (5 MB, jpeg/png/webp) do avatar/capa da performer.
+     */
+    public function avatar(UploadMediaRequest $request, MemberAvatarService $avatars): RedirectResponse
+    {
+        // Mesma disciplina dos 10 outros caminhos de imagem: a exceção do
+        // pipeline (imagem-bomba/corrompida, ou match anti-CSAM) volta como erro
+        // de validação 422, não 500. A mensagem do CSAM é genérica de propósito
+        // (não confirma o motivo); a conta já foi sinalizada dentro do service.
+        try {
+            $avatars->replace($request->user(), $request->file('file'), $request);
+        } catch (ImageProcessingException|CsamDetectedException $e) {
+            return back()->withErrors(['file' => 'Não foi possível processar esta imagem. Tente outra foto.']);
+        }
+
+        return back()->with('success', 'Foto de perfil atualizada.');
+    }
+
+    /** Remove a foto de perfil do membro (idempotente). */
+    public function deleteAvatar(Request $request, MemberAvatarService $avatars): RedirectResponse
+    {
+        $avatars->remove($request->user(), $request);
+
+        return back()->with('success', 'Foto de perfil removida.');
     }
 
     public function update(UpdateMemberProfileRequest $request): RedirectResponse

@@ -171,7 +171,7 @@ async function confirmUnlock() {
                                         v-if="item.performer.avatar_url"
                                         :src="item.performer.avatar_url"
                                         :alt="item.performer.stage_name"
-                                        class="h-full w-full object-cover"
+                                        class="h-full w-full object-contain"
                                     />
                                     <span v-else class="font-serif text-sm text-limen-gold">{{ item.performer.stage_name?.charAt(0) }}</span>
                                 </span>

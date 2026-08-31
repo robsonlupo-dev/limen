@@ -21,6 +21,9 @@ const props = defineProps({
     features: { type: Object, default: () => ({}) },
     // Nome do membro, para o cabeçalho do menu do avatar.
     userName: { type: String, default: '' },
+    // Foto de perfil do próprio membro (fix/member-photo-and-crop). null → o
+    // botão do menu cai no monograma (inicial do nome), como antes.
+    avatarUrl: { type: String, default: null },
 })
 
 // 'logout' não navega: pede ao layout para abrir o modal de confirmação de saída.
@@ -146,13 +149,14 @@ onBeforeUnmount(() => {
         <div ref="menuRoot" class="relative shrink-0">
             <button
                 type="button"
-                class="flex h-10 w-10 items-center justify-center rounded-full border border-gold/40 bg-surface text-sm font-semibold text-gold transition-colors hover:border-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+                class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gold/40 bg-surface text-sm font-semibold text-gold transition-colors hover:border-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
                 :aria-expanded="menuOpen"
                 aria-haspopup="menu"
                 aria-label="Menu da conta"
                 @click.stop="toggleMenu"
             >
-                {{ monogram }}
+                <img v-if="avatarUrl" :src="avatarUrl" alt="" class="h-full w-full object-cover" />
+                <span v-else>{{ monogram }}</span>
             </button>
 
             <transition name="mnav-menu">

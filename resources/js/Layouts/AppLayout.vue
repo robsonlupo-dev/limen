@@ -91,6 +91,7 @@ function logout() {
                     :nav-counts="navCounts"
                     :features="features"
                     :user-name="page.props.auth.user?.name"
+                    :avatar-url="page.props.auth.user?.avatar_url"
                     @logout="showLogoutConfirm = true"
                 />
 
