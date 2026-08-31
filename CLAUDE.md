@@ -2359,6 +2359,66 @@ recusa; ao aceitar, a live **PAUSA** (não encerra). **A economia REUSA integral
   exclusividade (2º pedido → 409). Suíte MySQL verde (só o `GeoBlockTest` 451 do clone),
   `npm run build` limpo. Revisão de segurança rodada.
 
+## Correções de estado do fluxo de chamada — `fix/live-call-flow-states` (base `main`)
+
+Quatro bugs do fluxo da chamada privada a partir da live (§ acima), mais o ajuste do
+gatilho do relógio. **A economia é idêntica** (70/30, minuto inteiro pré-pago, R1–R4,
+idempotência por `minutes_billed`): só muda QUANDO o 1º minuto é cobrado e a limpeza de
+estados presos. Revisão de segurança rodada.
+
+- **Bug 1 — vídeo PRETO na chamada (o mais grave): handoff de câmera, NÃO remount.** O
+  membro e a performer entram na MESMA sala (descartado sala trocada); o `<video>` remoto
+  do `PrivateCall` está SEMPRE montado (o attach do membro está correto — não é o padrão
+  #206). A causa é o handoff da MESMA câmera física entre as duas salas LiveKit no
+  navegador da PERFORMER: `LiveRoom.onCallAccepted` faz `setCameraEnabled(false)` na sala
+  pública e o `PrivateCall.connect()` faz `setCameraEnabled(true)` na sala da chamada — se
+  o device não libera a tempo, a re-aquisição sai preta/falha e a performer publica nada.
+  Era exatamente o "handoff runtime de navegador não testável" registrado no § anterior.
+  **Fix:** `PrivateCall.enableLocalMedia()` tenta a aquisição da câmera+mic com RETRY (3×,
+  intervalo de 350ms) antes de desistir — cobre o `NotReadableError`/`AbortError` do device
+  ainda ocupado. Sem lib nova. (O membro usa outro device; o retry é inócuo para ele.) A
+  parte TESTÁVEL — a faixa remota anexa ao `remoteVideo` e a local ao `localVideo` — é
+  travada por fonte.
+- **Bug 2 — "Recusar" parecia desabilitado.** O `CallIncoming.vue` usava tema CLARO
+  (`bg-white`, botão outline sem cor de texto) sobre o console escuro: o "Recusar" ficava
+  quase invisível e lia-se como travado (a lógica `:disabled="busy"` sempre funcionou).
+  **Fix:** card no tema escuro do painel, os dois botões com cor/contraste explícitos e
+  alvos ≥44px. Recusar não move token, some discreto para o membro e libera a performer.
+- **Bug 3 — pedido expira e o membro ficava preso.** No cliente, `listenForCallAnswer` só
+  escutava accept/decline — sem resposta o membro ficava em "Aguardando…" para sempre.
+  **Fix cliente:** `startPendingTimeout(expires_in_seconds)` (a janela do servidor + 3s de
+  folga) solta o membro com o MESMO aviso discreto da recusa ("Ela não pôde atender agora")
+  e volta ao normal. **Fix servidor (o furo real):** `request()` só expirava pendings da
+  performer ALVO; um pending vencido do membro com OUTRA performer mantinha `memberIsBusy`
+  (`occupying` = pending|active) e TRAVAVA novos pedidos até o cron horário. Novo
+  `reconcileMemberStale()` (na leitura de `request()`) expira os pendings vencidos do membro
+  E encerra as sessões aceitas-mas-nunca-conectadas dele, antes do `memberIsBusy`. Nenhum
+  token se move (expiração/encerramento sem minuto prestado).
+- **Bug 4 — estados travados ao encerrar a live.** `status` (live) e `callState` (chamada)
+  eram independentes: "A live foi encerrada" e "Aguardando…" apareciam JUNTOS. **Fix:** um
+  `watch(status)` limpa os estados pendentes ao virar `ended` (nunca um `in-call` — a
+  chamada roda em sala SEPARADA e não é encerrada pela live) e inicia uma contagem de 5s
+  que leva o espectador de volta ao catálogo (`router.visit(route('catalog'))`), com botão
+  "Voltar ao catálogo agora" para ir antes.
+- **Relógio: o minuto 1 saiu do ACEITE para o CONNECT (era bug).** `accept()` marcava
+  `started_at=now()` E cobrava o minuto 1 no aceite, ANTES de o vídeo conectar — um vídeo
+  preto/que nunca aparece já tinha movido token e corrido relógio. Agora `accept()` cria a
+  sala e ativa a sessão com **`started_at=null`, `minutes_billed=0`, sem cobrar** (mantém a
+  pré-checagem de saldo, fail-fast); o LAZY-START em `reconcileBilling` carimba
+  `started_at=now()` no 1º reconcile — o **heartbeat imediato do `PrivateCall` no connect** —
+  e aí o `MinuteBiller` cobra o minuto 1 (idempotente, `required=floor(0/60)+1=1`). Um
+  `reapStaleSessions` estendido encerra SEM cobrar a sessão aceita-mas-nunca-conectada
+  (`status=active` + `started_at IS NULL` + criada há +120s), que o cálculo por `started_at`
+  jamais alcançaria. **A chamada AGENDADA não é afetada** (o `CallReservationService` tem
+  billing próprio, seta `started_at` na entrada do membro e não passa por `accept()`).
+- **Testes:** `LiveCallFlowStatesTest` (8) — recusar não move token e libera; expirado com
+  outra performer não trava novo pedido (destrava na leitura, sem cron); aceita-sem-connect
+  encerra sem cobrar e não prende; relógio começa no connect (aceite não cobra, 1º heartbeat
+  cobra); bugs 1/2/4 por fonte (attach remoto/local + retry; Recusar visível; limpeza +
+  redirect). `PrivateCallTest`/`PrivateCallFromLiveTest` atualizados (o aceite não cobra
+  mais; `pcflAcceptedCall` inclui o heartbeat do connect). Suíte MySQL verde (só o
+  `GeoBlockTest` 451 do clone), `npm run build` limpo.
+
 ## PanicButton — Saída rápida flutuante (Sprint 6; re-apresentada em `feat/performer-nav-restructure`)
 
 Botão de saída rápida da sessão — tira a Limen da tela quando alguém entra na

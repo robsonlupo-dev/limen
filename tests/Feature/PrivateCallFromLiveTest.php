@@ -97,6 +97,10 @@ function pcflAcceptedCall(User $performer, User $member): CallSession
         ->postJson(route('call.request', $performer->performerProfile->id))
         ->assertCreated()->json('call_id');
     test()->actingAs($performer)->postJson(route('call.accept', $callId))->assertOk();
+    // O relógio/minuto-1 só começam quando o VÍDEO conecta (fix/live-call-flow-states):
+    // o aceite NÃO cobra mais. O 1º heartbeat do membro (disparado no connect do
+    // PrivateCall) faz o lazy-start e cobra o minuto 1 — simulado aqui.
+    test()->actingAs($member)->postJson(route('call.heartbeat', $callId))->assertOk();
 
     return CallSession::find($callId);
 }
@@ -145,11 +149,17 @@ it('a ESPERA entre pedido e aceite NÃO é cobrada', function () {
     // Nada cobrado ainda: o pedido não inicia o relógio.
     expect(TokenLedger::whereIn('entry_type', ['spend_call', 'call_credit'])->count())->toBe(0);
 
-    // A performer demora 40s para aceitar — esse tempo não conta.
+    // A performer demora 40s para aceitar — esse tempo não conta. O aceite TAMBÉM
+    // não cobra (o relógio só começa quando o vídeo conecta).
     $this->travel(40)->seconds();
     $this->actingAs($performer)->postJson(route('call.accept', $callId))->assertOk();
+    expect(pcflSpend())->toBe(0)
+        ->and(CallSession::find($callId)->minutes_billed)->toBe(0)
+        ->and(CallSession::find($callId)->started_at)->toBeNull();
 
-    // Só o 1º minuto (cobrado no aceite): a espera não virou minuto.
+    // O membro conecta (heartbeat imediato do PrivateCall) → aí sim o minuto 1.
+    // A espera (40s) não virou minuto: o relógio parte do connect, não do pedido.
+    $this->actingAs($member)->postJson(route('call.heartbeat', $callId))->assertOk();
     expect(pcflSpend())->toBe(-10)
         ->and(CallSession::find($callId)->minutes_billed)->toBe(1);
 });
