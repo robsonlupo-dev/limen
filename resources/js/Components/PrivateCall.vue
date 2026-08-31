@@ -125,8 +125,7 @@ async function connect() {
     })
 
     await room.connect(props.wsUrl, props.token)
-    await room.localParticipant.setCameraEnabled(true)
-    await room.localParticipant.setMicrophoneEnabled(true)
+    await enableLocalMedia()
 
     const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
     if (camPub?.track) attach(camPub.track, true)
@@ -139,14 +138,38 @@ async function connect() {
     startTimers()
 }
 
+/**
+ * Publica câmera+mic com RETRY (fix/live-call-flow-states, bug 1). No caminho da
+ * live→chamada, a performer entra nesta sala com a MESMA câmera física que a sala
+ * pública acabou de liberar; em alguns navegadores o device demora um instante e
+ * a 1ª aquisição falha (NotReadableError/AbortError) — a performer publicaria
+ * NADA e o membro veria PRETO. Tenta de novo com um pequeno intervalo antes de
+ * desistir. Sem lib nova. (O membro usa outro device — para ele o retry é inócuo.)
+ */
+async function enableLocalMedia() {
+    let lastErr = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            await room.localParticipant.setCameraEnabled(true)
+            await room.localParticipant.setMicrophoneEnabled(true)
+            return
+        } catch (e) {
+            lastErr = e
+            await new Promise((resolve) => setTimeout(resolve, 350))
+        }
+    }
+    throw lastErr
+}
+
 function startTimers() {
     clockTimer = setInterval(() => { elapsedSeconds.value += 1 }, 1000)
     // Renova o JWT a cada 4min (antes do TTL de 5). Reautoriza na leitura.
     refreshTimer = setInterval(refresh, 4 * 60 * 1000)
     // O heartbeat/cobrança é do MEMBRO; a performer não cobra ninguém. Roda UM
-    // heartbeat IMEDIATO (não cobra nada — o minuto 1 já foi pago no accept, e
-    // required=1 no t≈0) só para trazer saldo/minutos JÁ no início: se o saldo não
-    // cobre o próximo minuto, o aviso aparece na hora, não daqui a 60s.
+    // heartbeat IMEDIATO no CONNECT: é ele que faz o lazy-start no servidor
+    // (started_at + minuto 1) — desde fix/live-call-flow-states o minuto 1 é pago
+    // AQUI, quando o vídeo conecta, e não mais no accept. Também traz saldo/minutos
+    // já no início: se o saldo não cobre o próximo minuto, o aviso aparece na hora.
     if (isMember.value) {
         heartbeat()
         heartbeatTimer = setInterval(heartbeat, 60 * 1000)

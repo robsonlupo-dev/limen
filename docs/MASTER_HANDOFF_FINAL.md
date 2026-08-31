@@ -3367,6 +3367,32 @@ montado em lugar nenhum) passa a ser montado no console da live. `PrivateCallFro
 Ressalva: o handoff de câmera sala-pública↔sala-da-chamada é runtime de navegador — QA em
 dispositivo real. Ver DECISOES §15/§16 e ECONOMIA §8.1.
 
+**Follow-up `fix/live-call-flow-states` (base `main`, PR pendente):** 4 bugs do fluxo da
+chamada privada a partir da live + o ajuste do gatilho do relógio. **Economia idêntica**
+(70/30, minuto inteiro, R1–R4, idempotência) — muda só QUANDO o 1º minuto é cobrado e a
+limpeza de estados. **(1) Vídeo PRETO** (o mais grave): membro e performer entram na MESMA
+sala e o attach do membro está correto (não é remount/#206); a causa é o handoff da MESMA
+câmera física entre as duas salas LiveKit no navegador da PERFORMER — era o "handoff
+runtime não testável" que o § da feature registrou. Fix: `PrivateCall.enableLocalMedia()`
+com RETRY (3×/350ms) na aquisição de câmera+mic (cobre o device ainda ocupado); attach
+remoto→`remoteVideo`/local→`localVideo` travado por fonte. **(2) "Recusar" parecia
+travado**: `CallIncoming` usava tema claro sobre o console escuro (texto do outline
+invisível) — restilizado no tema escuro, botões com contraste e ≥44px; recusar não move
+token. **(3) Pedido expira e o membro ficava preso**: cliente ganhou timeout
+(`startPendingTimeout` = janela do servidor +3s → "Ela não pôde atender agora" → normal); e
+o furo do SERVIDOR — `request()` só expirava pendings da performer alvo, então um pending
+vencido do membro com OUTRA performer travava novos pedidos (`occupying`) até o cron — foi
+fechado por `reconcileMemberStale()` na leitura (expira pendings vencidos do membro +
+encerra aceitas-nunca-conectadas). **(4) Estados travados ao encerrar a live**: `watch(status)`
+limpa os pendentes ao virar `ended` (nunca um `in-call`) e leva ao catálogo em 5s
+(`router.visit(route('catalog'))`) com botão de voltar antes. **Relógio**: `accept()` não
+cobra mais (started_at=null, minutes_billed=0, só pré-check de saldo); o LAZY-START em
+`reconcileBilling` carimba started_at no 1º heartbeat (o connect) e cobra o minuto 1;
+`reapStaleSessions` estendido encerra sem cobrar a aceita-nunca-conectada. Chamada AGENDADA
+intocada (billing próprio, não usa `accept()`). `LiveCallFlowStatesTest` (8) +
+`PrivateCallTest`/`PrivateCallFromLiveTest` atualizados. Suíte MySQL verde, `npm run build`
+limpo. Revisão de segurança rodada.
+
 **Follow-up `fix/member-photo-and-crop` (base `main`, PR pendente):** o MEMBRO passou a
 ter foto de perfil (até aqui só a performer tinha; o membro era imageless por design).
 **Decisão do PO (via AskUserQuestion): a foto é OPCIONAL e é EXIBIDA à performer no

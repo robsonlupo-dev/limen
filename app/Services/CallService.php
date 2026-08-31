@@ -15,6 +15,7 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\FanAlias;
 use App\Support\MinuteBiller;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -100,6 +101,12 @@ class CallService
             if (CallSession::where('performer_profile_id', $lockedProfile->id)->occupying()->exists()) {
                 throw CallException::conflict();
             }
+            // Reconcilia o estado obsoleto do MEMBRO antes do memberIsBusy: um
+            // pending vencido (com outra performer) ou uma sessão aceita-mas-nunca-
+            // conectada mantinham `occupying` e travavam o novo pedido para sempre
+            // (bug 3, lado servidor). Depois disto, memberIsBusy só vê estado vivo.
+            $this->reconcileMemberStale($member->id);
+
             // Exclusividade do membro: nem outra 1:1 pending/active NEM participação
             // ativa em group show (PR #141 — o 1:1 não pode ser cego ao group, senão
             // dois streams de vídeo cobrados em paralelo).
@@ -184,25 +191,31 @@ class CallService
                 throw CallException::conflict();
             }
 
-            // 1º minuto pré-pago ANTES da sala. InsufficientBalance vira 422 e o
-            // rollback desfaz qualquer débito parcial (sem sala, sem cobrança).
+            // Pré-checa saldo do 1º minuto (fail-fast: não aceita quem não cobre
+            // sequer o minuto 1), mas NÃO cobra aqui. O relógio e o minuto 1 só
+            // começam quando o VÍDEO conecta de fato — o 1º heartbeat do membro
+            // (disparado no connect do PrivateCall) faz o lazy-start em
+            // reconcileBilling. Antes a cobrança e o started_at eram no aceite,
+            // então um vídeo que nunca aparecia (preto) já tinha movido token e
+            // corrido relógio — bug corrigido em fix/live-call-flow-states. A
+            // economia (70/30, minuto inteiro, idempotência) é idêntica; só o
+            // GATILHO do 1º minuto saiu do aceite para a conexão.
             if (TokenMath::cmp($this->tokenService->balance($member), $locked->price_per_minute) < 0) {
-                throw CallException::insufficientBalance();
-            }
-            try {
-                $this->chargeMinute($locked, $member, $performerUser);
-            } catch (InsufficientBalanceException) {
                 throw CallException::insufficientBalance();
             }
 
             // createRoom é chamada de rede DENTRO da transação (padrão do
-            // LiveSessionService::start): se falhar, reverte o débito do 1º minuto.
+            // LiveSessionService::start): se falhar, reverte tudo.
             $this->livekit->createRoom($locked->room_name, (int) config('livekit.max_participants_call'));
 
+            // status=active reserva a performer (occupying/exclusividade), mas
+            // started_at=null marca "aceita, aguardando o membro conectar" — sem
+            // relógio nem cobrança até o 1º heartbeat. O reaper (started_at null +
+            // vencido) encerra sem cobrar quem nunca conecta.
             $locked->forceFill([
                 'status' => 'active',
-                'started_at' => now(),
-                'minutes_billed' => 1,
+                'started_at' => null,
+                'minutes_billed' => 0,
             ])->save();
 
             return ['session' => $locked, 'memberUserId' => $member->id];
@@ -556,14 +569,31 @@ class CallService
      * `active` (só 1:1 — member_id não-nulo; group é do GroupShowService) cujo tempo
      * PAGO (`started_at + minutes_billed*60`) venceu há mais de `$graceSeconds` →
      * cliente sumiu → encerra + deleteRoom. Cliente saudável renova `minutes_billed`
-     * e nunca é alcançado. Só faxina.
+     * e nunca é alcançado. Só faxina — NUNCA cobra.
+     *
+     * DUAS formas de abandono desde o lazy-start (fix/live-call-flow-states):
+     *  (a) conectou e sumiu — o tempo pago venceu (started_at não-nulo);
+     *  (b) a performer ACEITOU mas o membro nunca conectou (started_at NULL,
+     *      criada há mais de grace) — sem started_at o cálculo (a) nunca a
+     *      alcança, então ela travaria os dois em `occupying` para sempre. Encerra
+     *      SEM cobrar (nenhum minuto foi prestado).
      */
     public function reapStaleSessions(int $graceSeconds = 120): int
     {
         $stale = CallSession::query()
-            ->active()
+            ->where('status', 'active')
             ->whereNotNull('member_id')
-            ->whereRaw('DATE_ADD(started_at, INTERVAL (minutes_billed * 60 + ?) SECOND) < ?', [$graceSeconds, now()])
+            ->where(function (Builder $q) use ($graceSeconds) {
+                $q->where(function (Builder $q2) use ($graceSeconds) {
+                    // (a) conectada e abandonada: minuto pago vencido.
+                    $q2->whereNotNull('started_at')
+                        ->whereRaw('DATE_ADD(started_at, INTERVAL (minutes_billed * 60 + ?) SECOND) < ?', [$graceSeconds, now()]);
+                })->orWhere(function (Builder $q2) use ($graceSeconds) {
+                    // (b) aceita, membro nunca conectou: sem relógio, encerra sem cobrar.
+                    $q2->whereNull('started_at')
+                        ->where('created_at', '<', now()->subSeconds($graceSeconds));
+                });
+            })
             ->get();
 
         foreach ($stale as $session) {
@@ -589,6 +619,15 @@ class CallService
     {
         $price = (int) $lockedSession->price_per_minute;
         $performer = $lockedSession->performerProfile?->user;
+
+        // LAZY-START (fix/live-call-flow-states): a sessão foi aceita com
+        // started_at=null e só COMEÇA a contar/cobrar quando o membro conecta —
+        // este é o 1º reconcile (o heartbeat imediato do PrivateCall no connect).
+        // Carimba started_at=now() AGORA: o MinuteBiller então vê elapsed≈0 →
+        // required=1 → cobra o minuto 1 aqui, no vídeo conectado, e não no aceite.
+        if ($lockedSession->started_at === null) {
+            $lockedSession->forceFill(['started_at' => now()])->save();
+        }
 
         // Performer sumiu mid-call (soft-delete/anonimização): não há para quem
         // creditar. Encerra limpo em vez de fatal no chargeMinute (🟢 da revisão).
@@ -670,6 +709,32 @@ class CallService
             ->pending()
             ->where('created_at', '<', now()->subSeconds(CallSession::PENDING_TTL_SECONDS))
             ->update(['status' => 'expired']);
+    }
+
+    /**
+     * Reconcilia na LEITURA o estado obsoleto do MEMBRO antes de checar
+     * `memberIsBusy` num novo request (fix/live-call-flow-states). Sem isto, um
+     * estado pendente/aceito-mas-não-conectado que venceu mantinha `occupying`
+     * (pending|active) e TRAVAVA novos pedidos até o cron — o "pedido eterno" do
+     * bug 3. Não move token (expiração/encerramento sem minuto prestado). A sala
+     * da sessão nunca-conectada fica para o `calls:reap-stale` (ou o timeout de
+     * sala vazia do LiveKit) — aqui só destrava o membro.
+     */
+    private function reconcileMemberStale(int $memberId): void
+    {
+        // (1) pendings vencidos do membro, com QUALQUER performer.
+        CallSession::where('member_id', $memberId)
+            ->pending()
+            ->where('created_at', '<', now()->subSeconds(CallSession::PENDING_TTL_SECONDS))
+            ->update(['status' => 'expired']);
+
+        // (2) aceitas em que o membro NUNCA conectou (started_at null) e já
+        // passou a janela — encerra sem cobrar (nenhum minuto foi prestado).
+        CallSession::where('member_id', $memberId)
+            ->where('status', 'active')
+            ->whereNull('started_at')
+            ->where('created_at', '<', now()->subSeconds(CallSession::PENDING_TTL_SECONDS))
+            ->update(['status' => 'ended', 'ended_at' => now()]);
     }
 
     /**

@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { router } from '@inertiajs/vue3'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveOverlay from '@/Components/LiveOverlay.vue'
@@ -53,11 +54,16 @@ const activeCall = ref(null)
 const callError = ref('')
 const canRequestCall = computed(() => props.callPricePerMinute && props.myUserId && callState.value === 'idle')
 
+// Contagem para o redirect automático ao catálogo quando a live encerra (bug 4).
+const redirectSeconds = ref(0)
+
 let room = null
 let refreshTimer = null
 let viewersTimer = null
 let liveChannel = null
 let userChannel = null
+let pendingTimer = null
+let redirectTimer = null
 
 const slug = props.performer.slug
 
@@ -126,13 +132,33 @@ async function requestCall() {
     callState.value = 'requesting'
     callError.value = ''
     try {
-        const { call_id } = await postJson(route('call.request', props.profileId))
+        const { call_id, expires_in_seconds } = await postJson(route('call.request', props.profileId))
         callState.value = 'waiting'
         listenForCallAnswer(call_id)
+        startPendingTimeout(expires_in_seconds ?? 60)
     } catch (e) {
         callState.value = 'idle'
         callError.value = errorMessage(e, 'Não foi possível pedir a chamada agora.')
     }
+}
+
+// Bug 3: sem resposta da performer, nenhum evento chega e o membro ficava preso
+// em "Aguardando…" para sempre. Espelha a janela do servidor (o pending expira em
+// PENDING_TTL) com 3s de folga; ao vencer, solta o membro com o MESMO aviso
+// discreto da recusa ("Ela não pôde atender agora") e volta ao normal. Nenhum
+// token se move — expiração não cobra.
+function startPendingTimeout(seconds) {
+    clearPendingTimeout()
+    pendingTimer = setTimeout(() => {
+        if (callState.value !== 'waiting') return
+        stopCallAnswer()
+        callState.value = 'declined'
+        setTimeout(() => { if (callState.value === 'declined') callState.value = 'idle' }, 4000)
+    }, (seconds + 3) * 1000)
+}
+
+function clearPendingTimeout() {
+    if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null }
 }
 
 function listenForCallAnswer(callId) {
@@ -143,6 +169,7 @@ function listenForCallAnswer(callId) {
     userChannel.listen('.call.accepted', async (e) => {
         if (e.call_id !== callId) return
         stopCallAnswer()
+        clearPendingTimeout()
         try {
             const { token, wsUrl } = await postJson(route('call.token-refresh', callId))
             activeCall.value = { callId, token, wsUrl }
@@ -155,6 +182,7 @@ function listenForCallAnswer(callId) {
     userChannel.listen('.call.declined', (e) => {
         if (e.call_id !== callId) return
         stopCallAnswer()
+        clearPendingTimeout()
         // Some discretamente, sem constranger.
         callState.value = 'declined'
         setTimeout(() => { if (callState.value === 'declined') callState.value = 'idle' }, 4000)
@@ -173,6 +201,10 @@ function onCallEnded() {
     activeCall.value = null
     callState.value = 'idle'
     stopCallAnswer()
+    // Se a live JÁ tinha encerrado enquanto o membro estava na chamada (o watch
+    // de status não redireciona quem está in-call), inicia a volta ao catálogo
+    // agora que a chamada terminou.
+    if (status.value === 'ended') { startRedirectCountdown(); return }
     // O <video> da live foi DESMONTADO enquanto ela via a chamada; ao voltar, o
     // elemento remonta VAZIO — reanexa a faixa da live já recebida (padrão do #206:
     // faixa não pode ficar órfã num elemento que o Vue remontou). A performer retoma
@@ -190,10 +222,44 @@ function reattachLiveTracks() {
 async function teardown() {
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null }
     if (viewersTimer) { clearInterval(viewersTimer); viewersTimer = null }
+    clearPendingTimeout()
+    if (redirectTimer) { clearInterval(redirectTimer); redirectTimer = null }
     // Canal compartilhado: stopListening, nunca Echo.leave.
     if (liveChannel) { liveChannel.stopListening('.live.state'); liveChannel = null }
     stopCallAnswer()
     if (room) { await room.disconnect(); room = null }
+}
+
+// ── Encerramento da live: limpa TODOS os estados pendentes + redirect (bug 4) ──
+//
+// `status` (live) e `callState` (chamada) eram independentes: quando a live
+// encerrava, "A live foi encerrada" e "Aguardando…" apareciam JUNTOS. Ao virar
+// 'ended', solta qualquer pedido pendente (nunca um estado in-call — a chamada
+// roda em sala SEPARADA e não é encerrada pela live) e inicia a volta ao catálogo.
+watch(status, (s) => {
+    if (s !== 'ended') return
+    clearPendingTimeout()
+    if (['requesting', 'waiting', 'declined'].includes(callState.value)) {
+        stopCallAnswer()
+        callState.value = 'idle'
+    }
+    // Não arrasta quem está NUMA chamada para o catálogo — deixa a chamada
+    // terminar (onCallEnded). Só o espectador comum é levado de volta.
+    if (callState.value !== 'in-call') startRedirectCountdown()
+})
+
+function startRedirectCountdown() {
+    if (redirectTimer) return
+    redirectSeconds.value = 5
+    redirectTimer = setInterval(() => {
+        redirectSeconds.value -= 1
+        if (redirectSeconds.value <= 0) goToCatalog()
+    }, 1000)
+}
+
+function goToCatalog() {
+    if (redirectTimer) { clearInterval(redirectTimer); redirectTimer = null }
+    router.visit(route('catalog'))
 }
 
 async function sendTip(amount) {
@@ -267,9 +333,19 @@ onBeforeUnmount(teardown)
 
                 <LiveOverlay :performer-slug="performer.slug" />
 
-                <div v-if="status !== 'live'" class="absolute inset-0 flex items-center justify-center text-sm text-cream/80">
+                <div v-if="status !== 'live'" class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center text-sm text-cream/80">
                     <span v-if="status === 'connecting'">Conectando à live…</span>
-                    <span v-else-if="status === 'ended'">A live foi encerrada.</span>
+                    <template v-else-if="status === 'ended'">
+                        <span class="font-serif text-lg text-cream">A live foi encerrada.</span>
+                        <span class="text-xs text-cream/70">Levando você de volta ao catálogo em {{ redirectSeconds }}s…</span>
+                        <button
+                            type="button"
+                            class="mi-press min-h-[44px] rounded-lg border border-gold/50 bg-gold/10 px-4 text-sm font-semibold text-gold hover:bg-gold/20"
+                            @click="goToCatalog"
+                        >
+                            Voltar ao catálogo agora
+                        </button>
+                    </template>
                     <span v-else>Não foi possível carregar a live.</span>
                 </div>
 

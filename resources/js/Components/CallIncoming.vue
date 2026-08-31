@@ -99,31 +99,34 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+    <!-- Card no tema ESCURO do painel (antes era tema claro sobre o console
+         escuro, o que fazia o "Recusar" outline sumir e parecer travado —
+         bug 2). Os dois botões têm cor e contraste explícitos e alvos ≥44px. -->
     <div
         v-if="incoming"
-        class="fixed bottom-4 right-4 z-50 w-80 space-y-3 rounded-2xl border border-frame bg-white p-5 shadow-xl"
+        class="fixed bottom-4 right-4 z-50 w-80 space-y-3 rounded-2xl border border-gold/30 bg-surface p-5 shadow-xl shadow-black/40"
     >
-        <header class="flex items-start justify-between">
-            <div>
-                <h3 class="font-semibold">Chamada recebida</h3>
-                <p class="text-sm text-neutral-600">{{ incoming.memberLabel }}</p>
+        <header class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+                <h3 class="font-serif text-lg text-cream">Chamada recebida</h3>
+                <p class="truncate text-sm text-muted">{{ incoming.memberLabel }}</p>
             </div>
-            <span class="rounded-full bg-neutral-100 px-2 py-1 text-xs tabular-nums text-neutral-600">
+            <span class="shrink-0 rounded-full bg-black/40 px-2.5 py-1 text-xs tabular-nums text-cream">
                 {{ secondsLeft }}s
             </span>
         </header>
 
-        <p class="text-sm text-neutral-500">
+        <p class="text-sm text-muted">
             {{ incoming.pricePerMinute }} tokens por minuto para você.
         </p>
 
-        <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
+        <p v-if="error" class="text-sm text-danger">{{ error }}</p>
 
         <div class="flex gap-3">
             <button
                 type="button"
                 :disabled="busy"
-                class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                class="mi-press flex-1 rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-success/90 disabled:opacity-60"
                 @click="accept"
             >
                 Aceitar
@@ -131,7 +134,7 @@ onBeforeUnmount(() => {
             <button
                 type="button"
                 :disabled="busy"
-                class="flex-1 rounded-lg border border-frame px-4 py-2 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60"
+                class="mi-press flex-1 rounded-lg border border-frame bg-surface-2 px-4 py-2 text-sm font-semibold text-cream transition-colors hover:border-danger/60 hover:text-danger disabled:opacity-60"
                 @click="decline"
             >
                 Recusar

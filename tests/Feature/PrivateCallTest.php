@@ -194,7 +194,7 @@ it('dois requests simultâneos para a mesma performer: o segundo é 409', functi
 
 // ── Accept / Decline ─────────────────────────────────────────────────────────
 
-it('performer aceita: cria sala max 2, debita o primeiro minuto, ativa a sessão', function () {
+it('performer aceita: cria sala max 2, ativa a sessão SEM cobrar (relógio começa no connect)', function () {
     $lk = fakeCallKit();
     Event::fake([CallAccepted::class]);
     $lk->shouldReceive('createRoom')->once()->with(Mockery::type('string'), 2);
@@ -214,13 +214,23 @@ it('performer aceita: cria sala max 2, debita o primeiro minuto, ativa a sessão
         ->assertJsonStructure(['token', 'wsUrl', 'call_id']);
     expect($res->json())->not->toHaveKey('roomName');
 
+    // ACEITE: sala criada e sessão ativa, mas started_at=null e NADA cobrado —
+    // o relógio e o minuto 1 só começam quando o vídeo conecta (o 1º heartbeat).
+    // Antes o aceite cobrava o minuto 1 antes de o vídeo aparecer (bug corrigido).
     $call->refresh();
     expect($call->status)->toBe('active')
-        ->and($call->minutes_billed)->toBe(1)
-        ->and($call->started_at)->not->toBeNull()
-        ->and(app(TokenService::class)->balance($member->fresh()))->toBe(90); // 100 - 10
+        ->and($call->minutes_billed)->toBe(0)
+        ->and($call->started_at)->toBeNull()
+        ->and(app(TokenService::class)->balance($member->fresh()))->toBe(100); // intacto
 
     Event::assertDispatched(CallAccepted::class, fn ($e) => $e->memberUserId === $member->id);
+
+    // O membro conecta → 1º heartbeat → lazy-start: agora sim o minuto 1.
+    $this->actingAs($member)->postJson(route('call.heartbeat', $call->id))->assertOk();
+    $call->refresh();
+    expect($call->minutes_billed)->toBe(1)
+        ->and($call->started_at)->not->toBeNull()
+        ->and(app(TokenService::class)->balance($member->fresh()))->toBe(90); // 100 - 10
 });
 
 it('performer recusa: marca declined e notifica o membro', function () {
@@ -531,6 +541,8 @@ it('split 70/30 com applied_rate=70 congelado na linha', function () {
     $call->forceFill(['type' => 'private'])->save();
 
     $this->actingAs($performer)->postJson(route('call.accept', $call->id))->assertOk();
+    // O minuto 1 é cobrado quando o membro conecta (1º heartbeat), não no aceite.
+    $this->actingAs($member)->postJson(route('call.heartbeat', $call->id))->assertOk();
 
     $credit = TokenLedger::where('entry_type', 'call_credit')->firstOrFail();
     expect($credit->amount)->toBe(7)        // round(10 * 0.70) = 7
@@ -559,6 +571,8 @@ it('call_credit NÃO respeita o teto (never-cap): credita acima de 5000', functi
     $call->forceFill(['type' => 'private'])->save();
 
     $this->actingAs($performer)->postJson(route('call.accept', $call->id))->assertOk();
+    // O minuto 1 é cobrado quando o membro conecta (1º heartbeat), não no aceite.
+    $this->actingAs($member)->postJson(route('call.heartbeat', $call->id))->assertOk();
 
     // O crédito de 7 passou por cima do teto (never-cap): 5000 + 7.
     expect(app(TokenService::class)->balance($performer->fresh()))->toBe(5007);
