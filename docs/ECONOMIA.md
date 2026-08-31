@@ -247,6 +247,21 @@ sabia que existia, o que escondia o valor da assinatura em vez de protegê-lo. A
 - A performer define **X tokens por minuto**. **Todos pagam.** A cobrança é por minuto,
   pré-paga (o saldo nunca fica negativo).
 - **Divisão: 70% performer / 30% Limen.**
+- **O minuto é INTEIRO, pago no INÍCIO de cada minuto** (pré-pago), sem fração. Para
+  estar conectado durante um minuto, o membro paga aquele minuto ao entrar nele. Um
+  minuto começado e não completado já foi pago em cheio (ele teve acesso àquele minuto);
+  em compensação, **queda de conexão não gera cobrança de minuto futuro** — sem batimento,
+  nenhum minuto novo é cobrado. Ex.: 3 minutos a 10/min = **30 debitados / 21,0000
+  creditados** à performer.
+- **A chamada pode ser pedida DURANTE uma live pública** (a performer aceita e a live
+  PAUSA — ver `docs/DECISOES_2026-08.md` §15). A economia é EXATAMENTE a mesma (mesmo
+  motor, 70/30 por minuto); só o gatilho muda. O relógio começa **só quando ela aceita e a
+  chamada conecta** — a espera entre pedido e resposta nunca é cobrada, e pedido recusado
+  ou expirado não move token.
+- **Saldo insuficiente no meio:** o membro é avisado (só ele) e pode comprar tokens SOBRE
+  a chamada, sem cair (ver §16 das Decisões). Se o saldo zerar antes de comprar, a chamada
+  encerra limpa (nunca negativo, nunca cobra minuto não prestado); um PIX em trânsito ainda
+  compensa depois e credita a carteira — não se perde.
 
 > **Custo de infraestrutura (live e chamada):** o vídeo em tempo real roda em serviço
 > de terceiro, com plano que escala por fase (grátis no lançamento; pago mensal no

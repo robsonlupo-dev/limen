@@ -8,6 +8,12 @@ const props = defineProps({
     wsUrl: { type: String, required: true },
     viewerCount: { type: Number, default: 0 },
     initialChat: { type: Array, default: () => [] },
+    paused: { type: Boolean, default: false },
+    profileId: { type: Number, default: 0 },
+    callPricePerMinute: { type: Number, default: null },
+    myUserId: { type: Number, default: 0 },
+    tokenPackages: { type: Array, default: () => [] },
+    needsCpf: { type: Boolean, default: false },
 })
 </script>
 
@@ -20,6 +26,12 @@ const props = defineProps({
                 :ws-url="wsUrl"
                 :viewer-count="viewerCount"
                 :initial-chat="initialChat"
+                :paused="paused"
+                :profile-id="profileId"
+                :call-price-per-minute="callPricePerMinute"
+                :my-user-id="myUserId"
+                :token-packages="tokenPackages"
+                :needs-cpf="needsCpf"
             />
         </div>
     </AppLayout>

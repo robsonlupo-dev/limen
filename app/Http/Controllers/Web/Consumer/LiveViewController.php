@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\ServesPhotoBytes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\SendLiveChatRequest;
 use App\Http\Resources\PerformerPublicResource;
+use App\Models\TokenPackage;
 use App\Services\LiveChatService;
 use App\Services\LivePreviewService;
 use App\Services\LiveSessionService;
@@ -56,7 +57,37 @@ class LiveViewController extends Controller
             'wsUrl' => $bundle['wsUrl'],
             'viewerCount' => $this->live->viewerCount($session),
             'initialChat' => $this->chat->recent($session),
+            // A live pode estar PAUSADA (performer em chamada privada) — o viewer
+            // mostra "volta já". O broadcast LiveStateChanged atualiza em tempo real;
+            // isto cobre quem entra JÁ pausado.
+            'paused' => $session->isPaused(),
+            // Chamada privada A PARTIR da live (feat/private-call-from-live). O id do
+            // perfil (o resource omite `id`) e o preço/min alimentam o botão "Pedir
+            // chamada"; null = não aceita chamadas → o botão não aparece.
+            'profileId' => $performer->id,
+            'callPricePerMinute' => $performer->call_price_per_minute,
+            'myUserId' => $request->user()->id,
+            // Compra de tokens SOBRE a chamada (sem cair): pacotes + se falta CPF.
+            // Reusa wallet.purchase/wallet.pending; nada de PII aqui além do já público.
+            'tokenPackages' => $this->tokenPackages(),
+            'needsCpf' => ! $request->user()->asaas_customer_id,
         ]);
+    }
+
+    /** Pacotes de tokens ativos, mesmo shape do WalletController, para o painel de compra. */
+    private function tokenPackages(): array
+    {
+        return TokenPackage::where('active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn (TokenPackage $package) => [
+                'id' => $package->id,
+                'name' => $package->name,
+                'tokens' => $package->tokens,
+                'bonus' => $package->bonus,
+                'price_formatted' => 'R$ '.number_format($package->price_cents / 100, 2, ',', '.'),
+            ])
+            ->all();
     }
 
     /**
@@ -94,7 +125,12 @@ class LiveViewController extends Controller
             return response()->json(['message' => 'A live foi encerrada.'], 410);
         }
 
-        return response()->json(['viewers' => $this->live->viewerCount($session)]);
+        // `paused` junto: um viewer que perdeu o broadcast LiveStateChanged reconcilia
+        // o aviso "volta já" no próximo poll (~12s).
+        return response()->json([
+            'viewers' => $this->live->viewerCount($session),
+            'paused' => $session->isPaused(),
+        ]);
     }
 
     /** O membro fala no chat da sala. Free; passa pelo filtro; silenciado → 403. */

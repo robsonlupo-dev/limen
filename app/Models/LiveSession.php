@@ -32,7 +32,18 @@ class LiveSession extends Model
             'viewer_count' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
+            'paused_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A live está PAUSADA (performer em chamada privada — feat/private-call-from-live)?
+     * Sub-estado de uma live ATIVA: a sessão segue `status='live'`, então os viewers
+     * não caem em 410; só veem o aviso "volta já" e o vídeo pausa.
+     */
+    public function isPaused(): bool
+    {
+        return $this->paused_at !== null;
     }
 
     public function performerProfile(): BelongsTo

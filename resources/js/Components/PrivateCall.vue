@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { postJson } from '@/lib/http'
+import InCallBuyPanel from '@/Components/InCallBuyPanel.vue'
 
 /**
  * Chamada privada 1:1 (Sprint 15) — sala de vídeo bidirecional. Os dois lados
@@ -26,6 +27,11 @@ const props = defineProps({
     role: { type: String, default: 'member' }, // 'member' | 'performer'
     pricePerMinute: { type: Number, default: 0 },
     initialBalance: { type: Number, default: 0 },
+    // Compra SOBRE a chamada (feat/private-call-from-live). Vazio → o botão de
+    // recarga cai no comportamento antigo (emit 'recharge') — retrocompatível com o
+    // uso da chamada agendada.
+    tokenPackages: { type: Array, default: () => [] },
+    needsCpf: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['ended', 'recharge'])
@@ -38,8 +44,14 @@ const elapsedSeconds = ref(0)
 const balance = ref(props.initialBalance)
 const minutesLeft = ref(props.pricePerMinute > 0 ? Math.floor(props.initialBalance / props.pricePerMinute) : 0)
 const endedNotice = ref('')
+const showBuyPanel = ref(false)
+const purchasePending = ref(false)
 
 const isMember = computed(() => props.role === 'member')
+const canBuyInCall = computed(() => isMember.value && props.tokenPackages.length > 0)
+// Segundos até o próximo minuto ser cobrado — quando o saldo não cobre o próximo
+// minuto (minutesLeft==0), é a contagem regressiva até a chamada encerrar.
+const secondsToBoundary = computed(() => 60 - (elapsedSeconds.value % 60))
 
 let room = null
 let heartbeatTimer = null
@@ -53,18 +65,47 @@ const timerLabel = computed(() => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 })
 
-// Banner de saldo — só o membro. ≤1min amarelo, ≤3min discreto (§ 3).
+// Banner de saldo — SÓ o membro (a performer nunca vê o financeiro — M.13.10).
 const balanceBanner = computed(() => {
     if (!isMember.value || status.value !== 'live') return null
-    if (minutesLeft.value <= 0) return null
+    if (minutesLeft.value <= 0) {
+        // CRÍTICO: o saldo não cobre o PRÓXIMO minuto — a chamada encerra no fim do
+        // minuto atual. Contagem regressiva + comprar. Aparece assim que minutesLeft
+        // zera (o heartbeat imediato no início já traz isso), dando ~1 minuto de
+        // margem para comprar antes de cair (bem mais que os ~30s da spec).
+        return { level: 'critical', text: `Seu saldo acaba em ${secondsToBoundary.value}s. Compre tokens para não cair.` }
+    }
     if (minutesLeft.value <= 1) {
-        return { level: 'warn', text: 'Último minuto. Recarregue para continuar.' }
+        return { level: 'warn', text: 'Último minuto. Compre tokens para continuar.' }
     }
     if (minutesLeft.value <= 3) {
         return { level: 'soft', text: `Seu saldo cobre mais ${minutesLeft.value} minutos.` }
     }
     return null
 })
+
+function recomputeMinutesLeft() {
+    minutesLeft.value = props.pricePerMinute > 0 ? Math.floor(balance.value / props.pricePerMinute) : 0
+}
+
+// Abre o painel de compra SOBRE a chamada (sem cair). Sem pacotes (chamada agendada)
+// → cai no emit 'recharge' antigo.
+function openBuy() {
+    if (canBuyInCall.value) {
+        showBuyPanel.value = true
+    } else {
+        emit('recharge')
+    }
+}
+
+// Pagamento compensou (webhook): saldo novo vale NA HORA, o aviso some, o painel
+// fecha — sem recarregar. O próximo minuto passa a ser cobrado normalmente.
+function onCredited(newBalance) {
+    balance.value = newBalance
+    recomputeMinutesLeft()
+    purchasePending.value = false
+    showBuyPanel.value = false
+}
 
 function attach(track, participantIsLocal) {
     if (track.kind === 'video') {
@@ -102,8 +143,12 @@ function startTimers() {
     clockTimer = setInterval(() => { elapsedSeconds.value += 1 }, 1000)
     // Renova o JWT a cada 4min (antes do TTL de 5). Reautoriza na leitura.
     refreshTimer = setInterval(refresh, 4 * 60 * 1000)
-    // O heartbeat/cobrança é do MEMBRO; a performer não cobra ninguém.
+    // O heartbeat/cobrança é do MEMBRO; a performer não cobra ninguém. Roda UM
+    // heartbeat IMEDIATO (não cobra nada — o minuto 1 já foi pago no accept, e
+    // required=1 no t≈0) só para trazer saldo/minutos JÁ no início: se o saldo não
+    // cobre o próximo minuto, o aviso aparece na hora, não daqui a 60s.
     if (isMember.value) {
+        heartbeat()
         heartbeatTimer = setInterval(heartbeat, 60 * 1000)
     }
 }
@@ -140,9 +185,15 @@ function beginGoodbye(reason = '') {
     if (status.value === 'ending' || status.value === 'ended') return
     status.value = 'ending'
     stopBillingTimers()
-    endedNotice.value = isMember.value
+    let msg = isMember.value
         ? (reason ? `${reason} A sessão foi encerrada. Obrigado pela companhia.` : 'A sessão foi encerrada. Obrigado pela companhia.')
         : 'O membro encerrou a sessão.'
+    // Encerrou com um PIX em andamento (o relógio venceu o pagamento): os tokens
+    // ainda entram na carteira quando compensar — deixa claro que nada se perde.
+    if (isMember.value && purchasePending.value) {
+        msg += ' Seu pagamento em andamento será creditado na sua carteira assim que o PIX compensar — nada se perde. Com saldo, é só pedir a chamada de novo.'
+    }
+    endedNotice.value = msg
     goodbyeTimer = setTimeout(finish, 10 * 1000)
 }
 
@@ -216,26 +267,45 @@ onBeforeUnmount(teardown)
             >
                 <p class="max-w-sm text-lg">{{ endedNotice }}</p>
             </div>
+
+            <!-- Compra SOBRE o vídeo (feat/private-call-from-live): overlay no rodapé.
+                 NÃO cobre o vídeo inteiro nem empurra o layout (absolute); a chamada
+                 segue rodando por trás. Mobile: faixa inferior; desktop: canto direito. -->
+            <div
+                v-if="showBuyPanel"
+                class="absolute inset-x-2 bottom-2 max-h-[78%] sm:inset-x-auto sm:right-2 sm:w-80"
+            >
+                <InCallBuyPanel
+                    :packages="tokenPackages"
+                    :needs-cpf="needsCpf"
+                    @credited="onCredited"
+                    @pending-changed="(p) => (purchasePending = p)"
+                    @close="showBuyPanel = false"
+                />
+            </div>
         </div>
 
-        <!-- Banner de saldo (só o membro). -->
+        <!-- Banner de saldo — SÓ o membro. `critical` (não cobre o próximo minuto) é o
+             aviso forte com contagem + comprar; `warn`/`soft` são os discretos. -->
         <div
             v-if="balanceBanner"
             :class="[
-                'flex items-center justify-between rounded-lg px-4 py-2 text-sm',
-                balanceBanner.level === 'warn'
-                    ? 'bg-amber-100 text-amber-900'
-                    : 'bg-neutral-100 text-neutral-700',
+                'flex items-center justify-between gap-3 rounded-lg px-4 py-2 text-sm',
+                balanceBanner.level === 'critical'
+                    ? 'bg-danger/15 text-danger ring-1 ring-danger/40'
+                    : balanceBanner.level === 'warn'
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'bg-neutral-100 text-neutral-700',
             ]"
         >
-            <span>{{ balanceBanner.text }}</span>
+            <span aria-live="polite">{{ balanceBanner.text }}</span>
             <button
-                v-if="balanceBanner.level === 'warn'"
+                v-if="balanceBanner.level === 'critical' || balanceBanner.level === 'warn'"
                 type="button"
-                class="rounded-md bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-700"
-                @click="emit('recharge')"
+                class="mi-press shrink-0 rounded-md bg-gold px-3 py-1 font-semibold text-background hover:bg-gold/90"
+                @click="openBuy"
             >
-                Recarregar
+                Comprar tokens
             </button>
         </div>
 
@@ -252,9 +322,9 @@ onBeforeUnmount(teardown)
                 v-if="isMember"
                 type="button"
                 class="rounded-lg border border-frame px-4 py-2 font-medium hover:bg-neutral-50"
-                @click="emit('recharge')"
+                @click="openBuy"
             >
-                Recarregar tokens
+                Comprar tokens
             </button>
         </div>
     </div>

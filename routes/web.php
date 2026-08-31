@@ -610,6 +610,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::post('/performer/live/mute', [PerformerLiveController::class, 'mute'])
                 ->name('performer.live.mute')
                 ->can('performer-active');
+
+            // Pausa/retoma a live (feat/private-call-from-live): a performer aceitou
+            // uma chamada privada e sai de cena da sala pública sem encerrá-la.
+            Route::post('/performer/live/pause', [PerformerLiveController::class, 'pause'])
+                ->name('performer.live.pause')
+                ->can('performer-active');
+
+            Route::post('/performer/live/resume', [PerformerLiveController::class, 'resume'])
+                ->name('performer.live.resume')
+                ->can('performer-active');
         });
 
         // 2FA TOTP. Sem `can('performer-active')` de propósito: a performer

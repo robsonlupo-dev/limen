@@ -201,3 +201,48 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
   jurídico** (base legal, DPA, registro de subprocessador, aviso à performer) **antes de
   qualquer implementação**. Mesma disciplina do captcha/KYC (subprocessador que vê dado
   sensível entra na política + DPA antes de ligar).
+
+## 15. Chamada privada a partir da live: a live PAUSA, não encerra — IMPLEMENTADO
+
+- **Status:** aprovada e **implementada** (28/08/2026, PR `feat/private-call-from-live`).
+  (§13/§14 acima são do PR `feat/live-broadcast-controls`/#208, já mergeado — por isso esta
+  sequência começa em §15.)
+- **Contexto:** durante uma live pública, um membro pode pedir chamada privada 1:1. Ao
+  aceitar, era preciso decidir o que fazer com a transmissão pública em andamento.
+- **Decisão:** a live **PAUSA**, não encerra. Quem está assistindo **continua conectado**
+  (sem tela preta, sem drop) e vê "Em chamada privada — volta já"; o **chat da sala segue
+  funcionando**; ao fim da chamada a live **RETOMA sozinha**, sem recarregar. Se a
+  performer encerrar tudo durante a chamada, a live termina com aviso.
+- **Motivo:** encerrar a live a cada chamada privada destruiria a audiência acumulada e o
+  momento da transmissão — o público teria de ser reconquistado do zero a cada 1:1. Pausar
+  preserva a sala, o chat e os espectadores, e a chamada privada vira um "intervalo", não
+  um fim. É retenção de audiência.
+- **Como (engenharia):** a pausa é um **sub-estado** (`live_sessions.paused_at`), não um
+  novo `status` — a sessão segue `status='live'`, então os viewers não caem em 410. O A/V
+  da chamada 1:1 roda numa **sala LiveKit SEPARADA** (privacidade travada por teste: o
+  token do viewer da live só concede a sala da live, view-only — nada da chamada vaza). O
+  relógio da cobrança começa **só quando a performer aceita E a chamada conecta**; a espera
+  entre pedido e resposta nunca é cobrada; pedido sem resposta expira sem custo. A economia
+  REUSA CallService/MinuteBiller (70/30, minuto inteiro pré-pago, R1–R4) — nada reescrito.
+
+## 16. Saldo insuficiente no meio da chamada: comprar SEM cair, e o que acontece se não der — IMPLEMENTADO
+
+- **Status:** aprovada e **implementada** (28/08/2026, mesmo PR).
+- **Aviso é SÓ do MEMBRO.** A performer NUNCA recebe indicação de que o saldo dele está
+  acabando — é constrangedor e mudaria o comportamento dela sem necessidade (M.13.10). O
+  aviso aparece quando o saldo não cobre mais o próximo minuto (~30s+ de margem, dentro do
+  minuto corrente), com botão de comprar.
+- **Comprar SOBRE a chamada, sem derrubar.** A compra acontece num painel POR CIMA do vídeo
+  (não outra aba/janela — pop-up e troca de aba no celular derrubam a conexão). O relógio
+  **continua correndo** durante o pagamento. Reusa o fluxo existente: `wallet.purchase` gera
+  o PIX, `wallet.pending` pola status+saldo até o **webhook idempotente** creditar (nada de
+  crédito inventado no cliente). Ao compensar, o saldo novo **vale na hora** e o aviso some,
+  sem recarregar; o próximo minuto passa a ser cobrado normalmente.
+- **Se não comprar a tempo e o saldo zerar:** a chamada encerra **limpo** — nunca saldo
+  negativo, nunca cobra minuto não prestado; a live retoma. **Decisão do PO sobre o PIX em
+  trânsito:** como o relógio corre durante o pagamento, ele pode zerar o saldo ANTES de o
+  PIX compensar. Nesse caso NÃO se inventa crédito nem fiado: a chamada encerra, e quando o
+  PIX compensar **depois**, os tokens entram na carteira normalmente (não se perdem). A
+  mensagem de encerramento deixa isso claro ("seu pagamento em andamento será creditado
+  quando compensar — nada se perde"), e com saldo ele pode **pedir a chamada de novo** (não
+  se tenta "retomar" a chamada anterior automaticamente).

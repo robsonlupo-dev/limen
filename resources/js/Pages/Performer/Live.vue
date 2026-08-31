@@ -5,6 +5,7 @@ import LiveRoom from '@/Components/LiveRoom.vue'
 defineProps({
     performerSlug: { type: String, required: true },
     initialChat: { type: Array, default: () => [] },
+    myUserId: { type: Number, default: 0 },
 })
 </script>
 
@@ -16,7 +17,7 @@ defineProps({
                 <p class="text-sm text-muted">Acompanhe quem está assistindo, o que você ganhou e converse com a sala.</p>
             </div>
 
-            <LiveRoom :performer-slug="performerSlug" :initial-chat="initialChat" />
+            <LiveRoom :performer-slug="performerSlug" :initial-chat="initialChat" :my-user-id="myUserId" />
         </div>
     </AppLayout>
 </template>
