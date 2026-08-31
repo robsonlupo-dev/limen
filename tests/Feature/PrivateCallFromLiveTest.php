@@ -302,3 +302,48 @@ it('EXCLUSIVIDADE: em chamada privada, a performer não aceita um SEGUNDO pedido
 
     expect(CallSession::where('member_id', $member2->id)->count())->toBe(0);
 });
+
+// ── Fiação do botão "Pedir chamada privada" na página da live (bug pós-#209) ──
+//
+// O botão do LiveViewer renderiza sob `canRequestCall = callPricePerMinute &&
+// myUserId && callState==='idle'`. Estes testes travam o CONTRATO das props que o
+// controller entrega — a única fonte de `callPricePerMinute`. Regressão que se
+// pareceu com "o merge perdeu o botão" mas era DADO: a performer ao vivo estava
+// com `call_price_per_minute = NULL` (não aceita chamadas), então o botão some por
+// design. Aqui provamos os dois lados: preço definido → prop presente (botão
+// aparece); preço NULL → prop null (botão some).
+
+it('a página da live entrega callPricePerMinute + myUserId quando a performer ACEITA chamadas (o botão aparece)', function () {
+    pcflKit();
+    $performer = pcflPerformer(30); // call_price_per_minute = 30
+    pcflOpenLive($performer);
+    $member = pcflMember(100);
+
+    $this->actingAs($member)
+        ->get(route('live.show', $performer->performerProfile->slug))
+        ->assertOk()
+        ->assertInertia(fn ($p) => $p
+            ->where('callPricePerMinute', 30)
+            ->where('myUserId', $member->id)
+            ->where('profileId', $performer->performerProfile->id)
+        );
+});
+
+it('a página da live entrega callPricePerMinute NULL quando a performer NÃO aceita chamadas (o botão some por design)', function () {
+    pcflKit();
+    $performer = pcflPerformer(30);
+    // A performer ao vivo NÃO configurou preço de chamada — NULL = não aceita.
+    $performer->performerProfile->forceFill(['call_price_per_minute' => null])->save();
+    pcflOpenLive($performer);
+    $member = pcflMember(100);
+
+    $this->actingAs($member)
+        ->get(route('live.show', $performer->performerProfile->slug))
+        ->assertOk()
+        // canRequestCall = null && … = false → o front esconde o botão. É o
+        // comportamento correto (não um botão perdido no merge).
+        ->assertInertia(fn ($p) => $p
+            ->where('callPricePerMinute', null)
+            ->where('myUserId', $member->id)
+        );
+});
