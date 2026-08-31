@@ -2188,6 +2188,49 @@ backend** — nenhuma rota/economia muda). Mobile primeiro.
   corpo→perfil, selo→live, ≥44px, atraso 150–300ms, hover-only, `v-show` (por fonte — sem
   Vitest). Suíte MySQL verde (só o `GeoBlockTest` 451 do clone de dev), `npm run build` limpo.
 
+### Controles de transmissão da performer — `feat/live-broadcast-controls` (base `main`)
+
+A live é **unidirecional por design** (só a performer transmite A/V; o membro participa
+pelo chat de texto) — **isso não muda**. Esta feature dá à performer os controles básicos
+de estúdio, tudo no `LiveRoom.vue` (client-side LiveKit; **zero backend novo** — não toca
+economia/split/contador/chat). Mobile primeiro, alvos ≥44px, estado anunciado
+(`aria-pressed`/`aria-live`).
+
+- **Mutar/desmutar o MICROFONE PUBLICADO** (`toggleMic` → `setMicrophoneEnabled`). Muda o
+  que o MEMBRO ouve — **não confundir com o `muted` da prévia local** (esse existe só para
+  ela não ouvir o próprio eco e continua sempre lá). Ícone com **traço quando mudo** +
+  **aviso PERMANENTE `role="status"`** enquanto mudo ("Seu microfone está mudo — o público
+  não está ouvindo"), para ela não esquecer.
+- **Ligar/desligar a CÂMERA sem encerrar** (`toggleCamera` → `setCameraEnabled(false/true)`
+  muta/desmuta a faixa publicada, NÃO encerra a sala). Desligada: a prévia dela mostra
+  "Câmera desligada", e **o membro vê "A transmissão voltará em instantes"** (LiveViewer
+  ouve `RoomEvent.TrackMuted/TrackUnmuted` da faixa de vídeo) em vez de tela preta muda.
+  **Convivência com a pausa por chamada privada (ver § abaixo):** os dois avisos do
+  LiveViewer são estados DISTINTOS e ambos existem; se a sala estiver pausada por chamada
+  privada, o aviso "Em chamada privada — volta já" tem PRECEDÊNCIA (o `v-else-if="paused"`
+  vem antes do `v-else-if="cameraOff"`, então "câmera desligada" nem é avaliado enquanto a
+  sala inteira está pausada).
+- **Qualidade de UPLOAD 1080p·720p·480p, padrão 720p.** O valor é **ESTABILIDADE, não
+  nitidez**: em 4G/conexão ruim, resolução alta trava; baixar para 480p salva a live e
+  economiza dados dela. A troca usa **`videoTrack.restartTrack({ resolution })`** (troca as
+  constraints de captura via `replaceTrack`) — **NÃO derruba a sala nem desconecta quem
+  assiste**. 1080p/720p vêm de `VideoPresets.h1080/h720.resolution`; 480p é objeto
+  explícito `{width:854,height:480}` (LiveKit não traz preset de 480p). Texto de ajuda:
+  "480p para internet fraca · 1080p só com conexão boa".
+- **Sugestão de baixar (nunca troca sozinha):** `RoomEvent.ConnectionQualityChanged` da
+  PRÓPRIA performer → `ConnectionQuality.Poor` acende um aviso "sua conexão está instável,
+  baixar para 480p ajuda" + botão de atalho. A decisão é sempre dela.
+- **NÃO implementado, por decisão do PO (docs/DECISOES_2026-08.md §13/§14):** seletor de
+  qualidade para o MEMBRO (exigiria transcodificação em tempo real = custo por minuto, e o
+  membro nunca recebe melhor do que ela envia; ajuste automático do player continua) e
+  **legenda automática** (backlog — exige transcrição de terceiro por minuto E manda o
+  áudio da performer para fora da plataforma: gate JURÍDICO antes de qualquer implementação).
+- **Sem lib nova** (só o que o `livekit-client` já traz: `VideoPresets`, `ConnectionQuality`,
+  `restartTrack`, `setCameraEnabled`/`setMicrophoneEnabled`). Testes por FONTE
+  (`LiveBroadcastControlsTest` — sem Vitest): mudo usa `setMicrophoneEnabled` (publicado, não
+  a prévia); câmera-off no membro deriva de `TrackMuted`; troca de resolução usa `restartTrack`
+  e NÃO chama `disconnect`. `npm run build` limpo.
+
 ## Chamada privada a partir da live — `feat/private-call-from-live` (base `main`)
 
 Durante uma live pública, o membro pede uma chamada privada 1:1; a performer aceita ou

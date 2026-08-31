@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { Room, RoomEvent } from 'livekit-client'
+import { Room, RoomEvent, Track } from 'livekit-client'
 import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveOverlay from '@/Components/LiveOverlay.vue'
 import LiveChat from '@/Components/LiveChat.vue'
@@ -41,6 +41,9 @@ const viewers = ref(props.viewerCount)
 const gifts = ref([])
 const showGifts = ref(false)
 const notice = ref('')
+// A performer desligou a câmera por um instante (faixa de vídeo muda): mostramos
+// "volta em instantes" em vez de tela preta. Deriva do TrackMuted/Unmuted dela.
+const cameraOff = ref(false)
 
 // PAUSA: a performer entrou numa chamada privada. Os OUTROS espectadores veem
 // "volta já"; quem está NA chamada vê a <PrivateCall> (callState='in-call').
@@ -63,16 +66,28 @@ function attach(track) {
     if (track.kind === 'audio' && audioEl.value) track.attach(audioEl.value)
 }
 
+function isVideo(pub) {
+    return pub?.kind === Track.Kind.Video
+}
+
 async function connect(token) {
     room = new Room()
     room.on(RoomEvent.TrackSubscribed, (track) => attach(track))
     room.on(RoomEvent.Disconnected, () => { if (status.value !== 'ended') status.value = 'ended' })
 
+    // Câmera da performer ligada/desligada em pleno ar (a faixa de vídeo muta/desmuta).
+    room.on(RoomEvent.TrackMuted, (pub) => { if (isVideo(pub)) cameraOff.value = true })
+    room.on(RoomEvent.TrackUnmuted, (pub) => { if (isVideo(pub)) cameraOff.value = false })
+
     await room.connect(props.wsUrl, token)
     status.value = 'live'
 
     room.remoteParticipants.forEach((p) =>
-        p.trackPublications.forEach((pub) => { if (pub.track) attach(pub.track) }),
+        p.trackPublications.forEach((pub) => {
+            if (pub.track) attach(pub.track)
+            // Já entrou com a câmera dela desligada? Mostra o aviso desde o começo.
+            if (isVideo(pub) && pub.isMuted) cameraOff.value = true
+        }),
     )
 }
 
@@ -260,10 +275,21 @@ onBeforeUnmount(teardown)
 
                 <!-- PAUSA: a performer entrou numa chamada privada. O vídeo dela some
                      (a chamada roda numa sala LiveKit SEPARADA — nada dela vaza aqui),
-                     mas o membro NÃO é desconectado e o chat continua. -->
+                     mas o membro NÃO é desconectado e o chat continua. Vem ANTES do
+                     aviso de câmera desligada: se a sala está pausada por chamada
+                     privada, a chamada tem PRECEDÊNCIA — a sala inteira parou e é esse
+                     o aviso que importa para quem espera (o v-else-if de cameraOff nem
+                     é avaliado enquanto paused for true). -->
                 <div v-else-if="paused" role="status" aria-live="polite" class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/75 px-6 text-center">
                     <span class="font-serif text-lg text-cream">Em chamada privada — volta já</span>
                     <span class="text-xs text-cream/70">A performer voltará em instantes. O chat continua funcionando.</span>
+                </div>
+
+                <!-- Performer desligou a câmera por um instante: aviso, não tela preta.
+                     Só aparece quando a sala NÃO está pausada por chamada privada. -->
+                <div v-else-if="cameraOff" role="status" aria-live="polite" class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 px-6 text-center">
+                    <span class="font-serif text-lg text-cream">A transmissão voltará em instantes</span>
+                    <span class="text-xs text-cream/70">A performer pausou o vídeo. O áudio pode continuar.</span>
                 </div>
 
                 <div class="absolute left-3 top-3 flex items-center gap-2">

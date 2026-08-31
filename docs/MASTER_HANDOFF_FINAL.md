@@ -3334,6 +3334,20 @@ preso). **Prévia preta NÃO é o bug do #206:** o `<video>` do catálogo é `v-
 montado), então a faixa anexa a um alvo estável — diferente do `v-if` que remontava na
 prévia da performer. `CatalogLiveNavigationTest` (7, server + fonte).
 
+**Follow-up `feat/live-broadcast-controls` (base `main`, PR pendente):** controles de
+estúdio da performer no `LiveRoom.vue` (client-side LiveKit, **zero backend novo** — não
+toca economia/split/contador/chat). Mobile primeiro, alvos ≥44px, `aria-pressed`/`aria-live`.
+(1) **Mutar/desmutar o microfone PUBLICADO** (`setMicrophoneEnabled` — muda o que o membro
+ouve, distinto do `muted` da prévia local que evita o eco dela) com ícone cortado + aviso
+permanente enquanto mudo. (2) **Ligar/desligar a câmera sem encerrar** (`setCameraEnabled`
+muta a faixa; o membro vê "A transmissão voltará em instantes" via `TrackMuted/Unmuted`, não
+tela preta). (3) **Qualidade de UPLOAD 1080p/720p/480p, padrão 720p** (o valor é ESTABILIDADE
+— baixar salva a live no 4G); troca por `restartTrack` **sem derrubar a sala**; sugere baixar
+quando `ConnectionQuality.Poor` (nunca troca sozinha). **NÃO implementado (PO, DECISOES §13/§14):**
+seletor de qualidade do MEMBRO (transcodificação = custo/min; ajuste automático do player
+segue) e legenda automática (backlog — transcrição de terceiro manda o áudio para fora:
+gate jurídico). `LiveBroadcastControlsTest` por fonte (sem Vitest).
+
 **Follow-up `feat/private-call-from-live` (base `main`, PR pendente):** durante uma live
 pública, o membro pede chamada privada 1:1; a performer aceita/recusa; ao aceitar, a live
 **PAUSA** (não encerra) — os viewers seguem conectados, veem "volta já", o chat continua, e
