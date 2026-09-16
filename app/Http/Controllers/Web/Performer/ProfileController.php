@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePerformerProfileRequest;
 use App\Http\Requests\UploadMediaRequest;
 use App\Models\PerformerProfile;
 use App\Services\PerformerProfileService;
+use App\Services\PerformerVoiceIntroService;
 use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Support\Audit;
@@ -25,7 +26,10 @@ use Inertia\Response;
  */
 class ProfileController extends Controller
 {
-    public function __construct(private PerformerProfileService $profileService) {}
+    public function __construct(
+        private PerformerProfileService $profileService,
+        private PerformerVoiceIntroService $voiceIntros,
+    ) {}
 
     public function edit(Request $request): Response|RedirectResponse
     {
@@ -94,6 +98,12 @@ class ProfileController extends Controller
             // (`is_private`) por foto, para o toggle do grid (Sprint 13).
             'photos' => PhotoGalleryPresenter::forProfile($profile, $request->user()),
             'maxPhotos' => PerformerProfile::MAX_PHOTOS,
+            // Estado da apresentação de voz (fix/voice-access-and-chat-avatar): a
+            // performer edita a voz numa tela própria (voice-intro.edit), mas o
+            // ESTADO dela aparece aqui, na aba Fotos, para ela entender por que a
+            // voz ainda não está no perfil público. Mesma fonte da tela de gestão
+            // (forOwner) — status/duração/motivo, sem bytes. null = ainda não gravou.
+            'voiceIntro' => $this->voiceIntros->forOwner($profile),
         ]);
     }
 

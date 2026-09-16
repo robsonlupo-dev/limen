@@ -477,9 +477,13 @@ class ChatService
         $performerUserId = $profile->user_id;
 
         // Remetente pela perspectiva de CADA destinatário (toast, PR #144):
-        //  - à performer, a OUTRA parte é o membro → FanAlias LABEL, avatar NULL
-        //    (ela nunca vê nome/foto reais do membro — M.13.10).
+        //  - à performer, a OUTRA parte é o membro → FanAlias LABEL + a FOTO do
+        //    membro (fix/voice-access-and-chat-avatar). O nome exibido continua o
+        //    FanAlias e a foto vem por avatar_token OPACO — nunca member_id/nome/
+        //    e-mail reais. Antes ia NULL, de quando o membro era anônimo; agora a
+        //    foto dele já aparece no catálogo, então escondê-la aqui era incoerente.
         //  - ao membro, a OUTRA parte é a performer → stage_name + avatar dela.
+        $member = $conversation->member;
         $memberAlias = $conversation->member_id !== null
             ? FanAlias::label($profile->id, $conversation->member_id)
             : 'Membro';
@@ -491,10 +495,9 @@ class ChatService
             incrementsUnread: $message->sender_id !== $performerUserId,
             preview: $preview,
             senderName: $memberAlias,
-            senderAvatarUrl: null,
+            senderAvatarUrl: $member?->avatarUrl(),
         ));
 
-        $member = $conversation->member;
         if ($member !== null) {
             // Chaveia em `locked`, NÃO em `can_read`. Na CARÊNCIA (grace) o
             // can_read é true mas o corpo é retido em todo lugar (index usa
