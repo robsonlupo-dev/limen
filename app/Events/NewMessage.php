@@ -22,10 +22,11 @@ use Illuminate\Queue\SerializesModels;
  * ── Remetente pela PERSPECTIVA do destinatário (toast, PR #144) ──────────────
  * `senderName`/`senderAvatarUrl` descrevem a OUTRA parte, já mascarada para quem
  * recebe: ao MEMBRO vai o stage_name + avatar da performer; à PERFORMER vai o
- * FanAlias LABEL do membro e avatar NULL — ela NUNCA recebe nome/foto reais do
- * membro (M.13.10 / disciplina do FanAlias). O corpo continua fora: o toast só
- * mostra "enviou uma mensagem"; o `preview` (paywallado) é para a LISTA, não para
- * o toast.
+ * FanAlias LABEL do membro + a FOTO do membro (fix/voice-access-and-chat-avatar).
+ * O nome exibido segue sendo o FanAlias (M.13.10 / disciplina do FanAlias) e a
+ * foto vem por avatar_token OPACO — nunca nome/e-mail/member_id reais. O corpo
+ * continua fora: o toast só mostra "enviou uma mensagem"; o `preview` (paywallado)
+ * é para a LISTA, não para o toast.
  */
 class NewMessage implements ShouldBroadcast
 {

@@ -24,6 +24,17 @@ const props = defineProps({
 const page = usePage()
 const myId = computed(() => page.props.auth.user?.id)
 
+// Cabeçalho por lado (fix/voice-access-and-chat-avatar): a performer vê o MEMBRO
+// (FanAlias + foto por token opaco), o membro vê a performer. O backend resolve o
+// alias e assina a foto; aqui só se escolhe o lado. Sem foto = silhueta (inicial).
+const viewerIsPerformer = computed(() => props.conversation.viewer_is_performer === true)
+const headerName = computed(() => (viewerIsPerformer.value
+    ? (props.conversation.member?.label ?? 'Membro')
+    : props.conversation.performer.stage_name))
+const headerAvatar = computed(() => (viewerIsPerformer.value
+    ? (props.conversation.member?.avatar_url ?? null)
+    : (props.conversation.performer.avatar_url ?? null)))
+
 // O backend entrega a página mais recente em ordem decrescente (id desc). Para o
 // chat lemos de cima (mais antiga) para baixo (mais nova).
 const orderedMessages = computed(() => [...props.messages.data].reverse())
@@ -221,7 +232,7 @@ watch(() => props.messages.data.length, scrollToBottom)
 </script>
 
 <template>
-    <AppLayout :title="`Chat com ${conversation.performer.stage_name}`">
+    <AppLayout :title="`Chat com ${headerName}`">
         <!-- h-full na base do calc: no celular o rodapé fixo (barra de navegação)
              cobre ~6rem + safe-area; sem descontá-los, o compositor e a linha de
              custo ficam ATRÁS da barra (o saldo some). Desconta no mobile e usa dvh
@@ -233,7 +244,14 @@ watch(() => props.messages.data.length, scrollToBottom)
             <div class="flex flex-col gap-1.5 pb-4 border-b border-frame/60 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div class="flex min-w-0 items-center gap-3">
                     <Link :href="route('chat.index')" class="shrink-0 text-muted hover:text-cream transition-colors no-underline" aria-label="Voltar às conversas">←</Link>
-                    <h1 class="min-w-0 truncate font-serif text-xl text-cream">{{ conversation.performer.stage_name }}</h1>
+                    <!-- Foto do contraparte (membro por token opaco / performer). Sem
+                         foto = inicial em silhueta. O nome é o FanAlias (à performer)
+                         ou o nome público (ao membro). -->
+                    <div class="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-gold/40 bg-surface-2 flex items-center justify-center">
+                        <img v-if="headerAvatar" :src="headerAvatar" alt="" class="h-full w-full object-cover" />
+                        <span v-else class="font-serif text-sm text-gold">{{ headerName?.charAt(0) }}</span>
+                    </div>
+                    <h1 class="min-w-0 truncate font-serif text-xl text-cream">{{ headerName }}</h1>
                 </div>
                 <span
                     v-if="showTimer"

@@ -57,6 +57,10 @@ onMounted(() => {
             // chega aqui para quem não pagou — o corte é server-side.
             conv.last_message_preview = e.preview ?? null
             conv.locked = !!e.locked
+            // A foto do OUTRO participante viaja no evento (foto do membro p/ a
+            // performer, da performer p/ o membro). Mantém a atual se o evento vier
+            // sem URL (ex.: assinatura ausente) — não pisca para silhueta à toa.
+            conv.avatar_url = e.sender_avatar_url ?? conv.avatar_url
             if (e.increments_unread) conv.unread_count = (conv.unread_count ?? 0) + 1
             // Lista ordenada por last_message_at desc → a conversa sobe p/ o topo.
             items.value = [conv, ...items.value.filter((c) => c.id !== conv.id)]
@@ -86,9 +90,11 @@ onBeforeUnmount(() => {
                         :href="route('chat.show', c.id)"
                         class="flex items-center gap-4 px-4 py-4 no-underline hover:bg-surface/60 transition-colors"
                     >
-                        <!-- Avatar (inicial do OUTRO participante) -->
-                        <div class="h-12 w-12 shrink-0 rounded-full border border-gold/40 bg-surface-2 flex items-center justify-center">
-                            <span class="font-serif text-lg text-gold">{{ c.title?.charAt(0) }}</span>
+                        <!-- Foto do OUTRO participante (membro por token opaco, ou
+                             performer). Sem foto = inicial em silhueta, como antes. -->
+                        <div class="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-gold/40 bg-surface-2 flex items-center justify-center">
+                            <img v-if="c.avatar_url" :src="c.avatar_url" alt="" class="h-full w-full object-cover" />
+                            <span v-else class="font-serif text-lg text-gold">{{ c.title?.charAt(0) }}</span>
                         </div>
 
                         <div class="min-w-0 flex-1">

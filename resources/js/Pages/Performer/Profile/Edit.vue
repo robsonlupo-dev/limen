@@ -25,7 +25,22 @@ const props = defineProps({
     // endpoints JSON próprios (ver PhotoGalleryManager), não por este form.
     photos: { type: Array, default: () => [] },
     maxPhotos: { type: Number, default: 6 },
+    // Estado da apresentação de voz (fix/voice-access-and-chat-avatar): só o status,
+    // para a performer saber por que a voz ainda não aparece no perfil público. A
+    // gestão (gravar/enviar/remover) fica na tela própria. null = ainda não gravou.
+    voiceIntro: { type: Object, default: null },
 })
+
+// Apresentação de voz: rótulo + explicação por status, para a aba Fotos mostrar
+// POR QUE a voz (não) está no perfil. Espelha os rótulos da tela de gestão.
+const VOICE_STATUS = {
+    processing: { label: 'Processando…', hint: 'Estamos preparando seu áudio. Atualize em instantes.' },
+    pending: { label: 'Em análise', hint: 'Recebida e em análise. Aparece no seu perfil assim que for aprovada.' },
+    approved: { label: 'No ar', hint: 'Aprovada e no ar no seu perfil público.' },
+    rejected: { label: 'Recusada', hint: 'Não foi aprovada. Você pode gravar outra.' },
+    failed: { label: 'Falhou', hint: 'Houve um problema ao processar. Tente enviar de novo.' },
+}
+const voiceStatus = computed(() => (props.voiceIntro ? (VOICE_STATUS[props.voiceIntro.status] ?? null) : null))
 
 const avatarForm = useForm({ file: null })
 const avatarPreview = ref(null)
@@ -429,6 +444,32 @@ function save() {
 
                 <!-- Galeria de fotos (Sprint 10) -->
                 <PhotoGalleryManager :initial-photos="photos" :max-photos="maxPhotos" />
+
+                <!-- Apresentação de voz: só o ESTADO + link para a tela de gestão
+                     (fix/voice-access-and-chat-avatar). Fecha "por que a voz não
+                     aparece no perfil": sem gravar / em análise / no ar / recusada. -->
+                <div class="rounded-xl border border-frame bg-surface p-6 space-y-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <h2 class="font-serif text-xl text-cream">Apresentação de voz</h2>
+                        <span
+                            v-if="voiceStatus"
+                            class="shrink-0 rounded-full px-3 py-1 text-xs font-medium"
+                            :class="{
+                                'bg-gold/15 text-gold': voiceIntro.status === 'approved',
+                                'bg-cream/10 text-muted': voiceIntro.status === 'processing' || voiceIntro.status === 'pending',
+                                'bg-danger/15 text-danger': voiceIntro.status === 'rejected' || voiceIntro.status === 'failed',
+                            }"
+                        >{{ voiceStatus.label }}</span>
+                        <span v-else class="shrink-0 rounded-full bg-cream/10 px-3 py-1 text-xs font-medium text-muted">Sem apresentação</span>
+                    </div>
+                    <p class="text-sm text-muted">
+                        {{ voiceStatus ? voiceStatus.hint : 'Você ainda não gravou uma apresentação de voz. Grave uma para atrair quem visita seu perfil.' }}
+                    </p>
+                    <p v-if="voiceIntro?.reject_reason" class="text-sm text-danger">{{ voiceIntro.reject_reason }}</p>
+                    <Link :href="route('performer.voice-intro.edit')" class="inline-block text-sm text-gold no-underline hover:text-gold/80">
+                        Gerenciar apresentação de voz &rarr;
+                    </Link>
+                </div>
             </div>
 
             <!-- ── Aba: Sobre mim ─────────────────────────────────────────── -->

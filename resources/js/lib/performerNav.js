@@ -64,6 +64,11 @@ export const PERFORMER_SECTIONS = [
 export const PERFORMER_MENU = [
     { key: 'perfil', label: 'Perfil', route: 'performer.profile.edit' },
     { key: 'interesses', label: 'Interesses', route: 'performer.interests.index' },
+    // Apresentação de voz (feat/voice-intro): antes só se chegava por um card do
+    // Dashboard, mas a home da performer ativa é o catálogo de membros — ela nunca
+    // achava. O card do Dashboard continua como atalho. Rota já no Ziggy (o card já
+    // a usava), então nenhum only[] muda.
+    { key: 'voz', label: 'Apresentação de voz', route: 'performer.voice-intro.edit' },
     { key: 'agendamentos', label: 'Agendamentos', route: 'performer.reservations.index', feature: 'call_enabled' },
     { key: 'seguranca', label: 'Segurança', route: 'performer.2fa.show' },
     { key: 'sair', label: 'Sair', action: 'logout' },

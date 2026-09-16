@@ -235,6 +235,16 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
+            <!-- Estado "sem intro" (fix/voice-access-and-chat-avatar): fecha o quarto
+                 estado (sem intro / em análise / aprovada / recusada) — assim a
+                 performer sempre entende por que ainda não há voz no perfil público. -->
+            <div v-else class="rounded-xl border border-frame bg-surface p-5">
+                <p class="text-sm text-muted">
+                    Você ainda não tem apresentação de voz. Grave ou envie uma abaixo —
+                    ela passa por análise e aparece no seu perfil depois de aprovada.
+                </p>
+            </div>
+
             <!-- Gravar / enviar -->
             <div class="rounded-xl border border-frame bg-surface p-5 space-y-5">
                 <p class="font-serif text-lg text-cream">{{ intro ? 'Substituir por uma nova' : 'Gravar ou enviar' }}</p>

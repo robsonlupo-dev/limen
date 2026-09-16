@@ -11,6 +11,7 @@ use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerInterest;
+use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatService;
@@ -24,6 +25,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -78,11 +80,15 @@ class ChatController extends Controller
                 // chat.start (o canal ainda não existe).
                 'id' => null,
                 'status' => 'active',
+                // Modo compor: quem olha é o MEMBRO, então o cabeçalho é a performer.
+                'viewer_is_performer' => false,
                 'performer' => [
                     'stage_name' => $performer->stage_name,
                     'slug' => $performer->slug,
                     'profile_id' => $performer->id,
+                    'avatar_url' => $this->performerAvatarUrl($performer),
                 ],
+                'member' => null,
             ],
             'messages' => new LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url()]),
             'teaser' => null,
@@ -144,7 +150,12 @@ class ChatController extends Controller
             ->orderByDesc('id');
 
         if ($viewerIsPerformer) {
-            $query->where('performer_profile_id', $user->performerProfile->id);
+            $query->where('performer_profile_id', $user->performerProfile->id)
+                // fix/voice-access-and-chat-avatar: a foto do membro acompanha o
+                // FanAlias no chat, como já acontece no catálogo. Só as colunas que
+                // User::avatarUrl() precisa — a URL é chaveada no avatar_token OPACO,
+                // nunca no member_id (o alias segue escondendo o id).
+                ->with(['member' => fn ($q) => $q->select('id', 'avatar_path', 'avatar_token')]);
         } else {
             $query->where('member_id', $user->id);
         }
@@ -212,6 +223,13 @@ class ChatController extends Controller
                         ? FanAlias::label($user->performerProfile->id, $c->member_id)
                         : 'Membro')
                     : $c->performerProfile->stage_name,
+                // Foto do OUTRO participante, ao lado do alias (silhueta quando não
+                // há). À performer, a do membro (token opaco); ao membro, a da
+                // performer. Nenhum member_id/nome/dado real trafega — só a URL
+                // assinada e o alias já resolvido em `title`.
+                'avatar_url' => $viewerIsPerformer
+                    ? $c->member?->avatarUrl()
+                    : $this->performerAvatarUrl($c->performerProfile),
             ];
         });
 
@@ -231,8 +249,9 @@ class ChatController extends Controller
     {
         abort_if($request->user()->cannot('view', $conversation), 404);
 
-        $conversation->loadMissing('performerProfile');
+        $conversation->loadMissing('performerProfile', 'member');
         $state = $this->stateFor($request, $conversation);
+        $viewerIsPerformer = $request->user()->id === $conversation->performerProfile->user_id;
 
         // Ler = marcar como lida: só quando o corpo é DE FATO entregue (leitura
         // plena e destravada). Em grace o corpo é retido, então não marca. Zera
@@ -301,6 +320,9 @@ class ChatController extends Controller
             'conversation' => [
                 'id' => $conversation->id,
                 'status' => $conversation->status,
+                // Cabeçalho por lado: a performer vê o MEMBRO (alias + foto), o
+                // membro vê a performer. O front escolhe por este flag.
+                'viewer_is_performer' => $viewerIsPerformer,
                 'performer' => [
                     'stage_name' => $conversation->performerProfile->stage_name,
                     'slug' => $conversation->performerProfile->slug,
@@ -308,7 +330,17 @@ class ChatController extends Controller
                     // PÚBLICO da performer, não identidade de membro — nada a
                     // ver com o FanAlias, que protege o outro lado.
                     'profile_id' => $conversation->performer_profile_id,
+                    'avatar_url' => $this->performerAvatarUrl($conversation->performerProfile),
                 ],
+                // O OUTRO participante, só quando quem olha é a performer: FanAlias
+                // (o nome exibido, M.13.10) + a foto do membro por token opaco. O
+                // membro nunca recebe um bloco "member" (ele é o dono do lado dele).
+                'member' => ($viewerIsPerformer && $conversation->member_id !== null)
+                    ? [
+                        'label' => FanAlias::label($conversation->performerProfile->id, $conversation->member_id),
+                        'avatar_url' => $conversation->member?->avatarUrl(),
+                    ]
+                    : null,
             ],
             'messages' => $messages,
             'teaser' => $teaser,
@@ -513,5 +545,24 @@ class ChatController extends Controller
         }
 
         return $this->chatAccessService->accessState($conversation, $request->user());
+    }
+
+    /**
+     * URL assinada temporária do avatar da performer para o cabeçalho/lista do chat
+     * (mesma rota e TTL do PerformerPublicResource e do toast). Assina pelo
+     * profile_id, nunca pelo user_id. Null quando não há avatar → o front cai na
+     * silhueta.
+     */
+    private function performerAvatarUrl(PerformerProfile $profile): ?string
+    {
+        if (! $profile->avatar_path) {
+            return null;
+        }
+
+        return URL::temporarySignedRoute(
+            'performer.media',
+            now()->addMinutes(60),
+            ['profile_id' => $profile->id, 'type' => 'avatar'],
+        );
     }
 }
