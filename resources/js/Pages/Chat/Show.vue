@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import SharePhotoModal from '@/Components/SharePhotoModal.vue'
+import GiftIcon from '@/Components/GiftIcon.vue'
 import { postJson } from '@/lib/http'
 
 const props = defineProps({
@@ -343,9 +344,31 @@ watch(() => props.messages.data.length, scrollToBottom)
                     </div>
 
                     <div class="flex" :class="isMine(m) ? 'justify-end' : 'justify-start'">
+                        <!-- Presente (feat/gift-from-profile): bolha com o ÍCONE do
+                             item, sempre visível (é a ação do próprio membro, nunca
+                             atrás do paywall). Presente é sempre membro→performer. -->
+                        <div
+                            v-if="m.gift_slug"
+                            class="max-w-[75%] flex flex-col"
+                            :class="isMine(m) ? 'items-end' : 'items-start'"
+                        >
+                            <div
+                                class="flex items-center gap-2 rounded-2xl border px-4 py-2.5"
+                                :class="isMine(m)
+                                    ? 'border-gold/50 bg-gold/10 rounded-br-sm'
+                                    : 'border-frame bg-surface rounded-bl-sm'"
+                            >
+                                <span class="h-6 w-6 shrink-0 text-gold"><GiftIcon :slug="m.gift_slug" /></span>
+                                <span class="text-sm text-cream">
+                                    {{ isMine(m) ? 'Você enviou' : 'Presente recebido' }}
+                                    <span class="text-gold">{{ m.gift_name }}</span>
+                                </span>
+                            </div>
+                            <span class="flex items-center gap-1.5 pt-1 pr-1 text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
+                        </div>
                         <!-- Mensagem bloqueada (grace): tarja "Pague para ler", sem corpo. -->
                         <div
-                            v-if="m.locked"
+                            v-else-if="m.locked"
                             class="relative max-w-[75%] rounded-2xl border border-frame bg-surface px-4 py-3 overflow-hidden"
                         >
                             <div class="blur-sm select-none text-sm text-muted">████████ ████ ██████</div>
