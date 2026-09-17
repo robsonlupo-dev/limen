@@ -55,6 +55,16 @@ const showTimer = computed(() => props.access.state === 'active' && props.access
 const isComposeMode = computed(() => props.conversation.id === null)
 const performerSlug = computed(() => props.conversation.performer.slug)
 
+// Cabeçalho clicável → perfil público da performer, só para o MEMBRO (a performer
+// é pública). Do lado da performer o cabeçalho é o membro (FanAlias) e NÃO vira
+// link — membro não tem perfil público. Vale inclusive na tela "pague para ler":
+// o membro quer saber quem é antes de pagar (achado do UAT).
+const performerProfileHref = computed(() => (
+    ! viewerIsPerformer.value && performerSlug.value
+        ? route('catalog.show', performerSlug.value)
+        : null
+))
+
 // O compositor aparece para a performer (can_send) E para o membro em QUALQUER
 // estado (feat/chat-economy-v2: ele digita e paga ao enviar; não há mais botão de
 // desbloquear ANTES de compor). Conversa arquivada não chega aqui como membro.
@@ -246,12 +256,21 @@ watch(() => props.messages.data.length, scrollToBottom)
                     <Link :href="route('chat.index')" class="shrink-0 text-muted hover:text-cream transition-colors no-underline" aria-label="Voltar às conversas">←</Link>
                     <!-- Foto do contraparte (membro por token opaco / performer). Sem
                          foto = inicial em silhueta. O nome é o FanAlias (à performer)
-                         ou o nome público (ao membro). -->
-                    <div class="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-gold/40 bg-surface-2 flex items-center justify-center">
-                        <img v-if="headerAvatar" :src="headerAvatar" alt="" class="h-full w-full object-cover" />
-                        <span v-else class="font-serif text-sm text-gold">{{ headerName?.charAt(0) }}</span>
-                    </div>
-                    <h1 class="min-w-0 truncate font-serif text-xl text-cream">{{ headerName }}</h1>
+                         ou o nome público (ao membro). Para o membro, foto+nome levam
+                         ao perfil público da performer (link só existe desse lado). -->
+                    <component
+                        :is="performerProfileHref ? Link : 'div'"
+                        :href="performerProfileHref || undefined"
+                        class="flex min-w-0 items-center gap-3 no-underline"
+                        :class="performerProfileHref ? 'group transition-opacity hover:opacity-90' : ''"
+                        :aria-label="performerProfileHref ? `Ver o perfil de ${headerName}` : undefined"
+                    >
+                        <div class="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-gold/40 bg-surface-2 flex items-center justify-center">
+                            <img v-if="headerAvatar" :src="headerAvatar" alt="" class="h-full w-full object-cover" />
+                            <span v-else class="font-serif text-sm text-gold">{{ headerName?.charAt(0) }}</span>
+                        </div>
+                        <h1 class="min-w-0 truncate font-serif text-xl text-cream" :class="performerProfileHref ? 'group-hover:text-gold transition-colors' : ''">{{ headerName }}</h1>
+                    </component>
                 </div>
                 <span
                     v-if="showTimer"
