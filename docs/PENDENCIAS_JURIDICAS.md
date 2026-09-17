@@ -115,3 +115,46 @@ difusão de contato, não conversa privada. Daí a assimetria.
 > garantia** — apelido malicioso que passe pela heurística é tratado por **moderação**
 > (remoção forçada; denúncia pública é PR futuro). Mesma disciplina de linguagem do painel
 > de visitantes e do filtro de chat: não descrever como "impede" contato, e sim "dificulta".
+
+---
+
+## 5. Evasão do filtro de chat por espaçamento — CORRIGIDA
+
+### O que era a falha
+
+A revisão de segurança do apelido (§4) descobriu que a normalização compartilhada do
+filtro **preservava espaços**, e o casador de termos não tolerava separador entre as
+letras de uma mesma palavra. Um desvio trivial — intercalar espaço (ou ponto/hífen/
+sublinhado) entre as letras — **furava o filtro por completo**. Passavam mensagens que as
+regras vigentes já mandavam bloquear (não era política de contato — era o filtro falhando
+na função que já tinha):
+
+- Intermediação de programa pago / transação fora da plataforma: `f a z e r  p r o g r a m a`,
+  `p r o g r a m a  c o m p l e t o, 300 r e a i s`, `p i x  f o r a`.
+- Ameaça: `t e  m a t o`, `s e i  o n d e  v o c e  m o r a`.
+- Insulto direcionado: `s u a  p u t a  n o j e n t a`, `sua p u t a n o j e n t a`.
+
+### O que foi corrigido (`fix/chat-filter-space-evasion`)
+
+O casador de termos passou a tolerar um separador de evasão (espaço, ponto, hífen,
+sublinhado) **entre as letras de uma mesma palavra** — sem achatar a mensagem inteira, o
+que criaria falso positivo. A lacuna **entre palavras** de uma frase continua exigindo
+espaço de verdade, então mensagem legítima com pontuação (ex.: "vou fazer o pix. **fora**
+disso, tudo bem") **não** é barrada por engano. Todos os exemplos acima agora bloqueiam;
+o desarme por qualificador consensual ("sua puta safada") e a decisão de contato seguem
+intactos. Coberto por testes em `tests/Feature/ChatContentFilterTest.php`.
+
+**Resíduo conhecido e aceito (não é falha nova):** quando o desvio usa o **mesmo**
+separador não-branco entre as letras **e** no lugar do espaço entre as palavras — sem
+nenhum whitespace marcando a fronteira (ex.: `te.mato`, `t.e.m.a.t.o`) — a mensagem
+escapa. Isso é **estruturalmente idêntico** a "pix. fora", que **deve passar**: não há
+como casar um sem barrar o outro. A rede contra o que escapa continua sendo a **moderação
+por denúncia**. Mantida a disciplina de linguagem: o filtro **dificulta**, não **impede**.
+
+### O que isto muda para o jurídico
+
+**A pergunta que PERMANECE em aberto é apenas a política de troca de contato (§1)** —
+telefone/e-mail/rede social seguem liberados por decisão de produto, pendentes de parecer.
+A **evasão por espaçamento não é mais uma questão em aberto**: era um defeito de
+implementação, e foi corrigido. Não há aqui nova decisão de produto nem de política a
+tomar.

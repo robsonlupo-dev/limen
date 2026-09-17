@@ -172,6 +172,89 @@ it('mantém acento, leet, alongamento e caixa cobertos', function () {
         ->and(F::categoryOf('cachê de R$ 500 pro programa'))->toBe(F::LEGAL);
 });
 
+// ─── Evasão por espaçamento entre letras (fix/chat-filter-space-evasion) ─────
+
+it('fecha o bypass de espaçar as letras — risco legal e conduta', function () {
+    // A revisão do apelido achou que a normalização PRESERVA espaço: espaçar
+    // cada letra ("p i x  f o r a") furava todo casamento. Estas frases já
+    // deveriam bloquear pelas regras vigentes — não é mudança de política, é o
+    // filtro voltando a exercer a função que já tinha. Note a convenção: espaço
+    // SIMPLES entre as letras de uma palavra, espaço DUPLO entre as palavras da
+    // frase (é o que preserva a fronteira de palavra).
+    expect(F::categoryOf('f a z e r  p r o g r a m a'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('p r o g r a m a  c o m p l e t o, 300 r e a i s'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('p i x  f o r a'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('t e  m a t o'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('s e i  o n d e  v o c e  m o r a'))->toBe(F::CONDUCT);
+});
+
+it('fecha o espaçamento no insulto direcionado — pronome e xingamento', function () {
+    // O pronome direcionador também precisou virar fuzzy: "s u a" não casava o
+    // literal "sua". E o segundo caso cola "puta"+"nojenta" numa corrida só
+    // ("p u t a n o j e n t a") — o fecho de palavra do xingamento cai no espaço
+    // antes do 'n', então 'puta' ainda casa direcionado.
+    expect(F::categoryOf('s u a  p u t a  n o j e n t a'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('sua p u t a n o j e n t a'))->toBe(F::CONDUCT);
+});
+
+it('pega ponto, hífen e sublinhado entre as letras (não só espaço)', function () {
+    // Mesmo desvio, outro caractere de recheio — desde que a lacuna ENTRE
+    // palavras continue sendo espaço de verdade.
+    expect(F::categoryOf('p-i-x f-o-r-a'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('f_a_z_e_r p_r_o_g_r_a_m_a'))->toBe(F::LEGAL)
+        ->and(F::categoryOf('v.o.u t.e m.a.t.a.r'))->toBe(F::CONDUCT);
+});
+
+it('espaçamento não invoca o gate de dinheiro que não está lá', function () {
+    // 'encontrar' é requires_money: espaçá-lo NÃO cria o sinal de dinheiro que
+    // falta. Continua PASSANDO, como a versão sem espaço.
+    expect(F::blocks('vai t e  e n c o n t r a r no shopping'))->toBeFalse();
+});
+
+it('NÃO cria falso positivo por juntar palavras vizinhas', function () {
+    // A trava do fix: a lacuna entre palavras exige whitespace REAL e o termo
+    // nunca engole o separador DEPOIS da última letra. Então um ponto/hífen
+    // entre duas palavras normais não vira casamento acidental. Achatar tudo
+    // (remover todo espaço/pontuação) quebraria estes — é o oposto do que
+    // fizemos.
+    expect(F::blocks('vou fazer o pix. fora disso, tudo bem'))->toBeFalse()
+        ->and(F::blocks('combinei de pagar. fora de hora não dá'))->toBeFalse()
+        ->and(F::blocks('meu e-mail e a t-shirt nova chegaram'))->toBeFalse()
+        ->and(F::blocks('p.s.: fora isso, adorei tudo'))->toBeFalse()
+        ->and(F::blocks('o preço é justo, quanto custa mesmo?'))->toBeFalse();
+});
+
+it('preserva o desarme por qualificador consensual mesmo espaçado', function () {
+    // A simetria: se o insulto espaçado bloqueia, o qualificador espaçado ainda
+    // desarma. "sua puta safada" passa; espaçá-la não deve barrá-la.
+    expect(F::blocks('sua puta safada'))->toBeFalse()
+        ->and(F::blocks('s u a  p u t a  s a f a d a'))->toBeFalse();
+});
+
+it('resíduo conhecido: separador uniforme sem fronteira de palavra escapa', function () {
+    // "te.mato" e "t.e.m.a.t.o" usam o MESMO separador (ponto) entre as letras
+    // E no lugar do espaço entre as palavras — não há whitespace marcando onde
+    // "te" acaba e "mato" começa. Isso é estruturalmente IGUAL a "pix. fora"
+    // (que DEVE passar, decisão do PO). Não dá para casar um sem casar o outro,
+    // então a lacuna entre palavras exige whitespace e este resíduo escapa de
+    // propósito. Casos de palavra única e de frase com espaço real seguem pegos.
+    expect(F::blocks('te.mato'))->toBeFalse()
+        ->and(F::blocks('t.e.m.a.t.o'))->toBeFalse();
+});
+
+it('desempenho: mensagem longa não sofre backtracking catastrófico', function () {
+    // Só `{1,2}` e um `*` sobre classe fixa por caractere — sem aninhamento. O
+    // teste completar já prova que não trava; a folga de tempo é generosa.
+    $long = str_repeat('conversa longa e normal, sem nada demais por aqui. ', 30); // ~1500 chars
+
+    $t0 = microtime(true);
+    $blocked = F::blocks($long);
+    $ms = (microtime(true) - $t0) * 1000;
+
+    expect($blocked)->toBeFalse()
+        ->and($ms)->toBeLessThan(100.0);
+});
+
 it('respeita o desligamento por config', function () {
     config(['chat_filters.enabled' => false]);
 
