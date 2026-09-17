@@ -98,11 +98,17 @@ async function confirmUnlock() {
 
 <template>
     <div v-if="items.length" class="mt-8 space-y-8">
-        <!-- Resumo no topo: total e quanto está disponível para o espectador. -->
+        <!-- Resumo no topo: LIDERA pelo que o espectador PODE ver (item 7). Nunca
+             um "0 disponíveis" como manchete — sem nada acessível, a linha é
+             convite (os blocos por tier abaixo levam aos Círculos). -->
         <div>
             <h2 class="font-serif text-xl text-cream">Conteúdo</h2>
-            <p class="mt-0.5 text-sm text-muted">
-                {{ fotos(total) }} · {{ available.length }} disponíve{{ available.length === 1 ? 'l' : 'is' }} para você
+            <p v-if="available.length" class="mt-0.5 text-sm text-muted">
+                <span class="text-gold">{{ available.length }} disponíve{{ available.length === 1 ? 'l' : 'is' }} para você</span>
+                <span v-if="total > available.length"> · {{ fotos(total) }} no total</span>
+            </p>
+            <p v-else class="mt-0.5 text-sm text-muted">
+                {{ performerName || 'Esta performer' }} tem conteúdo exclusivo para assinantes.
             </p>
         </div>
 

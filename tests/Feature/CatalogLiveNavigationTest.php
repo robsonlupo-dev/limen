@@ -66,10 +66,12 @@ it('o perfil de quem esta ao vivo carrega is_live + a flag da feature (botao de 
 });
 
 it('o perfil de quem esta ao vivo tem o botao "Ao vivo — assistir" que leva a live', function () {
-    $show = file_get_contents(resource_path('js/Pages/Catalog/Show.vue'));
+    // feat/performer-profile-redesign: as ações do perfil (incl. o "Ao vivo —
+    // assistir") migraram para MemberProfileActions, a dona única da barra/coluna
+    // de ações do membro. O link segue gateado por is_live + a flag da feature.
+    $actions = file_get_contents(resource_path('js/Components/Profile/MemberProfileActions.vue'));
 
-    // Link para a transmissão, gateado por is_live + a flag, em destaque (min-h 44px).
-    expect($show)
+    expect($actions)
         ->toContain("route('live.show', performer.slug)")
         ->toContain('performer.is_live && features.live_enabled')
         ->toContain('Ao vivo — assistir');

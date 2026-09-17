@@ -248,16 +248,14 @@ it('o cadastro do membro SEM foto funciona normalmente (pular é o caminho norma
 
 // ─── Problema 2: capa e avatar não deformam (fallback object-contain) ─────────
 
-it('as telas de PERFIL usam object-contain na capa 3:1 e no avatar 1:1 (imagem inteira, sem cortar o centro)', function () {
-    foreach (['js/Pages/Catalog/Show.vue', 'js/Pages/Performers/Show.vue'] as $page) {
-        $src = file_get_contents(resource_path($page));
-        // O frame da capa é 3:1 e o avatar 1:1 — a imagem cabe inteira (faixa
-        // escura) em vez de ampliar o centro. Center-crop (object-cover) num
-        // frame de mesma proporção era o bug da imagem "deitada cortada no topo".
-        expect($src)->toContain('aspect-[3/1]')
-            ->and(substr_count($src, 'object-contain'))->toBeGreaterThanOrEqual(2)
-            ->and($src)->not->toContain('object-cover');
-    }
+it('o AVATAR do perfil usa object-contain (o rosto nunca é cortado)', function () {
+    // feat/performer-profile-redesign: capa e avatar migraram para o ProfileHero,
+    // dona única do cabeçalho dos dois perfis públicos. A CAPA virou FAIXA (banner)
+    // com object-cover e teto de altura; o AVATAR 1:1 segue object-contain para o
+    // rosto nunca ser cortado (imagem fora de 1:1 aparece inteira).
+    $src = file_get_contents(resource_path('js/Components/Profile/ProfileHero.vue'));
+    expect($src)->toContain('object-contain')      // avatar
+        ->and($src)->toContain('object-cover');    // capa como banner (deliberado)
 });
 
 it('a prévia de edição da performer espelha o display público (object-contain)', function () {

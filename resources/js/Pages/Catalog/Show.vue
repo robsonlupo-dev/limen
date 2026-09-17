@@ -2,13 +2,13 @@
 import { computed, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import VerifiedBadge from '@/Components/VerifiedBadge.vue'
-import CurationSeal from '@/Components/CurationSeal.vue'
-import LiveBadge from '@/Components/LiveBadge.vue'
+import ProfileHero from '@/Components/Profile/ProfileHero.vue'
+import ProfileTabs from '@/Components/Profile/ProfileTabs.vue'
+import ProfileRates from '@/Components/Profile/ProfileRates.vue'
+import AboutText from '@/Components/Profile/AboutText.vue'
+import MemberProfileActions from '@/Components/Profile/MemberProfileActions.vue'
+import VerificationPanel from '@/Components/Profile/VerificationPanel.vue'
 import VoiceIntroPlayer from '@/Components/VoiceIntroPlayer.vue'
-import FollowButton from '@/Components/FollowButton.vue'
-import FavoriteButton from '@/Components/FavoriteButton.vue'
-import Button from '@/Components/Button.vue'
 import TipModal from '@/Components/TipModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
@@ -24,351 +24,212 @@ import { postJson } from '@/lib/http'
 
 const props = defineProps({
     performer: { type: Object, required: true },
-    // Stories vivos dela, já com `locked` resolvido pelo servidor. Story fechado
-    // chega SEM `image_url` — ver StoryStrip.
     stories: { type: Array, default: () => [] },
-    // Galeria de fotos pública (Sprint 10): cada item { id, url }. Público, sem
-    // paywall — ver PhotoCarousel.
     photos: { type: Array, default: () => [] },
-    // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Só os níveis que o tier
-    // deste membro alcança chegam — o Free recebe só o Aberto. Cada item já vem
-    // com locked/price/image_url/can_unlock resolvido pelo servidor.
     contents: { type: Array, default: () => [] },
-    // Alvo da denúncia ({ type, id }). Ver PublicCatalogController::show.
     report: { type: Object, default: null },
-    // Estado do chat (Sprint 11). Null = membro sem conversa / performer / admin.
-    // Ver CatalogController::chatStateFor.
     chat: { type: Object, default: null },
-    // Custo por tier para abrir a conversa (item 4), mostrado na ação primária.
-    // Null para não-membro (performer/admin).
     chatCost: { type: Number, default: null },
 })
 
-// Localizações (Sprint 13): UFs → nomes por extenso, "São Paulo · Rio de
-// Janeiro". `states` cai em [state] quando há uma só (fallback do resource).
-const hasStates = computed(() => (props.performer.states?.length ?? 0) > 0)
-const statesLabel = computed(() => (props.performer.states ?? []).map(stateLabel).join(' · '))
-
-const workModeLabels = {
-    live: 'Show ao vivo',
-    video: 'Vídeos',
-    chat: 'Chat privado',
-    fotos: 'Fotos',
-    privado: 'Sessão privada',
-    exclusivo: 'Conteúdo exclusivo',
-}
-
-// Esta tela é do grupo `auth`, não de `role:consumer` — performer e admin
-// logados também a alcançam. Só o membro pode favoritar (é o que POST
-// /favoritos/{slug} exige), então o botão só aparece para ele.
 const page = usePage()
 const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
-
-// feat/chat-economy-v2: o membro pode INICIAR a conversa daqui (não é mais
-// interest-gated). Com conversa aberta abre o chat; sem conversa, abre a tela em
-// modo compor (chat.with), onde ele digita e paga ao ENVIAR a 1ª mensagem.
-const chatHref = computed(() =>
-    props.chat
-        ? route('chat.show', props.chat.conversation_id)
-        : route('chat.with', props.performer.slug),
-)
 const myUserId = computed(() => page.props.auth?.user?.id ?? 0)
-// Feature flags (Sprint 15). Off em produção → placeholders "Em breve".
 const features = computed(() => page.props.features ?? {})
 
-// Chamada 1:1 sob demanda (PR #140). O <CallRequest> pede e aguarda o aceite pelo
-// canal user.{id}; no aceite, buscamos o token inicial (call.token-refresh) e
-// abrimos a <PrivateCall>. Os minutos 2+ (e o próprio token-refresh de 5min) já
-// vivem dentro dela.
-const activeCall = ref(null)
+// Localização + atividade (só na aba Sobre). Some enquanto ao vivo/online: presença
+// em tempo real + UF entregaria onde ela está AGORA (mesma regra do card).
+const hasStates = computed(() => (props.performer.states?.length ?? 0) > 0)
+const statesLabel = computed(() => (props.performer.states ?? []).map(stateLabel).join(' · '))
+const showLocationRow = computed(() =>
+    !props.performer.is_live && !props.performer.is_available && (hasStates.value || props.performer.activity_label),
+)
 
+const workModeLabels = {
+    live: 'Show ao vivo', video: 'Vídeos', chat: 'Chat privado',
+    fotos: 'Fotos', privado: 'Sessão privada', exclusivo: 'Conteúdo exclusivo',
+}
+
+// feat/chat-economy-v2: conversa aberta → chat; senão → compor (paga ao enviar).
+const chatHref = computed(() =>
+    props.chat ? route('chat.show', props.chat.conversation_id) : route('chat.with', props.performer.slug),
+)
+
+// Abas (item 6): Fotos (padrão) · Sobre · Conteúdo. Contagem só quando > 0 — um
+// "(0)" seria o zero-manchete que o item 7 proíbe.
+const activeTab = ref('fotos')
+const tabs = computed(() => [
+    { key: 'fotos', label: 'Fotos', count: props.photos.length || null },
+    { key: 'sobre', label: 'Sobre' },
+    { key: 'conteudo', label: 'Conteúdo', count: props.contents.length || null },
+])
+const hasAbout = computed(() =>
+    !!props.performer.bio || !!props.performer.looking_for || !!props.performer.work_modes?.length || showLocationRow.value,
+)
+
+// Barra de ações fixa no mobile: acima da navegação do painel (~58px + safe-area).
+const dockOffset = 'calc(4rem + env(safe-area-inset-bottom))'
+
+// Chamada 1:1 sob demanda (PR #140) — inalterada, só reposicionada.
+const activeCall = ref(null)
 async function onCallAccepted(callId) {
     try {
         const { token, wsUrl } = await postJson(route('call.token-refresh', callId))
         activeCall.value = { callId, token, wsUrl, pricePerMinute: props.performer.call_price_per_minute }
-    } catch (e) {
-        // Aceita mas o token falhou (sessão já caiu/saldo): não abre a sala.
-    }
+    } catch (e) { /* aceita mas token falhou: não abre a sala */ }
 }
-
-function onCallEnded() {
-    activeCall.value = null
-}
+function onCallEnded() { activeCall.value = null }
 
 const showTipModal = ref(false)
 const showReportModal = ref(false)
+const showVerified = ref(false)
 const tipsCount = ref(props.performer.tips_count)
-
-// Métrica zerada NUNCA aparece (redesign maison): a contagem de gorjetas só é
-// social proof quando existe. Zero vira ausência, não um "0" pendurado.
-const showTips = computed(() => Number(tipsCount.value) > 0)
-
-function onTipSent(data) {
-    tipsCount.value = data.tips_count
-}
+function onTipSent(data) { tipsCount.value = data.tips_count }
 </script>
 
 <template>
     <AppLayout :title="performer.stage_name">
-        <div class="bg-limen-bg">
-            <!-- Hero / cover 3:1 (a performer enquadra no upload — ImageCropper). O
-                 frame É 3:1 e a imagem é `object-contain`: capa bem recortada preenche
-                 exato (sem barra); imagem fora de 3:1 (ex.: semente antiga) aparece
-                 INTEIRA, com faixa escura nas sobras, em vez de ampliar o centro
-                 (item 3, fallback). -->
-            <div class="relative aspect-[3/1] bg-limen-surface-2 overflow-hidden">
-                <img
-                    v-if="performer.cover_url"
-                    :src="performer.cover_url"
-                    :alt="performer.stage_name"
-                    class="h-full w-full object-contain"
-                />
-                <div v-else class="h-full w-full bg-gradient-to-br from-limen-gold/20 via-limen-surface-2 to-limen-bg" />
-                <div class="absolute inset-0 bg-gradient-to-t from-limen-bg via-limen-bg/20 to-transparent" />
+        <!-- Container centralizado, margens iguais dos dois lados (item 10). -->
+        <div class="mx-auto max-w-6xl px-4 sm:px-6">
+            <ProfileHero
+                :performer="performer"
+                :features="features"
+                :tips-count="Number(tipsCount)"
+                @open-verified="showVerified = true"
+            />
 
-                <!-- O badge "AO VIVO" só existe com a feature ligada: com a flag
-                     off ninguém pode estar ao vivo (Sprint 15). -->
-                <div v-if="performer.is_live && features.live_enabled" class="absolute top-4 right-4">
-                    <LiveBadge />
-                </div>
-            </div>
-
-            <div class="max-w-4xl mx-auto px-6">
-                <!-- Avatar circular -->
-                <div class="-mt-16 flex items-end gap-5">
-                    <div class="h-32 w-32 rounded-full border-4 border-limen-gold bg-limen-surface-2 overflow-hidden flex items-center justify-center shrink-0 shadow-2xl">
-                        <!-- object-contain: avatar 1:1 preenche o círculo; imagem fora
-                             de 1:1 aparece INTEIRA (faixa escura) em vez de cortar o
-                             rosto (item 3, fallback). -->
-                        <img
-                            v-if="performer.avatar_url"
-                            :src="performer.avatar_url"
-                            :alt="performer.stage_name"
-                            class="h-full w-full object-contain"
-                        />
-                        <span v-else class="font-serif text-5xl text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
-                    </div>
-                </div>
-
-                <!-- Identity. Nome em Cormorant + o selo dourado de verificação (a
-                     ÚNICA marca de verificação — o antigo chip verde "Verificada", o
-                     chip "Email", o rótulo do mundo e as estrelas 0.0 saíram no
-                     redesign maison: redundantes ou métrica zerada). -->
-                <div class="mt-5 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <h1 class="font-serif text-4xl text-limen-ink">{{ performer.stage_name }}</h1>
-                        <VerifiedBadge v-if="performer.is_verified" :category="performer.category" />
-                        <CurationSeal :tier="performer.tier" />
-                        <!-- Intro de voz aprovada (feat/voice-intro): botão dourado
-                             de play ao lado do nome. `voice_intro_url` só vem
-                             preenchida quando há intro aprovada (serving público
-                             grátis) — sem ela, nada aqui. -->
-                        <VoiceIntroPlayer
-                            v-if="performer.voice_intro_url"
-                            :url="performer.voice_intro_url"
-                            :label="`apresentação de ${performer.stage_name}`"
-                        />
-                    </div>
-
-                    <!-- Ações do perfil em ordem de importância (item 4). No retrato,
-                         a primária ocupa a largura cheia e as secundárias vêm numa
-                         grade abaixo, com alturas iguais e rótulos curtos que não
-                         quebram. Ao vivo tem destaque acima de tudo. -->
-                    <div v-if="canFavorite" class="flex w-full flex-col gap-2.5 md:w-auto md:min-w-[20rem]">
-                        <!-- Ao vivo: destaque acima de tudo (só com a feature ligada). -->
-                        <Link
-                            v-if="performer.is_live && features.live_enabled"
-                            :href="route('live.show', performer.slug)"
-                            class="mi-glow inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-limen-live px-4 text-sm font-semibold text-white no-underline transition-opacity hover:opacity-90"
-                        >
-                            <span class="h-2 w-2 animate-pulse rounded-full bg-white" /> Ao vivo — assistir
-                        </Link>
-
-                        <!-- Primária: Conversar, com o custo de abertura. -->
-                        <Link
-                            :href="chatHref"
-                            class="mi-glow inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg bg-limen-gold px-4 text-sm font-semibold text-limen-bg no-underline transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
-                        >
-                            Conversar
-                            <span v-if="chatCost" class="font-normal opacity-80">· {{ chatCost }} tokens</span>
-                        </Link>
-
-                        <!-- Secundárias: Gorjeta · Seguir · Salvar. Grade de 3, alturas
-                             iguais, rótulos curtos. -->
-                        <div class="grid grid-cols-3 gap-2">
-                            <Button variant="ghost" size="sm" class="min-h-[44px] w-full justify-center" @click="showTipModal = true">Gorjeta</Button>
-                            <FollowButton
-                                :slug="performer.slug"
-                                :following="performer.is_following"
-                                :reload-only="['performer']"
-                                size="sm"
-                                short
-                                class="min-h-[44px] w-full justify-center"
-                            />
-                            <!-- Salvar: bookmark PRIVADO — nada daqui chega à performer. -->
-                            <FavoriteButton
-                                :slug="performer.slug"
-                                :saved="!!performer.is_favorited"
-                                :reload-only="['performer']"
-                                variant="button"
-                                class="min-h-[44px] w-full justify-center"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Social proof: só gorjetas, e só quando há (métrica zerada NUNCA
-                     aparece). A contagem de seguidores saiu — a faixa "Menos de 5"
-                     lia como zero e não agregava. Sem a linha inteira quando não há
-                     gorjeta: nenhuma barra vazia. -->
-                <div v-if="showTips" class="mt-6 flex items-center gap-8 text-sm text-limen-ink-mute border-y border-limen-line py-4">
-                    <div>
-                        <span class="text-limen-ink font-medium">{{ tipsCount }}</span> gorjetas recebidas
-                    </div>
-                </div>
-
-                <!-- Live / Chamada privada (Sprint 15). Em produção as flags estão
-                     OFF: mostra o placeholder "Em breve" onde a ação apareceria.
-                     Quando o advogado liberar (.env), o placeholder some e a UI real
-                     da feature — já implementada — assume, sem deploy de código. -->
-                <div v-if="!features.live_enabled || !features.call_enabled" class="mt-4 flex flex-wrap gap-3">
-                    <ComingSoon v-if="!features.live_enabled" icon="camera" label="Assistir live" />
-                    <ComingSoon v-if="!features.call_enabled" icon="phone" label="Chamada privada" />
-                </div>
-
-                <!-- Chamada 1:1: agora (CallRequest) e agendada (ScheduleCallModal).
-                     Só para o MEMBRO, com a chamada ligada e a performer aceitando
-                     (preço definido). A de agora pede e abre a sala no aceite; a
-                     agendada trava um depósito e vai para "Minhas chamadas". -->
-                <div
-                    v-if="canFavorite && features.call_enabled && performer.call_price_per_minute"
-                    class="mt-4 flex flex-wrap gap-3"
-                >
-                    <CallRequest
-                        :performer-profile-id="performer.profile_id"
-                        :price-per-minute="performer.call_price_per_minute"
-                        :my-user-id="myUserId"
-                        @accepted="onCallAccepted"
+            <!-- Desktop: conteúdo à esquerda, ações+valores numa coluna que segue a
+                 rolagem à direita. Mobile: tudo empilha; as ações viram barra fixa. -->
+            <div class="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8">
+                <!-- COLUNA PRINCIPAL -->
+                <div class="min-w-0 space-y-6">
+                    <!-- VOZ EM DESTAQUE (item 3): a peça de identidade do perfil.
+                         Some por inteiro sem intro aprovada. -->
+                    <VoiceIntroPlayer
+                        v-if="performer.voice_intro_url"
+                        variant="band"
+                        :url="performer.voice_intro_url"
+                        :label="`apresentação de ${performer.stage_name}`"
+                        :performer-name="performer.stage_name"
                     />
-                    <ScheduleCallModal
-                        :performer-profile-id="performer.profile_id"
-                        :price-per-minute="performer.call_price_per_minute"
-                    />
-                </div>
 
-                <!-- "Online agora" (fix/panel-polish-v1): presença DERIVADA da
-                     sessão. Só o INDICADOR — a ação de conversar virou a primária
-                     das ações acima (item 4), então o CTA duplicado saiu daqui. -->
-                <div
-                    v-if="performer.is_available && !performer.is_live"
-                    class="mt-4 inline-flex items-center gap-2 rounded-lg border border-limen-gold/40 bg-limen-gold/5 px-4 py-2 text-sm text-limen-ink"
-                >
-                    <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-success" /> Online agora
-                </div>
+                    <!-- Valores no mobile: logo abaixo da voz (no desktop vão para a
+                         coluna de ações). -->
+                    <ProfileRates :performer="performer" class="lg:hidden" />
 
-                <!-- Estado por extenso; ausente para quem não preencheu. A
-                     cidade não existe nesta prop (ver PerformerPublicResource).
-                     Ausente enquanto ela está ao vivo OU disponível — mesma regra
-                     do card e da página pública: presença em tempo real (selo "ao
-                     vivo" ou badge de disponibilidade) mais a UF entregam onde ela
-                     está NESTE momento (R2). -->
-                <div
-                    v-if="!performer.is_live && !performer.is_available && (hasStates || performer.activity_label)"
-                    class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-limen-ink-mute"
-                >
-                    <!-- Múltiplas localizações (Sprint 13): estados por extenso,
-                         "São Paulo · Rio de Janeiro". Só a UF; `city` não chega. -->
-                    <span v-if="hasStates">
-                        {{ performer.states.length > 1 ? 'Estados' : 'Estado' }}:
-                        <span class="text-limen-ink">{{ statesLabel }}</span>
-                    </span>
-                    <span v-if="hasStates && performer.activity_label" aria-hidden="true" class="text-limen-ink-mute/50">·</span>
-                    <!-- Última atividade em faixa, ao lado do estado (Sprint 10).
-                         Faixa, nunca relógio (ActivitySlot). Some quando is_live
-                         — o LiveBadge do topo já diz "agora" — e quando null. -->
-                    <span v-if="performer.activity_label">{{ performer.activity_label }}</span>
-                </div>
-
-                <!-- Stories (Sprint 9C). O CTA do bloqueado leva a assinar: o
-                     membro já tem conta, o que falta é o tier. -->
-                <StoryStrip
-                    :stories="stories"
-                    :performer-name="performer.stage_name"
-                    :locked-href="route('subscribe.index')"
-                    locked-label="Assine para ver"
-                    :can-report="report !== null"
-                />
-
-                <!-- Bio -->
-                <div v-if="performer.bio" class="mt-8 space-y-2">
-                    <h2 class="font-serif text-xl text-limen-ink">Sobre</h2>
-                    <p class="text-limen-ink-soft leading-relaxed whitespace-pre-line">{{ performer.bio }}</p>
-                </div>
-
-                <!-- O que procuro: parágrafo logo abaixo da bio. Opt-in — some
-                     por inteiro para quem não preencheu. -->
-                <div v-if="performer.looking_for" class="mt-6 space-y-2">
-                    <h2 class="font-serif text-xl text-limen-ink">O que procuro</h2>
-                    <p class="text-limen-ink-soft leading-relaxed whitespace-pre-line">{{ performer.looking_for }}</p>
-                </div>
-
-                <!-- Sobre mim / interesses: tags, idiomas, altura, bebida e fumo.
-                     Componente compartilhado com Performers/Show.vue. -->
-                <PerformerAbout :performer="performer" />
-
-                <!-- Galeria de fotos (Sprint 10). Público, sem paywall — separada
-                     do avatar/capa e dos stories. Some por inteiro sem foto. -->
-                <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" :can-request="canFavorite" />
-
-                <!-- Conteúdo permanente pago (Sprint 14, M.4/M.13.13). O membro
-                     desbloqueia com tokens (permanente); a peça bloqueada NÃO traz
-                     URL de bytes. O membro logado usa o botão de desbloquear (não
-                     há signupHref). Some por inteiro se não há conteúdo do tier. -->
-                <ContentGallery :contents="contents" :performer-name="performer.stage_name" />
-
-                <!-- Work modes -->
-                <div v-if="performer.work_modes?.length" class="mt-8 space-y-3">
-                    <h2 class="font-serif text-xl text-limen-ink">O que ofereço</h2>
-                    <div class="flex flex-wrap gap-2">
-                        <span
-                            v-for="mode in performer.work_modes"
-                            :key="mode"
-                            class="rounded-full border border-limen-gold/30 bg-limen-surface px-3.5 py-1.5 text-xs text-limen-gold"
-                        >
-                            {{ workModeLabels[mode] ?? mode }}
-                        </span>
+                    <!-- Live/Chamada (Sprint 15): "Em breve" com as flags off (produção);
+                         UI real quando ligadas. Discreto, abaixo da voz. -->
+                    <div v-if="!features.live_enabled || !features.call_enabled" class="flex flex-wrap gap-3">
+                        <ComingSoon v-if="!features.live_enabled" icon="camera" label="Assistir live" />
+                        <ComingSoon v-if="!features.call_enabled" icon="phone" label="Chamada privada" />
                     </div>
-                </div>
-
-                <!-- Rates -->
-                <div class="mt-8 mb-16 space-y-3">
-                    <h2 class="font-serif text-xl text-limen-ink">Valores</h2>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div class="rounded-xl border border-limen-line bg-limen-surface p-4 text-center">
-                            <p class="text-2xl text-limen-gold font-serif">{{ performer.rate_public }}</p>
-                            <p class="text-xs text-limen-ink-mute mt-1">tokens/min · público</p>
-                        </div>
-                        <div class="rounded-xl border border-limen-line bg-limen-surface p-4 text-center">
-                            <p class="text-2xl text-limen-gold font-serif">{{ performer.rate_private }}</p>
-                            <p class="text-xs text-limen-ink-mute mt-1">tokens/min · privado</p>
-                        </div>
-                        <div class="rounded-xl border border-limen-line bg-limen-surface p-4 text-center">
-                            <p class="text-2xl text-limen-gold font-serif">{{ performer.rate_camera }}</p>
-                            <p class="text-xs text-limen-ink-mute mt-1">tokens/min · câmera</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Denúncia: discreto de propósito (ver Performers/Show.vue). -->
-                <div v-if="report" class="mb-16 text-center">
-                    <button
-                        type="button"
-                        class="text-xs text-limen-ink-mute/70 underline underline-offset-4 hover:text-limen-ink-mute transition-colors"
-                        @click="showReportModal = true"
+                    <div
+                        v-if="canFavorite && features.call_enabled && performer.call_price_per_minute"
+                        class="flex flex-wrap gap-3"
                     >
-                        Denunciar este perfil
-                    </button>
+                        <CallRequest
+                            :performer-profile-id="performer.profile_id"
+                            :price-per-minute="performer.call_price_per_minute"
+                            :my-user-id="myUserId"
+                            @accepted="onCallAccepted"
+                        />
+                        <ScheduleCallModal
+                            :performer-profile-id="performer.profile_id"
+                            :price-per-minute="performer.call_price_per_minute"
+                        />
+                    </div>
+
+                    <ProfileTabs v-model="activeTab" :tabs="tabs" />
+
+                    <!-- FOTOS (padrão) -->
+                    <div v-show="activeTab === 'fotos'" role="tabpanel" class="space-y-6">
+                        <StoryStrip
+                            v-if="stories.length"
+                            :stories="stories"
+                            :performer-name="performer.stage_name"
+                            :locked-href="route('subscribe.index')"
+                            locked-label="Assine para ver"
+                            :can-report="report !== null"
+                        />
+                        <PhotoCarousel :photos="photos" :performer-name="performer.stage_name" :can-request="canFavorite" />
+                        <p v-if="!photos.length && !stories.length" class="rounded-xl border border-limen-line bg-limen-surface px-4 py-8 text-center text-sm text-limen-ink-mute">
+                            {{ performer.stage_name }} ainda não publicou fotos.
+                        </p>
+                    </div>
+
+                    <!-- SOBRE -->
+                    <div v-show="activeTab === 'sobre'" role="tabpanel" class="space-y-6">
+                        <AboutText v-if="performer.bio" title="Sobre" :text="performer.bio" />
+                        <AboutText v-if="performer.looking_for" title="O que procuro" :text="performer.looking_for" />
+                        <PerformerAbout :performer="performer" />
+
+                        <section v-if="performer.work_modes?.length" class="space-y-3">
+                            <h3 class="font-serif text-xl text-limen-ink">O que ofereço</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <span
+                                    v-for="mode in performer.work_modes"
+                                    :key="mode"
+                                    class="rounded-full border border-limen-gold/30 bg-limen-surface px-3.5 py-1.5 text-xs text-limen-gold"
+                                >{{ workModeLabels[mode] ?? mode }}</span>
+                            </div>
+                        </section>
+
+                        <div v-if="showLocationRow" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-limen-ink-mute">
+                            <span v-if="hasStates">
+                                {{ performer.states.length > 1 ? 'Estados' : 'Estado' }}:
+                                <span class="text-limen-ink">{{ statesLabel }}</span>
+                            </span>
+                            <span v-if="hasStates && performer.activity_label" aria-hidden="true" class="text-limen-ink-mute/50">·</span>
+                            <span v-if="performer.activity_label">{{ performer.activity_label }}</span>
+                        </div>
+
+                        <p v-if="!hasAbout" class="text-sm text-limen-ink-mute">
+                            {{ performer.stage_name }} ainda não preencheu esta seção.
+                        </p>
+                    </div>
+
+                    <!-- CONTEÚDO. A galeria lidera pelo que o membro PODE ver (item 7);
+                         sem nenhuma peça, é convite, não um zero. -->
+                    <div v-show="activeTab === 'conteudo'" role="tabpanel">
+                        <ContentGallery
+                            v-if="contents.length"
+                            :contents="contents"
+                            :performer-name="performer.stage_name"
+                        />
+                        <div v-else class="rounded-2xl border border-limen-gold/30 bg-gradient-to-br from-limen-gold/10 to-transparent px-6 py-10 text-center">
+                            <p class="font-serif text-xl text-limen-ink">O conteúdo de {{ performer.stage_name }} é só para assinantes</p>
+                            <p class="mx-auto mt-2 max-w-sm text-sm text-limen-ink-mute">Assine um Círculo para desbloquear as fotos e os vídeos exclusivos dela.</p>
+                            <Link :href="route('subscribe.index')" class="mi-glow mt-4 inline-flex min-h-[44px] items-center rounded-lg bg-limen-gold px-6 text-sm font-semibold text-limen-bg no-underline transition-opacity hover:opacity-90">
+                                Ver Círculos
+                            </Link>
+                        </div>
+                    </div>
+
+                    <!-- Denúncia: discreta, no rodapé do conteúdo. -->
+                    <div v-if="report" class="pt-4 text-center">
+                        <button
+                            type="button"
+                            class="text-xs text-limen-ink-mute/70 underline underline-offset-4 transition-colors hover:text-limen-ink-mute"
+                            @click="showReportModal = true"
+                        >Denunciar este perfil</button>
+                    </div>
+
+                    <!-- Folga para o conteúdo não ficar sob a barra fixa (mobile). -->
+                    <div class="h-28 lg:hidden" aria-hidden="true" />
                 </div>
+
+                <!-- COLUNA DE AÇÕES (desktop sticky / mobile barra fixa). -->
+                <aside v-if="canFavorite" class="lg:col-start-2">
+                    <MemberProfileActions
+                        :performer="performer"
+                        :features="features"
+                        :chat-href="chatHref"
+                        :chat-cost="chatCost"
+                        :bottom-offset="dockOffset"
+                        @tip="showTipModal = true"
+                    />
+                    <ProfileRates :performer="performer" class="mt-4 hidden lg:block" />
+                </aside>
             </div>
         </div>
 
@@ -380,7 +241,6 @@ function onTipSent(data) {
             @close="showReportModal = false"
         />
 
-        <!-- Tip modal (componente compartilhado com Performers/Show.vue) -->
         <TipModal
             :show="showTipModal"
             :performer-slug="performer.slug"
@@ -389,8 +249,14 @@ function onTipSent(data) {
             @sent="onTipSent"
         />
 
-        <!-- Sala da chamada 1:1 aceita (PR #140). Cobre a tela; o 1º minuto já foi
-             cobrado no aceite, e a cobrança/renovação seguem dentro da <PrivateCall>. -->
+        <VerificationPanel
+            :show="showVerified"
+            :performer-name="performer.stage_name"
+            :has-voice="!!performer.voice_intro_url"
+            @close="showVerified = false"
+        />
+
+        <!-- Sala da chamada 1:1 aceita (PR #140): cobre a tela. -->
         <div v-if="activeCall" class="fixed inset-0 z-50 bg-black">
             <PrivateCall
                 :call-id="activeCall.callId"

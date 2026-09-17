@@ -8,13 +8,14 @@ use Illuminate\Support\Facades\File;
 // Vitest (mesma disciplina do PanicButton/UAT). Distinto do VerifiedBadge
 // (verificação dourada), que permanece.
 
-it('monta o selo de curadoria ao lado do nome nas duas páginas de perfil', function () {
-    foreach (['Catalog/Show.vue', 'Performers/Show.vue'] as $page) {
-        $src = File::get(resource_path("js/Pages/{$page}"));
+it('monta o selo de curadoria ao lado do nome no cabeçalho do perfil', function () {
+    // feat/performer-profile-redesign: o cabeçalho dos dois perfis públicos (membro
+    // e visitante) virou o ProfileHero compartilhado — o selo de curadoria mora
+    // nele agora, ao lado do nome, uma vez só para as duas telas.
+    $src = File::get(resource_path('js/Components/Profile/ProfileHero.vue'));
 
-        expect($src)->toContain("import CurationSeal from '@/Components/CurationSeal.vue'")
-            ->and($src)->toContain('<CurationSeal :tier="performer.tier" />');
-    }
+    expect($src)->toContain("import CurationSeal from '@/Components/CurationSeal.vue'")
+        ->and($src)->toContain('<CurationSeal :tier="performer.tier" />');
 });
 
 it('estiliza Maison com borda e Select com fundo sutil, só em dourado', function () {
