@@ -36,4 +36,12 @@ class Message extends Model
     {
         return $this->belongsTo(User::class, 'sender_id');
     }
+
+    // Presente entregue no chat (feat/gift-from-profile). NULL na mensagem de
+    // texto normal; presente aponta para o item do catálogo, usado só na
+    // renderização (o dinheiro vive em gift_sends/token_ledger).
+    public function gift(): BelongsTo
+    {
+        return $this->belongsTo(Gift::class);
+    }
 }

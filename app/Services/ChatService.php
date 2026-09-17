@@ -7,6 +7,7 @@ use App\Events\NewMessage;
 use App\Exceptions\ChatException;
 use App\Models\AuditLog;
 use App\Models\Conversation;
+use App\Models\Gift;
 use App\Models\Message;
 use App\Models\PerformerInterest;
 use App\Models\PerformerMessageQuota;
@@ -167,6 +168,54 @@ class ChatService
             // que a performer veria como thread vazia, sem cobrança.
             return $this->sendMessage($conversation, $member, $body);
         });
+    }
+
+    /**
+     * Entrega um PRESENTE no chat do par (feat/gift-from-profile). Quando o membro
+     * presenteia pelo PERFIL (fora da live), o presente vira uma mensagem de
+     * presente na conversa 1:1 — o ícone do item aparece no chat e a performer é
+     * notificada. O membro é o remetente (a mensagem é dele → sempre legível a ele,
+     * e a performer sempre lê).
+     *
+     * DIFERENTE de sendMessage/memberSendToPerformer de PROPÓSITO: NÃO cobra token e
+     * NÃO passa pela janela de acesso pago. A economia do presente (débito/crédito/
+     * split 80/20) já rodou e comitou no GiftService; aqui é só ENTREGA/exibição —
+     * criar a linha de presente não pode mover saldo nem abrir/cobrar acesso de chat.
+     * Também não passa pelo filtro de conteúdo: o corpo é gerado pelo sistema, não é
+     * texto do usuário. Idempotência é do GiftService (chamado só num envio novo).
+     */
+    public function deliverGift(PerformerProfile $performerProfile, User $member, Gift $gift): Message
+    {
+        [$conversation, $message] = DB::transaction(function () use ($performerProfile, $member, $gift) {
+            // Reusa (ou cria) a conversa do par — mesmo índice único (member,
+            // performer) das outras entradas. Sem plateia de live, é aqui que o
+            // contexto de chat nasce se ainda não existir.
+            $conversation = Conversation::firstOrCreate(
+                ['member_id' => $member->id, 'performer_profile_id' => $performerProfile->id],
+                ['status' => 'active'],
+            );
+            $conversation->loadMissing('performerProfile');
+
+            // sender_id forçado (fora do fillable) — o presente é do MEMBRO. O corpo
+            // é um rótulo de sistema para preview/notificação/acessibilidade; a tela
+            // renderiza o ÍCONE do presente pelo gift_id.
+            $message = Message::forceCreate([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $member->id,
+                'body' => 'Presente: '.$gift->name,
+                'gift_id' => $gift->id,
+            ]);
+
+            $conversation->forceFill(['last_message_at' => $message->created_at])->save();
+
+            return [$conversation, $message];
+        });
+
+        // Pós-commit, como o resto do projeto: notifica a performer (incrementa não
+        // lida) e atualiza a lista dos dois lados. Na dev o driver é `log`.
+        $this->broadcastMessage($conversation, $message);
+
+        return $message;
     }
 
     /**
