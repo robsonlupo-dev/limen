@@ -23,6 +23,16 @@ final class ChatContentFilter
     public const CONDUCT = 'conduct';
 
     /**
+     * Separadores de EVASÃO por espaçamento: o que uma pessoa intercala entre as
+     * letras de uma palavra para furar o casamento ("t e  m a t o", "p.i.x",
+     * "f-o-r-a"). São tolerados DENTRO de uma palavra do termo (ver `fuzzy`),
+     * nunca como lacuna ENTRE palavras de uma frase — essa segue sendo `\s+`, do
+     * contrário "pix. fora" (duas palavras normais com ponto) casaria "pix fora"
+     * e barraria mensagem legítima. `\s` cobre qualquer espaço unicode sob `/u`.
+     */
+    private const EVASION_SEP = '[\s._-]';
+
+    /**
      * @return array{category: string, rule: string}|null
      */
     public static function match(string $body): ?array
@@ -155,7 +165,13 @@ final class ChatContentFilter
      */
     private static function directedInsultPattern(string $insult): string
     {
-        $pronouns = '(?:voce|vc|tu|sua|seu|tua|teu)';
+        // O pronome direcionador também é fuzzy: senão "s u a  p u t a nojenta"
+        // escaparia pelo lado do pronome ("s u a" não casaria o literal "sua"),
+        // mesmo com o xingamento já tolerante ao espaçamento.
+        $pronouns = '(?:'.implode('|', array_map(
+            static fn (string $pronoun): string => self::fuzzy($pronoun),
+            ['voce', 'vc', 'tu', 'sua', 'seu', 'tua', 'teu'],
+        )).')';
         $filler = '(?:\s+\p{L}+){0,2}';
 
         return '/(?<![\p{L}\p{N}])'.$pronouns.$filler.'\s+'
@@ -230,21 +246,49 @@ final class ChatContentFilter
 
     /**
      * Padrão tolerante do termo: cada caractere 1 ou 2 vezes (pega o
-     * alongamento que a normalização deixou), espaço flexível em frase.
+     * alongamento que a normalização deixou), espaço flexível em frase, e
+     * separador de evasão opcional ENTRE as letras de uma mesma palavra
+     * ("t e  m a t o", "p.i.x", "f-o-r-a" passam a casar).
      *
-     * Concatenação simples de `{1,2}`, sem quantificador aninhado — não há
-     * backtracking catastrófico (medido em <0,2 ms sobre os 1000 caracteres
-     * de CHAT_MESSAGE_MAX_LENGTH).
+     * A tolerância ao espaçamento é de PADRÃO, não de achatamento do texto: em
+     * vez de remover todos os espaços da mensagem (o que casaria "pix" + "fora"
+     * acidentalmente em "…pix. fora disso…" e barraria mensagem legítima), o
+     * termo é que aceita um separador entre suas letras. Duas travas mantêm o
+     * falso positivo fora:
+     *   1. O separador entra só ANTES de uma letra que não é a primeira da
+     *      palavra — nunca DEPOIS da última. Assim o "." de "pix." não é
+     *      consumido pelo termo "pix", e a lacuna de frase logo à frente
+     *      continua exigindo espaço de verdade.
+     *   2. A lacuna entre PALAVRAS do termo (o espaço na frase-alvo) segue
+     *      `\s+` — só whitespace, nunca `EVASION_SEP` —, então "pix. fora" não
+     *      casa "pix fora", mas "pix  fora" (espaçado) casa.
+     * `EVASION_SEP` não cruza LETRAS (só espaço/ponto/hífen/sublinhado), então
+     * o termo não pula por cima de uma palavra inteira do meio.
+     *
+     * Continua sem quantificador aninhado (só `{1,2}` e um `*` sobre classe
+     * fixa) — sem backtracking catastrófico sobre os 1000 caracteres de
+     * CHAT_MESSAGE_MAX_LENGTH.
      */
     private static function fuzzy(string $normalized): string
     {
         $chars = preg_split('//u', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
         $pattern = '';
+        $inWord = false;
         foreach ($chars as $char) {
-            $pattern .= $char === ' '
-                ? '\s+'
-                : preg_quote($char, '/').'{1,2}';
+            if ($char === ' ') {
+                $pattern .= '\s+';
+                $inWord = false;
+
+                continue;
+            }
+
+            if ($inWord) {
+                $pattern .= self::EVASION_SEP.'*';
+            }
+
+            $pattern .= preg_quote($char, '/').'{1,2}';
+            $inWord = true;
         }
 
         return $pattern;
