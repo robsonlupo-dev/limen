@@ -71,10 +71,13 @@ async function submit() {
     <div>
         <button
             type="button"
-            class="rounded-lg border border-limen-gold/50 px-4 py-2 font-medium text-limen-gold transition-colors hover:bg-limen-gold/10"
+            class="inline-flex items-center gap-2 rounded-lg border border-limen-gold/50 px-4 py-2 font-medium text-limen-gold transition-colors hover:bg-limen-gold/10"
             @click="open"
         >
-            🗓️ Agendar chamada
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3M16 2v3M3.5 9.5h17M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
+            </svg>
+            Agendar chamada
         </button>
 
         <div

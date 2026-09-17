@@ -2,6 +2,7 @@
 import { computed, reactive } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { formatTokens } from '@/lib/tokens'
 
 const props = defineProps({
     // Paginator: { data, links, current_page, last_page, total }
@@ -22,9 +23,9 @@ const form = reactive({
 const chips = computed(() => [{ key: 'all', label: 'Tudo' }, ...props.typeGroups])
 
 // Vírgula decimal pt-BR. Recebe "1.6000" (string 4dp) ou número.
-function br(value) {
-    return String(value).replace('.', ',')
-}
+// Formatação de token: helper único (pt-BR, vírgula). Antes um replace local dava
+// "300,4000"; agora "300,4" (zeros à direita cortados), consistente com Saques/painel.
+const br = (value) => formatTokens(value)
 
 // R$ equivalente do saldo (hint — o valor autoritativo do saque vive na tela de
 // Saques). R$0,60/token fixo (M.13.5).

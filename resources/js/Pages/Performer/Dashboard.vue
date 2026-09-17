@@ -4,6 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import ComingSoon from '@/Components/ComingSoon.vue'
+import { formatTokens } from '@/lib/tokens'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
 import NotificationSoundSettings from '@/Components/NotificationSoundSettings.vue'
 import ProfileProgress from '@/Components/ProfileProgress.vue'
@@ -381,7 +382,7 @@ async function decideAccess(req, approve) {
                 <template v-else>
                     <p class="text-xs text-muted">
                         Você precisa de <span class="text-gold">{{ boostState.cost }} tokens</span> para destacar seu perfil.
-                        Você tem {{ walletBalance }}.
+                        Você tem {{ formatTokens(walletBalance) }}.
                     </p>
                     <Link :href="route('wallet.index')" class="text-sm text-gold hover:text-gold-light transition-colors no-underline">
                         Comprar tokens &rarr;
@@ -402,13 +403,13 @@ async function decideAccess(req, approve) {
                     <p class="text-xs text-muted uppercase tracking-wide">Saldo</p>
                     <!-- walletBalance (local) e não a prop: o boost debita tokens
                          e o card precisa refletir sem recarregar a página. -->
-                    <p class="font-serif text-3xl text-gold">{{ walletBalance }}</p>
+                    <p class="font-serif text-3xl text-gold">{{ formatTokens(walletBalance) }}</p>
                     <p class="text-xs text-gold/70">Sacar &rarr;</p>
                 </Link>
 
                 <div class="rounded-xl border border-frame bg-surface p-5 space-y-1">
                     <p class="text-xs text-muted uppercase tracking-wide">Total ganho</p>
-                    <p class="font-serif text-3xl text-gold">{{ totalEarned }}</p>
+                    <p class="font-serif text-3xl text-gold">{{ formatTokens(totalEarned) }}</p>
                     <p class="text-xs text-muted">tokens</p>
                 </div>
 

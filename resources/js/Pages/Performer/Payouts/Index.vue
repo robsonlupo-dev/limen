@@ -4,6 +4,7 @@ import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
+import { formatTokens } from '@/lib/tokens'
 
 const props = defineProps({
     balance: { type: Number, required: true },
@@ -83,13 +84,13 @@ function submit() {
                     <h1 class="font-serif text-4xl text-cream">Saques</h1>
                     <p class="text-muted text-sm">
                         Disponível para saque:
-                        <span class="text-gold font-medium">{{ withdrawableTokens }}</span> tokens
+                        <span class="text-gold font-medium">{{ formatTokens(withdrawableTokens) }}</span> tokens
                         <span class="text-muted">(~{{ withdrawableEstimate }})</span>
                     </p>
                     <p class="text-muted text-xs">{{ rateLabel }}</p>
                 </div>
                 <Link :href="route('performer.payouts.history')" class="text-sm text-gold hover:text-gold-light transition-colors">
-                    Ver histórico
+                    Ver histórico de saques
                 </Link>
             </div>
 

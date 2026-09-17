@@ -4880,6 +4880,66 @@ segunda porta (seguidores + visitantes, PR #95).
 
 ---
 
+## Correções da rodada de UAT de 16/09 (`fix/uat-round-polish`, PR pendente)
+
+Doze itens de polimento (mobile e desktop), sem tocar economia/split/regra de acesso.
+Muitos são follow-ups do redesenho do perfil (PR #215). Suíte MySQL verde (só o
+`GeoBlockTest` 451 do clone), `npm run build` limpo.
+
+1. **Nome técnico vazando (regressão).** A carteira do membro (`Wallet/Index.vue`)
+   tinha um MAPA LOCAL de rótulos (9 tipos) com fallback ao tipo cru (`?? type`) — os
+   tipos da chamada (`spend_call` etc.) entraram depois do #202 e não estavam nele,
+   então vazavam crus ao lado dos traduzidos. Passou a usar `entry.label` do servidor
+   (`LedgerEntryLabel`, dona única, cobre o enum inteiro). O teste de enum já era
+   estrito (lê o `information_schema`); o furo era o front — travado agora por fonte.
+2. **Formatação de token unificada.** Novo helper único `resources/js/lib/tokens.js`
+   (`formatTokens`) — pt-BR (vírgula decimal) SEMPRE; casas por contexto (saldo da
+   performer com casas, zeros à direita cortados → "300,4"; preço/inteiro sem casas).
+   Fim dos três jeitos ("300,4000"/"300.4000"/"300"). Ligado em Extrato, Saques,
+   painel da performer e carteira do membro (saldo + histórico).
+3. **Capa e avatar do perfil (desktop).** `ProfileHero`: a capa virou altura FIXA
+   (`h-40 sm:h-52 lg:h-[280px]`) — o `aspect-ratio`+`max-height` não capava de forma
+   confiável e deixava a capa gigante/full-bleed; agora é faixa com teto real, cantos
+   arredondados, DENTRO do container. E SÓ o avatar sobrepõe a capa (margem negativa
+   nele, não na linha) — o bloco do NOME saiu de baixo da capa (corrige o nome/selo
+   cobertos no mobile) e o avatar nunca é cortado.
+4 & 5. **Abas e "Valores" no desktop.** A coluna dupla passou de `grid` de valor
+   arbitrário (`grid-cols-[minmax(0,1fr)_20rem]`) para **flex com utilitários padrão**
+   (`lg:flex` + `lg:flex-1` + `lg:w-80 lg:shrink-0`) — engancha de forma confiável, então
+   as abas ficam na coluna principal e "Valores" fica na coluna de ações (não mais no
+   rodapé). Vale para os dois perfis (membro e visitante).
+6. **Emoji como ícone → SVG.** `CallRequest`/`ScheduleCallModal`/`ComingSoon` trocaram
+   os emoji de câmera/calendário/telefone por `<svg>` inline. **Regra nova no CLAUDE.md:**
+   ícone de interface é sempre SVG, nunca emoji (com a lista da dívida a migrar).
+7. **Barra de ações transbordava no mobile.** `MemberProfileActions`/`GuestProfileActions`:
+   Conversar em largura cheia (`whitespace-nowrap`, o "· 2" não quebra) e as três
+   secundárias numa grade de 3 iguais em qualquer largura — cabe a 360px, nada cortado.
+8. **Presença no card do catálogo.** `PerformerCard` passou a mostrar "Online agora"
+   (ponto verde) a partir de `is_available` (isOnline no servidor), que JÁ respeita o
+   opt-out `appear_offline` — o mesmo sinal do perfil, agora na vitrine. Cai na faixa
+   ("Ativa hoje") quando não online.
+9. **Perfil do membro abre.** O modal de perfil do membro (`Performer/Members.vue`,
+   das visitas bidirecionais) já existia e abre no clique do card; passou a mostrar a
+   FOTO do membro quando há (já pública no card — nada novo exposto), com silhueta de
+   fallback. **Nenhum dado novo** foi adicionado (só o que a máscara já entrega).
+10. **Cards de membro compactos.** `MemberCard` deixou de ser o retrato 3:4 com uma
+    silhueta boiando num vazio: virou card compacto (avatar/silhueta + alias +
+    atividade + ações), altura natural curta, alvos ≥44px.
+11. **Toast de mensagem maior.** `MessageToast`: mais largo (`w-96`), avatar 48px, texto
+    maior, prévia em 2 linhas, e some em 13s (mais tempo de leitura). Segue discreto
+    (canto, escuro) — não virou banner.
+12. **Redação dos links.** Saques: "Ver histórico de saques"; carteira do membro: "Ver
+    histórico de gastos".
+
+**Verificado e RELATADO (não era bug):** no painel da performer, "Últimas gorjetas"
+mostra "Fã #NNNN · Patrono". O "Patrono" vem de `LifestyleTier::labelsFor()`
+(`DashboardController.php:244,252`) — é o **Estilo de Vida auto-declarado** pelo membro,
+que o PO decidiu exibir à performer (documentado em `ProfileController`/`LifestyleTier`).
+NÃO deriva do tier de assinatura (Círculo), então NÃO viola a invariante de tier de
+membro invisível. Correto como está.
+
+---
+
 ## Apêndice B — Limitações conhecidas (não redescobrir)
 
 Registro para **não serem redescobertas como novidade**. Todas são decisões

@@ -44,36 +44,35 @@ const emit = defineEmits(['tip'])
                 <span class="h-2 w-2 animate-pulse rounded-full bg-white" /> Ao vivo — assistir
             </Link>
 
-            <div class="flex gap-2 lg:flex-col lg:gap-2.5">
-                <!-- Primária: Conversar, com o custo de abertura. -->
-                <Link
-                    :href="chatHref"
-                    class="mi-glow inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-limen-gold px-4 text-sm font-semibold text-limen-bg no-underline transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60 lg:w-full lg:flex-none"
-                >
-                    Conversar
-                    <span v-if="chatCost" class="font-normal opacity-80">· {{ chatCost }}</span>
-                </Link>
+            <!-- Primária: Conversar, largura cheia nas DUAS larguras (o custo não
+                 quebra linha — item 7). -->
+            <Link
+                :href="chatHref"
+                class="mi-glow inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-limen-gold px-4 text-sm font-semibold text-limen-bg no-underline transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
+            >
+                Conversar
+                <span v-if="chatCost" class="font-normal opacity-80">· {{ chatCost }}</span>
+            </Link>
 
-                <!-- Secundárias: no celular ficam ao lado da primária (uma sub-linha
-                     de 3); no desktop viram uma grade de 3 abaixo dela. -->
-                <div class="flex min-w-0 gap-2 lg:grid lg:grid-cols-3">
-                    <Button variant="ghost" size="sm" class="min-h-[44px] flex-1 justify-center lg:w-full" @click="emit('tip')">Gorjeta</Button>
-                    <FollowButton
-                        :slug="performer.slug"
-                        :following="performer.is_following"
-                        :reload-only="['performer']"
-                        size="sm"
-                        short
-                        class="min-h-[44px] flex-1 justify-center lg:w-full"
-                    />
-                    <FavoriteButton
-                        :slug="performer.slug"
-                        :saved="!!performer.is_favorited"
-                        :reload-only="['performer']"
-                        variant="button"
-                        class="min-h-[44px] flex-1 justify-center lg:w-full"
-                    />
-                </div>
+            <!-- Secundárias: grade de 3 iguais em QUALQUER largura — cabe a 360px sem
+                 cortar nada (item 7). Rótulos curtos. -->
+            <div class="grid grid-cols-3 gap-2">
+                <Button variant="ghost" size="sm" class="min-h-[44px] w-full justify-center" @click="emit('tip')">Gorjeta</Button>
+                <FollowButton
+                    :slug="performer.slug"
+                    :following="performer.is_following"
+                    :reload-only="['performer']"
+                    size="sm"
+                    short
+                    class="min-h-[44px] w-full justify-center"
+                />
+                <FavoriteButton
+                    :slug="performer.slug"
+                    :saved="!!performer.is_favorited"
+                    :reload-only="['performer']"
+                    variant="button"
+                    class="min-h-[44px] w-full justify-center"
+                />
             </div>
         </div>
     </div>

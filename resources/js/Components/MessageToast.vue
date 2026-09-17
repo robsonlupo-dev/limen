@@ -22,7 +22,7 @@ const { play } = useNotificationSound()
 
 const toasts = ref([])
 const MAX_TOASTS = 3
-const AUTO_DISMISS_MS = 8000
+const AUTO_DISMISS_MS = 13000
 
 let seq = 0
 let channel = null
@@ -98,12 +98,12 @@ onBeforeUnmount(() => {
 
 <template>
     <!-- Empilha no canto inferior direito, acima de tudo. -->
-    <div class="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3">
+    <div class="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3">
         <transition-group name="toast">
             <div
                 v-for="toast in toasts"
                 :key="toast.id"
-                class="pointer-events-auto flex items-center gap-3 rounded-xl border p-3 shadow-xl"
+                class="pointer-events-auto flex items-start gap-3 rounded-xl border p-4 shadow-2xl"
                 style="background-color: #0d0d0d; border-color: #262626; color: #F5F0E8"
             >
                 <!-- Foto redonda 40px; placeholder com inicial quando não há avatar
@@ -112,24 +112,24 @@ onBeforeUnmount(() => {
                     v-if="toast.avatar"
                     :src="toast.avatar"
                     alt=""
-                    class="h-10 w-10 shrink-0 rounded-full object-cover"
+                    class="h-12 w-12 shrink-0 rounded-full object-cover"
                     @error="toast.avatar = null"
                 />
                 <div
                     v-else
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold"
                     style="background-color: #262626; color: #C9A84C"
                 >{{ initial(toast.name) }}</div>
 
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-semibold" style="color: #C9A84C">{{ toast.name }}</p>
+                    <p class="truncate text-base font-semibold" style="color: #C9A84C">{{ toast.name }}</p>
                     <!-- Gancho da mensagem quando há (teaser cortado no servidor p/
                          quem não pagou; trecho normal p/ quem lê). Sem preview, o
                          genérico. `truncate` evita estourar o toast. -->
-                    <p class="truncate text-xs" style="color: #F5F0E8">{{ toast.preview || 'Enviou uma mensagem' }}</p>
+                    <p class="mt-0.5 line-clamp-2 text-sm" style="color: #F5F0E8">{{ toast.preview || 'Enviou uma mensagem' }}</p>
                     <button
                         type="button"
-                        class="mt-1 text-xs font-medium underline-offset-2 hover:underline"
+                        class="mt-1.5 inline-block min-h-[32px] text-sm font-medium underline-offset-2 hover:underline"
                         style="color: #C9A84C"
                         @click="open(toast)"
                     >

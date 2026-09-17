@@ -99,10 +99,12 @@ function onTipSent(data) { tipsCount.value = data.tips_count }
             />
 
             <!-- Desktop: conteúdo à esquerda, ações+valores numa coluna que segue a
-                 rolagem à direita. Mobile: tudo empilha; as ações viram barra fixa. -->
-            <div class="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8">
+                 rolagem à direita. Mobile: tudo empilha; as ações viram barra fixa.
+                 FLEX com utilitários padrão (não grid de valor arbitrário) para as
+                 duas colunas engancharem de forma confiável no desktop. -->
+            <div class="mt-6 lg:flex lg:items-start lg:gap-8">
                 <!-- COLUNA PRINCIPAL -->
-                <div class="min-w-0 space-y-6">
+                <div class="min-w-0 space-y-6 lg:flex-1">
                     <!-- VOZ EM DESTAQUE (item 3): a peça de identidade do perfil.
                          Some por inteiro sem intro aprovada. -->
                     <VoiceIntroPlayer
@@ -219,7 +221,7 @@ function onTipSent(data) { tipsCount.value = data.tips_count }
                 </div>
 
                 <!-- COLUNA DE AÇÕES (desktop sticky / mobile barra fixa). -->
-                <aside v-if="canFavorite" class="lg:col-start-2">
+                <aside v-if="canFavorite" class="lg:w-80 lg:shrink-0">
                     <MemberProfileActions
                         :performer="performer"
                         :features="features"

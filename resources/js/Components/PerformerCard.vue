@@ -389,10 +389,18 @@ onBeforeUnmount(stopPreview)
                             <path v-if="!(isMaison || isSelect)" d="M6.7 10.2l2.1 2.1 4.5-4.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
                     </div>
-                    <!-- Segunda linha: atividade em faixa ("Ativa hoje"). Some
-                         quando is_live (a badge AO VIVO já diz "agora"). Sem
-                         cidade (não é público) nem horário (é faixa, não relógio). -->
-                    <p v-if="performer.activity_label && !showLive" class="mt-0.5 text-[11px] text-limen-ink-mute">
+                    <!-- Segunda linha: PRESENÇA. "Online agora" (ponto verde) é o
+                         sinal mais forte para o membro clicar, e agora aparece no
+                         card como já aparece no perfil — deriva de is_available
+                         (isOnline no servidor), que JÁ respeita o opt-out
+                         `appear_offline` (item 8). Sem presença online, cai na faixa
+                         de atividade ("Ativa hoje"). Some quando is_live (a badge AO
+                         VIVO já diz "agora"). Nunca cidade nem horário ao minuto. -->
+                    <p v-if="performer.is_available && !showLive" class="mt-0.5 flex items-center gap-1.5 text-[11px] text-limen-ink">
+                        <span aria-hidden="true" class="inline-block h-1.5 w-1.5 rounded-full bg-success" />
+                        Online agora
+                    </p>
+                    <p v-else-if="performer.activity_label && !showLive" class="mt-0.5 text-[11px] text-limen-ink-mute">
                         {{ performer.activity_label }}
                     </p>
                 </div>

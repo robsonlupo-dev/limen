@@ -47,17 +47,18 @@ const emit = defineEmits(['tip', 'unlock-chat'])
             >Criar conta para interagir</Link>
 
             <!-- Secundárias: Seguir (→ cadastro), Gorjeta (membro → modal, senão
-                 cadastro), Salvar (só membro). -->
-            <div class="flex min-w-0 gap-2 lg:grid lg:grid-cols-3">
+                 cadastro), Salvar (só membro). Grade de 3 iguais em qualquer largura
+                 — cabe a 360px sem cortar (item 7). -->
+            <div class="grid grid-cols-3 gap-2">
                 <Link
                     :href="route('entrada')"
-                    class="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg border border-limen-gold/50 px-3 text-sm text-limen-gold no-underline transition-colors hover:bg-limen-gold/10 lg:w-full"
+                    class="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-gold/50 px-3 text-sm text-limen-gold no-underline transition-colors hover:bg-limen-gold/10"
                 >Seguir</Link>
-                <Button v-if="canTip" variant="ghost" size="sm" class="min-h-[44px] flex-1 justify-center lg:w-full" @click="emit('tip')">Gorjeta</Button>
+                <Button v-if="canTip" variant="ghost" size="sm" class="min-h-[44px] w-full justify-center" @click="emit('tip')">Gorjeta</Button>
                 <Link
                     v-else
                     :href="route('entrada')"
-                    class="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg border border-limen-line px-3 text-sm text-limen-ink-mute no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink lg:w-full"
+                    class="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-3 text-sm text-limen-ink-mute no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
                 >Gorjeta</Link>
                 <FavoriteButton
                     v-if="favorite"
@@ -65,7 +66,7 @@ const emit = defineEmits(['tip', 'unlock-chat'])
                     :saved="favorite.saved"
                     :reload-only="['favorite']"
                     variant="button"
-                    class="min-h-[44px] flex-1 justify-center lg:w-full"
+                    class="min-h-[44px] w-full justify-center"
                 />
             </div>
         </div>
