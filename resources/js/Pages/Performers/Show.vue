@@ -10,6 +10,7 @@ import GuestProfileActions from '@/Components/Profile/GuestProfileActions.vue'
 import VerificationPanel from '@/Components/Profile/VerificationPanel.vue'
 import VoiceIntroPlayer from '@/Components/VoiceIntroPlayer.vue'
 import TipModal from '@/Components/TipModal.vue'
+import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
@@ -56,6 +57,7 @@ const hasAbout = computed(() =>
 )
 
 const showTipModal = ref(false)
+const showGiftModal = ref(false)
 const showReportModal = ref(false)
 const showVerified = ref(false)
 
@@ -188,6 +190,7 @@ async function unlockChat() {
                         :can-tip="canTip"
                         :favorite="favorite"
                         @tip="showTipModal = true"
+                        @gift="showGiftModal = true"
                         @unlock-chat="showChatAccessModal = true"
                     />
                     <ProfileRates :performer="performer" class="mt-4 hidden lg:block" />
@@ -201,6 +204,14 @@ async function unlockChat() {
             :performer-slug="performer.slug"
             :performer-name="performer.stage_name"
             @close="showTipModal = false"
+        />
+
+        <GiftModal
+            v-if="canTip"
+            :show="showGiftModal"
+            :performer-slug="performer.slug"
+            :performer-name="performer.stage_name"
+            @close="showGiftModal = false"
         />
 
         <ReportModal

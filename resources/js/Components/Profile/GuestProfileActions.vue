@@ -18,7 +18,7 @@ const props = defineProps({
     bottomOffset: { type: String, default: '0px' },
 })
 
-const emit = defineEmits(['tip', 'unlock-chat'])
+const emit = defineEmits(['tip', 'gift', 'unlock-chat'])
 </script>
 
 <template>
@@ -45,14 +45,11 @@ const emit = defineEmits(['tip', 'unlock-chat'])
                 class="mi-glow inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-limen-gold px-4 text-sm font-semibold text-limen-bg no-underline transition-opacity hover:opacity-90"
             >Criar conta para interagir</Link>
 
-            <!-- Secundárias: Seguir (→ cadastro), Gorjeta (membro → modal, senão
-                 cadastro), Salvar (só membro). Grade de 3 iguais em qualquer largura
-                 — cabe a 360px sem cortar (item 7). -->
-            <div class="grid grid-cols-3 gap-2">
-                <Link
-                    :href="route('entrada')"
-                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-3 text-sm text-limen-ink-soft no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
-                >Seguir</Link>
+            <!-- Hierarquia (fix 6, feat/gift-from-profile): Gorjeta e Presente são
+                 SECUNDÁRIAS (contorno dourado); membro logado abre o modal, visitante
+                 vai ao cadastro. Seguir e Salvar são TERCIÁRIAS (contorno neutro).
+                 Duas linhas de 2 cabem a 360px sem cortar rótulo (item 7). -->
+            <div class="grid grid-cols-2 gap-2">
                 <button
                     v-if="canTip"
                     type="button"
@@ -62,8 +59,25 @@ const emit = defineEmits(['tip', 'unlock-chat'])
                 <Link
                     v-else
                     :href="route('entrada')"
-                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-3 text-sm text-limen-ink-mute no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-4 text-sm text-limen-ink-mute no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
                 >Gorjeta</Link>
+                <button
+                    v-if="canTip"
+                    type="button"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-gold px-4 text-sm text-limen-gold transition-colors hover:bg-limen-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
+                    @click="emit('gift')"
+                >Presente</button>
+                <Link
+                    v-else
+                    :href="route('entrada')"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-4 text-sm text-limen-ink-mute no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
+                >Presente</Link>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <Link
+                    :href="route('entrada')"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-4 text-sm text-limen-ink-soft no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
+                >Seguir</Link>
                 <FavoriteButton
                     v-if="favorite"
                     :slug="performer.slug"
