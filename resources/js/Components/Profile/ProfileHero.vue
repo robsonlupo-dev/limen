@@ -36,11 +36,13 @@ const presence = computed(() => {
 
 <template>
     <div>
-        <!-- CAPA COMO FAIXA (item 1): 2:1 no retrato, 3:1 no desktop, teto ~280px.
-             object-cover trata a capa como banner (preenche a faixa); a capa bem
-             enquadrada (3:1 do cropper) fica exata. Véu escuro na base para o que
-             vem por cima ser legível. Sem capa: mármore da marca (CSS), nunca vazio. -->
-        <div class="profile-cover relative aspect-[2/1] max-h-[280px] w-full overflow-hidden rounded-b-2xl sm:aspect-[3/1]">
+        <!-- CAPA COMO FAIXA (item 1/3): altura FIXA com teto ~280px no desktop (não
+             `aspect-ratio`, que combinado com max-height não capava de forma
+             confiável e deixava a capa gigante). object-cover trata a capa como
+             banner; véu escuro na base para o que vem por cima ser legível; cantos
+             arredondados DENTRO do container centralizado (nunca full-bleed). Sem
+             capa: mármore da marca (CSS), nunca vazio. -->
+        <div class="profile-cover relative h-40 w-full overflow-hidden rounded-2xl sm:h-52 lg:h-[280px]">
             <img
                 v-if="performer.cover_url"
                 :src="performer.cover_url"
@@ -48,19 +50,20 @@ const presence = computed(() => {
                 class="h-full w-full object-cover"
             />
             <div v-else class="profile-marble h-full w-full" aria-hidden="true" />
-            <!-- Véu: escurece a base para o avatar/nome que a sobrepõem. -->
-            <div class="absolute inset-0 bg-gradient-to-t from-limen-bg via-limen-bg/40 to-transparent" />
+            <!-- Véu: escurece a base para o avatar que a sobrepõe. -->
+            <div class="absolute inset-0 bg-gradient-to-t from-limen-bg/80 via-transparent to-transparent" />
 
             <div v-if="liveNow" class="absolute right-4 top-4">
                 <LiveBadge />
             </div>
         </div>
 
-        <!-- AVATAR + IDENTIDADE (item 2): avatar sobrepõe a base da capa, alinhado à
-             esquerda, sempre POR CIMA (z-10, fora do overflow da capa) e nunca
-             cortado. Nome/selos/presença ao lado formam uma unidade compacta. -->
-        <div class="-mt-12 flex items-end gap-4 sm:-mt-14 sm:gap-5">
-            <div class="relative z-10 h-24 w-24 shrink-0 overflow-hidden rounded-full border-4 border-limen-gold bg-limen-surface-2 shadow-2xl sm:h-28 sm:w-28">
+        <!-- AVATAR + IDENTIDADE (item 2/3): SÓ O AVATAR sobrepõe a base da capa
+             (margem negativa nele, não na linha), sempre POR CIMA (z-10, fora do
+             overflow da capa) e nunca cortado. O bloco do NOME fica na linha normal,
+             ABAIXO da capa — nunca sob ela (corrige o nome/selo cobertos no mobile). -->
+        <div class="flex gap-4 px-1 sm:gap-5">
+            <div class="relative z-10 -mt-10 h-24 w-24 shrink-0 overflow-hidden rounded-full border-4 border-limen-gold bg-limen-surface-2 shadow-2xl sm:-mt-14 sm:h-28 sm:w-28">
                 <!-- object-contain: avatar 1:1 preenche o círculo; imagem fora de
                      1:1 (semente) aparece inteira, sem cortar o rosto. -->
                 <img
@@ -72,7 +75,7 @@ const presence = computed(() => {
                 <span v-else class="flex h-full w-full items-center justify-center font-serif text-4xl text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
             </div>
 
-            <div class="min-w-0 flex-1 pb-1">
+            <div class="min-w-0 flex-1 pt-2">
                 <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <h1 class="font-serif text-3xl leading-tight text-limen-ink sm:text-4xl">{{ performer.stage_name }}</h1>
                     <!-- Selo de verificada CLICÁVEL (item 8): abre o painel do que

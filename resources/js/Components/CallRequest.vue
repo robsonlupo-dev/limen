@@ -83,10 +83,13 @@ onBeforeUnmount(leaveChannel)
     <div>
         <button
             type="button"
-            class="rounded-lg bg-brand px-4 py-2 font-medium text-white hover:opacity-90"
+            class="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 font-medium text-white hover:opacity-90"
             @click="open"
         >
-            📹 Chamada privada
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 10.5 20 8v8l-4.5-2.5M4 6.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" />
+            </svg>
+            Chamada privada
         </button>
 
         <div

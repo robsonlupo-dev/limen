@@ -90,9 +90,9 @@ async function unlockChat() {
                 @open-verified="showVerified = true"
             />
 
-            <div class="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8">
+            <div class="mt-6 lg:flex lg:items-start lg:gap-8">
                 <!-- COLUNA PRINCIPAL -->
-                <div class="min-w-0 space-y-6">
+                <div class="min-w-0 space-y-6 lg:flex-1">
                     <VoiceIntroPlayer
                         v-if="performer.voice_intro_url"
                         variant="band"
@@ -181,7 +181,7 @@ async function unlockChat() {
                 </div>
 
                 <!-- AÇÕES (desktop sticky / mobile barra fixa). -->
-                <aside class="lg:col-start-2">
+                <aside class="lg:w-80 lg:shrink-0">
                     <GuestProfileActions
                         :performer="performer"
                         :chat="chat"

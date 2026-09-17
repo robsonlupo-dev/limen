@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { formatTokens } from '@/lib/tokens'
 
 const props = defineProps({
     entries: { type: Object, required: true },
@@ -42,9 +43,9 @@ function entryLabel(entry) {
                             <tr v-for="(entry, i) in entries.data" :key="i" class="border-b border-frame/50 last:border-b-0">
                                 <td class="px-5 py-3 text-cream">{{ entryLabel(entry) }}</td>
                                 <td class="px-5 py-3" :class="entry.amount >= 0 ? 'text-success' : 'text-danger'">
-                                    {{ entry.amount >= 0 ? '+' : '' }}{{ entry.amount }}
+                                    {{ entry.amount >= 0 ? '+' : '' }}{{ formatTokens(entry.amount) }}
                                 </td>
-                                <td class="px-5 py-3 text-gold">{{ entry.balance_after }}</td>
+                                <td class="px-5 py-3 text-gold">{{ formatTokens(entry.balance_after) }}</td>
                                 <td class="px-5 py-3 text-muted">{{ entry.created_at }}</td>
                             </tr>
                         </tbody>

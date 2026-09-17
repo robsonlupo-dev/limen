@@ -64,6 +64,26 @@ vive em `docs/ARQUITETURA.md` (seção "Stack").** Mudar de stack só com aprova
   adicionam a "próxima" seção com o mesmo número — foi o que forçou o renumber
   "A.0.4 → A.0.9". Título descritivo não colide. (Ver a nota de convenção no topo do
   Apêndice A do handoff.)
+- **ÍCONE DE INTERFACE É SVG, NUNCA EMOJI (regra do PO, fix/uat-round-polish).**
+  Emoji renderiza diferente (ou vira um quadrado) entre sistemas/navegadores — foi o
+  que aconteceu com a câmera/calendário dos botões de chamada e com o símbolo do
+  token. Todo ícone de UI (botão, rótulo, estado) é `<svg>` inline (stroke,
+  `currentColor`, `aria-hidden`), como o resto do projeto. Emoji só é aceitável como
+  CONTEÚDO textual (ex.: numa mensagem de chat), nunca como ícone. **Ainda usam emoji
+  como ícone (dívida a migrar, achado da varredura):** `LiveViewer`/`LiveOverlay` 🪙
+  (token), `StoryStrip`/`PhotoCarousel`/`Subscription` 🔒 (cadeado), `NowStrip` 💌,
+  `Catalog/FilterPanel` 💾, `Catalog/Index` 🌐, `Content/Index` 🎬🖼, `Links` 🔞,
+  `Dashboard` ⚡, `Onboarding` 📄🕐✅ — trocar por SVG num PR de limpeza.
+- **UMA formatação de token no front: `formatTokens()` de `@/lib/tokens`
+  (fix/uat-round-polish).** Separador SEMPRE pt-BR (vírgula decimal, ponto de milhar).
+  Casas por contexto, mas o separador não muda: **saldo/ganho da performer** mostra
+  casas quando fracionário (o crédito da performer fraciona — 80% de 2 = 1,6), inteiro
+  quando inteiro, até 4 casas com zeros à direita cortados (300,4 — não 300,4000 nem
+  300.4000); **preço/quantidade inteira** sai inteiro. Nenhuma exibição de token usa
+  `toFixed`/`replace`/`toLocaleString` ad-hoc. (Valor em REAIS continua `toLocaleString`
+  BRL — outra unidade.) O rótulo de cada lançamento do ledger vem do servidor
+  (`App\Support\LedgerEntryLabel`, cobre o enum inteiro) — a tela usa `entry.label`,
+  nunca um mapa local (foi um mapa local incompleto que vazou `spend_call` cru).
 
 ## Fluxo de trabalho
 - O Product Owner (Robson) abre issues no GitHub para bugs e mudanças.

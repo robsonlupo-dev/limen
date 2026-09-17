@@ -236,10 +236,15 @@ async function sendMessage() {
         <Modal :show="detail.open" max-width="sm" @close="detail.open = false">
             <div v-if="detail.member" class="space-y-5">
                 <div class="flex items-center gap-4">
-                    <div class="grid h-16 w-16 place-items-center rounded-full bg-limen-surface-2 ring-1 ring-limen-line">
-                        <svg class="h-9 w-9 text-limen-ink-mute/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.7-8 6v2h16v-2c0-3.3-3.6-6-8-6z" />
-                        </svg>
+                    <!-- Foto do membro quando houver (já é pública no card — nada
+                         novo exposto); senão a silhueta. -->
+                    <div class="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-limen-surface-2 ring-1 ring-limen-line">
+                        <img v-if="detail.member.avatar_url" :src="detail.member.avatar_url" alt="" class="h-full w-full object-cover" />
+                        <span v-else class="grid h-full w-full place-items-center">
+                            <svg class="h-9 w-9 text-limen-ink-mute/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.7-8 6v2h16v-2c0-3.3-3.6-6-8-6z" />
+                            </svg>
+                        </span>
                     </div>
                     <div class="min-w-0">
                         <h2 class="truncate font-serif text-2xl text-limen-ink">{{ detail.member.fan_alias_label }}</h2>

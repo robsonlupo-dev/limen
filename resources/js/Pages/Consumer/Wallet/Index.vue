@@ -6,6 +6,7 @@ import Button from '@/Components/Button.vue'
 import Input from '@/Components/Input.vue'
 import PixModal from '@/Components/PixModal.vue'
 import { postJson } from '@/lib/http'
+import { formatTokens } from '@/lib/tokens'
 
 const props = defineProps({
     balance: { type: Number, required: true },
@@ -24,21 +25,10 @@ const activePayment = ref(null)
 const modalOpen = ref(false)
 const toastMessage = ref('')
 
-const entryTypeLabels = {
-    purchase: 'Compra',
-    spend_tip: 'Gorjeta enviada',
-    tip_credit: 'Gorjeta recebida',
-    spend_private: 'Sessão privada',
-    spend_camera: 'Câmera',
-    payout_reserve: 'Reserva de repasse',
-    refund: 'Reembolso',
-    bonus: 'Bônus',
-    adjustment: 'Ajuste',
-}
-
-function entryLabel(type) {
-    return entryTypeLabels[type] ?? type
-}
+// O rótulo vem PRONTO do servidor (LedgerEntryLabel, dona única — cobre o enum
+// inteiro). Nada de mapa local aqui: era ele, incompleto e com fallback ao tipo
+// cru (`?? type`), que vazava "spend_call" na tela (UAT 16/09). `entry.label`
+// nunca é o nome de banco; sem label (defensivo) cai em "Movimento".
 
 async function buyPackage(pkg) {
     generalError.value = ''
@@ -90,11 +80,11 @@ function closeModal() {
                 <div class="space-y-1">
                     <h1 class="font-serif text-4xl text-cream">Carteira</h1>
                     <p class="text-muted text-sm">
-                        Seu saldo: <span class="text-gold font-medium">{{ currentBalance }}</span> tokens
+                        Seu saldo: <span class="text-gold font-medium">{{ formatTokens(currentBalance) }}</span> tokens
                     </p>
                 </div>
                 <Link :href="route('wallet.history')" class="text-sm text-gold hover:text-gold-light transition-colors">
-                    Ver histórico
+                    Ver histórico de gastos
                 </Link>
             </div>
 
@@ -173,9 +163,9 @@ function closeModal() {
                         </thead>
                         <tbody>
                             <tr v-for="(entry, i) in recent" :key="i" class="border-b border-frame/50 last:border-b-0">
-                                <td class="px-5 py-3 text-cream">{{ entryLabel(entry.entry_type) }}</td>
+                                <td class="px-5 py-3 text-cream">{{ entry.label ?? 'Movimento' }}</td>
                                 <td class="px-5 py-3" :class="entry.amount >= 0 ? 'text-success' : 'text-danger'">
-                                    {{ entry.amount >= 0 ? '+' : '' }}{{ entry.amount }}
+                                    {{ entry.amount >= 0 ? '+' : '' }}{{ formatTokens(entry.amount) }}
                                 </td>
                                 <td class="px-5 py-3 text-muted">{{ entry.created_at }}</td>
                             </tr>
