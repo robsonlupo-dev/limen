@@ -171,6 +171,32 @@ it('remetente anonimizado como Fa #XXXX', function () {
         ->assertInertia(fn (Assert $page) => $page->where('tips.0.fan', $expectedFan));
 });
 
+it('gorjeta exibe o apelido AO LADO do FanAlias quando o membro tem apelido', function () {
+    [$performer] = makeWebPerformer();
+    $profile = $performer->performerProfile;
+    $consumer = makeDashboardConsumer(100);
+
+    sendDashboardTip($consumer, $profile, 10);
+
+    $expectedFan = FanAlias::label($profile->id, $consumer->id);
+
+    // Sem apelido: nickname null, fan = FanAlias (como hoje).
+    $this->actingAs($performer)
+        ->get('/performer/dashboard')
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('tips.0.fan', $expectedFan)
+            ->where('tips.0.nickname', null));
+
+    // Com apelido: nickname aparece, fan CONTINUA o FanAlias (identificador estável).
+    $consumer->forceFill(['nickname' => 'Comandante'])->save();
+
+    $this->actingAs($performer)
+        ->get('/performer/dashboard')
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('tips.0.fan', $expectedFan)
+            ->where('tips.0.nickname', 'Comandante'));
+});
+
 it('nome email e user_id real nao aparecem na resposta das gorjetas', function () {
     [$performer] = makeWebPerformer();
     $profile = $performer->performerProfile;
@@ -183,9 +209,12 @@ it('nome email e user_id real nao aparecem na resposta das gorjetas', function (
         ->assertInertia(fn (Assert $page) => $page
             ->has('tips.0', fn (Assert $tip) => $tip
                 // `lifestyle` entrou no Sprint 10: é o RÓTULO da faixa de
-                // estilo de vida (ou null), nunca o slug e nunca o id. A
-                // garantia continua sendo a forma — nenhuma chave além destas.
-                ->hasAll(['fan', 'lifestyle', 'amount', 'created_at'])
+                // estilo de vida (ou null), nunca o slug e nunca o id.
+                // `nickname` entrou em feat/nickname-in-earnings: é o apelido
+                // PÚBLICO (ou null), exibido AO LADO do `fan` (FanAlias) — nunca
+                // dado real. A garantia continua sendo a forma — nenhuma chave
+                // além destas.
+                ->hasAll(['fan', 'nickname', 'lifestyle', 'amount', 'created_at'])
                 ->missing('consumer_id')
                 ->missing('email')
                 ->missing('name')

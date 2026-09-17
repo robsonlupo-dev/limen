@@ -485,12 +485,17 @@ async function decideAccess(req, approve) {
                                 :key="i"
                                 class="border-b border-frame/50 last:border-b-0"
                             >
-                                <!-- Estilo de Vida do membro, se ele declarou.
-                                     Sem faixa não sai nada: um "não informou"
-                                     entregaria que ele viu o formulário e
+                                <!-- Apelido em destaque, FanAlias ao lado (o
+                                     identificador estável). Sem apelido, só o alias.
+                                     Depois, o Estilo de Vida do membro se ele
+                                     declarou: sem faixa não sai nada — um "não
+                                     informou" entregaria que ele viu o formulário e
                                      recusou. Ver App\Support\LifestyleTier. -->
                                 <td class="px-5 py-3 text-cream">
-                                    {{ tip.fan }}<span v-if="tip.lifestyle" class="text-muted"> · {{ tip.lifestyle }}</span>
+                                    <template v-if="tip.nickname">
+                                        {{ tip.nickname }}<span class="text-muted"> · {{ tip.fan }}</span>
+                                    </template>
+                                    <template v-else>{{ tip.fan }}</template><span v-if="tip.lifestyle" class="text-muted"> · {{ tip.lifestyle }}</span>
                                 </td>
                                 <td class="px-5 py-3 text-gold">{{ tip.amount }}</td>
                                 <td class="px-5 py-3 text-muted">{{ tip.created_at }}</td>

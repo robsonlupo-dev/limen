@@ -2,12 +2,19 @@
 
 namespace App\Services;
 
+use App\Models\CallReservation;
+use App\Models\CallSession;
+use App\Models\CallSessionParticipant;
 use App\Models\ChatAccess;
+use App\Models\ContentUnlock;
+use App\Models\GiftSend;
+use App\Models\Tip;
 use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Support\FanAlias;
 use App\Support\LedgerEntryLabel;
+use App\Support\MemberDisplayName;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -25,6 +32,15 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
  * fonte de verdade. O membro aparece SEMPRE por FanAlias, nunca por dado real
  * (M.13.10): a maioria dos créditos já carrega o alias na `description` (gravado no
  * ato); o chat, que não carrega, é resolvido pelo elo `chat_access.credit_ledger_id`.
+ *
+ * APELIDO (feat/nickname-in-earnings): quando o membro escolheu um apelido público,
+ * a tela mostra "Apelido · Fã #NNNN" — o apelido em destaque, o alias ao lado. O
+ * alias GRAVADO no ledger não muda: o apelido entra por JUNÇÃO na leitura (resolve
+ * o member_id pelo elo reverso de cada fonte, junta `users.nickname`) e NUNCA é
+ * persistido. O apelido é mutável (troca a cada 7 dias); se a trilha financeira
+ * dependesse dele, lançamento antigo mudaria de nome sozinho e a performer perderia
+ * a reconciliação. Com os dois lado a lado ela tem o nome do dia a dia E o
+ * identificador estável.
  */
 class PerformerEarningsService
 {
@@ -86,9 +102,11 @@ class PerformerEarningsService
 
         $page = $query->paginate($perPage);
 
-        $aliases = $this->resolveMemberAliases(collect($page->items()), $performerProfileId);
+        $items = collect($page->items());
+        $aliases = $this->resolveMemberAliases($items, $performerProfileId);
+        $nicknames = $this->resolveNicknames($this->resolveMemberIds($items));
 
-        return $page->through(fn (TokenLedger $entry) => $this->present($entry, $aliases));
+        return $page->through(fn (TokenLedger $entry) => $this->present($entry, $aliases, $nicknames));
     }
 
     /**
@@ -164,6 +182,121 @@ class PerformerEarningsService
         return $aliases;
     }
 
+    /**
+     * ledger.id → member_id (users.id), pelo elo reverso de cada fonte de crédito.
+     *
+     * Só serve para JUNTAR o apelido na leitura (feat/nickname-in-earnings): o
+     * member_id nunca é exibido nem persistido, some quando a página renderiza. O
+     * alias gravado no ledger continua sendo a fonte de verdade da conferência.
+     *
+     * @param  \Illuminate\Support\Collection<int, TokenLedger>  $entries
+     * @return array<int, int>
+     */
+    private function resolveMemberIds($entries): array
+    {
+        $memberByLedger = [];
+
+        $ledgerIdsOf = fn (string $type): array => $entries
+            ->where('entry_type', $type)
+            ->pluck('id')
+            ->all();
+
+        // Cada fonte guarda o próprio FK para o lançamento de crédito da performer.
+        // [entry_type => [Model, FK p/ ledger.id, coluna do member]]
+        $reverseLinks = [
+            'tip_credit' => [Tip::class, 'performer_ledger_id', 'consumer_id'],
+            'gift_credit' => [GiftSend::class, 'performer_ledger_id', 'sender_id'],
+            'content_credit' => [ContentUnlock::class, 'credit_ledger_id', 'user_id'],
+            'chat_access_credit' => [ChatAccess::class, 'credit_ledger_id', 'member_id'],
+        ];
+
+        foreach ($reverseLinks as $type => [$model, $ledgerFk, $memberColumn]) {
+            $ids = $ledgerIdsOf($type);
+            if ($ids === []) {
+                continue;
+            }
+
+            foreach ($model::whereIn($ledgerFk, $ids)->pluck($memberColumn, $ledgerFk) as $ledgerId => $memberId) {
+                if ($memberId !== null) {
+                    $memberByLedger[(int) $ledgerId] = (int) $memberId;
+                }
+            }
+        }
+
+        // Chamada: o member_id vem pela REFERÊNCIA gravada no próprio lançamento
+        // (reference_type/reference_id), não por elo reverso — a mesma linha
+        // call_credit nasce de 3 fontes (chamada avulsa, minuto 1 do agendamento,
+        // group show), então o elo estável é a referência, não uma tabela só.
+        $this->resolveCallMembers(
+            $entries->whereIn('entry_type', ['call_credit', 'call_noshow_credit']),
+            $memberByLedger,
+        );
+
+        return $memberByLedger;
+    }
+
+    /**
+     * Preenche $memberByLedger para os créditos de chamada, agrupando pela classe
+     * referenciada. Todas as fontes permitidas expõem `member_id` (chave interna,
+     * nunca exibida). A allowlist de reference_type é o que torna seguro resolver o
+     * modelo dinamicamente.
+     *
+     * @param  \Illuminate\Support\Collection<int, TokenLedger>  $callEntries
+     * @param  array<int, int>  $memberByLedger  preenchido in-place
+     */
+    private function resolveCallMembers($callEntries, array &$memberByLedger): void
+    {
+        $allowed = [CallSession::class, CallSessionParticipant::class, CallReservation::class];
+
+        $ledgersByRef = []; // [reference_type][reference_id] => [ledger.id, ...]
+        foreach ($callEntries as $entry) {
+            if ($entry->reference_id === null || ! in_array($entry->reference_type, $allowed, true)) {
+                continue;
+            }
+
+            $ledgersByRef[$entry->reference_type][(int) $entry->reference_id][] = (int) $entry->id;
+        }
+
+        foreach ($ledgersByRef as $model => $byRefId) {
+            $memberByRef = $model::whereIn('id', array_keys($byRefId))->pluck('member_id', 'id');
+
+            foreach ($byRefId as $refId => $ledgerIds) {
+                $memberId = $memberByRef[$refId] ?? null;
+                if ($memberId === null) {
+                    continue;
+                }
+
+                foreach ($ledgerIds as $ledgerId) {
+                    $memberByLedger[$ledgerId] = (int) $memberId;
+                }
+            }
+        }
+    }
+
+    /**
+     * ledger.id → apelido exibível (ou null), juntando `users.nickname` pelos
+     * member_ids já resolvidos. Uma query em lote; sem member_id não há apelido.
+     *
+     * @param  array<int, int>  $memberByLedger
+     * @return array<int, ?string>
+     */
+    private function resolveNicknames(array $memberByLedger): array
+    {
+        $memberIds = array_values(array_unique($memberByLedger));
+        if ($memberIds === []) {
+            return [];
+        }
+
+        $nicknameByMember = User::whereIn('id', $memberIds)->pluck('nickname', 'id');
+
+        $nicknames = [];
+        foreach ($memberByLedger as $ledgerId => $memberId) {
+            $nicknames[$ledgerId] = MemberDisplayName::nickname($nicknameByMember[$memberId] ?? null);
+        }
+
+        return $nicknames;
+    }
+
     /** Extrai o rótulo "Fã #NNNN" de uma description, ou null se não houver. */
     private function aliasFromDescription(?string $description): ?string
     {
@@ -176,9 +309,10 @@ class PerformerEarningsService
 
     /**
      * @param  array<int, string>  $aliases
+     * @param  array<int, ?string>  $nicknames
      * @return array<string, mixed>
      */
-    private function present(TokenLedger $entry, array $aliases): array
+    private function present(TokenLedger $entry, array $aliases, array $nicknames): array
     {
         // Fallback nunca vaza o nome cru de banco (LedgerEntryLabel, dona única): um
         // entry_type de ganho novo aparece traduzido mesmo antes de ganhar grupo aqui.
@@ -199,7 +333,10 @@ class PerformerEarningsService
             'id' => $entry->id,
             'type_key' => $group,
             'type_label' => $label,
+            // Identificador ESTÁVEL da conferência — sempre o FanAlias gravado.
             'member_alias' => $aliases[$entry->id] ?? 'Membro',
+            // Apelido do dia a dia, quando existe — junção na leitura, nunca gravado.
+            'member_nickname' => $nicknames[$entry->id] ?? null,
             'gross' => $gross,          // inteiro: tokens pagos pelo membro (2)
             'applied_rate' => $rate,    // 80
             'net' => $net,              // "1.6000" (4 casas, string)

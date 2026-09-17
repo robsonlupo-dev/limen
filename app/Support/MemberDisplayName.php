@@ -31,4 +31,21 @@ final class MemberDisplayName
             ? $nickname
             : FanAlias::label($performerProfileId, $memberId, $prefix);
     }
+
+    /**
+     * O apelido EXIBÍVEL, ou null quando o membro não tem apelido — a mesma regra
+     * de "tem apelido?" que `for()` usa, num ponto só.
+     *
+     * Serve às superfícies que mostram o apelido AO LADO do FanAlias (extrato de
+     * ganhos, últimas gorjetas — feat/nickname-in-earnings), onde o alias segue como
+     * identificador estável e o apelido entra por junção na leitura. `for()`
+     * COLAPSA os dois num rótulo só; aqui devolvemos apenas o apelido, para a tela
+     * compor "Apelido · Fã #NNNN".
+     */
+    public static function nickname(?string $nickname): ?string
+    {
+        $nickname = is_string($nickname) ? trim($nickname) : '';
+
+        return $nickname !== '' ? $nickname : null;
+    }
 }

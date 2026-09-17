@@ -263,9 +263,12 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
   conversa, chat da live, feed de gorjetas/presentes na live, painel de visitantes e
   "Últimas gorjetas". Dona única do "como exibir": `App\Support\MemberDisplayName`.
 - **Onde NÃO entra (não negociável):** o FanAlias CONTINUA sendo o identificador técnico
-  no ledger (`token_ledger.description`), no extrato de ganhos (`PerformerEarningsService`),
-  nos logs e em toda auditoria. O apelido é camada de APRESENTAÇÃO; nada no registro
-  financeiro depende dele. `user_id`, nome real e e-mail seguem nunca expostos.
+  **gravado** no ledger (`token_ledger.description`), no extrato de ganhos
+  (`PerformerEarningsService`), nos logs e em toda auditoria. O apelido é camada de
+  APRESENTAÇÃO; nada no registro financeiro depende dele. `user_id`, nome real e e-mail
+  seguem nunca expostos. **Refinamento posterior (decisão nº 18):** o extrato de ganhos
+  e as "Últimas gorjetas" passaram a EXIBIR o apelido AO LADO do FanAlias (junção na
+  leitura), mas o que fica GRAVADO segue sendo só o FanAlias — o invariante acima vale.
 - **Regras do campo:** 3–20 caracteres; ÚNICO (case/acento-insensível), com erro genérico
   ("esse apelido não está disponível") quando já existe — nunca confirma que há um membro
   com ele; trocável no máximo **uma vez a cada 7 dias** (a performer constrói relação com
@@ -286,3 +289,41 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
   apelido (entrada do denunciante) ficou para um **PR dedicado** — o pipeline de denúncia
   usa handle numérico e o membro é identificado por FanAlias em hex, então encaixá-la ali
   exige revisão anti-oráculo própria (registrado no handoff).
+
+## 18. Apelido no extrato de ganhos e nas "Últimas gorjetas" — AO LADO do FanAlias
+
+- **Status:** aprovada e implementada (17/09/2026, PR `feat/nickname-in-earnings`).
+  Complementa a decisão nº 17.
+- **Contexto:** a decisão nº 17 trouxe o apelido para as telas de EXIBIÇÃO, mas manteve
+  o extrato de ganhos (`PerformerEarningsService`) SÓ no FanAlias — o extrato é a trilha
+  de conferência financeira, e ali o apelido não podia entrar sozinho.
+- **Decisão:** o extrato de ganhos e o painel "Últimas gorjetas" passam a exibir o
+  apelido **AO LADO** do FanAlias, o alias em menor destaque — ex.: "Comandante · Fã
+  #6393". Sem apelido, **só o alias, como hoje**. É exibição dos DOIS juntos, nunca um no
+  lugar do outro (diferente das outras 6 telas, onde o apelido substitui o alias).
+- **INVARIANTE (não negociável):** o lançamento continua **gravado com o FanAlias**
+  (`token_ledger.description`); o apelido entra por **junção na LEITURA** (resolve o
+  member_id pelo elo reverso de cada fonte, junta `users.nickname`), **nunca é persistido**
+  no ledger nem em nenhum registro financeiro.
+- **Motivo:** o apelido é MUTÁVEL (trocável a cada 7 dias). Se a trilha financeira
+  passasse a depender dele, um lançamento antigo mudaria de nome sozinho e a performer
+  perderia a capacidade de reconciliar. Com os dois lado a lado, ela ganha o nome que usa
+  no dia a dia E o identificador estável para conferência.
+
+## 19. Validação do apelido — critério de abuso mais rígido que o do chat (confirmações)
+
+- **Status:** decisão do PO registrada junto ao PR `feat/nickname-in-earnings`
+  (discussão de 17/09/2026). Confirma e explicita o comportamento já implementado em
+  `MemberNicknameService`.
+- **MANTÉM bloqueado no apelido — personificação:** personificação da PLATAFORMA
+  (suporte/admin/moderador/oficial) e de PERFORMER existente. **Motivo:** é vetor de
+  golpe usando a marca, independente da política de contato.
+- **MANTÉM bloqueado no apelido — contato:** telefone, e-mail e rede social.
+  **Motivo:** o apelido é campo **público e permanente**, exibido a estranhos em toda
+  live — diferente de uma mensagem 1:1 — e expõe o próprio membro. Revisitar só depois do
+  parecer jurídico sobre a política de contato no chat (ver `docs/PENDENCIAS_JURIDICAS.md`).
+- **CONFIRMADO sobre conduta:** palavrão genérico **NÃO** é bloqueado (linguagem
+  explícita entre adultos é esperada na plataforma); o que bloqueia é **insulto
+  DIRECIONADO e ameaça**, com o desarme por **qualificador consensual** — comportamento
+  atual do filtro, mantido de propósito. No apelido o critério de abuso é **mais rígido**
+  que no chat, porque é nome público e permanente.

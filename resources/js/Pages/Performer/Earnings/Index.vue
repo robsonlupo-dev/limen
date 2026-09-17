@@ -169,7 +169,15 @@ const hasActiveFilter = computed(() => !!(form.from || form.to || (form.type && 
                             </p>
                         </div>
 
-                        <p class="mt-2 text-xs text-limen-ink-mute">{{ entry.member_alias }}</p>
+                        <!-- Apelido em destaque, FanAlias ao lado (identificador
+                             estável de conferência). Sem apelido, só o alias. -->
+                        <p class="mt-2 text-xs text-limen-ink-mute">
+                            <template v-if="entry.member_nickname">
+                                <span class="text-limen-ink-soft">{{ entry.member_nickname }}</span>
+                                <span class="text-limen-ink-mute/70"> · {{ entry.member_alias }}</span>
+                            </template>
+                            <template v-else>{{ entry.member_alias }}</template>
+                        </p>
                     </li>
                 </ul>
 
