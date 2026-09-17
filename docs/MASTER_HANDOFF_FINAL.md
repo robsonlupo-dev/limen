@@ -3367,6 +3367,62 @@ montado em lugar nenhum) passa a ser montado no console da live. `PrivateCallFro
 Ressalva: o handoff de câmera sala-pública↔sala-da-chamada é runtime de navegador — QA em
 dispositivo real. Ver DECISOES §15/§16 e ECONOMIA §8.1.
 
+## Redesenho do perfil público da performer (`feat/performer-profile-redesign`, PR pendente)
+
+Reorganização de LAYOUT e leitura dos dois perfis públicos (membro `Catalog/Show` e
+visitante `Performers/Show`). **Nenhuma mudança de economia, split, preço ou regra de
+acesso** — só apresentação. Mobile primeiro. Componentes novos em
+`resources/js/Components/Profile/*`, compartilhados pelas duas telas para não divergirem.
+
+O que mudou (evidência: perfil da Ana no desktop — capa de ~700px dominando, avatar
+cortado atrás dela, tudo numa lista plana, "Valores" e "0 disponíveis para você" no
+rodapé):
+
+1. **Capa como FAIXA, não parede** (`ProfileHero`): 2:1 no retrato, 3:1 no desktop, teto
+   ~280px; véu escuro na base; **mármore da marca em CSS** (sem asset externo) quando não
+   há capa. `object-cover` (banner) — a capa deixou de ser o foco. O avatar 1:1 segue
+   `object-contain` (o rosto nunca é cortado).
+2. **Avatar sobre a capa**: circular, anel dourado, sobrepondo a base da capa, à esquerda,
+   sempre POR CIMA (`z-10`, fora do overflow), nunca cortado. Ao lado: nome, selo de
+   verificada, selo de curadoria, presença ("Online agora"/faixa) e gorjetas — uma
+   unidade compacta.
+3. **VOZ em faixa de destaque** (a assinatura do Limen): `VoiceIntroPlayer` ganhou
+   `variant="band"` — faixa de largura cheia com **onda sonora desenhada** (CSS, pulsa ao
+   tocar, desligada sob `prefers-reduced-motion`), botão de play integrado, duração
+   visível e "Ouça a voz de {nome}". Reusa o player (não recria). Some sem intro aprovada.
+4. **Ações sempre alcançáveis** (`MemberProfileActions`/`GuestProfileActions`): primária
+   **Conversar** (com o custo), secundárias Gorjeta·Seguir·Salvar, e "Ao vivo — assistir"
+   acima de tudo quando ao vivo. **UMA instância reposicionada por breakpoint**: barra
+   FIXA no rodapé no mobile (acima da navegação do painel, offset da safe-area) / **coluna
+   lateral sticky** no desktop. Alturas iguais, alvos ≥44px.
+5. **Valores SOBEM** (`ProfileRates`): os três cartões (público/privado/câmera) vão para
+   perto das ações (coluna lateral no desktop; logo abaixo da voz no mobile) — não mais no
+   rodapé depois do conteúdo.
+6. **Abas** (`ProfileTabs`, acessível — `role=tablist`, setas do teclado): Fotos · Sobre ·
+   Conteúdo, com contagem quando > 0 ("Conteúdo (4)"). Padrão Fotos. Acaba com a rolagem
+   quilométrica.
+7. **Mensagem do conteúdo invertida** (item 7): `ContentGallery` LIDERA pelo que o membro
+   PODE ver; nunca "0 disponíveis" como manchete. Sem nenhuma peça, a aba mostra convite
+   ("O conteúdo de X é só para assinantes" + caminho para os Círculos), não um zero.
+8. **Selo de verificada CLICÁVEL** (`VerificationPanel`): abre um painel que lista SÓ o
+   que o sistema realmente executa — documento conferido, identidade por biometria e
+   maioridade (KYC Didit), e "apresentação de voz revisada por uma pessoa" **só quando há
+   intro aprovada** (moderação humana). NÃO afirma "conteúdo revisado" (anti-CSAM é
+   automático, não revisão humana) — nada inventado.
+9. **Texto longo** (`AboutText`): bio e "o que procuro" cortam em ~4 linhas com "ler mais"
+   (só quando o texto realmente transborda).
+10. **Container centralizado** `max-w-6xl mx-auto px-4 sm:px-6` — margens iguais dos dois
+    lados (alinhado ao shell do AppLayout), conferido em 1366/1600/1920.
+
+**Restrições honradas:** sem lib nova; `prefers-reduced-motion` (onda de voz e micro-
+interações); foco visível e teclado (abas, selo, play); bytes de conteúdo pago nunca
+expostos (paywall server-side do `ContentVisibilityService` intocado — item bloqueado
+chega sem `image_url`/`video_url`). Testes: `PerformerProfileRedesignTest` (8 — render
+com/sem capa/avatar/voz/conteúdo, painel só com critérios reais, bytes não expostos, voz
+em band); `MemberAvatarTest`/`ProfileCurationSealTest`/`CatalogLiveNavigationTest`
+atualizados (capa/avatar/selo/live migraram para os componentes de `Profile/*`). Suíte
+MySQL verde (só o `GeoBlockTest` 451 do clone), `npm run build` limpo.
+
 **Follow-up `fix/live-call-flow-states` (base `main`, PR pendente):** 4 bugs do fluxo da
 chamada privada a partir da live + o ajuste do gatilho do relógio. **Economia idêntica**
 (70/30, minuto inteiro, R1–R4, idempotência) — muda só QUANDO o 1º minuto é cobrado e a

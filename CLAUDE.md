@@ -153,9 +153,10 @@ contrato técnico que um dev quebraria sem saber:
 - **Branch principal:** `main` · **último commit:** `9078a56` (Merge PR #213 —
   `fix/voice-access-and-chat-avatar`: avatar do membro ao lado do FanAlias no chat +
   acesso à intro de voz).
-- **Suíte:** ~2017 testes / 16083 asserts. **Roda verde local com 1 falha conhecida** —
-  o `GeoBlockTest` da view 451, que só falha **neste clone de dev** (view não compilada;
-  verde no CI). Ver "Ambiente de dev". **135 migrations.**
+- **Suíte:** ~2184 testes / ~17144 asserts (com `feat/performer-profile-redesign`).
+  **Roda verde local com 1 falha conhecida** — o `GeoBlockTest` da view 451, que só falha
+  **neste clone de dev** (view não compilada; verde no CI). Ver "Ambiente de dev". **135
+  migrations.**
 - **Como rodar a suíte, deploy e ambiente:** ver "Ambiente de dev" e as "Notas
   operacionais" mais abaixo.
 
@@ -176,6 +177,11 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
 - **Catálogo de membros (superfície invertida), Chat economy v2, Vitrine de conteúdo,
   Extrato de ganhos, Foto de perfil do membro, Visitas bidirecionais, Sinais de
   atividade, Teaser de mensagem, Microinterações, Intro de voz** — melhorias recentes.
+- **Redesenho do perfil público da performer** (`feat/performer-profile-redesign`): capa
+  como faixa (não parede), avatar sobreposto, VOZ em faixa de destaque (assinatura), abas
+  Fotos/Sobre/Conteúdo, ações sempre alcançáveis (barra fixa no mobile / coluna sticky no
+  desktop), valores acima do conteúdo, selo de verificada clicável (só critérios reais).
+  Componentes em `Components/Profile/*`; detalhe no `MASTER_HANDOFF_FINAL.md`.
 - **Landing cinematográfica** (a porta pública `/`), **Anti-CSAM, Som de notificação**.
 - **LiveKit:** Agendamento de chamada, Console de live, Chamada privada a partir da live,
   controles de transmissão, navegação do catálogo ao vivo.
