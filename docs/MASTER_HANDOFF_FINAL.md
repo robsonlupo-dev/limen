@@ -4234,6 +4234,49 @@ sem conversa, cai no perfil (o único lugar onde o chat começa).
   `MemberChatClickTest` (contrato do payload; não vaza conversa de outro membro).
   `npm run build` limpo; suíte MySQL **2044/2045** (só o `GeoBlockTest` 451 deste clone).
 
+### Apelido do membro no extrato de ganhos e nas gorjetas — EM BRANCH (`feat/nickname-in-earnings`, base `main`)
+
+Continuação do `feat/member-nickname` (#217). Aquele PR trouxe o apelido para 6 telas de
+EXIBIÇÃO, mas deixou o **extrato de ganhos** e o painel **"Últimas gorjetas"** só no
+FanAlias — são trilha de conferência financeira, e ali o apelido não podia entrar sozinho.
+Este PR mostra os DOIS lado a lado: **`Comandante · Fã #6393`**, o apelido em destaque e o
+alias em menor destaque. Sem apelido, **só o alias, como antes**.
+
+**INVARIANTE (não negociável):** o lançamento continua GRAVADO com o FanAlias
+(`token_ledger.description`); o apelido entra por **junção na LEITURA** e NUNCA é
+persistido no ledger nem em nenhum registro financeiro. O apelido é mutável (troca 1×/7
+dias) — se a trilha dependesse dele, um lançamento antigo mudaria de nome sozinho e a
+performer perderia a reconciliação. Com os dois juntos ela tem o nome do dia a dia E o
+identificador estável.
+
+- **`App\Support\MemberDisplayName::nickname(?string): ?string`** — apelido exibível (trim)
+  ou `null`, num ponto só (a mesma regra de "tem apelido?" que `for()` usa). `for()` COLAPSA
+  apelido↔alias num rótulo; `nickname()` devolve só o apelido, para a tela compor
+  "apelido · alias".
+- **`PerformerEarningsService`** — resolve o `member_id` por lançamento pelo elo reverso de
+  CADA fonte (tip/gift/content/chat pelo FK do próprio registro; call/no-show pela
+  referência gravada no lançamento — `reference_type`/`reference_id`; `live_credit` é
+  dormente, live só credita tip/gift), junta `users.nickname` em lote e emite
+  `member_nickname` (nullable) AO LADO do `member_alias` (inalterado, sempre o FanAlias). A
+  resolução é EXATA por membro de propósito: o alias de 4 dígitos pode colidir, então mapear
+  `label→apelido` arriscaria casar o apelido de um membro com o alias de outro.
+- **`DashboardController::recentTips`** — passa a mandar `fan` (SEMPRE o FanAlias) +
+  `nickname` (ou null), no lugar do `MemberDisplayName::for()` que colapsava os dois.
+- **Front:** `Performer/Earnings/Index.vue` e `Performer/Dashboard.vue` (tabela de gorjetas)
+  renderizam "apelido · alias" (alias em `text-...-mute`), ou só o alias sem apelido.
+- **Testes:** extrato exibe apelido+alias quando há / só alias quando não há; o ledger
+  permanece com o FanAlias com apelido definido; **trocar o apelido não altera nenhuma linha
+  já gravada** (snapshot do ledger antes/depois). Novo teste de gorjeta no dashboard; ajuste
+  do `MemberNicknameTest` (o extrato AGORA usa `MemberDisplayName::nickname`, mas o
+  `member_alias` segue no FanAlias) e do contrato de forma do `PerformerDashboardTest`
+  (chave `nickname`).
+- **Decisões registradas:** `docs/DECISOES_2026-08.md` §18 (exibição AO LADO + invariante) e
+  §19 (validação do apelido: personificação e contato seguem bloqueados por ser campo
+  público/permanente; palavrão genérico não bloqueia, insulto direcionado/ameaça sim, com
+  desarme por qualificador consensual; critério de abuso mais rígido que no chat).
+- **Suíte MySQL 2218/2219** (única falha o `GeoBlockTest` 451 deste clone de dev, verde no
+  CI); `npm run build` limpo.
+
 ### A.1 Go-live (pré-produção)
 
 - [ ] **Integrações reais** — sair do driver `fake`: Asaas (chaves sandbox/prod),

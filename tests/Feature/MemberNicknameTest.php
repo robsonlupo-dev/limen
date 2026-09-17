@@ -260,9 +260,13 @@ it('as seis telas de exibição resolvem o nome pelo MemberDisplayName', functio
             ->toContain('MemberDisplayName');
     }
 
-    // E o extrato de ganhos NÃO usa o apelido (segue no FanAlias).
+    // O extrato de ganhos AGORA junta o apelido na leitura (feat/nickname-in-earnings),
+    // mas SÓ pelo MemberDisplayName::nickname (o apelido AO LADO do alias, nunca no
+    // lugar): o member_alias segue no FanAlias e a linha do ledger não muda. O
+    // invariante behavioral está no teste "o ledger e o extrato de ganhos continuam
+    // com o FanAlias MESMO com apelido definido".
     expect(file_get_contents(base_path('app/Services/PerformerEarningsService.php')))
-        ->not->toContain('MemberDisplayName');
+        ->toContain('MemberDisplayName::nickname');
 });
 
 it('a LISTA de conversas carrega o nickname no select do membro (senão cai no alias)', function () {

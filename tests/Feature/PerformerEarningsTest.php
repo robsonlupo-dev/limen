@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\TokenLedger;
+use App\Models\TokenWallet;
+use App\Services\PerformerEarningsService;
 use App\Services\TipService;
 use App\Support\FanAlias;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -63,6 +66,70 @@ it('lista os créditos com bruto, percentual e líquido, o membro por FanAlias',
     );
 
     expect($alias)->toStartWith('Fã #');
+});
+
+// ─── Apelido no extrato (feat/nickname-in-earnings): apelido AO LADO do alias ──
+
+it('exibe apelido + alias quando há apelido, e só o alias quando não há', function () {
+    [$performer, $member] = earningsFixture();
+    $alias = FanAlias::label($performer->id, $member->id);
+
+    // Sem apelido: só o alias (member_nickname null nas duas linhas — chat e gorjeta).
+    $this->actingAs($performer->user)
+        ->get(route('performer.earnings.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('entries.data.0.member_alias', $alias)
+            ->where('entries.data.0.member_nickname', null)
+            ->where('entries.data.1.member_alias', $alias)
+            ->where('entries.data.1.member_nickname', null));
+
+    // Com apelido: aparece o apelido AO LADO do alias — o alias NÃO muda. Cobre as
+    // duas vias de resolução do member_id: chat (elo reverso) e gorjeta (elo do Tip).
+    $member->forceFill(['nickname' => 'Comandante'])->save();
+
+    $this->actingAs($performer->user)
+        ->get(route('performer.earnings.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('entries.data.0.member_alias', $alias)
+            ->where('entries.data.0.member_nickname', 'Comandante')
+            ->where('entries.data.1.member_alias', $alias)
+            ->where('entries.data.1.member_nickname', 'Comandante'));
+});
+
+it('grava o FanAlias no ledger mesmo com apelido definido (apelido é só leitura)', function () {
+    [$performer, $member] = earningsFixture();
+    $member->forceFill(['nickname' => 'Comandante'])->save();
+    $alias = FanAlias::label($performer->id, $member->id);
+
+    $wallet = TokenWallet::where('user_id', $performer->user->id)->first();
+    $descriptions = TokenLedger::where('wallet_id', $wallet->id)
+        ->whereIn('entry_type', ['tip_credit', 'chat_access_credit'])
+        ->pluck('description');
+
+    // A gorjeta grava "… Fã #NNNN"; NENHUMA linha carrega o apelido.
+    expect($descriptions->filter(fn ($d) => str_contains((string) $d, $alias)))->not->toBeEmpty();
+    $descriptions->each(fn ($d) => expect((string) $d)->not->toContain('Comandante'));
+});
+
+it('trocar o apelido não altera nenhuma linha já gravada no ledger', function () {
+    [$performer, $member] = earningsFixture();
+    $member->forceFill(['nickname' => 'Comandante'])->save();
+    $alias = FanAlias::label($performer->id, $member->id);
+
+    $wallet = TokenWallet::where('user_id', $performer->user->id)->first();
+    // Fotografa TODAS as linhas do ledger da performer, cruas.
+    $before = TokenLedger::where('wallet_id', $wallet->id)->orderBy('id')->get()->toArray();
+
+    // Troca o apelido (o membro mudou de personagem público).
+    $member->forceFill(['nickname' => 'Almirante'])->save();
+
+    $after = TokenLedger::where('wallet_id', $wallet->id)->orderBy('id')->get()->toArray();
+    expect($after)->toEqual($before);
+
+    // O extrato reflete o NOVO apelido na leitura, com o alias intacto.
+    $rows = app(PerformerEarningsService::class)->paginate($performer->user, [])->getCollection();
+    expect(collect($rows)->pluck('member_alias')->all())->each->toBe($alias);
+    expect(collect($rows)->pluck('member_nickname')->all())->each->toBe('Almirante');
 });
 
 it('NUNCA expõe dado real do membro no extrato (só FanAlias)', function () {

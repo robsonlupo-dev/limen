@@ -244,15 +244,18 @@ class DashboardController extends Controller
         // vem `null` e a tela não desenha nada — ver LifestyleTier::labelFor().
         $lifestyleLabels = LifestyleTier::labelsFor($tips->pluck('consumer_id')->all());
 
-        // Apelidos em lote (feat/member-nickname): o rótulo é o apelido do membro,
-        // ou o FanAlias por par de sempre. É EXIBIÇÃO — o extrato de ganhos e o
-        // ledger seguem no FanAlias.
+        // Apelidos em lote (feat/member-nickname). Aqui a tela mostra os DOIS lado a
+        // lado (feat/nickname-in-earnings): o apelido em destaque e o FanAlias ao
+        // lado, como no extrato de ganhos. `fan` é SEMPRE o FanAlias por par (o
+        // identificador estável); `nickname` é o apelido, ou null. O ledger e o
+        // extrato seguem gravados no FanAlias — o apelido é junção na leitura.
         $nicknames = User::whereIn('id', $tips->pluck('consumer_id')->unique()->all())
             ->pluck('nickname', 'id');
 
         return $tips
             ->map(fn (Tip $tip) => [
-                'fan' => MemberDisplayName::for($nicknames[$tip->consumer_id] ?? null, $profile->id, $tip->consumer_id),
+                'fan' => FanAlias::label($profile->id, $tip->consumer_id),
+                'nickname' => MemberDisplayName::nickname($nicknames[$tip->consumer_id] ?? null),
                 'lifestyle' => $lifestyleLabels[$tip->consumer_id] ?? null,
                 'amount' => $tip->performer_amount,
                 'created_at' => $tip->created_at->format('d/m/Y H:i'),
