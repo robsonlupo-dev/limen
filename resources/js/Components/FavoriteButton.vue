@@ -85,10 +85,10 @@ watch(
         type="button"
         :aria-pressed="saved"
         :disabled="form.processing"
-        class="mi-press inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all duration-200 disabled:opacity-60"
+        class="mi-press inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60 disabled:opacity-60"
         :class="saved
-            ? 'border-gold/50 bg-gold/10 text-gold hover:bg-gold/15'
-            : 'border-frame text-cream hover:border-gold/40 hover:text-gold'"
+            ? 'border-limen-gold/40 bg-limen-gold/10 text-limen-gold'
+            : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/40 hover:text-limen-ink'"
         @click="toggle"
     >
         <svg

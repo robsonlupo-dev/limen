@@ -1,6 +1,5 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
-import Button from '@/Components/Button.vue'
 import FollowButton from '@/Components/FollowButton.vue'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
 
@@ -54,10 +53,16 @@ const emit = defineEmits(['tip'])
                 <span v-if="chatCost" class="font-normal opacity-80">· {{ chatCost }}</span>
             </Link>
 
-            <!-- Secundárias: grade de 3 iguais em QUALQUER largura — cabe a 360px sem
-                 cortar nada (item 7). Rótulos curtos. -->
+            <!-- Secundárias/terciárias: grade de 3 iguais em QUALQUER largura — cabe a
+                 360px sem cortar nada (item 7). Hierarquia (fix 6): Gorjeta é a
+                 secundária (contorno dourado); Seguir e Salvar são terciárias
+                 (contorno neutro), sem competir com a primária dourada. -->
             <div class="grid grid-cols-3 gap-2">
-                <Button variant="ghost" size="sm" class="min-h-[44px] w-full justify-center" @click="emit('tip')">Gorjeta</Button>
+                <button
+                    type="button"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-gold px-4 text-sm text-limen-gold transition-colors hover:bg-limen-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
+                    @click="emit('tip')"
+                >Gorjeta</button>
                 <FollowButton
                     :slug="performer.slug"
                     :following="performer.is_following"
