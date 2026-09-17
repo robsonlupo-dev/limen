@@ -7,6 +7,7 @@ use App\Http\Requests\Web\WalletPurchaseRequest;
 use App\Models\Payment;
 use App\Models\TokenLedger;
 use App\Support\LedgerEntryLabel;
+use App\Support\SpendRecipientResolver;
 use App\Models\TokenPackage;
 use App\Models\TokenWallet;
 use App\Models\User;
@@ -116,14 +117,22 @@ class WalletController extends Controller
         $entries = TokenLedger::query()
             ->when($wallet, fn ($query) => $query->where('wallet_id', $wallet->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->orderByDesc('id')
-            ->paginate(15)
-            ->through(fn (TokenLedger $entry) => [
-                'entry_type' => $entry->entry_type,
-                'label' => LedgerEntryLabel::for($entry->entry_type),
-                'amount' => $entry->amount,
-                'balance_after' => $entry->balance_after,
-                'created_at' => $entry->created_at->format('d/m/Y H:i'),
-            ]);
+            ->paginate(15);
+
+        // Nome público da performer que recebeu cada gasto — mesma junção do painel
+        // "Últimos gastos" (Dashboard), agora também no extrato completo. Débito sem
+        // performer (compra, bônus) resolve para null. A performer é pública, então
+        // o nome dela pode aparecer ao membro.
+        $recipients = (new SpendRecipientResolver)->resolve($entries->getCollection());
+
+        $entries->through(fn (TokenLedger $entry) => [
+            'entry_type' => $entry->entry_type,
+            'label' => LedgerEntryLabel::for($entry->entry_type),
+            'recipient' => $recipients[$entry->id] ?? null,
+            'amount' => $entry->amount,
+            'balance_after' => $entry->balance_after,
+            'created_at' => $entry->created_at->format('d/m/Y H:i'),
+        ]);
 
         return Inertia::render('Consumer/Wallet/History', [
             'entries' => $entries,
