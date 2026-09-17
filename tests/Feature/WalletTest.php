@@ -244,6 +244,25 @@ it('history nao expoe entradas de outro user', function () {
         );
 });
 
+it('history mostra o nome da performer que recebeu o gasto', function () {
+    $consumer = makeWalletConsumer();
+
+    // Saldo para gastar, depois um gasto com o nome na descrição (mesmo formato
+    // que gorjeta/presente/chat gravam) — o extrato deve resolver o nome público.
+    app(TokenService::class)->credit($consumer, 100, 'purchase');
+    app(TokenService::class)->debit($consumer, 4, 'spend_tip', null, null, 'Gorjeta para Bella Hadid');
+
+    $this->actingAs($consumer)
+        ->get('/wallet/history')
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Consumer/Wallet/History')
+            ->where('entries.data.0.entry_type', 'spend_tip')
+            ->where('entries.data.0.recipient', 'Bella Hadid')
+            // Entrada sem performer (compra) resolve para null, não vaza nada.
+            ->where('entries.data.1.recipient', null)
+        );
+});
+
 // ─── Segurança do crédito ───────────────────────────────────────────────────
 
 it('tokens creditados sao sempre do package nao do request', function () {
