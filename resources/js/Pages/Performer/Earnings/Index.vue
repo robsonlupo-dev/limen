@@ -89,8 +89,8 @@ const hasActiveFilter = computed(() => !!(form.from || form.to || (form.type && 
 
             <!-- Filtros -->
             <section class="space-y-3">
-                <!-- Tipo: pílulas roláveis (mobile primeiro) -->
-                <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                <!-- Tipo: pílulas que quebram em linhas (sem scroll horizontal) -->
+                <div class="flex flex-wrap gap-2">
                     <button
                         v-for="chip in chips"
                         :key="chip.key"
