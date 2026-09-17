@@ -20,6 +20,7 @@ use App\Services\PerformerCatalogService;
 use App\Services\TokenCreditPolicy;
 use App\Services\TokenService;
 use App\Support\FanAlias;
+use App\Support\MemberDisplayName;
 use App\Support\MessageTeaser;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -154,8 +155,11 @@ class ChatController extends Controller
                 // fix/voice-access-and-chat-avatar: a foto do membro acompanha o
                 // FanAlias no chat, como já acontece no catálogo. Só as colunas que
                 // User::avatarUrl() precisa — a URL é chaveada no avatar_token OPACO,
-                // nunca no member_id (o alias segue escondendo o id).
-                ->with(['member' => fn ($q) => $q->select('id', 'avatar_path', 'avatar_token')]);
+                // nunca no member_id (o alias segue escondendo o id). `nickname` entra
+                // aqui para a LISTA exibir o apelido (feat/member-nickname) — sem ele o
+                // select enxuto deixava $c->member->nickname null e a lista caía no alias
+                // enquanto a conversa aberta mostrava o apelido (achado da revisão).
+                ->with(['member' => fn ($q) => $q->select('id', 'nickname', 'avatar_path', 'avatar_token')]);
         } else {
             $query->where('member_id', $user->id);
         }
@@ -220,7 +224,7 @@ class ChatController extends Controller
                 //  - membro vê a performer (nome público).
                 'title' => $viewerIsPerformer
                     ? ($c->member_id !== null
-                        ? FanAlias::label($user->performerProfile->id, $c->member_id)
+                        ? MemberDisplayName::for($c->member?->nickname, $user->performerProfile->id, $c->member_id)
                         : 'Membro')
                     : $c->performerProfile->stage_name,
                 // Foto do OUTRO participante, ao lado do alias (silhueta quando não
@@ -337,7 +341,7 @@ class ChatController extends Controller
                 // membro nunca recebe um bloco "member" (ele é o dono do lado dele).
                 'member' => ($viewerIsPerformer && $conversation->member_id !== null)
                     ? [
-                        'label' => FanAlias::label($conversation->performerProfile->id, $conversation->member_id),
+                        'label' => MemberDisplayName::for($conversation->member?->nickname, $conversation->performerProfile->id, $conversation->member_id),
                         'avatar_url' => $conversation->member?->avatarUrl(),
                     ]
                     : null,

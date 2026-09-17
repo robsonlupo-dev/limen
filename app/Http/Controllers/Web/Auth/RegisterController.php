@@ -57,6 +57,17 @@ class RegisterController extends Controller
             }
         }
 
+        // Apelido OPCIONAL (feat/member-nickname). Já validado no RegisterWebRequest;
+        // aqui só grava. Uma corrida rara (outro membro pegou o apelido no intervalo)
+        // não derruba o cadastro — o membro escolhe depois no perfil.
+        if (filled($request->input('nickname'))) {
+            try {
+                app(\App\Services\MemberNicknameService::class)->set($user, (string) $request->input('nickname'), $request);
+            } catch (\App\Exceptions\NicknameException $e) {
+                // Segue sem apelido; ele completa no perfil.
+            }
+        }
+
         Auth::login($user);
         $request->session()->regenerate();
 

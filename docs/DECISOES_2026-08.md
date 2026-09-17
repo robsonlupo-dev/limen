@@ -246,3 +246,43 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
   mensagem de encerramento deixa isso claro ("seu pagamento em andamento será creditado
   quando compensar — nada se perde"), e com saldo ele pode **pedir a chamada de novo** (não
   se tenta "retomar" a chamada anterior automaticamente).
+
+## 17. Apelido do membro no lugar do "Fã #NNNN" — IMPLEMENTADO
+
+- **Status:** aprovada e **implementada** (17/09/2026, PR `feat/member-nickname`).
+- **Decisão:** o membro pode ESCOLHER um apelido, e é assim que a performer passa a
+  chamá-lo, no lugar do `Fã #NNNN`. Quem não escolher **continua como está hoje** (o
+  FanAlias). É opcional em qualquer etapa (cadastro e perfil), nunca bloqueia cadastro
+  nem funcionalidade.
+- **Motivo:** a foto do membro já é visível à performer (decisão do PO, fix/member-photo).
+  Um identificador NUMÉRICO ao lado de um rosto não protege nada e impede a relação.
+  Apelido cria personagem, e personagem cria vínculo — que é o que sustenta gorjeta,
+  chamada e assinatura. É a MESMA lógica da foto: onde o rosto já quebrou o anonimato, o
+  número só atrapalha.
+- **Onde ENTRA (exibição):** catálogo de membros da performer, lista e cabeçalho de
+  conversa, chat da live, feed de gorjetas/presentes na live, painel de visitantes e
+  "Últimas gorjetas". Dona única do "como exibir": `App\Support\MemberDisplayName`.
+- **Onde NÃO entra (não negociável):** o FanAlias CONTINUA sendo o identificador técnico
+  no ledger (`token_ledger.description`), no extrato de ganhos (`PerformerEarningsService`),
+  nos logs e em toda auditoria. O apelido é camada de APRESENTAÇÃO; nada no registro
+  financeiro depende dele. `user_id`, nome real e e-mail seguem nunca expostos.
+- **Regras do campo:** 3–20 caracteres; ÚNICO (case/acento-insensível), com erro genérico
+  ("esse apelido não está disponível") quando já existe — nunca confirma que há um membro
+  com ele; trocável no máximo **uma vez a cada 7 dias** (a performer constrói relação com
+  o nome; troca semanal quebra o vínculo e serve para fugir de bloqueio).
+- **Validação MAIS RÍGIDA que a do chat (deliberado):** o filtro de chat NÃO barra troca
+  de contato (decisão registrada, § do chat); o apelido é campo PÚBLICO e PERMANENTE, então
+  tem validação própria (`MemberNicknameService`) que barra telefone (5+ dígitos
+  consecutivos), e-mail/@, URL/domínio, rede social (com anti-desvio leet/repetição
+  reusando `ChatContentFilter::normalizeForMatch`), palavra reservada (limen/suporte/admin/
+  moderador/oficial…), nome de performer existente (anti-personificação, comparação
+  normalizada) e conduta abusiva. Ver `docs/PENDENCIAS_JURIDICAS.md`.
+- **Aviso no momento da escolha:** a tela deixa claro, ANTES de salvar, que o apelido é
+  PÚBLICO — visível para as performers E para os outros membros no chat de uma live. Não é
+  bilhete privado.
+- **Moderação (neste PR):** o moderador pode FORÇAR a remoção do apelido (painel de
+  moderação, por string do apelido — pública e única, não expõe id); o membro volta ao
+  FanAlias até escolher outro, e o cooldown de troca é preservado. A **denúncia pública** do
+  apelido (entrada do denunciante) ficou para um **PR dedicado** — o pipeline de denúncia
+  usa handle numérico e o membro é identificado por FanAlias em hex, então encaixá-la ali
+  exige revisão anti-oráculo própria (registrado no handoff).

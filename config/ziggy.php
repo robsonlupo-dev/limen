@@ -178,6 +178,8 @@ return [
         'consumer.profile.lifestyle-tier',
         'consumer.profile.photo',
         'consumer.profile.photo.destroy',
+        'consumer.nickname.update',
+        'consumer.nickname.destroy',
 
         // Favoritos do membro (bookmark privado — a performer não tem rota
         // irmã aqui, e não é para ganhar uma).
@@ -286,6 +288,7 @@ return [
         // de /admin/* — moderator OU admin. As telas usam route() para navegar e
         // dar PATCH no status, então os nomes precisam do allowlist.
         'moderacao.reports.index',
+        'moderacao.nickname.remove',
         'moderacao.reports.show',
         'moderacao.reports.update',
         // Fila de moderação das intros de voz (feat/voice-intro). A tela lista e

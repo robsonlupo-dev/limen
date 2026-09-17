@@ -78,3 +78,40 @@ abrir ao público):
 > **Nota:** enquanto os textos definitivos não entrarem, não se deve descrever, em
 > auditoria ou comunicação, que existe "contrato aceito" ou "termos aceitos" — o que há
 > é texto provisório aguardando o jurídico.
+
+---
+
+## 4. Apelido do membro — validação mais rígida que a do chat
+
+### O que existe hoje
+
+O membro pode escolher um **apelido** público (opcional), que a performer passa a ver no
+lugar do "Fã #NNNN" (ver `docs/DECISOES_2026-08.md` §17). Por ser um campo **público e
+permanente**, ele tem validação PRÓPRIA, deliberadamente **mais rígida** que a do filtro
+de chat: barra telefone (5+ dígitos consecutivos após remover separadores), e-mail/@,
+URL/domínio, nome de rede social (com anti-desvio de leet/repetição), palavra reservada da
+plataforma (limen/suporte/admin/moderador/oficial…), **nome de performer existente**
+(anti-personificação) e conduta abusiva. Dona única: `App\Services\MemberNicknameService`.
+
+### Por que é diferente do chat — e a pergunta ao jurídico
+
+O filtro do chat, por decisão de produto, **NÃO barra troca de contato** (é legítimo entre
+dois adultos numa conversa privada). O apelido é o oposto: é um rótulo público, visto por
+todas as performers e pelos outros membros no chat de uma live — um telefone ali seria
+difusão de contato, não conversa privada. Daí a assimetria.
+
+**Perguntas em aberto para o jurídico:**
+
+1. O limite adotado para "telefone disfarçado" — **5 dígitos consecutivos** — é adequado,
+   ou deve ser mais baixo? (Um DDD+número real tem 10–11 dígitos; 5 já pega a maioria dos
+   disfarces sem barrar um apelido legítimo como "leo2000".)
+2. A recusa de apelido igual a **nome artístico de performer** (anti-personificação) é
+   suficiente do ponto de vista de direito de imagem/marca, ou é preciso também reservar
+   nomes de figuras públicas / marcas de terceiros?
+3. A **política do chat** (não barrar troca de contato) **segue pendente de parecer** — o
+   apelido não a altera; apenas não herda a permissão dela por ser superfície pública.
+
+> **Nota:** a validação do apelido reduz o risco de contato/personificação, mas **não é
+> garantia** — apelido malicioso que passe pela heurística é tratado por **moderação**
+> (remoção forçada; denúncia pública é PR futuro). Mesma disciplina de linguagem do painel
+> de visitantes e do filtro de chat: não descrever como "impede" contato, e sim "dificulta".

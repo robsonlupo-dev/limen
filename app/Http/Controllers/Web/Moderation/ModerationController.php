@@ -8,6 +8,8 @@ use App\Models\MemberPhoto;
 use App\Models\Message;
 use App\Models\PerformerStory;
 use App\Models\Report;
+use App\Models\User;
+use App\Services\MemberNicknameService;
 use App\Services\MemberPhotoStore;
 use App\Services\PerformerStoryStore;
 use App\Support\Audit;
@@ -89,6 +91,31 @@ class ModerationController extends Controller
             'types' => array_keys(Report::REPORTABLE_TYPES),
             'pendingCount' => Report::pending()->count(),
         ]);
+    }
+
+    /**
+     * Remoção FORÇADA de apelido pelo moderador (feat/member-nickname). O membro
+     * volta ao FanAlias até escolher outro. O alvo é o APELIDO — string PÚBLICA e
+     * ÚNICA que o moderador já vê em qualquer superfície —, então identificar por
+     * ele não expõe nada (nem o user_id, que o FanAlias esconde). Genérico quando
+     * não encontra (o apelido pode ter sido trocado/removido no intervalo). O
+     * cooldown de troca do membro é PRESERVADO (o serviço não zera o relógio) —
+     * senão bastaria se autodenunciar para driblar o limite de 7 dias.
+     * (A DENÚNCIA pública do apelido virá em PR próprio — ver handoff.)
+     */
+    public function removeNickname(Request $request, MemberNicknameService $nicknames): RedirectResponse
+    {
+        $validated = $request->validate(['nickname' => ['required', 'string', 'max:20']]);
+
+        $member = User::where('nickname_normalized', MemberNicknameService::normalizeUnique($validated['nickname']))->first();
+
+        if ($member === null) {
+            return back()->with('error', 'Nenhum membro com esse apelido agora.');
+        }
+
+        $nicknames->remove($member, byModerator: true, request: $request);
+
+        return back()->with('success', 'Apelido removido. O membro volta ao identificador até escolher outro.');
     }
 
     /**

@@ -170,6 +170,79 @@ Nova superfície que mostre membro à performer usa `FanAlias`, não o id.
 O id segue sendo a chave interna (ledger, audit log) — isto é apresentação.
 Registro completo em `docs/SECURITY_ISSUES.md`.
 
+## Apelido do membro — `feat/member-nickname` (camada de EXIBIÇÃO sobre o FanAlias)
+
+O membro pode escolher um **apelido** público (opcional), e é assim que a performer
+passa a chamá-lo, no lugar do `Fã #NNNN`. É a camada de **APRESENTAÇÃO** sobre o
+FanAlias: quem não escolhe segue exibido como o `label()`. Decisão e motivo em
+`docs/DECISOES_2026-08.md` §17; validação (mais rígida que a do chat) em
+`docs/PENDENCIAS_JURIDICAS.md` §4. Dona única da regra: `App\Services\MemberNicknameService`;
+dona única do "como exibir": `App\Support\MemberDisplayName::for()`.
+
+- **Apelido é GLOBAL; FanAlias é POR PAR.** O apelido é o mesmo para todo mundo (é o
+  ponto — criar personagem). Isso é o oposto do FanAlias, que é derivado por par
+  justamente para não correlacionar entre perfis. Por isso o apelido **nunca substitui o
+  FanAlias como identificador** — só o rótulo de exibição. `MemberDisplayName::for($nickname,
+  $performerProfileId, $memberId, $prefix)` devolve o apelido se não-vazio, senão
+  `FanAlias::label(...)`.
+- **Substitui a exibição em EXATAMENTE 6 telas** (todas via `MemberDisplayName`): catálogo
+  de membros da performer (`MemberCatalogService::mask`, `fan_alias_label`), lista e
+  cabeçalho da conversa (`ChatController::index`/`show`), chat da live (`LiveChatService`),
+  feed de gorjeta/presente na live (`LiveOverlayService`), painel de visitantes
+  (`ProfileVisitService`) e "Últimas gorjetas" (`DashboardController::recentTips`). O
+  `member_handle` do catálogo **continua o `FanAlias::handle()` (16 hex)** — a ação
+  (coração/mensagem/interesse) resolve pelo handle, nunca pelo apelido.
+- **NUNCA substitui (não negociável):** o FanAlias segue como identificador técnico no
+  ledger (`token_ledger.description`), no **extrato de ganhos** (`PerformerEarningsService`,
+  campo `member_alias` — testado que continua o FanAlias mesmo com apelido definido), nos
+  logs e em toda auditoria. Nada financeiro depende do apelido. `user_id`, nome real e
+  e-mail seguem nunca expostos. Um teste de fonte trava que as 6 telas referenciam
+  `MemberDisplayName` e que o `PerformerEarningsService` **não**.
+- **Colunas:** `users.nickname` (público, fora do `$fillable` — escrito só pelo service via
+  `forceFill`), `users.nickname_normalized` (chave de unicidade, `$hidden`, UNIQUE) e
+  `users.nickname_set_at` (`$hidden`, relógio do cooldown). A chave normalizada
+  (`normalizeUnique`) é a **forma canônica agressiva**: anti-desvio do chat (leet/zero-width/
+  fullwidth/lower/ascii) + colapso total de repetição + remoção de tudo que não for
+  `[a-z0-9]`. É a MESMA força usada para casar keyword e nome de performer — de propósito:
+  se a unicidade fosse mais fraca que a checagem de personificação, um near-clone barrado
+  numa passaria na outra (era o furo de personificação membro→membro; achado da revisão).
+- **Validação MAIS RÍGIDA que a do chat** (o chat NÃO barra troca de contato; o apelido é
+  público/permanente). Barra, na ordem: tamanho 3–20; **telefone** (tira separadores e
+  procura `\d{5,}` — o teto de dígitos consecutivos é `nickname.max_digit_run=5`, checado
+  ANTES do leet para o leet não virar dígito em letra e furar); **@/e-mail**; **URL/domínio**
+  (marcadores em minúsculas — o leet trocaria o ponto); **rede social** (`contact_keywords`,
+  anti-desvio reusando `ChatContentFilter::normalizeForMatch` — leet/zero-width/fullwidth —
+  MAIS colapso total de repetições `(.)\1+→$1` (pega "zaap"→"zap") E a forma canônica sem
+  espaço/pontuação, casando contra as TRÊS formas — sem a canônica, "z a p"/"i n s t a"
+  escapavam porque a normalização do chat preserva espaço (achado da revisão));
+  **palavra reservada** (`reserved`: limen/suporte/admin/moderador/oficial…); **conduta**
+  (`ChatContentFilter::blocks`); **personificação de performer** (nome artístico existente,
+  comparação normalizada) e **unicidade entre membros** — as duas últimas com a MESMA
+  mensagem genérica `NicknameException::unavailable` ("Esse apelido não está disponível.")
+  para não confirmar que existe um membro/performer com o nome (anti-oráculo).
+- **Cooldown de troca: 1× a cada `nickname.cooldown_days=7`.** A primeira escolha é livre
+  (`nickname_set_at` nulo); depois, o relógio é o `nickname_set_at`. Reenviar o PRÓPRIO
+  apelido é **no-op** (não conta como troca, não reseta o relógio). O `set()` roda sob
+  `DB::transaction`+`lockForUpdate` da linha do membro e a UNIQUE do banco é a rede final do
+  duplo-submit.
+- **Moderação (neste PR):** o moderador **força a remoção** pelo painel de moderação
+  (`ModerationController::removeNickname`, `moderacao.nickname.remove`), por **string do
+  apelido** (pública e única — nunca `user_id`, sem IDOR/enumeração; genérico quando não
+  encontra). `remove()` zera `nickname`/`nickname_normalized` mas **PRESERVA o
+  `nickname_set_at`** — senão bastaria auto-denunciar-se para trocar toda semana. O membro
+  volta ao FanAlias até escolher outro. A **denúncia pública** do apelido ficou para PR
+  dedicado (o pipeline de `Report` usa handle numérico e o membro é FanAlias hex — encaixar
+  exige revisão anti-oráculo própria; registrado no `MASTER_HANDOFF_FINAL.md`).
+- **Escolha em duas portas:** passo OPCIONAL no cadastro (`RegisterWebRequest` valida pelo
+  service num closure ANTES de criar a conta; `RegisterController` grava depois em try/catch
+  — nunca derruba o cadastro) e no perfil a qualquer momento (`consumer.nickname.update`/
+  `.destroy`). A tela avisa, ANTES de salvar, que o apelido é PÚBLICO (visível às performers
+  E aos outros membros no chat de uma live).
+- **Ceiling registrado:** `collidesWithPerformer` carrega os `stage_name` em PHP (a
+  normalização é leet/ascii, não SQL) — barato no volume de lançamento; se a base de
+  performers crescer para dezenas de milhares, indexar um `stage_name_normalized` (mesmo
+  ceiling do `FanAlias::resolveHandle`).
+
 ## Favoritos do membro — Sprint 10 (bookmark PRIVADO)
 
 **A performer NUNCA sabe que foi favoritada.** Não é preferência de UI — é o

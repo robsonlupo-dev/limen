@@ -3253,6 +3253,32 @@ Explorador/Insider **10%** · Prestige **20%** · Black **30%** · FC **40%**.
 > título descritivo único (o nome da feature), nunca o "próximo número"**. As entradas
 > abaixo foram convertidas; os antigos rótulos `A.0.x` foram removidos.
 
+### Denúncia pública do apelido do membro (`feat/member-nickname` — PR DEDICADO pendente)
+
+**Pendência deixada de propósito pelo `feat/member-nickname`** (decisão do PO: "Remoção
+forçada agora + denúncia em PR próprio"). O apelido do membro (rótulo público que a
+performer vê no lugar do "Fã #NNNN" — ver `docs/ARQUITETURA.md`, § "Apelido do membro", e
+`docs/DECISOES_2026-08.md` §17) entrou com **moderação por remoção forçada** (o moderador
+apaga pelo painel, por string do apelido), mas **sem entrada de DENÚNCIA pública** — o
+espectador/performer não tem, hoje, um botão "denunciar este apelido".
+
+**Por que ficou fora deste PR:** o pipeline de `Report` (`ReportController`,
+`Report::resolveFromHandle`) resolve o alvo por **handle NUMÉRICO**, enquanto o membro é
+identificado por par via **`FanAlias::handle()` (16 hex)**. Encaixar a denúncia de apelido
+ali exige decidir **qual identificador o denunciante manda** sem criar oráculo: mandar o
+`user_id` vazaria a chave interna; mandar o apelido (global) é aceitável, mas o
+`ReportController` hoje casa por tipo+id inteiro e precisaria de um `REPORTABLE_TYPE` novo
+(`member_nickname`) com resolução própria e resposta uniforme (anti-enumeração), além de
+decidir a retenção da prova (o apelido é string curta, não bytes). É invasivo o suficiente
+para justificar PR próprio, com revisão anti-oráculo dedicada.
+
+**Enquanto isso:** apelido abusivo que passe pela validação (`MemberNicknameService`) é
+tratado pela **remoção forçada** do moderador. O caminho de denúncia do usuário comum é o
+que falta. Ao pegar este PR: reusar a porta `/reportar` (não criar rota nova), decidir o
+identificador do alvo (recomendação: a **string pública do apelido**, que não expõe id), e
+manter a resposta uniforme de `ReportController` (dedup, anti-autodenúncia, sem oráculo de
+existência).
+
 ### Console de live da performer + chat da sala (`feat/live-room-console`, PR pendente)
 
 Sobre `main`, **mobile primeiro**, sem tocar economia/split/cobrança. A live pública

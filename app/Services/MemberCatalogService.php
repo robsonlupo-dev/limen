@@ -7,6 +7,7 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\ActivitySlot;
 use App\Support\FanAlias;
+use App\Support\MemberDisplayName;
 use App\Support\NewBadge;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -89,7 +90,7 @@ class MemberCatalogService
             // (fix/member-photo-and-crop) via User::avatarUrl() no mask — sem
             // elas no select, o accessor leria null e a foto sumiria.
             ->select('users.id', 'users.last_login_at', 'users.invisible_status', 'users.created_at',
-                'users.avatar_path', 'users.avatar_token')
+                'users.avatar_path', 'users.avatar_token', 'users.nickname')
             ->orderByDesc('users.id')
             ->paginate($perPage)
             ->withQueryString();
@@ -142,7 +143,10 @@ class MemberCatalogService
     private function mask(PerformerProfile $performerProfile, User $member, bool $interestSent, bool $hearted): array
     {
         return [
-            'fan_alias_label' => FanAlias::label($performerProfile->id, $member->id, 'Membro #'),
+            // Apelido do membro se ele escolheu; senão o FanAlias de sempre
+            // (feat/member-nickname). A CHAVE de resolução do alvo (member_handle)
+            // segue sendo o FanAlias — o apelido é só o rótulo exibido.
+            'fan_alias_label' => MemberDisplayName::for($member->nickname, $performerProfile->id, $member->id, 'Membro #'),
             'member_handle' => FanAlias::handle($performerProfile->id, $member->id),
             // Foto de perfil do membro (fix/member-photo-and-crop). Decisão do PO
             // (ago/2026): o membro passou a ter avatar, e ELE é exibido à performer

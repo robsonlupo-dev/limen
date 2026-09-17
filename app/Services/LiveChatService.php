@@ -11,6 +11,7 @@ use App\Models\LiveSession;
 use App\Models\User;
 use App\Support\ChatContentFilter;
 use App\Support\FanAlias;
+use App\Support\MemberDisplayName;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -50,7 +51,7 @@ class LiveChatService
 
         $label = $isPerformer
             ? (string) $session->performerProfile->stage_name
-            : FanAlias::label($session->performer_profile_id, $sender->id);
+            : MemberDisplayName::for($sender->nickname, $session->performer_profile_id, $sender->id);
 
         $message = LiveChatMessage::create([
             'live_session_id' => $session->id,
@@ -103,7 +104,11 @@ class LiveChatService
             Log::warning('live_chat.remove_participant_failed');
         }
 
-        return FanAlias::label($session->performer_profile_id, $memberId);
+        return MemberDisplayName::for(
+            User::whereKey($memberId)->value('nickname'),
+            $session->performer_profile_id,
+            $memberId,
+        );
     }
 
     public function isMuted(LiveSession $session, User $member): bool
@@ -130,11 +135,15 @@ class LiveChatService
 
         $stageName = (string) $session->performerProfile->stage_name;
 
+        // Apelidos dos remetentes em UMA query (não N) — feat/member-nickname.
+        $nicknames = User::whereIn('id', $messages->pluck('sender_id')->unique()->all())
+            ->pluck('nickname', 'id');
+
         return $messages->map(fn (LiveChatMessage $m) => [
             'id' => $m->id,
             'label' => $m->is_performer
                 ? $stageName
-                : FanAlias::label($session->performer_profile_id, (int) $m->sender_id),
+                : MemberDisplayName::for($nicknames[$m->sender_id] ?? null, $session->performer_profile_id, (int) $m->sender_id),
             'body' => $m->body,
             'is_performer' => $m->is_performer,
         ])->values()->all();

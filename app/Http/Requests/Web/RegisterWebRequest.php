@@ -94,6 +94,22 @@ class RegisterWebRequest extends FormRequest
             // A sanitização + anti-CSAM acontecem no store(), pelo MemberAvatarService.
             'avatar' => ['nullable', 'file', 'mimes:jpeg,png,webp', 'max:5120'],
 
+            // Apelido OPCIONAL do membro no cadastro (feat/member-nickname). Vazio
+            // é o caminho normal (fica como Fã #NNNN). Quando preenchido, passa pela
+            // validação RÍGIDA do MemberNicknameService (telefone/e-mail/rede social/
+            // reservada/personificação/conduta + unicidade) ANTES de criar a conta —
+            // o membro corrige e reenvia; só depois o store() grava.
+            'nickname' => ['nullable', 'string', 'max:20', function ($attribute, $value, $fail) {
+                if (blank($value)) {
+                    return;
+                }
+                try {
+                    app(\App\Services\MemberNicknameService::class)->validate((string) $value);
+                } catch (\App\Exceptions\NicknameException $e) {
+                    $fail($e->getMessage());
+                }
+            }],
+
             // Captcha. Vale para os DOIS caminhos desta rota — o formulário de
             // membro e o wizard da performer, que postam no mesmo
             // register.store. No-op com CAPTCHA_PROVIDER=none.
