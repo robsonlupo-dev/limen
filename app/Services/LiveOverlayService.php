@@ -8,6 +8,7 @@ use App\Models\LiveSession;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\FanAlias;
+use App\Support\MemberDisplayName;
 
 /**
  * Dispara a animação de prova social do <LiveOverlay> quando uma gorjeta/presente
@@ -34,7 +35,7 @@ class LiveOverlayService
             'tip',
             null,
             $amount,
-            FanAlias::label($profile->id, $member->id),
+            MemberDisplayName::for($member->nickname, $profile->id, $member->id),
         );
     }
 
@@ -49,7 +50,7 @@ class LiveOverlayService
             'gift',
             $gift->slug,
             (int) $gift->price_tokens,
-            FanAlias::label($profile->id, $member->id),
+            MemberDisplayName::for($member->nickname, $profile->id, $member->id),
         );
     }
 

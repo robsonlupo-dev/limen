@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 /**
@@ -17,6 +17,16 @@ const props = defineProps({
     types: { type: Array, required: true },
     pendingCount: { type: Number, required: true },
 })
+
+// Remoção forçada de apelido (feat/member-nickname). Por STRING do apelido
+// (pública e única) — o membro volta ao FanAlias até escolher outro.
+const nicknameForm = useForm({ nickname: '' })
+function removeNickname() {
+    nicknameForm.post(route('moderacao.nickname.remove'), {
+        preserveScroll: true,
+        onSuccess: () => nicknameForm.reset('nickname'),
+    })
+}
 
 const STATUS_LABELS = {
     pending: 'Pendentes',
@@ -83,6 +93,31 @@ function typeHref(type) {
                     O denunciante aparece pseudonimizado — o id real fica na tabela.
                 </p>
             </div>
+
+            <!-- Remoção forçada de apelido (feat/member-nickname). Por apelido
+                 (string pública e única) — não expõe id de membro. O membro volta
+                 ao identificador até escolher outro; o cooldown de troca é mantido. -->
+            <form class="flex flex-col gap-2 rounded-xl border border-frame bg-surface p-4 sm:flex-row sm:items-end" @submit.prevent="removeNickname">
+                <div class="flex-1">
+                    <label for="mod-nickname" class="text-xs uppercase tracking-wide text-muted">Remover apelido de membro</label>
+                    <input
+                        id="mod-nickname"
+                        v-model="nicknameForm.nickname"
+                        type="text"
+                        maxlength="20"
+                        placeholder="Digite o apelido a remover"
+                        class="mt-1 min-h-[44px] w-full rounded-lg border border-frame bg-surface-2 px-4 text-sm text-cream placeholder:text-muted/60 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+                    />
+                    <p v-if="nicknameForm.errors.nickname" class="mt-1 text-xs text-danger">{{ nicknameForm.errors.nickname }}</p>
+                </div>
+                <button
+                    type="submit"
+                    :disabled="nicknameForm.processing || nicknameForm.nickname.trim() === ''"
+                    class="min-h-[44px] rounded-lg border border-danger/50 px-4 text-sm font-medium text-danger transition-colors hover:bg-danger/10 disabled:opacity-40"
+                >
+                    Remover apelido
+                </button>
+            </form>
 
             <!-- Filtro por status -->
             <div class="flex flex-wrap gap-2">

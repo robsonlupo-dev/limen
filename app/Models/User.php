@@ -99,6 +99,13 @@ class User extends Authenticatable implements MustVerifyEmail
         // Fora do $fillable também: escrita só pelo MemberAvatarService (forceFill).
         'avatar_path',
         'avatar_token',
+        // Apelido do membro (feat/member-nickname): `nickname` é PÚBLICO (o nome
+        // que a performer vê) e NÃO fica escondido — mas `nickname_normalized`
+        // (chave de unicidade interna) e `nickname_set_at` (relógio do cooldown)
+        // nunca saem em serialização. Os três ficam FORA do $fillable: a escrita
+        // passa só pelo MemberNicknameService.
+        'nickname_normalized',
+        'nickname_set_at',
     ];
 
     protected function casts(): array
@@ -119,6 +126,8 @@ class User extends Authenticatable implements MustVerifyEmail
             // Watermark de "corações vistos" (feat/activity-badges). Datetime para
             // comparar com o created_at do coração; nunca serializado (é $hidden).
             'hearts_seen_at' => 'datetime',
+            // Apelido do membro (feat/member-nickname): relógio do cooldown de troca.
+            'nickname_set_at' => 'datetime',
             'password' => 'hashed',
             // 2FA TOTP. Cifrado em repouso pela APP_KEY: um dump do banco não
             // pode render segundo fator. Rotacionar a APP_KEY invalida os dois

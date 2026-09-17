@@ -191,7 +191,12 @@ contratos de cada superfície) **saiu do CLAUDE.md e vive em `docs/ARQUITETURA.m
 Ao mexer numa feature, leia a seção dela lá. Cobertas:
 
 - **Privacidade do membro** (decisões locked, piso de anonimato, piso de visitantes,
-  k-anonimato), **FanAlias** (pseudônimo por par).
+  k-anonimato), **FanAlias** (pseudônimo por par), **Apelido do membro**
+  (`feat/member-nickname`: rótulo público opcional que a performer vê no lugar do
+  "Fã #NNNN" em 6 telas — camada de EXIBIÇÃO; o FanAlias segue como identificador no
+  ledger/extrato/auditoria. Validação mais rígida que a do chat: barra telefone (5+
+  dígitos consecutivos), contato, rede social com anti-leet, palavra reservada e nome de
+  performer. Erro genérico anti-oráculo; troca 1×/7 dias).
 - **Favoritos, Notas da performer, Boost pago, Convite via Stories, Buscas salvas,
   Filtro de cidade** — superfícies do catálogo.
 - **Catálogo de membros (superfície invertida), Chat economy v2, Vitrine de conteúdo,

@@ -36,6 +36,9 @@ const form = useForm({
     accept_terms: false,
     lgpd_consent: false,
     preferred_world: '',
+    // Apelido OPCIONAL (feat/member-nickname). Vazio = fica como "Fã #NNNN".
+    // Validação rígida no servidor (RegisterWebRequest → MemberNicknameService).
+    nickname: '',
     // Foto de perfil OPCIONAL (fix/member-photo-and-crop). null = pulou (o
     // caminho normal). Com um File, o Inertia manda multipart automaticamente e o
     // register.store roda o mesmo pipeline (sanitização + anti-CSAM) do perfil.
@@ -192,6 +195,25 @@ function submit() {
                                 </button>
                             </div>
                             <p v-if="form.errors.preferred_world" class="text-xs text-danger mt-1">{{ form.errors.preferred_world }}</p>
+                        </div>
+
+                        <!-- Apelido OPCIONAL (feat/member-nickname). Público: é como
+                             as performers te chamam, e aparece no chat de uma live.
+                             Vazio = fica como "Fã #NNNN". -->
+                        <div>
+                            <Input
+                                id="nickname"
+                                v-model="form.nickname"
+                                label="Apelido (opcional)"
+                                type="text"
+                                maxlength="20"
+                                placeholder="Como as performers vão te chamar"
+                                :error="form.errors.nickname"
+                            />
+                            <p class="text-xs text-muted mt-1">
+                                É público — as performers veem, e os outros membros veem no chat de uma live.
+                                Você pode escolher ou trocar depois no seu perfil.
+                            </p>
                         </div>
 
                         <!-- Foto de perfil OPCIONAL (fix/member-photo-and-crop).

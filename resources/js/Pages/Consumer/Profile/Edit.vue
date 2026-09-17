@@ -22,6 +22,11 @@ const props = defineProps({
     // de uma tabela local: o mesmo vocabulário é lido pelo painel da performer,
     // e uma cópia aqui divergiria justo no lado que o membro não vê.
     lifestyleOptions: { type: Array, default: () => [] },
+    // Props TOP-LEVEL (o controller as envia fora de `profile`).
+    avatar_url: { type: String, default: null },
+    // Apelido (feat/member-nickname): valor atual + quando a próxima troca libera.
+    nickname: { type: String, default: null },
+    nickname_change_available_at: { type: String, default: null },
 })
 
 const form = useForm({
@@ -64,7 +69,34 @@ const avatarForm = useForm({ file: null })
 const pendingAvatarFile = ref(null)
 const avatarPreview = ref(null)
 const removingAvatar = ref(false)
-const currentAvatar = computed(() => avatarPreview.value ?? props.profile.avatar_url)
+const currentAvatar = computed(() => avatarPreview.value ?? props.avatar_url)
+
+// ── Apelido (feat/member-nickname) ────────────────────────────────────────────
+const nicknameForm = useForm({ nickname: props.nickname ?? '' })
+const removingNickname = ref(false)
+
+// Cooldown: a próxima troca só libera na data-alvo (o servidor manda pronta).
+const nicknameLocked = computed(() =>
+    props.nickname_change_available_at != null && new Date(props.nickname_change_available_at) > new Date(),
+)
+const nicknameAvailableLabel = computed(() =>
+    props.nickname_change_available_at
+        ? new Date(props.nickname_change_available_at).toLocaleDateString('pt-BR')
+        : null,
+)
+
+function saveNickname() {
+    nicknameForm.patch(route('consumer.nickname.update'), { preserveScroll: true })
+}
+
+function removeNickname() {
+    removingNickname.value = true
+    router.delete(route('consumer.nickname.destroy'), {
+        preserveScroll: true,
+        onSuccess: () => { nicknameForm.nickname = '' },
+        onFinish: () => { removingNickname.value = false },
+    })
+}
 
 function pickAvatar(event) {
     const file = event.target.files[0]
@@ -113,6 +145,55 @@ function saveLifestyle() {
                 <Link :href="route('consumer.dashboard')" class="text-sm text-gold hover:text-gold-light transition-colors shrink-0">
                     Voltar ao painel
                 </Link>
+            </div>
+
+            <!-- Apelido (feat/member-nickname). PÚBLICO: é como as performers te
+                 chamam, e aparece também para os outros membros no chat de uma
+                 live. A copy avisa ANTES de salvar — não é bilhete privado. -->
+            <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
+                <div class="space-y-1">
+                    <h2 class="font-serif text-xl text-cream">Seu apelido</h2>
+                    <p class="text-xs text-muted">
+                        Opcional. É como as performers te chamam no lugar de "Fã #0000".
+                        <span class="text-cream">É público</span>: as performers veem, e os outros membros
+                        presentes veem no chat de uma live. Não é um bilhete privado. Sem apelido, você
+                        continua como está hoje.
+                    </p>
+                </div>
+
+                <form class="flex flex-col gap-2 sm:flex-row sm:items-start" @submit.prevent="saveNickname">
+                    <div class="flex-1">
+                        <input
+                            v-model="nicknameForm.nickname"
+                            type="text"
+                            maxlength="20"
+                            :disabled="nicknameLocked"
+                            placeholder="Ex.: Leo, Viajante, MrNoturno"
+                            class="min-h-[44px] w-full rounded-lg border border-frame bg-surface-2 px-4 text-sm text-cream placeholder:text-muted/60 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold disabled:opacity-50"
+                        />
+                        <p v-if="nicknameForm.errors.nickname" class="mt-1 text-xs text-danger">{{ nicknameForm.errors.nickname }}</p>
+                        <p v-else-if="nicknameLocked" class="mt-1 text-xs text-muted">
+                            Você poderá trocar de novo a partir de {{ nicknameAvailableLabel }} (uma troca a cada 7 dias).
+                        </p>
+                        <p v-else class="mt-1 text-xs text-muted">3 a 20 caracteres. Sem telefone, e-mail, link ou rede social.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <Button type="submit" size="sm" class="min-h-[44px]" :loading="nicknameForm.processing" :disabled="nicknameLocked || nicknameForm.nickname.trim() === ''">
+                            Salvar
+                        </Button>
+                        <Button
+                            v-if="nickname"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="min-h-[44px]"
+                            :disabled="removingNickname"
+                            @click="removeNickname"
+                        >
+                            Remover
+                        </Button>
+                    </div>
+                </form>
             </div>
 
             <!-- Foto de perfil (fix/member-photo-and-crop). Ao contrário dos campos

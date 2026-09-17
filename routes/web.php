@@ -294,6 +294,13 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
         ->whereNumber('report')
         ->name('moderacao.reports.update');
 
+    // Remoção forçada de apelido de membro (feat/member-nickname). Por STRING do
+    // apelido (pública e única) — não expõe user_id. A denúncia pública do apelido
+    // fica para um PR dedicado (atrito com o pipeline de handle numérico).
+    Route::post('/apelido/remover', [ModerationController::class, 'removeNickname'])
+        ->middleware('throttle:30,1')
+        ->name('moderacao.nickname.remove');
+
     // Visualizador da PROVA RETIDA (Sprint 13). Serve o conteúdo denunciado —
     // foto efêmera, story, corpo da mensagem — SÓ quando há denúncia apontando
     // para ele (o EvidenceController resolve o alvo por id + `withTrashed` e casa
@@ -1107,6 +1114,17 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::delete('/meu-perfil/foto', [ConsumerProfileController::class, 'deleteAvatar'])
             ->middleware('throttle:20,1')
             ->name('consumer.profile.photo.destroy');
+
+        // Apelido do membro (feat/member-nickname). Porta própria — o campo tem
+        // validação rígida + cooldown no MemberNicknameService. Throttle apertado
+        // (a troca é rara e limitada a 1/7d, mas a validação é cara).
+        Route::patch('/meu-perfil/apelido', [ConsumerProfileController::class, 'updateNickname'])
+            ->middleware('throttle:10,1')
+            ->name('consumer.nickname.update');
+
+        Route::delete('/meu-perfil/apelido', [ConsumerProfileController::class, 'deleteNickname'])
+            ->middleware('throttle:10,1')
+            ->name('consumer.nickname.destroy');
 
         // Estilo de Vida (Sprint 10). Rota PRÓPRIA, e não mais um campo no PUT
         // acima: `lifestyle_tier` está fora do $fillable (mesma disciplina do

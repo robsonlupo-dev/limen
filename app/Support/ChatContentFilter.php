@@ -192,6 +192,17 @@ final class ChatContentFilter
      *     Sem ela o `Str::ascii` DESCARTAVA os caracteres, e uma mensagem
      *     inteira em fullwidth normalizava para string vazia — casava nada.
      */
+    /**
+     * Normalização anti-desvio REUSÁVEL (feat/member-nickname): zero-width +
+     * fullwidth + leet + colapso de repetições. A validação do apelido usa a
+     * MESMA para detectar rede social/palavra reservada disfarçada ("1nsta",
+     * "wh4ts", "zaap"). É a dona única do desvio — não copiar em outro lugar.
+     */
+    public static function normalizeForMatch(string $value): string
+    {
+        return self::normalize($value);
+    }
+
     private static function normalize(string $value): string
     {
         $value = (string) preg_replace('/\p{Cf}/u', '', $value);

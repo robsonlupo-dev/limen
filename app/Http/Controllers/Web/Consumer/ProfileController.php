@@ -8,8 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UploadMediaRequest;
 use App\Http\Requests\Web\UpdateLifestyleTierRequest;
 use App\Http\Requests\Web\UpdateMemberProfileRequest;
+use App\Exceptions\NicknameException;
 use App\Models\User;
 use App\Services\MemberAvatarService;
+use App\Services\MemberNicknameService;
 use App\Support\Audit;
 use App\Support\LifestyleTier;
 use Illuminate\Http\RedirectResponse;
@@ -75,7 +77,41 @@ class ProfileController extends Controller
             // e a tela cai na silhueta. É a PRÓPRIA foto do membro — o member_id
             // não vaza para si mesmo.
             'avatar_url' => $user->avatarUrl(),
+            // Apelido (feat/member-nickname): o valor atual (null = sem apelido, a
+            // performer vê o FanAlias) + quando a próxima troca fica liberada
+            // (cooldown de 7 dias). O relógio (`nickname_set_at`) é $hidden — a tela
+            // recebe só a data-alvo já calculada, nunca o carimbo cru.
+            'nickname' => $user->nickname,
+            'nickname_change_available_at' => $user->nickname_set_at
+                ? $user->nickname_set_at->copy()->addDays((int) config('nickname.cooldown_days'))->toIso8601String()
+                : null,
         ]);
+    }
+
+    /**
+     * Define/troca o apelido (feat/member-nickname). Toda a regra (validação
+     * rígida, unicidade, cooldown) vive no MemberNicknameService; aqui só
+     * traduzimos a recusa para um erro de formulário no campo `nickname`.
+     */
+    public function updateNickname(Request $request, MemberNicknameService $nicknames): RedirectResponse
+    {
+        $validated = $request->validate(['nickname' => ['required', 'string', 'max:20']]);
+
+        try {
+            $nicknames->set($request->user(), $validated['nickname'], $request);
+        } catch (NicknameException $e) {
+            return back()->withErrors(['nickname' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Apelido salvo.');
+    }
+
+    /** Remove o apelido: o membro volta ao FanAlias na exibição. */
+    public function deleteNickname(Request $request, MemberNicknameService $nicknames): RedirectResponse
+    {
+        $nicknames->remove($request->user(), byModerator: false, request: $request);
+
+        return back()->with('success', 'Apelido removido.');
     }
 
     /**

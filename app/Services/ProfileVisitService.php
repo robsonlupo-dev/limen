@@ -8,6 +8,7 @@ use App\Models\ProfileVisit;
 use App\Models\User;
 use App\Support\FanAlias;
 use App\Support\LifestyleTier;
+use App\Support\MemberDisplayName;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -433,16 +434,20 @@ class ProfileVisitService
             array_map(fn (object $row) => (int) $row->visitor_id, $rows)
         );
 
+        // Apelidos dos visitantes em UMA query (feat/member-nickname): o rótulo é
+        // o apelido escolhido, ou o FanAlias por par de sempre.
+        $nicknames = User::whereIn('id', array_map(fn (object $row) => (int) $row->visitor_id, $rows))
+            ->pluck('nickname', 'id');
+
         return $this->revealableSlots(array_map(fn (object $row) => [
             'visitor_id' => (int) $row->visitor_id,
             // `null` quando o membro não declarou — a tela não desenha nada, e
             // não há placeholder: "não informou" diria à performer que aquele
             // visitante viu o formulário e recusou (item 14, mesma lógica).
             'lifestyle' => $lifestyleLabels[(int) $row->visitor_id] ?? null,
-            // Mesmo pseudônimo por par (perfil, membro) das gorjetas e da
-            // lista de seguidores: a performer reconhece "o Fã #0042 de
-            // sempre" entre as telas, sem que o id cru saia daqui.
-            'fan' => FanAlias::label($profile->id, (int) $row->visitor_id),
+            // Apelido do membro, ou o FanAlias por par de sempre (o handle abaixo
+            // segue sendo a identificação técnica). O id cru nunca sai daqui.
+            'fan' => MemberDisplayName::for($nicknames[(int) $row->visitor_id] ?? null, $profile->id, (int) $row->visitor_id),
             // 16 hex: é IDENTIFICAÇÃO, e o `fan` acima não serve porque colide.
             'member_handle' => FanAlias::handle($profile->id, (int) $row->visitor_id),
             'visited_slot' => $this->slot(Carbon::parse($row->visited_at)),

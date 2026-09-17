@@ -20,6 +20,7 @@ use App\Services\PerformerStoryService;
 use App\Services\ProfileVisitService;
 use App\Support\FanAlias;
 use App\Support\LifestyleTier;
+use App\Support\MemberDisplayName;
 use App\Support\StoryPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -243,12 +244,15 @@ class DashboardController extends Controller
         // vem `null` e a tela não desenha nada — ver LifestyleTier::labelFor().
         $lifestyleLabels = LifestyleTier::labelsFor($tips->pluck('consumer_id')->all());
 
+        // Apelidos em lote (feat/member-nickname): o rótulo é o apelido do membro,
+        // ou o FanAlias por par de sempre. É EXIBIÇÃO — o extrato de ganhos e o
+        // ledger seguem no FanAlias.
+        $nicknames = User::whereIn('id', $tips->pluck('consumer_id')->unique()->all())
+            ->pluck('nickname', 'id');
+
         return $tips
-            // Pseudônimo por par (perfil, membro): `consumer_id % 10000` entregava
-            // quatro dígitos do id real, e o mesmo espaço de ids fazia "Fã #2345"
-            // casar com "Membro #12345" da lista de seguidores. Ver FanAlias.
             ->map(fn (Tip $tip) => [
-                'fan' => FanAlias::label($profile->id, $tip->consumer_id),
+                'fan' => MemberDisplayName::for($nicknames[$tip->consumer_id] ?? null, $profile->id, $tip->consumer_id),
                 'lifestyle' => $lifestyleLabels[$tip->consumer_id] ?? null,
                 'amount' => $tip->performer_amount,
                 'created_at' => $tip->created_at->format('d/m/Y H:i'),
