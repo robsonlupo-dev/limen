@@ -4,6 +4,7 @@ import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import ImageCropper from '@/Components/ImageCropper.vue'
+import CityAutocomplete from '@/Components/Catalog/CityAutocomplete.vue'
 import { TAG_GROUPS, MAX_TAGS } from '@/lib/performerAttributes'
 
 // Os interesses do membro usam o MESMO conjunto de slugs das tags da performer
@@ -32,6 +33,10 @@ const props = defineProps({
     gallery: { type: Array, default: () => [] },
     profile_visible: { type: Boolean, default: false },
     gallery_max: { type: Number, default: 4 },
+    // Perfil PÚBLICO v2 (feat/member-profile-v2): valores atuais + preview
+    // (age_band/is_verified/member_since derivados) e as listas controladas.
+    public_profile: { type: Object, default: () => ({}) },
+    publicProfileOptions: { type: Object, default: () => ({}) },
 })
 
 const form = useForm({
@@ -47,6 +52,76 @@ const form = useForm({
 const lifestyleForm = useForm({
     lifestyle_tier: props.profile.lifestyle_tier ?? 'prefer_not_to_say',
 })
+
+// ── Perfil PÚBLICO v2 (feat/member-profile-v2) ───────────────────────────────
+// Formulário PRÓPRIO (rota própria): TUDO aqui VOLTA para a performer quando o
+// perfil está visível — por isso a copy avisa "isto a performer vê" e a caixa
+// "só seu" mais abaixo NÃO cobre estes campos.
+const pp = props.public_profile ?? {}
+const ppOpts = props.publicProfileOptions ?? {}
+const publicForm = useForm({
+    bio: pp.bio ?? '',
+    public_seeking: [...(pp.public_seeking ?? [])],
+    public_interests: [...(pp.public_interests ?? [])],
+    profile_city: pp.profile_city ?? '',
+    profile_uf: pp.profile_uf ?? '',
+    marital_status: pp.marital_status ?? '',
+    height_cm: pp.height_cm ?? '',
+    show_age_band: pp.show_age_band ?? false,
+})
+
+const maxPublicSeeking = computed(() => ppOpts.max_seeking ?? 6)
+const maxPublicInterests = computed(() => ppOpts.max_interests ?? 10)
+
+// Toggle genérico de chip com teto (desmarcar sempre; marcar só até o limite).
+function toggleChip(list, value, max) {
+    const i = list.indexOf(value)
+    if (i !== -1) {
+        list.splice(i, 1)
+        return
+    }
+    if (list.length >= max) return
+    list.push(value)
+}
+
+// Preview "como a performer vê": rótulos das tags escolhidas, na ordem da lista.
+function labelsFor(options, chosen) {
+    return (options ?? []).filter((o) => chosen.includes(o.value)).map((o) => o.label)
+}
+const previewSeeking = computed(() => labelsFor(ppOpts.seeking, publicForm.public_seeking))
+const previewInterests = computed(() => labelsFor(ppOpts.interests, publicForm.public_interests))
+const previewMarital = computed(
+    () => (ppOpts.marital ?? []).find((o) => o.value === publicForm.marital_status)?.label ?? null,
+)
+const previewHeight = computed(
+    () => (ppOpts.heights ?? []).find((o) => o.value === publicForm.height_cm)?.label ?? null,
+)
+const previewCity = computed(() => {
+    const city = (publicForm.profile_city ?? '').trim()
+    if (!city) return null
+    const uf = (publicForm.profile_uf ?? '').trim()
+    return uf ? `${city}, ${uf}` : city
+})
+
+function onCitySelect({ name, uf }) {
+    publicForm.profile_city = name
+    publicForm.profile_uf = uf ?? ''
+}
+
+function savePublic() {
+    publicForm
+        .transform((data) => ({
+            ...data,
+            // '' → null nos escalares (o servidor também normaliza; isto deixa o
+            // payload limpo). height_cm vazio vira null (não 0).
+            profile_city: data.profile_city?.trim() || null,
+            profile_uf: data.profile_uf?.trim() || null,
+            marital_status: data.marital_status || null,
+            height_cm: data.height_cm === '' || data.height_cm == null ? null : Number(data.height_cm),
+            bio: data.bio?.trim() || null,
+        }))
+        .put(route('consumer.profile.public.update'), { preserveScroll: true })
+}
 
 // Teto de MAX_INTERESTS. Desmarcar sempre funciona; marcar só até o teto —
 // senão quem está no limite fica sem entender por que o clique não pega.
@@ -135,7 +210,12 @@ function removeAvatar() {
 // de aparecer para a performer. Sem cropper: a galeria preserva a proporção (o
 // servidor só reduz + sanitiza). O opt-in mestre `profile_visible` decide se a
 // galeria/perfil ficam acessíveis à performer — default OFF.
-const galleryForm = useForm({ file: null })
+// Agora COM cropper (feat/member-profile-v2): o membro enquadra em 3:4 antes de
+// enviar; mandamos o ORIGINAL (`file` → variante completa do lightbox) + o
+// recorte (`cropped` → variante enquadrada do card). O corte definitivo é
+// server-side; o recorte do cliente é UX + o que ele confirma vira o card.
+const galleryForm = useForm({ file: null, cropped: null })
+const pendingGalleryFile = ref(null)
 const galleryVisible = ref(props.profile_visible)
 const busyPhotoId = ref(null)
 
@@ -151,15 +231,27 @@ const statusLabels = {
     rejected: 'Recusada',
 }
 
-function uploadGalleryPhoto(event) {
+function pickGalleryPhoto(event) {
     const file = event.target.files[0]
     event.target.value = ''
     if (!file) return
-    galleryForm.file = file
+    // Abre o cropper 3:4; o envio acontece no confirmar (onGalleryCropped).
+    pendingGalleryFile.value = file
+}
+
+function onGalleryCropped(cropped) {
+    const original = pendingGalleryFile.value
+    pendingGalleryFile.value = null
+    if (!original) return
+    galleryForm.file = original
+    galleryForm.cropped = cropped
     galleryForm.post(route('consumer.gallery.store'), {
         forceFormData: true,
         preserveScroll: true,
-        onFinish: () => (galleryForm.file = null),
+        onFinish: () => {
+            galleryForm.file = null
+            galleryForm.cropped = null
+        },
     })
 }
 
@@ -321,6 +413,187 @@ function saveLifestyle() {
                 />
             </div>
 
+            <!-- Perfil público v2 (feat/member-profile-v2). Diferente da caixa
+                 "só seu" mais abaixo, TUDO aqui aparece para as performers no seu
+                 perfil — quando "Perfil visível" estiver ligado, e só o que você
+                 preencher. A copy avisa ANTES, não nos Termos. -->
+            <section class="rounded-xl border border-frame bg-surface p-6 space-y-6">
+                <div class="space-y-1">
+                    <h2 class="font-serif text-xl text-cream">Perfil público</h2>
+                    <p class="text-xs text-muted">
+                        Opcional. <span class="text-cream">Isto as performers veem</span> no seu perfil
+                        (quando "Perfil visível" estiver ligado). Só aparece o que você preencher.
+                    </p>
+                </div>
+
+                <form class="space-y-6" @submit.prevent="savePublic">
+                    <!-- Sobre mim -->
+                    <div class="flex flex-col gap-1.5">
+                        <label for="bio" class="text-sm font-medium text-cream">Sobre mim</label>
+                        <textarea
+                            id="bio"
+                            v-model="publicForm.bio"
+                            rows="4"
+                            maxlength="400"
+                            placeholder="Conte um pouco sobre você..."
+                            class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
+                        />
+                        <div class="flex items-baseline justify-between">
+                            <span class="text-xs text-muted">Sem telefone, e-mail, link ou rede social.</span>
+                            <span class="text-xs text-muted tabular-nums shrink-0">{{ publicForm.bio.length }}/400</span>
+                        </div>
+                        <p v-if="publicForm.errors.bio" class="text-xs text-danger">{{ publicForm.errors.bio }}</p>
+                    </div>
+
+                    <!-- O que busco (tags controladas) -->
+                    <div class="border-t border-frame pt-6 space-y-2">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <span class="text-sm font-medium text-cream">O que busco</span>
+                            <span class="text-xs text-muted tabular-nums shrink-0">{{ publicForm.public_seeking.length }}/{{ maxPublicSeeking }}</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-for="opt in publicProfileOptions.seeking"
+                                :key="opt.value"
+                                type="button"
+                                :aria-pressed="publicForm.public_seeking.includes(opt.value)"
+                                :disabled="!publicForm.public_seeking.includes(opt.value) && publicForm.public_seeking.length >= maxPublicSeeking"
+                                class="rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                :class="publicForm.public_seeking.includes(opt.value)
+                                    ? 'border-gold bg-gold/10 text-gold'
+                                    : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                                @click="toggleChip(publicForm.public_seeking, opt.value, maxPublicSeeking)"
+                            >{{ opt.label }}</button>
+                        </div>
+                        <p v-if="publicForm.errors.public_seeking" class="text-xs text-danger">{{ publicForm.errors.public_seeking }}</p>
+                    </div>
+
+                    <!-- Interesses (tags controladas) -->
+                    <div class="border-t border-frame pt-6 space-y-2">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <span class="text-sm font-medium text-cream">Interesses</span>
+                            <span class="text-xs text-muted tabular-nums shrink-0">{{ publicForm.public_interests.length }}/{{ maxPublicInterests }}</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-for="opt in publicProfileOptions.interests"
+                                :key="opt.value"
+                                type="button"
+                                :aria-pressed="publicForm.public_interests.includes(opt.value)"
+                                :disabled="!publicForm.public_interests.includes(opt.value) && publicForm.public_interests.length >= maxPublicInterests"
+                                class="rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                :class="publicForm.public_interests.includes(opt.value)
+                                    ? 'border-gold bg-gold/10 text-gold'
+                                    : 'border-frame bg-surface-2 text-cream hover:border-gold/50'"
+                                @click="toggleChip(publicForm.public_interests, opt.value, maxPublicInterests)"
+                            >{{ opt.label }}</button>
+                        </div>
+                        <p v-if="publicForm.errors.public_interests" class="text-xs text-danger">{{ publicForm.errors.public_interests }}</p>
+                    </div>
+
+                    <!-- Cidade + detalhes -->
+                    <div class="border-t border-frame pt-6 grid gap-4 sm:grid-cols-2">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-cream">Cidade</label>
+                            <CityAutocomplete
+                                v-model="publicForm.profile_city"
+                                :placeholder="'Digite sua cidade…'"
+                                aria-label="Cidade"
+                                @select="onCitySelect"
+                            />
+                            <p v-if="publicForm.errors.profile_city" class="text-xs text-danger">{{ publicForm.errors.profile_city }}</p>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label for="marital" class="text-sm font-medium text-cream">Estado civil</label>
+                            <select
+                                id="marital"
+                                v-model="publicForm.marital_status"
+                                class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none"
+                            >
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.marital" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.marital_status" class="text-xs text-danger">{{ publicForm.errors.marital_status }}</p>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label for="height" class="text-sm font-medium text-cream">Altura</label>
+                            <select
+                                id="height"
+                                v-model="publicForm.height_cm"
+                                class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none"
+                            >
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.heights" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.height_cm" class="text-xs text-danger">{{ publicForm.errors.height_cm }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Faixa etária: opt-in de EXIBIÇÃO (derivada da sua data de
+                         nascimento; a data/idade exata nunca aparece). -->
+                    <div class="border-t border-frame pt-6">
+                        <div class="flex items-center justify-between gap-4 rounded-lg border border-frame bg-surface-2 p-4">
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium text-cream">Mostrar minha faixa etária</p>
+                                <p class="text-xs text-muted">
+                                    {{ public_profile.age_band
+                                        ? `As performers veem "${public_profile.age_band}". Nunca sua idade exata ou data de nascimento.`
+                                        : 'Sua faixa etária pode aparecer no seu perfil. Nunca a idade exata.' }}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                :aria-checked="publicForm.show_age_band"
+                                class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors"
+                                :class="publicForm.show_age_band ? 'bg-gold' : 'bg-surface border border-frame'"
+                                @click="publicForm.show_age_band = !publicForm.show_age_band"
+                            >
+                                <span
+                                    class="inline-block h-5 w-5 transform rounded-full bg-cream transition-transform"
+                                    :class="publicForm.show_age_band ? 'translate-x-6' : 'translate-x-1'"
+                                ></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Preview: como a performer vê. Só o que está preenchido. -->
+                    <div class="border-t border-frame pt-6 space-y-3">
+                        <p class="text-xs uppercase tracking-wide text-muted">Como a performer vê</p>
+                        <div class="rounded-lg border border-gold/30 bg-gold/5 p-4 space-y-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-serif text-lg text-cream">{{ nickname || 'Seu apelido' }}</span>
+                                <span v-if="public_profile.is_verified" class="rounded-full bg-gold/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold">Verificado</span>
+                            </div>
+                            <p class="text-xs text-muted">
+                                <template v-if="publicForm.show_age_band && public_profile.age_band">{{ public_profile.age_band }}</template>
+                                <template v-if="publicForm.show_age_band && public_profile.age_band && previewCity"> · </template>
+                                <template v-if="previewCity">{{ previewCity }}</template>
+                                <template v-if="public_profile.member_since"> · Membro desde {{ public_profile.member_since }}</template>
+                            </p>
+                            <p v-if="publicForm.bio.trim()" class="text-sm text-cream/90 whitespace-pre-line">{{ publicForm.bio }}</p>
+                            <div v-if="previewSeeking.length" class="flex flex-wrap gap-1.5">
+                                <span v-for="t in previewSeeking" :key="t" class="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[11px] text-gold">{{ t }}</span>
+                            </div>
+                            <div v-if="previewInterests.length" class="flex flex-wrap gap-1.5">
+                                <span v-for="t in previewInterests" :key="t" class="rounded-full border border-frame bg-surface px-2 py-0.5 text-[11px] text-muted">{{ t }}</span>
+                            </div>
+                            <p v-if="previewMarital || previewHeight" class="text-xs text-muted">
+                                <template v-if="previewMarital">{{ previewMarital }}</template>
+                                <template v-if="previewMarital && previewHeight"> · </template>
+                                <template v-if="previewHeight">{{ previewHeight }}</template>
+                            </p>
+                        </div>
+                    </div>
+
+                    <Button type="submit" :disabled="publicForm.processing">
+                        {{ publicForm.processing ? 'Salvando...' : 'Salvar perfil público' }}
+                    </Button>
+                </form>
+            </section>
+
             <!-- Galeria de perfil (feat/member-gallery-and-profile). Até
                  `gallery_max` fotos que a performer vê no seu perfil — SÓ se você
                  ligar "Perfil visível" e SÓ depois que cada foto for aprovada. A
@@ -431,14 +704,28 @@ function saveLifestyle() {
                             accept="image/jpeg,image/png,image/webp"
                             class="hidden"
                             :disabled="galleryForm.processing"
-                            @change="uploadGalleryPhoto"
+                            @change="pickGalleryPhoto"
                         />
                     </label>
                     <p v-else class="text-xs text-muted">
                         Você atingiu o limite de {{ gallery_max }} fotos. Remova uma para enviar outra.
                     </p>
                     <p v-if="galleryForm.errors.file" class="mt-2 text-xs text-danger">{{ galleryForm.errors.file }}</p>
+                    <p v-if="galleryForm.errors.cropped" class="mt-2 text-xs text-danger">{{ galleryForm.errors.cropped }}</p>
                 </div>
+
+                <!-- Enquadramento 3:4 antes de enviar. O membro vê o recorte que
+                     vira o card; o servidor sanitiza o recorte E o original (a
+                     variante completa do lightbox). -->
+                <ImageCropper
+                    :file="pendingGalleryFile"
+                    :aspect-ratio="3 / 4"
+                    :output-width="720"
+                    title="Enquadre sua foto"
+                    hint="Arraste e ajuste o zoom. Este recorte vira a foto do seu card; a foto inteira aparece ao ampliar."
+                    @crop="onGalleryCropped"
+                    @cancel="pendingGalleryFile = null"
+                />
             </div>
 
             <!-- A copy de privacidade fica ANTES do formulário, não num rodapé:
