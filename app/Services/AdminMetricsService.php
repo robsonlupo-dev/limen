@@ -3,34 +3,27 @@
 namespace App\Services;
 
 use App\Models\CallSession;
+use App\Models\IdentityVerification;
 use App\Models\LiveSession;
 use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\PerformerProfile;
+use App\Models\Report;
 use App\Models\TokenLedger;
+use App\Models\TokenWallet;
 use App\Models\User;
+use App\Models\WaitlistEntry;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
- * Agregados do painel admin de receita (Sprint 16). SÓ números somados do ledger
- * e contadores — NENHUMA PII de membro. Dona única das consultas do dashboard:
- * o controller é fino e a Blade só desenha o que sai daqui.
- *
- * ── Sem PII (requisito de segurança) ─────────────────────────────────────────
- * Todas as métricas de token são SUM(amount) por entry_type num intervalo — o
- * ledger é apagado/anonimizado por titular no Hard Delete, mas aqui nunca se lê
- * uma LINHA nem um `user_id`, só a soma. Os contadores são `count()`. A única
- * lista com nomes é a de payouts (performers, não membros) e mostra stage_name +
- * valores — nunca PIX, CPF, e-mail. Membro não aparece em superfície nenhuma.
+ * Agregados do painel admin de receita (Sprint 16, expandido). SÓ números somados
+ * do ledger e contadores — NENHUMA PII de membro. Dona única das consultas do
+ * dashboard: o controller é fino e a Blade só desenha o que sai daqui.
  */
 class AdminMetricsService
 {
-    /**
-     * Categorias de GASTO que o dashboard quebra (débito do membro, amount < 0).
-     * label => entry_type. `spend_boost`/`spend_camera`/`spend_private`/
-     * `spend_interest_unlock` existem mas não são as seis do escopo — ficam fora.
-     */
     private const SPEND_TYPES = [
         'chat' => 'spend_chat_access',
         'gorjeta' => 'spend_tip',
@@ -40,12 +33,15 @@ class AdminMetricsService
         'chamada' => 'spend_call',
     ];
 
-    /**
-     * Receita de HOJE e dos ÚLTIMOS 30 DIAS. "Hoje" usa a fronteira do dia em São
-     * Paulo (o admin pensa no dia BR); "30 dias" é janela rolante.
-     *
-     * @return array{today: array, last30: array}
-     */
+    private const VERTICAL_SPLITS = [
+        'chat'     => ['rate' => 0.80, 'spend' => 'spend_chat_access', 'credit' => 'chat_credit'],
+        'gorjeta'  => ['rate' => 0.80, 'spend' => 'spend_tip',         'credit' => 'tip_credit'],
+        'presente' => ['rate' => 0.80, 'spend' => 'spend_gift',        'credit' => 'gift_credit'],
+        'conteudo' => ['rate' => 0.80, 'spend' => 'spend_content',     'credit' => 'content_credit'],
+        'live'     => ['rate' => 0.70, 'spend' => 'spend_live',        'credit' => 'live_credit'],
+        'chamada'  => ['rate' => 0.70, 'spend' => 'spend_call',        'credit' => 'call_credit'],
+    ];
+
     public function revenue(): array
     {
         return [
@@ -54,31 +50,17 @@ class AdminMetricsService
         ];
     }
 
-    /**
-     * @return array{tokens_sold:int, spent_by_type:array<string,int>, spent_total:int,
-     *               tokens_paid_out:int, retention:int, gross_revenue_cents:int,
-     *               is_estimate:bool}
-     */
     private function revenueSince(Carbon $since): array
     {
-        $sold = $this->sumType('purchase', $since); // crédito, positivo
+        $sold = $this->sumType('purchase', $since);
 
         $spentByType = [];
         foreach (self::SPEND_TYPES as $label => $type) {
-            // Débitos são negativos no ledger; o painel mostra o valor gasto (abs).
             $spentByType[$label] = abs($this->sumType($type, $since));
         }
 
-        // Payout LÍQUIDO: `payout_reserve` é o débito (negativo) na hora do saque;
-        // `payout_reversal` devolve (positivo) num saque falho. A soma dos dois é o
-        // que de fato SAIU — negativo —, então nega para o total pago (positivo).
         $paidOut = -($this->sumType('payout_reserve', $since) + $this->sumType('payout_reversal', $since));
 
-        // Receita REAL: SUM(amount_cents) das cobranças confirmadas (Asaas/PIX) na
-        // janela. É o que de fato entrou — desconta tier, pacote, tudo. Quando há
-        // pagamento confirmado, vence a estimativa. Sem nenhum (base nova, ou só
-        // dados sintéticos de ledger em dev), cai na estimativa por token e a Blade
-        // recoloca o rótulo "(estimada)".
         $realRevenueCents = $this->realRevenueSince($since);
         $isEstimate = $realRevenueCents <= 0;
 
@@ -87,7 +69,6 @@ class AdminMetricsService
             'spent_by_type' => $spentByType,
             'spent_total' => array_sum($spentByType),
             'tokens_paid_out' => $paidOut,
-            // Retenção da Limen em tokens: vendidos − pagos em payout.
             'retention' => $sold - $paidOut,
             'gross_revenue_cents' => $isEstimate
                 ? (int) round($sold * $this->avgPricePerTokenCents())
@@ -104,13 +85,6 @@ class AdminMetricsService
             ->sum('amount');
     }
 
-    /**
-     * Receita real em centavos: SUM(amount_cents) das cobranças `confirmed` cujo
-     * `confirmed_at` cai na janela. Filtra por confirmed_at (quando o dinheiro
-     * entrou), não por created_at (quando a cobrança foi gerada) — uma cobrança
-     * antiga confirmada hoje é receita de hoje. Reembolso vira status `refunded`,
-     * então já sai fora do `confirmed`.
-     */
     private function realRevenueSince(Carbon $since): int
     {
         return (int) Payment::query()
@@ -119,7 +93,6 @@ class AdminMetricsService
             ->sum('amount_cents');
     }
 
-    /** Preço médio (blended) do pacote por token, em centavos — fonte: config M.13.2. */
     private function avgPricePerTokenCents(): float
     {
         $packages = config('monetization.packages', []);
@@ -129,9 +102,6 @@ class AdminMetricsService
         return $tokens > 0 ? $cents / $tokens : 0.0;
     }
 
-    /**
-     * @return array{active_members:int, active_performers:int, lives_today:int, calls_today:int}
-     */
     public function counters(): array
     {
         $sevenDaysAgo = now()->subDays(7);
@@ -143,18 +113,101 @@ class AdminMetricsService
             'active_performers' => User::where('role', 'performer')
                 ->where('last_login_at', '>=', $sevenDaysAgo)->count(),
             'lives_today' => LiveSession::where('created_at', '>=', $todayStart)->count(),
-            // Chamada = 1:1 (type=private). Group show é outra coisa, fora do escopo.
             'calls_today' => CallSession::where('type', CallSession::TYPE_PRIVATE)
                 ->where('created_at', '>=', $todayStart)->count(),
         ];
     }
 
-    /**
-     * Payouts parados em needs_review (status ENUM, não booleano). SÓ dados da
-     * performer e valores — nunca PIX/CPF/e-mail. Sem membro (payout não tem).
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
+    public function platform(): array
+    {
+        $todayStart = $this->todayStart();
+        $sevenDaysAgo = now()->subDays(7);
+        $thirtyDaysAgo = now()->subDays(30);
+
+        return [
+            'total_members'    => User::where('role', 'consumer')->count(),
+            'total_performers' => User::where('role', 'performer')->count(),
+            'total_users'      => User::count(),
+
+            'new_members_today'  => User::where('role', 'consumer')
+                ->where('created_at', '>=', $todayStart)->count(),
+            'new_members_7d'     => User::where('role', 'consumer')
+                ->where('created_at', '>=', $sevenDaysAgo)->count(),
+            'new_members_30d'    => User::where('role', 'consumer')
+                ->where('created_at', '>=', $thirtyDaysAgo)->count(),
+
+            'new_performers_today' => User::where('role', 'performer')
+                ->where('created_at', '>=', $todayStart)->count(),
+            'new_performers_7d'    => User::where('role', 'performer')
+                ->where('created_at', '>=', $sevenDaysAgo)->count(),
+
+            'performers_active'  => User::where('role', 'performer')
+                ->where('status', 'active')->count(),
+            'performers_pending' => User::where('role', 'performer')
+                ->where('status', 'pending_kyc')->count(),
+            'performers_banned'  => User::where('role', 'performer')
+                ->where('status', 'banned')->count(),
+
+            'pending_kyc'     => IdentityVerification::where('status', 'pending')->count(),
+            'open_reports'    => Report::pending()->count(),
+            'waitlist_total'  => WaitlistEntry::count(),
+        ];
+    }
+
+    public function splits(): array
+    {
+        $since = now()->subDays(30);
+        $result = [];
+
+        foreach (self::VERTICAL_SPLITS as $label => $config) {
+            $spent = abs($this->sumType($config['spend'], $since));
+            $performerRate = $config['rate'];
+
+            $result[$label] = [
+                'spent'     => $spent,
+                'performer' => (int) round($spent * $performerRate),
+                'platform'  => (int) round($spent * (1 - $performerRate)),
+                'rate'      => $performerRate,
+            ];
+        }
+
+        return $result;
+    }
+
+    public function ledgerHealth(): array
+    {
+        $divergences = DB::select("
+            SELECT
+                tw.id AS wallet_id,
+                tw.user_id,
+                tw.balance AS wallet_balance,
+                COALESCE(ledger.total, 0) AS ledger_sum,
+                (tw.balance - COALESCE(ledger.total, 0)) AS diff
+            FROM token_wallets tw
+            LEFT JOIN (
+                SELECT wallet_id, SUM(amount) AS total
+                FROM token_ledger
+                GROUP BY wallet_id
+            ) ledger ON ledger.wallet_id = tw.id
+            WHERE ABS(tw.balance - COALESCE(ledger.total, 0)) > 0.001
+            LIMIT 10
+        ");
+
+        $checked = TokenWallet::count();
+
+        return [
+            'ok'          => count($divergences) === 0,
+            'checked'     => $checked,
+            'divergences' => array_map(fn ($row) => [
+                'wallet_id'      => $row->wallet_id,
+                'user_id'        => $row->user_id,
+                'wallet_balance' => $row->wallet_balance,
+                'ledger_sum'     => $row->ledger_sum,
+                'diff'           => $row->diff,
+            ], $divergences),
+        ];
+    }
+
     public function pendingPayouts(): Collection
     {
         return Payout::query()
@@ -165,7 +218,7 @@ class AdminMetricsService
             ->map(fn (Payout $payout) => [
                 'id' => $payout->id,
                 'performer' => $payout->performer?->performerProfile?->stage_name ?? ('Performer #'.$payout->performer_id),
-                'tokens' => $payout->tokens, // readable: int quando inteiro, decimal exato se houver fração de sweep
+                'tokens' => $payout->tokens,
                 'amount_brl' => $payout->amount_brl,
                 'period' => $payout->period_month
                     ? sprintf('%02d/%d', $payout->period_month, $payout->period_year)
@@ -174,13 +227,6 @@ class AdminMetricsService
             ]);
     }
 
-    /**
-     * Performers no limiar de strikes de no-show (feat/scheduled-call-v1): 3 strikes
-     * → review humano (não banimento automático). SÓ dados da performer (stage_name
-     * + contagem) — nenhuma PII de membro (o strike não guarda quem era o membro).
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
     public function strikeReviewPerformers(): Collection
     {
         $threshold = (int) config('scheduled_call.strike_review_threshold');
@@ -196,7 +242,6 @@ class AdminMetricsService
             ]);
     }
 
-    /** Fronteira do dia em São Paulo, em UTC (created_at é UTC; app.timezone é UTC). */
     private function todayStart(): Carbon
     {
         return Carbon::now('America/Sao_Paulo')->startOfDay()->utc();
