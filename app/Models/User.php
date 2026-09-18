@@ -141,6 +141,12 @@ class User extends Authenticatable implements MustVerifyEmail
             // (null = "nunca escolheu"); o efetivo sai de isVisibleToPerformers().
             // Fora do $fillable — escrita só pelo endpoint dedicado de settings.
             'visible_to_performers' => 'boolean',
+            // Perfil visível: opt-in mestre da galeria/página de perfil
+            // (feat/member-gallery-and-profile). Default false. Fora do $fillable —
+            // forceFill pelo MemberGalleryService, como discrete_mode/lifestyle_tier.
+            // Gate SEPARADO de visible_to_performers (aparecer no catálogo × expor
+            // a galeria/perfil são consentimentos distintos).
+            'profile_visible' => 'boolean',
             // Preferências de som de notificação (Sprint 16). Fora do $fillable:
             // escrita só pelo endpoint dedicado, com allowlist de chaves — nunca
             // um blob JSON arbitrário por mass assignment.
@@ -203,6 +209,16 @@ class User extends Authenticatable implements MustVerifyEmail
     public function identityVerifications(): HasMany
     {
         return $this->hasMany(IdentityVerification::class);
+    }
+
+    /**
+     * Fotos da galeria de perfil do membro (feat/member-gallery-and-profile).
+     * Opt-in, moderadas (pending → approved/rejected). Quem VÊ (approved + dono
+     * com profile_visible) é regra do MemberGalleryService, não da relação.
+     */
+    public function galleryPhotos(): HasMany
+    {
+        return $this->hasMany(MemberGalleryPhoto::class);
     }
 
     /** Aceites de Política de Conteúdo / Contrato de Performance (append-only). */
