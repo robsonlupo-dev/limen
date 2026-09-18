@@ -48,7 +48,7 @@ class SendWelcomeEmail implements ShouldQueue
             // Admin nunca recebe (decisão do PO). Um admin não passa pelo KYC
             // no fluxo normal, mas a checagem fica aqui — junto das outras — em
             // vez de depender de nenhum caminho futuro alcançar este job.
-            if ($user->role === 'admin') {
+            if ($user->isAdmin()) {
                 return null;
             }
 

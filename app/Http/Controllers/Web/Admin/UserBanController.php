@@ -35,7 +35,7 @@ class UserBanController extends Controller
         // próprio acesso) nem a outro admin por esta porta de moderação (banir
         // privilégio é decisão de outra alçada, não da fila de abuso).
         abort_if($user->is($admin), 403, 'Não é possível banir a própria conta.');
-        abort_if($user->role === 'admin', 403, 'Contas de administrador não podem ser banidas por aqui.');
+        abort_if($user->isAdmin(), 403, 'Contas de administrador não podem ser banidas por aqui.');
 
         return DB::transaction(function () use ($user, $admin, $validated) {
             $user = User::whereKey($user->getKey())->lockForUpdate()->firstOrFail();
