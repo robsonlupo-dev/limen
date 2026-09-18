@@ -16,6 +16,7 @@ use App\Http\Controllers\Web\Auth\ResetPasswordController;
 use App\Http\Controllers\Web\CallController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\MemberMediaController;
+use App\Http\Controllers\Web\MemberGalleryMediaController;
 use App\Http\Controllers\Web\Consumer\CallReservationController as ConsumerCallReservationController;
 use App\Http\Controllers\Web\Performer\CallReservationController as PerformerCallReservationController;
 use App\Http\Controllers\Web\GroupShowController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Web\Consumer\ConsumerKycController;
 use App\Http\Controllers\Web\Consumer\DashboardController as ConsumerDashboardController;
 use App\Http\Controllers\Web\Consumer\FavoriteController;
 use App\Http\Controllers\Web\Consumer\FeedController;
+use App\Http\Controllers\Web\Consumer\GalleryController as ConsumerGalleryController;
 use App\Http\Controllers\Web\Consumer\GiftController;
 use App\Http\Controllers\Web\Consumer\HeartsController as ConsumerHeartsController;
 use App\Http\Controllers\Web\Consumer\ProfileVisitorsController as ConsumerProfileVisitorsController;
@@ -50,6 +52,7 @@ use App\Http\Controllers\Web\LinksController;
 use App\Http\Controllers\Web\Moderation\EvidenceController;
 use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\Moderation\VoiceIntroModerationController;
+use App\Http\Controllers\Web\Moderation\MemberPhotoModerationController;
 use App\Http\Controllers\Web\Performer\AvailabilityController;
 use App\Http\Controllers\Web\Performer\BoostController;
 use App\Http\Controllers\Web\Performer\EarningsController;
@@ -92,6 +95,15 @@ Route::get('/entrada', [EntradaController::class, 'index'])->name('entrada');
 Route::get('/membro/midia', MemberMediaController::class)
     ->middleware('signed')
     ->name('member.media');
+
+// Serving das fotos da GALERIA de perfil do membro (feat/member-gallery-and-profile).
+// Gêmeo do member.media do avatar: disco privado, rota ASSINADA (sem sessão),
+// chaveada pelo `token` OPACO da foto — nunca id/user_id. O gate de "quem vê"
+// (approved + dono com profile_visible) é aplicado na GERAÇÃO da URL; aqui só
+// servimos bytes que existirem (removida/recusada some do disco → 404 na hora).
+Route::get('/membro/galeria/midia', MemberGalleryMediaController::class)
+    ->middleware('signed')
+    ->name('member.gallery.media');
 
 // Public link-in-bio hub (Linktree replacement, no auth). Allowlisted on the
 // public domain (thelimen.com.br) — see deploy/nginx/thelimen.com.br.
@@ -324,6 +336,13 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
         Route::get('/apresentacoes-de-voz/{intro}/audio', [VoiceIntroModerationController::class, 'audio'])
             ->whereNumber('intro')
             ->name('moderacao.voice-intros.audio');
+
+        // Serving da foto de galeria de membro para o moderador VER na fila
+        // (feat/member-gallery-and-profile). Sob o mesmo throttle da prova retida —
+        // lê bytes e é sensível. Só há bytes enquanto pending (a recusa purga).
+        Route::get('/fotos-de-membro/{photo}/imagem', [MemberPhotoModerationController::class, 'image'])
+            ->whereNumber('photo')
+            ->name('moderacao.member-photos.image');
     });
 
     // Fila de moderação das intros de voz (feat/voice-intro). Áudio sanitizado
@@ -334,6 +353,16 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
     Route::patch('/apresentacoes-de-voz/{intro}', [VoiceIntroModerationController::class, 'update'])
         ->whereNumber('intro')
         ->name('moderacao.voice-intros.update');
+
+    // Fila de moderação das fotos de galeria de membro
+    // (feat/member-gallery-and-profile). Rosto de usuário em site adulto só vai ao
+    // ar depois de análise humana (CSAM, foto de terceiro sem consentimento). O
+    // anti-CSAM automático já rodou no upload; o humano é o gate contra o resto.
+    Route::get('/fotos-de-membro', [MemberPhotoModerationController::class, 'index'])
+        ->name('moderacao.member-photos.index');
+    Route::patch('/fotos-de-membro/{photo}', [MemberPhotoModerationController::class, 'update'])
+        ->whereNumber('photo')
+        ->name('moderacao.member-photos.update');
 });
 
 // Authenticated area
@@ -1119,6 +1148,31 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::delete('/meu-perfil/foto', [ConsumerProfileController::class, 'deleteAvatar'])
             ->middleware('throttle:20,1')
             ->name('consumer.profile.photo.destroy');
+
+        // Galeria de perfil do membro (feat/member-gallery-and-profile). Até 4
+        // fotos opt-in que passam por moderação humana (pending → approved) antes
+        // de aparecer à performer. Mesmo pipeline do avatar (sanitização +
+        // anti-CSAM). Throttle apertado como o avatar. `{photo}` é resolvido por
+        // model binding; a POSSE é reconferida no service (404 se não for do dono).
+        Route::post('/meu-perfil/galeria', [ConsumerGalleryController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.gallery.store');
+
+        Route::delete('/meu-perfil/galeria/{photo}', [ConsumerGalleryController::class, 'destroy'])
+            ->middleware('throttle:20,1')
+            ->whereNumber('photo')
+            ->name('consumer.gallery.destroy');
+
+        Route::patch('/meu-perfil/galeria/{photo}/principal', [ConsumerGalleryController::class, 'primary'])
+            ->middleware('throttle:20,1')
+            ->whereNumber('photo')
+            ->name('consumer.gallery.primary');
+
+        // Opt-in mestre: liga/desliga o perfil visível (galeria + página de perfil
+        // acessíveis à performer). Default OFF; `profile_visible` fora do $fillable.
+        Route::patch('/meu-perfil/visibilidade-galeria', [ConsumerGalleryController::class, 'visibility'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.gallery.visibility');
 
         // Apelido do membro (feat/member-nickname). Porta própria — o campo tem
         // validação rígida + cooldown no MemberNicknameService. Throttle apertado

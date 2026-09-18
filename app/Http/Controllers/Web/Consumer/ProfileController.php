@@ -11,6 +11,7 @@ use App\Http\Requests\Web\UpdateMemberProfileRequest;
 use App\Exceptions\NicknameException;
 use App\Models\User;
 use App\Services\MemberAvatarService;
+use App\Services\MemberGalleryService;
 use App\Services\MemberNicknameService;
 use App\Support\Audit;
 use App\Support\LifestyleTier;
@@ -51,7 +52,7 @@ use Inertia\Response;
  */
 class ProfileController extends Controller
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request, MemberGalleryService $gallery): Response
     {
         /** @var User $user */
         $user = $request->user();
@@ -85,6 +86,13 @@ class ProfileController extends Controller
             'nickname_change_available_at' => $user->nickname_set_at
                 ? $user->nickname_set_at->copy()->addDays((int) config('nickname.cooldown_days'))->toIso8601String()
                 : null,
+            // Galeria de perfil (feat/member-gallery-and-profile). TODAS as fotos do
+            // dono (qualquer status), com a URL de preview quando há bytes — a
+            // recusada some do disco e vem só com o motivo. `profile_visible` é o
+            // opt-in mestre (default OFF); `gallery_max` deixa a tela travar o botão.
+            'gallery' => $gallery->forOwner($user),
+            'profile_visible' => (bool) $user->profile_visible,
+            'gallery_max' => \App\Models\MemberGalleryPhoto::MAX_ACTIVE,
         ]);
     }
 

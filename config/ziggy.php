@@ -180,6 +180,13 @@ return [
         'consumer.profile.photo.destroy',
         'consumer.nickname.update',
         'consumer.nickname.destroy',
+        // Galeria de perfil do membro (feat/member-gallery-and-profile). A tela de
+        // perfil sobe/remove/define principal e liga o perfil visível por route();
+        // o serving da foto é URL assinada montada pelo servidor (não entra aqui).
+        'consumer.gallery.store',
+        'consumer.gallery.destroy',
+        'consumer.gallery.primary',
+        'consumer.gallery.visibility',
 
         // Favoritos do membro (bookmark privado — a performer não tem rota
         // irmã aqui, e não é para ganhar uma).
@@ -295,6 +302,11 @@ return [
         // aprova/recusa; o serving do áudio é URL injetada pelo servidor.
         'moderacao.voice-intros.index',
         'moderacao.voice-intros.update',
+        // Fila de moderação das fotos de galeria de membro
+        // (feat/member-gallery-and-profile). A tela lista e aprova/recusa; o
+        // serving da imagem é URL injetada pelo servidor (não entra aqui).
+        'moderacao.member-photos.index',
+        'moderacao.member-photos.update',
         // Visualizador da prova retida: a tela de detalhe monta o src da <img> e
         // o fetch do corpo da mensagem por route().
         'moderacao.evidence.photo',
