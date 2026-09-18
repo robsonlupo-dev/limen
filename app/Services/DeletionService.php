@@ -7,6 +7,7 @@ use App\Mail\AccountDeletionRequestedMail;
 use App\Models\DeletionLog;
 use App\Models\Follow;
 use App\Models\IdentityVerification;
+use App\Models\MemberGalleryPhoto;
 use App\Models\MemberPhoto;
 use App\Models\Message;
 use App\Models\Payment;
@@ -359,6 +360,11 @@ class DeletionService
             $summary['member_profile_visits_made'] = $this->purgeMemberProfileVisitsByPerformer($user);
             $summary['member_photos'] = $this->purgeMemberPhotos($user);
             $summary['member_photos_preserved'] = $this->preservedMemberPhotoCount($user);
+            // Galeria de perfil do membro (feat/member-gallery-and-profile): as
+            // LINHAS somem (DELETE real); os bytes saem em deleteFiles(). Sem
+            // preservação por denúncia — não há fila de denúncia apontando para a
+            // galeria (a moderação é PRÉ-publicação, como a intro de voz).
+            $summary['member_gallery_photos'] = $this->purgeGalleryPhotos($user);
             $summary['member_photo_access_received'] = $this->purgePhotoAccessToOwnProfile($user);
             $summary['story_views'] = $this->purgeStoryViews($user);
             $summary['story_views_received'] = $this->purgeStoryViewsToOwnProfile($user);
@@ -499,6 +505,18 @@ class DeletionService
         // disco. Sem cifra e sem TTL, some no encerramento como avatar/cover.
         if ($user->avatar_path) {
             $paths[] = ['disk' => 'local', 'path' => $user->avatar_path];
+        }
+
+        // Fotos da GALERIA de perfil do membro (feat/member-gallery-and-profile).
+        // Disco privado `local`, sem cifra e sem TTL — somem no encerramento como o
+        // avatar. A FK cascadeOnDelete NÃO dispara (a conta sai por
+        // soft-delete/anonimização — item 11), então este é o último varredor que
+        // enxerga os caminhos no disco. A recusada já teve os bytes purgados
+        // (path=''), então só entram as que ainda têm arquivo.
+        foreach (MemberGalleryPhoto::where('user_id', $user->id)->get() as $galleryPhoto) {
+            if ($galleryPhoto->path !== '' && $galleryPhoto->path !== null) {
+                $paths[] = ['disk' => MemberGalleryService::DISK, 'path' => $galleryPhoto->path];
+            }
         }
 
         // Fotos da galeria do perfil (Sprint 10). Conteúdo PÚBLICO da própria
@@ -1254,6 +1272,17 @@ class DeletionService
         }
 
         return MemberPhoto::withTrashed()->whereIn('id', $deletableIds)->forceDelete();
+    }
+
+    /**
+     * Apaga as linhas da galeria de perfil do membro
+     * (feat/member-gallery-and-profile). Os BYTES saem em deleteFiles() (coletados
+     * em collectFilePaths); aqui somem as linhas. DELETE real — a galeria não tem
+     * soft-delete nem preservação por denúncia.
+     */
+    private function purgeGalleryPhotos(User $user): int
+    {
+        return MemberGalleryPhoto::where('user_id', $user->id)->delete();
     }
 
     /**

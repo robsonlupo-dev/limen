@@ -1,6 +1,6 @@
 <script setup>
 import { reactive, ref } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
@@ -46,12 +46,20 @@ const msg = reactive({ open: false, member: null, body: '', sending: false, erro
 const detail = reactive({ open: false, member: null })
 
 function openDetail(member) {
+    // Galeria de perfil (Opção B): quem ligou o perfil visível tem uma PÁGINA de
+    // perfil (galeria aprovada + rótulo). Navega para ela — a visita (Fase 13,
+    // respeitando Ghost Mode) é registrada no GET do servidor, então NÃO disparamos
+    // o POST aqui para não gravar duas vezes.
+    if (member.profile_url) {
+        router.visit(member.profile_url)
+        return
+    }
+
+    // Sem perfil visível: cai no modal enxuto de sempre (só o que o card mostra +
+    // ações). Fire-and-forget da visita — lateral à navegação; a dedup de 30min
+    // vive no servidor e erros (404/429) não afetam a tela.
     detail.member = member
     detail.open = true
-
-    // Fire-and-forget: a visita é lateral à navegação. A dedup de 30min vive no
-    // servidor, então reabrir não gera linha nova; erros (404 de membro que saiu
-    // da lista, 429) não afetam a tela — o perfil abre de qualquer forma.
     postJson(route('performer.members.visit'), { member_handle: member.member_handle }).catch(() => {})
 }
 

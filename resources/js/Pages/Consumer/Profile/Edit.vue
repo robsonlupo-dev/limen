@@ -27,6 +27,11 @@ const props = defineProps({
     // Apelido (feat/member-nickname): valor atual + quando a próxima troca libera.
     nickname: { type: String, default: null },
     nickname_change_available_at: { type: String, default: null },
+    // Galeria de perfil (feat/member-gallery-and-profile): TODAS as fotos do dono
+    // (qualquer status), o opt-in mestre e o teto de fotos.
+    gallery: { type: Array, default: () => [] },
+    profile_visible: { type: Boolean, default: false },
+    gallery_max: { type: Number, default: 4 },
 })
 
 const form = useForm({
@@ -122,6 +127,63 @@ function removeAvatar() {
         preserveScroll: true,
         onSuccess: () => (avatarPreview.value = null),
         onFinish: () => (removingAvatar.value = false),
+    })
+}
+
+// ── Galeria de perfil (feat/member-gallery-and-profile) ──────────────────────
+// Até `gallery_max` fotos, cada uma moderada (pending → aprovada/recusada) antes
+// de aparecer para a performer. Sem cropper: a galeria preserva a proporção (o
+// servidor só reduz + sanitiza). O opt-in mestre `profile_visible` decide se a
+// galeria/perfil ficam acessíveis à performer — default OFF.
+const galleryForm = useForm({ file: null })
+const galleryVisible = ref(props.profile_visible)
+const busyPhotoId = ref(null)
+
+// Ocupam slot: pending + aprovada (a recusada não conta, o membro pode reenviar).
+const activeGalleryCount = computed(
+    () => props.gallery.filter((p) => p.status === 'pending' || p.status === 'approved').length,
+)
+const galleryFull = computed(() => activeGalleryCount.value >= props.gallery_max)
+
+const statusLabels = {
+    pending: 'Em análise',
+    approved: 'Aprovada',
+    rejected: 'Recusada',
+}
+
+function uploadGalleryPhoto(event) {
+    const file = event.target.files[0]
+    event.target.value = ''
+    if (!file) return
+    galleryForm.file = file
+    galleryForm.post(route('consumer.gallery.store'), {
+        forceFormData: true,
+        preserveScroll: true,
+        onFinish: () => (galleryForm.file = null),
+    })
+}
+
+function removeGalleryPhoto(photo) {
+    busyPhotoId.value = photo.id
+    router.delete(route('consumer.gallery.destroy', photo.id), {
+        preserveScroll: true,
+        onFinish: () => (busyPhotoId.value = null),
+    })
+}
+
+function makePrimary(photo) {
+    busyPhotoId.value = photo.id
+    router.patch(route('consumer.gallery.primary', photo.id), {}, {
+        preserveScroll: true,
+        onFinish: () => (busyPhotoId.value = null),
+    })
+}
+
+function toggleGalleryVisibility() {
+    const next = !galleryVisible.value
+    router.patch(route('consumer.gallery.visibility'), { profile_visible: next }, {
+        preserveScroll: true,
+        onSuccess: () => (galleryVisible.value = next),
     })
 }
 
@@ -257,6 +319,126 @@ function saveLifestyle() {
                     @crop="onAvatarCropped"
                     @cancel="pendingAvatarFile = null"
                 />
+            </div>
+
+            <!-- Galeria de perfil (feat/member-gallery-and-profile). Até
+                 `gallery_max` fotos que a performer vê no seu perfil — SÓ se você
+                 ligar "Perfil visível" e SÓ depois que cada foto for aprovada. A
+                 copy avisa que passa por análise ANTES do envio. -->
+            <div class="rounded-xl border border-frame bg-surface p-6 space-y-5">
+                <div class="space-y-1">
+                    <h2 class="font-serif text-xl text-cream">Suas fotos</h2>
+                    <p class="text-xs text-muted">
+                        Opcional. Até {{ gallery_max }} fotos. Cada foto passa por uma
+                        <span class="text-cream">análise</span> antes de aparecer no seu perfil.
+                        JPG, PNG ou WebP, até 5 MB. Envie apenas fotos suas.
+                    </p>
+                </div>
+
+                <!-- Opt-in mestre: sem isto ligado, nada da galeria/perfil fica
+                     visível para as performers. Default OFF. -->
+                <div class="flex items-center justify-between gap-4 rounded-lg border border-gold/30 bg-gold/5 p-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-cream">Perfil visível para performers</p>
+                        <p class="text-xs text-muted">
+                            {{ galleryVisible
+                                ? 'As performers podem abrir seu perfil e ver suas fotos aprovadas.'
+                                : 'Seu perfil está oculto. Ligue para as performers verem suas fotos.' }}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="galleryVisible"
+                        class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors"
+                        :class="galleryVisible ? 'bg-gold' : 'bg-surface-2 border border-frame'"
+                        @click="toggleGalleryVisibility"
+                    >
+                        <span
+                            class="inline-block h-5 w-5 transform rounded-full bg-cream transition-transform"
+                            :class="galleryVisible ? 'translate-x-6' : 'translate-x-1'"
+                        ></span>
+                    </button>
+                </div>
+
+                <!-- Grade de fotos. Rejeitada não tem imagem (bytes purgados): mostra
+                     só o motivo, e o membro remove/reenvia. -->
+                <div v-if="gallery.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div
+                        v-for="photo in gallery"
+                        :key="photo.id"
+                        class="relative flex flex-col overflow-hidden rounded-lg border border-frame bg-surface-2"
+                    >
+                        <div class="relative aspect-[4/5] w-full bg-background">
+                            <img
+                                v-if="photo.url"
+                                :src="photo.url"
+                                alt="Sua foto"
+                                class="h-full w-full object-cover"
+                            />
+                            <div v-else class="grid h-full w-full place-items-center px-2 text-center">
+                                <span class="text-xs text-muted">{{ photo.reject_reason || 'Foto recusada' }}</span>
+                            </div>
+
+                            <span
+                                v-if="photo.is_primary"
+                                class="absolute left-1.5 top-1.5 rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-background"
+                            >Principal</span>
+
+                            <span
+                                class="absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                :class="{
+                                    'bg-surface text-muted': photo.status === 'pending',
+                                    'bg-gold/20 text-gold': photo.status === 'approved',
+                                    'bg-danger/20 text-danger': photo.status === 'rejected',
+                                }"
+                            >{{ statusLabels[photo.status] }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-1 p-2">
+                            <button
+                                v-if="photo.status === 'approved' && !photo.is_primary"
+                                type="button"
+                                class="min-h-[36px] text-xs text-gold hover:underline disabled:opacity-40"
+                                :disabled="busyPhotoId === photo.id"
+                                @click="makePrimary(photo)"
+                            >Tornar principal</button>
+                            <span v-else class="text-xs text-muted">
+                                {{ photo.status === 'rejected' ? 'Recusada' : (photo.is_primary ? 'Foto principal' : '') }}
+                            </span>
+                            <button
+                                type="button"
+                                aria-label="Remover foto"
+                                class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:text-danger disabled:opacity-40"
+                                :disabled="busyPhotoId === photo.id"
+                                @click="removeGalleryPhoto(photo)"
+                            >
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label v-if="!galleryFull" class="cursor-pointer inline-block">
+                        <span class="inline-flex min-h-[44px] items-center rounded-lg border border-gold px-4 py-2 text-sm text-gold transition-colors hover:bg-gold/10">
+                            {{ galleryForm.processing ? 'Enviando...' : 'Adicionar foto' }}
+                        </span>
+                        <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            class="hidden"
+                            :disabled="galleryForm.processing"
+                            @change="uploadGalleryPhoto"
+                        />
+                    </label>
+                    <p v-else class="text-xs text-muted">
+                        Você atingiu o limite de {{ gallery_max }} fotos. Remova uma para enviar outra.
+                    </p>
+                    <p v-if="galleryForm.errors.file" class="mt-2 text-xs text-danger">{{ galleryForm.errors.file }}</p>
+                </div>
             </div>
 
             <!-- A copy de privacidade fica ANTES do formulário, não num rodapé:
