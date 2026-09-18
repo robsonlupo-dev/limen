@@ -514,8 +514,13 @@ class DeletionService
         // enxerga os caminhos no disco. A recusada já teve os bytes purgados
         // (path=''), então só entram as que ainda têm arquivo.
         foreach (MemberGalleryPhoto::where('user_id', $user->id)->get() as $galleryPhoto) {
-            if ($galleryPhoto->path !== '' && $galleryPhoto->path !== null) {
-                $paths[] = ['disk' => MemberGalleryService::DISK, 'path' => $galleryPhoto->path];
+            // As DUAS variantes (enquadrada + completa, feat/member-profile-v2). A
+            // recusada já teve ambas purgadas (path='' e full_path=''), então só
+            // entram as que ainda têm arquivo.
+            foreach ([$galleryPhoto->path, $galleryPhoto->full_path] as $galleryPath) {
+                if ($galleryPath !== '' && $galleryPath !== null) {
+                    $paths[] = ['disk' => MemberGalleryService::DISK, 'path' => $galleryPath];
+                }
             }
         }
 

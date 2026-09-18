@@ -6,7 +6,7 @@ use App\Exceptions\CsamDetectedException;
 use App\Exceptions\ImageProcessingException;
 use App\Exceptions\MemberGalleryException;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\UploadMediaRequest;
+use App\Http\Requests\Web\UploadGalleryPhotoRequest;
 use App\Models\MemberGalleryPhoto;
 use App\Services\MemberGalleryService;
 use Illuminate\Http\RedirectResponse;
@@ -24,10 +24,10 @@ use Illuminate\Http\Request;
  */
 class GalleryController extends Controller
 {
-    public function store(UploadMediaRequest $request, MemberGalleryService $gallery): RedirectResponse
+    public function store(UploadGalleryPhotoRequest $request, MemberGalleryService $gallery): RedirectResponse
     {
         try {
-            $gallery->add($request->user(), $request->file('file'), $request);
+            $gallery->add($request->user(), $request->file('file'), $request->file('cropped'), $request);
         } catch (MemberGalleryException $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
         } catch (ImageProcessingException|CsamDetectedException $e) {
