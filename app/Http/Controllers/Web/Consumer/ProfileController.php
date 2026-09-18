@@ -8,13 +8,16 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UploadMediaRequest;
 use App\Http\Requests\Web\UpdateLifestyleTierRequest;
 use App\Http\Requests\Web\UpdateMemberProfileRequest;
+use App\Http\Requests\Web\UpdateMemberPublicProfileRequest;
 use App\Exceptions\NicknameException;
 use App\Models\User;
 use App\Services\MemberAvatarService;
 use App\Services\MemberGalleryService;
 use App\Services\MemberNicknameService;
+use App\Support\AgeBand;
 use App\Support\Audit;
 use App\Support\LifestyleTier;
+use App\Support\MemberProfileOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -93,7 +96,99 @@ class ProfileController extends Controller
             'gallery' => $gallery->forOwner($user),
             'profile_visible' => (bool) $user->profile_visible,
             'gallery_max' => \App\Models\MemberGalleryPhoto::MAX_ACTIVE,
+
+            // Perfil PÚBLICO v2 (feat/member-profile-v2). Ao contrário de
+            // interests/seeking acima, TUDO aqui VOLTA para a performer quando o
+            // perfil está visível — por isso a tela avisa "isto a performer vê"
+            // e a copy de "só seu" NÃO cobre esta seção. Valores atuais + as
+            // listas controladas (rótulos do servidor, nunca duplicados no Vue).
+            'public_profile' => [
+                'bio' => $user->bio,
+                'public_seeking' => $user->public_seeking ?? [],
+                'public_interests' => $user->public_interests ?? [],
+                'profile_city' => $user->profile_city,
+                'profile_uf' => $user->profile_uf,
+                'marital_status' => $user->marital_status,
+                'height_cm' => $user->height_cm,
+                'show_age_band' => (bool) $user->show_age_band,
+                // Derivados, para o PREVIEW de "como a performer vê": a faixa (do
+                // birthdate), o selo (do KYC) e "membro desde". A faixa vem SEMPRE
+                // (a tela mostra no preview só se o toggle estiver ligado); nunca
+                // a data/idade exata.
+                'age_band' => AgeBand::for($user->birthdate),
+                'is_verified' => $user->memberIsVerified(),
+                'member_since' => $user->created_at?->translatedFormat('M Y'),
+            ],
+            'publicProfileOptions' => [
+                'seeking' => MemberProfileOptions::seekingOptions(),
+                'interests' => MemberProfileOptions::interestOptions(),
+                'marital' => MemberProfileOptions::maritalOptions(),
+                'heights' => MemberProfileOptions::heightOptions(),
+                'max_seeking' => MemberProfileOptions::MAX_SEEKING,
+                'max_interests' => MemberProfileOptions::MAX_INTERESTS,
+            ],
         ]);
+    }
+
+    /**
+     * Salva o perfil PÚBLICO v2 (bio, "o que busco"/interesses públicos, cidade/
+     * UF, estado civil, altura, opt-in da faixa etária). Endpoint PRÓPRIO — como
+     * o de estilo de vida e o de apelido — porque estes campos VOLTAM para a
+     * performer: ficam fora do $fillable e entram por forceFill de allowlist, com
+     * o UpdateMemberPublicProfileRequest como fronteira de confiança.
+     *
+     * array_key_exists e não isset: a tela pode mandar '' / [] para LIMPAR um
+     * campo, e ausente é "não mexe". Confundir os dois recusaria a única operação
+     * (apagar o que já está exposto) que o titular não refaz por outro caminho.
+     */
+    public function updatePublicProfile(UpdateMemberPublicProfileRequest $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $validated = $request->validated();
+        $changes = [];
+
+        // Texto/escalares: '' vira null (uma representação só para "vazio").
+        foreach (['bio', 'profile_city', 'profile_uf', 'marital_status'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $value = trim((string) ($validated[$field] ?? ''));
+                $changes[$field] = $value === '' ? null : $value;
+            }
+        }
+
+        // Altura: inteiro ou null.
+        if (array_key_exists('height_cm', $validated)) {
+            $changes['height_cm'] = $validated['height_cm'] !== null ? (int) $validated['height_cm'] : null;
+        }
+
+        // Arrays de slugs: [] vira null (vazio tem uma representação só).
+        foreach (['public_seeking', 'public_interests'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $slugs = array_values(array_unique($validated[$field] ?? []));
+                $changes[$field] = $slugs === [] ? null : $slugs;
+            }
+        }
+
+        if (array_key_exists('show_age_band', $validated)) {
+            $changes['show_age_band'] = (bool) $validated['show_age_band'];
+        }
+
+        if ($changes !== []) {
+            // forceFill: os campos estão fora do $fillable de propósito (a
+            // performer os lê). O valor já veio validado contra as allowlists.
+            $user->forceFill($changes)->save();
+        }
+
+        // Audit sem CONTEÚDO — só quais campos mudaram. Bio é texto pessoal e as
+        // tags são preferência declarada; gravar o valor faria do audit_logs uma
+        // segunda cópia fora do alcance do scrub do Hard Delete (mesma disciplina
+        // do member_profile_updated).
+        Audit::log('member_public_profile_updated', $user, [
+            'fields' => array_keys($changes),
+        ], $request);
+
+        return back()->with('success', 'Perfil atualizado.');
     }
 
     /**

@@ -109,11 +109,16 @@ it('is_available reflete a presença E o opt-out appear_offline no payload do ca
         ->assertOk()->assertInertia(fn ($p) => $p->where('performer.is_available', false));
 });
 
-// ─── Item 10: card de membro compacto (sem o vazio 3:4) ─────────────────────────
+// ─── Item 10: card de membro ────────────────────────────────────────────────────
+// ATUALIZADO por feat/member-profile-v2 (referência Seeking, decisão do PO): o
+// card VOLTOU a ser foto-primeiro 3:4 — mas o vazio que o UAT reclamava (silhueta
+// minúscula boiando) não volta: SEM foto, o placeholder PREENCHE o card (silhueta
+// grande centralizada sobre `bg-limen-surface`), não flutua num retrato vazio.
 
-it('o card de membro é compacto (não mais o retrato 3:4 com silhueta boiando)', function () {
+it('o card de membro é foto-primeiro 3:4 com placeholder que preenche (não silhueta boiando)', function () {
     $src = file_get_contents(resource_path('js/Components/MemberCard.vue'));
-    expect($src)->not->toContain('aspect-[3/4]')          // acabou o card alto e vazio
+    expect($src)->toContain('aspect-[3/4]')                // foto-primeiro 3:4 (v2)
+        ->and($src)->toContain('place-items-center bg-limen-surface') // placeholder preenche o card
         ->and($src)->toContain('fan_alias_label')          // alias segue
         ->and($src)->toContain("emit('view')");            // e abre o perfil
 });

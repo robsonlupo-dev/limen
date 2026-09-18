@@ -33,9 +33,10 @@ class MemberGalleryPhoto extends Model
 
     protected $fillable = [];
 
-    // path/token são o layout do serving; content_hash é prova, não conteúdo;
-    // user_id é o id que o FanAlias esconde — nenhum sai em JSON.
-    protected $hidden = ['path', 'token', 'content_hash', 'user_id'];
+    // path/token (variante ENQUADRADA) e full_path/full_token (variante COMPLETA)
+    // são o layout do serving; content_hash é prova, não conteúdo; user_id é o id
+    // que o FanAlias esconde — nenhum sai em JSON.
+    protected $hidden = ['path', 'full_path', 'token', 'full_token', 'content_hash', 'user_id'];
 
     protected function casts(): array
     {
@@ -99,6 +100,26 @@ class MemberGalleryPhoto extends Model
             'member.gallery.media',
             now()->addMinutes(60),
             ['token' => $this->token],
+        );
+    }
+
+    /**
+     * URL assinada da variante COMPLETA (sem corte), para o lightbox do perfil
+     * (feat/member-profile-v2). Chaveada no `full_token` OPACO próprio. Linha
+     * antiga (pré-v2) não tem a variante → devolve null, e o lightbox cai na
+     * mediaUrl() (a enquadrada), sem quebrar. Mesmo gate de serving (a rota
+     * reconfere approved + profile_visible).
+     */
+    public function fullMediaUrl(): ?string
+    {
+        if ($this->full_path === '' || $this->full_path === null || ! $this->full_token) {
+            return null;
+        }
+
+        return URL::temporarySignedRoute(
+            'member.gallery.media',
+            now()->addMinutes(60),
+            ['token' => $this->full_token],
         );
     }
 }

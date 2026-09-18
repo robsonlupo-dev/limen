@@ -39,10 +39,20 @@ class MemberGalleryMediaController extends Controller
 
         abort_if($token === '', 404);
 
-        $photo = MemberGalleryPhoto::where('token', $token)->first();
+        // Duas variantes, um mesmo endpoint: o `token` serve a ENQUADRADA (`path`,
+        // card/miniatura), o `full_token` serve a COMPLETA (`full_path`, lightbox).
+        // Resolve por qualquer um dos dois tokens OPACOS e serve o arquivo daquela
+        // variante — nunca vaza id/user_id em nenhum dos casos.
+        $photo = MemberGalleryPhoto::where('token', $token)
+            ->orWhere('full_token', $token)
+            ->first();
 
-        abort_if($photo === null || $photo->path === ''
-            || ! Storage::disk(MemberGalleryService::DISK)->exists($photo->path), 404);
+        abort_if($photo === null, 404);
+
+        $path = $photo->full_token === $token ? $photo->full_path : $photo->path;
+
+        abort_if($path === '' || $path === null
+            || ! Storage::disk(MemberGalleryService::DISK)->exists($path), 404);
 
         // O dono vê a própria em qualquer status (preview da gestão). Qualquer
         // outro só vê APROVADA de dono com perfil visível — o gate real do serving.
@@ -52,6 +62,6 @@ class MemberGalleryMediaController extends Controller
             abort_unless($photo->isApproved() && $photo->user?->profile_visible, 404);
         }
 
-        return Storage::disk(MemberGalleryService::DISK)->response($photo->path);
+        return Storage::disk(MemberGalleryService::DISK)->response($path);
     }
 }

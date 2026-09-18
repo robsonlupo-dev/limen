@@ -327,3 +327,53 @@ As regras de economia consolidadas estão em `docs/ECONOMIA.md`; aqui ficam as
   DIRECIONADO e ameaça**, com o desarme por **qualificador consensual** — comportamento
   atual do filtro, mantido de propósito. No apelido o critério de abuso é **mais rígido**
   que no chat, porque é nome público e permanente.
+
+## 20. Perfil do membro v2 / plataforma de conexão — IMPLEMENTADO (`feat/member-profile-v2`)
+
+- **O porquê.** O perfil do membro do PR #224 funcionava mas estava **pelado**: apelido
+  + duas fotos + botão. Um perfil pelado não gera conexão — a performer não tem com o que
+  decidir se engaja. A referência de qualidade é o **Seeking.com**: catálogo com cards
+  grandes foto-primeiro e um perfil que parece de uma pessoa real (foto hero + galeria +
+  "sobre mim" + "o que busco" + detalhes + selos). O v2 leva o lado membro a esse nível
+  **sem regredir nenhum invariante de privacidade**.
+
+- **Campos adicionados — TODOS opcionais e opt-in** (preencher = consentir; a performer só
+  vê o que o membro escreveu, e só com "Perfil visível" ligado):
+  - **Bio "Sobre mim"** (texto curto, 400 chars). Passa por guarda de contato/conduta
+    (`App\Support\ProfileTextGuard`, que **reusa** `ChatContentFilter` + as listas do
+    apelido — não é filtro novo): barra telefone, e-mail, @, URL e rede social, inclusive
+    com evasão por espaço/leet.
+  - **"O que busco"** e **Interesses** — listas controladas PÚBLICAS
+    (`App\Support\MemberProfileOptions`).
+  - **Cidade/UF** (autocomplete IBGE reaproveitado da performer).
+  - **Detalhes** — estado civil e altura (selects controlados, sem texto livre).
+  - **Faixa etária** — **derivada do `birthdate`** já coletado no cadastro (nunca a data
+    nem a idade exata exibida) e mostrada **só com opt-in** (`show_age_band`). A derivação
+    é o que evita faixa mentida; o opt-in é o que respeita o invariante de só exibir o
+    consentido.
+  - **"Membro desde"** (mês/ano do `created_at`) e **selo "Verificado"** (derivado do KYC
+    de idade — só o selo, nunca dado do documento).
+
+- **Separação dos campos PRIVADOS (não-negociável).** O membro já tinha `interests`/
+  `seeking` PRIVADOS (afinidade server-side + filtro do catálogo) que **NUNCA** voltam à
+  performer (`App\Models\MemberInterest`, travado por teste). O v2 **não** os expõe: criou
+  campos PÚBLICOS **separados** (`public_seeking`, `public_interests`, `bio`, etc.), com a
+  tela avisando "isto a performer vê" — e a caixa "isto é só seu" continua cobrindo só a
+  metade privada.
+
+- **Fotos sem corte + cropper + lightbox.** O upload passa pelo `ImageCropper` (3:4): o
+  membro enquadra e guarda-se **duas variantes** pós-sanitização — a **enquadrada**
+  (card/miniatura) e a **completa sem corte** (lightbox no perfil, `object-contain`).
+  Ambas com strip EXIF/GPS + CsamScan + token opaco próprio; a moderação humana do #224
+  **não muda**.
+
+- **DECISÃO FUTURA registrada (NÃO implementada neste PR).** Virar a visibilidade do
+  diretório de membros de **opt-in → opt-out** (o membro apareceria por padrão; a
+  invisibilidade viraria perk exclusivo de Founders Circle/Black). Está **decidida pelo PO
+  mas aguarda aval jurídico** (LGPD: base legal do consentimento, texto nos Termos no
+  cadastro) — ver `docs/PENDENCIAS_JURIDICAS.md` §6. Até lá, `profile_visible` continua
+  **default OFF**, como no #224.
+
+- **Moderação automática ARQUIVADA.** A ideia de trocar a moderação prévia das fotos por
+  automática + reativa foi **arquivada** (decisão do PO): aprovação humana continua. Fica
+  registrada para reavaliar pós-lançamento (ver `docs/PENDENCIAS_JURIDICAS.md` §6).

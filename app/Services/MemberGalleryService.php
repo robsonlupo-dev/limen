@@ -34,6 +34,16 @@ class MemberGalleryService
      */
     public const MAX_DIMENSION = 1280;
 
+    /**
+     * Variante ENQUADRADA (card/miniatura), proporção 3:4 (feat/member-profile-v2).
+     * É o que o membro recortou no ImageCropper; o servidor sanitiza esse recorte,
+     * ou — se o cliente não mandou recorte — recorta o original no centro (cover)
+     * para a mesma proporção, para o card nunca ficar sem enquadramento.
+     */
+    public const CARD_WIDTH = 720;
+
+    public const CARD_HEIGHT = 960;
+
     /** Disco privado, o mesmo do avatar do membro. */
     public const DISK = 'local';
 
@@ -49,37 +59,57 @@ class MemberGalleryService
      * qualquer escrita em disco. A primeira foto do membro não vira principal aqui:
      * `is_primary` só é designada entre APPROVED (na aprovação/setPrimary).
      */
-    public function add(User $user, UploadedFile $file, ?Request $request = null): MemberGalleryPhoto
+    public function add(User $user, UploadedFile $file, ?UploadedFile $cropped = null, ?Request $request = null): MemberGalleryPhoto
     {
         // Teto de slots ativos. Rejeitada não conta (o membro pode reenviar).
         if (MemberGalleryPhoto::where('user_id', $user->id)->active()->count() >= MemberGalleryPhoto::MAX_ACTIVE) {
             throw MemberGalleryException::limitReached();
         }
 
-        $clean = $this->imageProcessor->process($file, self::MAX_DIMENSION, self::MAX_DIMENSION, crop: false);
+        // Variante COMPLETA (sem corte) — o lightbox do perfil. scaleDown preserva
+        // a proporção original.
+        $fullClean = $this->imageProcessor->process($file, self::MAX_DIMENSION, self::MAX_DIMENSION, crop: false);
 
-        // Caminho imprevisível (nome aleatório), nunca do cliente.
+        // Variante ENQUADRADA (3:4) — card/miniatura. Se o cliente mandou o recorte
+        // do ImageCropper, sanitiza ESSE recorte (já vem 3:4, então crop:false só
+        // reduz+sanitiza — "o que ele confirma é o que aparece"). Sem recorte
+        // (JS desligado, API futura), recorta o ORIGINAL no servidor (cover 3:4)
+        // — o corte definitivo nunca depende do cliente.
+        $cardClean = $cropped !== null
+            ? $this->imageProcessor->process($cropped, self::CARD_WIDTH, self::CARD_HEIGHT, crop: false)
+            : $this->imageProcessor->process($file, self::CARD_WIDTH, self::CARD_HEIGHT, crop: true);
+
+        // Caminhos imprevisíveis (nome aleatório), nunca do cliente.
         $path = "member-gallery/{$user->id}/".Str::random(40).'.jpg';
+        $fullPath = "member-gallery/{$user->id}/".Str::random(40).'.jpg';
 
         try {
-            $bytes = file_get_contents($clean);
+            $cardBytes = file_get_contents($cardClean);
+            $fullBytes = file_get_contents($fullClean);
 
-            // Anti-CSAM: mesmo gate dos outros caminhos de imagem. Match → exceção
-            // antes de qualquer gravação.
-            $this->csam->scanBytes($bytes, 'member_gallery', $user);
+            // Anti-CSAM nas DUAS variantes, ANTES de qualquer gravação. Match em
+            // qualquer uma → exceção, nada em disco (o recorte poderia esconder ou
+            // revelar o que o original não tinha — as duas passam pelo gate).
+            $this->csam->scanBytes($cardBytes, 'member_gallery', $user);
+            $this->csam->scanBytes($fullBytes, 'member_gallery', $user);
 
-            Storage::disk(self::DISK)->put($path, $bytes);
-            $hash = hash('sha256', $bytes);
+            Storage::disk(self::DISK)->put($path, $cardBytes);
+            Storage::disk(self::DISK)->put($fullPath, $fullBytes);
+            $hash = hash('sha256', $cardBytes);
         } finally {
-            @unlink($clean);
+            @unlink($cardClean);
+            @unlink($fullClean);
         }
 
-        // path/token/content_hash fora do $fillable — atribuição direta no serviço,
-        // nunca payload. Token novo por foto: a URL assinada é chaveada nele.
+        // path/token/full_*/content_hash fora do $fillable — atribuição direta no
+        // serviço, nunca payload. Token novo por VARIANTE: cada URL assinada é
+        // chaveada no seu próprio token opaco.
         $photo = new MemberGalleryPhoto;
         $photo->user_id = $user->id;
         $photo->path = $path;
         $photo->token = Str::random(48);
+        $photo->full_path = $fullPath;
+        $photo->full_token = Str::random(48);
         $photo->status = MemberGalleryPhoto::STATUS_PENDING;
         $photo->content_hash = $hash;
         $photo->save();
@@ -98,9 +128,8 @@ class MemberGalleryService
     {
         $this->assertOwned($user, $photo);
 
-        if ($photo->path !== '') {
-            Storage::disk(self::DISK)->delete($photo->path);
-        }
+        // Purga AS DUAS variantes (enquadrada + completa) na hora.
+        $this->purgeFiles($photo);
 
         $wasPrimary = $photo->is_primary;
         $photo->delete();
@@ -190,9 +219,9 @@ class MemberGalleryService
             return;
         }
 
-        if ($photo->path !== '') {
-            Storage::disk(self::DISK)->delete($photo->path);
-        }
+        // Purga AS DUAS variantes (enquadrada + completa) — imagem de usuário
+        // recusada não fica no disco em nenhuma forma.
+        $this->purgeFiles($photo);
 
         $wasPrimary = $photo->is_primary;
 
@@ -203,6 +232,7 @@ class MemberGalleryService
             'reject_reason' => $reason,
             'is_primary' => false,
             'path' => '',
+            'full_path' => '',
         ])->save();
 
         if ($wasPrimary) {
@@ -260,7 +290,10 @@ class MemberGalleryService
             ->map(fn (MemberGalleryPhoto $photo) => [
                 'id' => $photo->id,
                 'is_primary' => $photo->is_primary,
+                // Enquadrada (miniatura) + completa (lightbox). full_url cai na
+                // enquadrada quando a linha é antiga (sem variante completa).
                 'url' => $photo->mediaUrl(),
+                'full_url' => $photo->fullMediaUrl() ?? $photo->mediaUrl(),
             ]);
     }
 
@@ -303,5 +336,15 @@ class MemberGalleryService
     private function assertOwned(User $user, MemberGalleryPhoto $photo): void
     {
         abort_unless($photo->user_id === $user->id, 404);
+    }
+
+    /** Apaga os BYTES das duas variantes (enquadrada + completa) no disco. */
+    private function purgeFiles(MemberGalleryPhoto $photo): void
+    {
+        foreach ([$photo->path, $photo->full_path] as $path) {
+            if ($path !== '' && $path !== null) {
+                Storage::disk(self::DISK)->delete($path);
+            }
+        }
     }
 }
