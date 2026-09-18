@@ -6,6 +6,7 @@ use App\Exceptions\GiftException;
 use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\SendGiftRequest;
+use App\Models\Conversation;
 use App\Models\Gift;
 use App\Services\GiftService;
 use App\Services\TokenService;
@@ -40,12 +41,15 @@ class GiftController extends Controller
             ], 422);
         }
 
+        $deliverToChat = (bool) $request->boolean('deliver_to_chat');
+
         try {
             $send = $this->giftService->send(
                 $request->user(),
                 $performer,
                 $gift,
                 $request->validated('idempotency_key'),
+                $deliverToChat,
             );
         } catch (GiftException $e) {
             return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], 422);
@@ -61,6 +65,13 @@ class GiftController extends Controller
             'gift_send_id' => $send->id,
             'tokens' => $send->tokens,
             'new_balance' => $this->tokenService->balance($request->user()),
+            // Quando entregue no chat, devolve a conversa para o front oferecer
+            // "ver no chat" (o presente foi registrado na conversa do par).
+            'conversation_id' => $deliverToChat
+                ? Conversation::where('member_id', $request->user()->id)
+                    ->where('performer_profile_id', $performer->id)
+                    ->value('id')
+                : null,
         ], 201);
     }
 

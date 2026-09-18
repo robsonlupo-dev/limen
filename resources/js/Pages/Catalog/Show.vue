@@ -10,6 +10,7 @@ import MemberProfileActions from '@/Components/Profile/MemberProfileActions.vue'
 import VerificationPanel from '@/Components/Profile/VerificationPanel.vue'
 import VoiceIntroPlayer from '@/Components/VoiceIntroPlayer.vue'
 import TipModal from '@/Components/TipModal.vue'
+import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
@@ -81,6 +82,7 @@ async function onCallAccepted(callId) {
 function onCallEnded() { activeCall.value = null }
 
 const showTipModal = ref(false)
+const showGiftModal = ref(false)
 const showReportModal = ref(false)
 const showVerified = ref(false)
 const tipsCount = ref(props.performer.tips_count)
@@ -229,6 +231,7 @@ function onTipSent(data) { tipsCount.value = data.tips_count }
                         :chat-cost="chatCost"
                         :bottom-offset="dockOffset"
                         @tip="showTipModal = true"
+                        @gift="showGiftModal = true"
                     />
                     <ProfileRates :performer="performer" class="mt-4 hidden lg:block" />
                 </aside>
@@ -249,6 +252,13 @@ function onTipSent(data) { tipsCount.value = data.tips_count }
             :performer-name="performer.stage_name"
             @close="showTipModal = false"
             @sent="onTipSent"
+        />
+
+        <GiftModal
+            :show="showGiftModal"
+            :performer-slug="performer.slug"
+            :performer-name="performer.stage_name"
+            @close="showGiftModal = false"
         />
 
         <VerificationPanel

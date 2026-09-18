@@ -290,6 +290,7 @@ class ChatController extends Controller
 
             // Com leitura bloqueada (grace): metadados + locked, sem corpo.
             $messages = $conversation->messages()
+                ->with('gift:id,slug,name')
                 ->orderByDesc('id')
                 ->paginate(20)
                 ->through(fn (Message $m) => [
@@ -299,6 +300,12 @@ class ChatController extends Controller
                     'locked' => $state['locked'],
                     // Corpo só quando há leitura plena e destravada.
                     'body' => (! $state['locked']) ? $m->body : null,
+                    // Presente (feat/gift-from-profile): sempre exposto, mesmo com a
+                    // leitura travada. É a AÇÃO do próprio membro (presente é sempre
+                    // membro→performer) e o catálogo é público — nada de PII. A tela
+                    // renderiza o ícone do item pelo slug.
+                    'gift_slug' => $m->gift?->slug,
+                    'gift_name' => $m->gift?->name,
                     // Confirmação de leitura só nas MINHAS mensagens, e só se
                     // quem lê não desligou o perk. read_at de uma mensagem que
                     // EU recebi diz quando eu a li — não acrescenta nada na

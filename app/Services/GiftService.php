@@ -14,6 +14,7 @@ use App\Support\Audit;
 use App\Support\FanAlias;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Envio de um presente do catálogo da Limen para uma performer (M.13.6). Espelha
@@ -37,6 +38,7 @@ class GiftService
         PerformerProfile $performerProfile,
         Gift $gift,
         string $idempotencyKey,
+        bool $deliverToChat = false,
     ): GiftSend {
         // Fast-path idempotência (fora da transação, sem lock). Escopada por
         // sender_id: uma chave só resolve para o registro do PRÓPRIO remetente.
@@ -55,6 +57,23 @@ class GiftService
             // Pós-commit — a doSend já retornou com a transação comitada.
             if ($giftSend->wasRecentlyCreated) {
                 app(LiveOverlayService::class)->gift($performerProfile, $member, $gift);
+
+                // Presente pelo PERFIL (fora da live): registra a entrega no chat do
+                // par (feat/gift-from-profile). Só num envio NOVO (não num retorno
+                // idempotente) → nunca duplica a mensagem numa retentativa. Best-
+                // effort e pós-commit, como o overlay: uma falha aqui NÃO desfaz o
+                // presente já creditado — o membro seria cobrado sem entrega. Loga e
+                // segue; a performer já recebeu o crédito e verá o presente no extrato.
+                if ($deliverToChat) {
+                    try {
+                        app(ChatService::class)->deliverGift($performerProfile, $member, $gift);
+                    } catch (\Throwable $e) {
+                        Log::warning('Gift chat delivery failed', [
+                            'gift_send_id' => $giftSend->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
             }
 
             return $giftSend;

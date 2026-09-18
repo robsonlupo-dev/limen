@@ -23,7 +23,7 @@ const props = defineProps({
     bottomOffset: { type: String, default: '0px' },
 })
 
-const emit = defineEmits(['tip'])
+const emit = defineEmits(['tip', 'gift'])
 </script>
 
 <template>
@@ -53,16 +53,23 @@ const emit = defineEmits(['tip'])
                 <span v-if="chatCost" class="font-normal opacity-80">· {{ chatCost }}</span>
             </Link>
 
-            <!-- Secundárias/terciárias: grade de 3 iguais em QUALQUER largura — cabe a
-                 360px sem cortar nada (item 7). Hierarquia (fix 6): Gorjeta é a
-                 secundária (contorno dourado); Seguir e Salvar são terciárias
-                 (contorno neutro), sem competir com a primária dourada. -->
-            <div class="grid grid-cols-3 gap-2">
+            <!-- Hierarquia (fix 6): Gorjeta e Presente são SECUNDÁRIAS (contorno
+                 dourado, mesmo peso); Seguir e Salvar são TERCIÁRIAS (contorno
+                 neutro), sem competir com a primária dourada. Duas linhas de 2 cabem
+                 a 360px sem cortar rótulo (item 7). -->
+            <div class="grid grid-cols-2 gap-2">
                 <button
                     type="button"
                     class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-gold px-4 text-sm text-limen-gold transition-colors hover:bg-limen-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
                     @click="emit('tip')"
                 >Gorjeta</button>
+                <button
+                    type="button"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-gold px-4 text-sm text-limen-gold transition-colors hover:bg-limen-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
+                    @click="emit('gift')"
+                >Presente</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
                 <FollowButton
                     :slug="performer.slug"
                     :following="performer.is_following"

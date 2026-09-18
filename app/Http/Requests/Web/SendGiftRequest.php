@@ -26,6 +26,10 @@ class SendGiftRequest extends FormRequest
             'performer_slug' => ['required', 'string'],
             'gift_slug' => ['required', 'string'],
             'idempotency_key' => ['required', 'uuid'],
+            // Presente pelo PERFIL (fora da live) pede a entrega no chat do par
+            // (feat/gift-from-profile). Ausente/false = presente da live, que já
+            // aparece no overlay e não gera mensagem — comportamento inalterado.
+            'deliver_to_chat' => ['sometimes', 'boolean'],
         ];
     }
 
