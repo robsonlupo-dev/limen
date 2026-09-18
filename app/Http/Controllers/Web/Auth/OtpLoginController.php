@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * Login passwordless por código OTP — porta WEB (sessão). Alternativa ao login
@@ -84,7 +85,7 @@ class OtpLoginController extends Controller
     }
 
     /** Verifica o código e estabelece a sessão. */
-    public function verify(VerifyOtpRequest $request): RedirectResponse
+    public function verify(VerifyOtpRequest $request): SymfonyResponse
     {
         // O e-mail vem da SESSÃO, não do corpo do request. É o que o docblock da
         // classe promete (o endereço não circula pelo cliente entre as telas) e
@@ -118,6 +119,6 @@ class OtpLoginController extends Controller
         $request->session()->forget(TwoFactorService::SESSION_KEY);
         $request->session()->forget(self::EMAIL_SESSION_KEY);
 
-        return redirect()->intended(route($this->homeRouteFor($user)));
+        return $this->redirectAfterLogin($user, $request);
     }
 }
