@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\Role;
 use App\Models\Circle;
 use App\Models\IdentityVerification;
 use App\Models\PerformerContent;
@@ -20,8 +21,9 @@ use Illuminate\Support\Facades\Hash;
 /**
  * Massa de UAT: contas nomeadas e previsíveis para os testes de aceitação.
  *
- * 3 performers (ana/bella/cris) + 7 membros (um por tier + free + pobre) + 1 admin,
- * todos no domínio reservado @uat.limen.test. Diferente do LimenTestSeeder (50+100
+ * 3 performers (ana/bella/cris) + 7 membros (um por tier + free + pobre) + 1 admin
+ * + 1 moderador, todos no domínio reservado @uat.limen.test. Diferente do
+ * LimenTestSeeder (50+100
  * anônimos com histórico aleatório), aqui cada conta tem PAPEL fixo, para o roteiro
  * de UAT poder dizer "entre como prestige@ e desbloqueie o conteúdo Premium da Bella".
  *
@@ -32,17 +34,15 @@ use Illuminate\Support\Facades\Hash;
  *  - Env guard fail-closed (RefusesUnsafeEnvironment): só roda em local/testing/
  *    development/staging; NUNCA em produção, pela união dos sinais de APP_ENV.
  *  - Idempotente: re-rodar não duplica contas, saldos, conteúdo nem follows.
- *
- * DESVIO consciente da convenção "senha nunca no repo": UAT exige credencial
- * CONHECIDA para o testador logar. As contas são descartáveis (@uat.limen.test,
- * não entregável) e o env guard já barra produção. A senha vale só para esta massa.
+ *  - Senha NUNCA no repo (princípio nº 5): vem de `seedPassword()` — SEED_ADMIN_
+ *    PASSWORD, com fallback conhecido só em local/testing. Em staging exige a env
+ *    (senão aborta): staging é alcançável (vhost thelimen.com.br), e um seeder com
+ *    senha hardcoded reabriria o buraco pelo lado (o env guard libera staging).
+ *    Mesma regra do LimenTestSeeder/LimenStagingSeeder — este era o único desvio.
  */
 class UatSeeder extends Seeder
 {
     use RefusesUnsafeEnvironment;
-
-    /** Senha comum das contas de UAT (ver o desvio no docblock da classe). */
-    private const PASSWORD = 'UatLimen2026!';
 
     private const DOMAIN = '@uat.limen.test';
 
@@ -96,12 +96,18 @@ class UatSeeder extends Seeder
             return;
         }
 
-        $performers = $this->seedPerformers();
-        $this->seedMembers();
-        $this->seedAdmin();
+        // Lança se SEED_ADMIN_PASSWORD faltar fora de local/testing (fail-closed):
+        // melhor abortar do que criar contas de equipe com credencial pública num
+        // ambiente alcançável. Fallback conhecido só em local/testing.
+        $password = $this->seedPassword();
+
+        $performers = $this->seedPerformers($password);
+        $this->seedMembers($password);
+        $this->seedAdmin($password);
+        $this->seedModerator($password);
         $followedPairs = $this->seedFollows($performers);
 
-        $this->report($performers, $followedPairs);
+        $this->report($performers, $followedPairs, $password);
     }
 
     /**
@@ -109,7 +115,7 @@ class UatSeeder extends Seeder
      *
      * @return array<string, PerformerProfile>
      */
-    private function seedPerformers(): array
+    private function seedPerformers(string $password): array
     {
         $contentService = app(PerformerContentService::class);
         $profiles = [];
@@ -119,7 +125,7 @@ class UatSeeder extends Seeder
                 ['email' => $handle.self::DOMAIN],
                 [
                     'name' => $stageName,
-                    'password' => Hash::make(self::PASSWORD),
+                    'password' => Hash::make($password),
                     'role' => 'performer',
                     'status' => 'active',
                     'email_verified_at' => now(),
@@ -129,6 +135,11 @@ class UatSeeder extends Seeder
                     'terms_version' => '1.0',
                 ],
             );
+
+            // `role`/`status` são autoridade do servidor (fora do $fillable): o
+            // firstOrCreate acima os DESCARTA. Sem isto, uma conta nova sairia
+            // consumer/pending — o seed viraria uma armadilha em banco novo.
+            $this->forceRole($user, Role::Performer->value);
 
             $profile = PerformerProfile::firstOrCreate(
                 ['user_id' => $user->id],
@@ -189,7 +200,7 @@ class UatSeeder extends Seeder
     }
 
     /** Cria os 7 membros com tier + saldo (via ledger), backdatados para o Piso. */
-    private function seedMembers(): void
+    private function seedMembers(string $password): void
     {
         $tokenService = app(TokenService::class);
 
@@ -198,7 +209,7 @@ class UatSeeder extends Seeder
                 ['email' => $handle.self::DOMAIN],
                 [
                     'name' => 'UAT '.ucfirst($handle),
-                    'password' => Hash::make(self::PASSWORD),
+                    'password' => Hash::make($password),
                     'role' => 'consumer',
                     'status' => 'active',
                     'email_verified_at' => now(),
@@ -208,6 +219,10 @@ class UatSeeder extends Seeder
                     'terms_version' => '1.0',
                 ],
             );
+
+            // Mesmo motivo do performer: role/status não são fillable e o
+            // firstOrCreate os descarta. Força consumer/active (idempotente).
+            $this->forceRole($user, Role::Consumer->value);
 
             if ($user->wasRecentlyCreated) {
                 // Backdate para o membro contar no Piso de Anonimato (7+ dias).
@@ -251,20 +266,71 @@ class UatSeeder extends Seeder
         );
     }
 
-    private function seedAdmin(): void
+    /** Admin: controle total (dinheiro, tier, KYC, ban, config + moderação). */
+    private function seedAdmin(string $password): void
     {
-        User::firstOrCreate(
-            ['email' => 'admin'.self::DOMAIN],
+        $this->seedStaff('admin', Role::Admin->value, 'UAT Admin', $password);
+    }
+
+    /**
+     * Moderador (Trust & Safety): revisa a fila /moderacao/* SEM poderes de admin
+     * — não vê dinheiro, tier nem KYC. Faltava no seed: a conta de UAT existia
+     * criada à mão como admin/pending, e era a raiz do 403 relatado. Agora nasce
+     * moderator/active pelo caminho certo, e o seed conserta a linha antiga.
+     */
+    private function seedModerator(string $password): void
+    {
+        $this->seedStaff('moderador', Role::Moderator->value, 'UAT Moderador', $password);
+    }
+
+    /**
+     * Conta de equipe (admin/moderador). `role`/`status` são autoridade do
+     * servidor (fora do $fillable), então o firstOrCreate os DESCARTA — uma conta
+     * nova sairia consumer/pending. Aqui os campos privilegiados vão por forceFill,
+     * idempotente e AUTO-CORRETIVO: uma linha já existente com papel/status errado
+     * (o caso do moderador@uat criado à mão como admin/pending) é consertada na
+     * próxima execução. A senha é reforçada para a de UAT (`seedPassword`),
+     * garantindo que o testador loga mesmo numa conta pré-existente de senha
+     * desconhecida — nunca uma credencial hardcoded (ver docblock da classe).
+     */
+    private function seedStaff(string $handle, string $role, string $name, string $password): void
+    {
+        $user = User::firstOrCreate(
+            ['email' => $handle.self::DOMAIN],
             [
-                'name' => 'UAT Admin',
-                'password' => Hash::make(self::PASSWORD),
-                'role' => 'admin',
-                'status' => 'active',
-                'email_verified_at' => now(),
+                'name' => $name,
+                // Senha no INSERT (coluna NOT NULL, sem default); o forceFill
+                // abaixo a reforça para o valor padrão numa conta pré-existente.
+                'password' => Hash::make($password),
                 'lgpd_consent_at' => now(),
                 'terms_version' => '1.0',
             ],
         );
+
+        // O cast `hashed` cifra a senha ao setar, mesmo via forceFill (mesmo
+        // caminho do comando limen:create-moderator). Reforçar a senha garante
+        // que o testador loga mesmo numa conta pré-existente de senha desconhecida.
+        $user->forceFill([
+            'role' => $role,
+            'status' => 'active',
+            'password' => $password,
+            'email_verified_at' => $user->email_verified_at ?? now(),
+        ])->save();
+    }
+
+    /**
+     * Grava `role`/`status` de uma conta de membro/performer — os dois ficam fora
+     * do $fillable (autoridade do servidor), então o firstOrCreate os descarta.
+     * Idempotente e auto-corretivo; escreve só quando diverge, para não gerar
+     * UPDATE inútil em re-execução.
+     */
+    private function forceRole(User $user, string $role): void
+    {
+        if ($user->role === $role && $user->status === 'active') {
+            return;
+        }
+
+        $user->forceFill(['role' => $role, 'status' => 'active'])->save();
     }
 
     /**
@@ -351,19 +417,19 @@ class UatSeeder extends Seeder
     }
 
     /** @param  array<string, PerformerProfile>  $performers */
-    private function report(array $performers, int $followedPairs): void
+    private function report(array $performers, int $followedPairs, string $password): void
     {
         $uat = User::where('email', 'like', '%'.self::DOMAIN);
 
         $this->command?->info(sprintf(
-            'UAT pronto: %d contas (@uat.limen.test) — %d performers, %d membros, 1 admin. '
+            'UAT pronto: %d contas (@uat.limen.test) — %d performers, %d membros, 1 admin, 1 moderador. '
             .'%d peças de conteúdo, %d pares de follow. Senha: %s',
             (clone $uat)->count(),
             count($performers),
             count(self::MEMBERS),
             PerformerContent::whereIn('performer_profile_id', array_map(fn ($p) => $p->id, $performers))->count(),
             $followedPairs,
-            self::PASSWORD,
+            $password,
         ));
     }
 }

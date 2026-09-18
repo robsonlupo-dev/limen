@@ -255,8 +255,9 @@ Route::middleware('guest')->group(function () {
 // Logout
 Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')->name('logout');
 
-// Admin back-office (auth + admin role).
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+// Admin back-office (auth + admin-only). `admin.access` (EnsureAdmin → isAdmin):
+// dinheiro, tier, KYC, waitlist, ban, config. O moderador NÃO alcança nada aqui.
+Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () {
     // Painel de receita (Sprint 16): agregados do ledger + contadores + payouts
     // em needs_review. Só role:admin — moderador não vê receita.
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');

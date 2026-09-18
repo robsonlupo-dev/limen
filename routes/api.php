@@ -123,8 +123,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'role:performer', 'documents.ac
     Route::get('performer/tips', [TipController::class, 'performerHistory'])->name('tips.performer-history');
 });
 
-// Admin KYC management
-Route::prefix('v1')->middleware(['auth:sanctum', 'role:admin', '2fa'])->group(function () {
+// Admin KYC management (admin-only: KYC + payout). `admin.access` = EnsureAdmin.
+Route::prefix('v1')->middleware(['auth:sanctum', 'admin.access', '2fa'])->group(function () {
     Route::get('admin/kyc', [AdminKycController::class, 'index'])->name('admin.kyc.index');
     Route::post('admin/kyc/{verification}/approve', [AdminKycController::class, 'approve'])->name('admin.kyc.approve');
     Route::post('admin/kyc/{verification}/reject', [AdminKycController::class, 'reject'])->name('admin.kyc.reject');

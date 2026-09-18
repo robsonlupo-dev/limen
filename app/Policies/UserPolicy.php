@@ -8,21 +8,21 @@ class UserPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->role === 'admin';
+        return $user->isAdmin();
     }
 
     public function view(User $user, User $target): bool
     {
-        return $user->id === $target->id || $user->role === 'admin';
+        return $user->id === $target->id || $user->isAdmin();
     }
 
     public function update(User $user, User $target): bool
     {
-        return $user->id === $target->id || $user->role === 'admin';
+        return $user->id === $target->id || $user->isAdmin();
     }
 
     public function delete(User $user, User $target): bool
     {
-        return $user->role === 'admin';
+        return $user->isAdmin();
     }
 }
