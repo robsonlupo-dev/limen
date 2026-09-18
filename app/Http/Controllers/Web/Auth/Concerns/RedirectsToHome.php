@@ -16,11 +16,17 @@ trait RedirectsToHome
 {
     protected function homeRouteFor(User $user): string
     {
-        // Staff (admin ⊇ moderator) vai para o painel administrativo — o
-        // `catalog` exige role de consumer e devolveria 403. Moderador usa o
-        // mesmo painel/fila de moderação. Checado ANTES do fallback de consumer.
-        if ($user->isAdmin() || $user->isModerator()) {
+        // Staff vai para o back-office — o `catalog` exige role de consumer e
+        // devolveria 403. Checado ANTES do fallback de consumer. Admin abre o
+        // painel administrativo; o moderador NÃO tem `admin.access` (só admin),
+        // então vai direto para a fila de moderação (`admin.dashboard` lhe daria
+        // 403).
+        if ($user->isAdmin()) {
             return 'admin.dashboard';
+        }
+
+        if ($user->isModerator()) {
+            return 'moderacao.reports.index';
         }
 
         if ($user->role !== 'performer') {

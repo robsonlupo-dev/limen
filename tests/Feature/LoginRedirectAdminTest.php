@@ -42,7 +42,7 @@ it('sends an admin to the admin dashboard, not the catalog', function () {
     $this->assertAuthenticatedAs($admin);
 });
 
-it('sends a moderator to the admin dashboard, not the catalog', function () {
+it('sends a moderator to the moderation queue, not the admin dashboard', function () {
     $moderator = User::factory()->create([
         'email' => 'mod@example.com',
         'password' => bcrypt('Senha123'),
@@ -50,10 +50,12 @@ it('sends a moderator to the admin dashboard, not the catalog', function () {
         'status' => 'active',
     ]);
 
+    // `admin.dashboard` exige `admin.access` (só admin) — o moderador levaria
+    // 403 lá. A home dele é a fila de moderação.
     $this->post('/login', [
         'email' => 'mod@example.com',
         'password' => 'Senha123',
-    ])->assertRedirect(route('admin.dashboard'));
+    ])->assertRedirect(route('moderacao.reports.index'));
 
     $this->assertAuthenticatedAs($moderator);
 });
@@ -124,4 +126,22 @@ it('sends an admin who logs in by OTP to the admin dashboard too', function () {
         ->assertRedirect(route('admin.dashboard'));
 
     $this->assertAuthenticatedAs($admin->fresh());
+});
+
+it('sends a moderator who logs in by OTP to the moderation queue too', function () {
+    Mail::fake();
+    $moderator = User::factory()->create([
+        'email' => 'mod-otp@example.com',
+        'role' => 'moderator',
+        'status' => 'active',
+    ]);
+    app(OtpService::class)->requestCode($moderator->email);
+    $code = loginRedirectOtpFor($moderator);
+
+    // O e-mail é lido da SESSÃO, como no fluxo real (sendCode).
+    $this->withSession(['otp_email' => $moderator->email])
+        ->post('/verificar-codigo', ['email' => $moderator->email, 'code' => $code])
+        ->assertRedirect(route('moderacao.reports.index'));
+
+    $this->assertAuthenticatedAs($moderator->fresh());
 });
