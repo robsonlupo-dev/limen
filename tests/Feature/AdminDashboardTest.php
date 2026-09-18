@@ -112,6 +112,38 @@ it('separa a janela de hoje da de 30 dias e exclui o que é mais antigo', functi
         ->and($revenue['last30']['tokens_sold'])->toBe(800);
 });
 
+// ─── Série diária do gráfico "Vendidos × gastos" ─────────────────────────────
+
+it('monta a série diária de vendidos × gastos por dia (SP), com dias vazios em 0', function () {
+    $this->travelTo(Carbon::parse('2026-08-15 15:00:00', 'America/Sao_Paulo'));
+
+    $wallet = admWallet(User::factory()->create(['role' => 'consumer']));
+
+    // Hoje: vende 500, gasta 100 (tip) + 40 (gift) = 140.
+    admLedger($wallet, 'purchase', 500);
+    admLedger($wallet, 'spend_tip', -100);
+    admLedger($wallet, 'spend_gift', -40);
+    // Ontem: vende 300, gasta 70 (live).
+    admLedger($wallet, 'purchase', 300, now()->subDay());
+    admLedger($wallet, 'spend_live', -70, now()->subDay());
+
+    $series = admMetrics()->dailySalesVsSpend(12);
+
+    // 12 dias contíguos, ordem cronológica (o último é hoje).
+    expect($series)->toHaveCount(12);
+
+    $today = $series[11];
+    $yesterday = $series[10];
+    $emptyDay = $series[0]; // 11 dias atrás — sem lançamento
+
+    expect($today['sold'])->toBe(500)
+        ->and($today['spent'])->toBe(140)
+        ->and($yesterday['sold'])->toBe(300)
+        ->and($yesterday['spent'])->toBe(70)
+        ->and($emptyDay['sold'])->toBe(0)
+        ->and($emptyDay['spent'])->toBe(0);
+});
+
 // ─── Receita REAL vs. estimativa (Sprint 16, item 5) ─────────────────────────
 
 it('usa a receita REAL dos pagamentos confirmados no lugar da estimativa', function () {
