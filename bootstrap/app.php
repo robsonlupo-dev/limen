@@ -3,6 +3,7 @@
 use App\Http\Middleware\BlockBannedUsers;
 use App\Http\Middleware\DocumentsAccepted;
 use App\Http\Middleware\EnsureActiveCircle;
+use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureMemberVerified;
 use App\Http\Middleware\EnsureModeratorOrAdmin;
 use App\Http\Middleware\EnsureUserHasRole;
@@ -69,8 +70,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureUserHasRole::class,
             // Área de moderação (Sprint 13): deixa passar moderator OU admin.
             // Não é `role:...` porque a regra "quem pode moderar" merece um dono
-            // único (ver EnsureModeratorOrAdmin).
+            // único (ver EnsureModeratorOrAdmin → User::canModerate()).
             'moderator.access' => EnsureModeratorOrAdmin::class,
+            // Área admin-only (dinheiro, tier, KYC, ban, config): SÓ admin. Alias
+            // nomeado, par simétrico do moderator.access — a regra "quem é admin"
+            // tem dono único em EnsureAdmin → User::isAdmin().
+            'admin.access' => EnsureAdmin::class,
             'circle' => EnsureActiveCircle::class,
             'documents.accepted' => DocumentsAccepted::class,
             'member.verified' => EnsureMemberVerified::class,
