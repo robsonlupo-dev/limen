@@ -194,6 +194,9 @@
         .bar { width: 10px; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; }
         .bar-gold { background: var(--gold); }
         .bar-teal { background: var(--teal); }
+        .chart-xaxis { display: flex; justify-content: space-between; padding: 6px 8px 0 10px; gap: 4px; }
+        .chart-xaxis span { flex: 1; text-align: center; font-family: "JetBrains Mono", monospace;
+                            font-size: 9px; color: var(--ink-mute); white-space: nowrap; }
  
         .chart-footer { display: flex; gap: 20px; padding-top: 12px; border-top: 1px solid var(--line-2);
                         margin-top: 14px; }
@@ -489,33 +492,37 @@
                 <div class="card card-pad">
                     <div class="chart-header">
                         <h2>Vendidos × gastos</h2>
-                        <span class="card-sub">tokens, últimos 30 dias</span>
+                        <span class="card-sub">tokens/dia · últimos {{ count($dailySeries) }} dias</span>
                         <div class="chart-legend">
                             <span><span class="swatch" style="background: var(--gold);"></span>vendidos</span>
                             <span><span class="swatch" style="background: var(--teal);"></span>gastos</span>
                         </div>
                     </div>
- 
+
                     @php
-                        $sold30 = max(1, $r30['tokens_sold']);
-                        $spent30 = $r30['spent_total'];
-                        // Barras proporcionais: vendido = 100%, cada vertical proporcional
-                        $categories = ['chat', 'gorjeta', 'presente', 'conteudo', 'live', 'chamada'];
-                        $barMax = max(1, $sold30);
+                        // Escala compartilhada pelas duas séries: o maior valor (vendido
+                        // ou gasto) de qualquer dia vira 100% da altura. Sem dado → 1
+                        // (evita divisão por zero); barras de dia vazio ficam em 0.
+                        $dayMax = 1;
+                        foreach ($dailySeries as $d) {
+                            $dayMax = max($dayMax, $d['sold'], $d['spent']);
+                        }
                     @endphp
                     <div class="chart-bars">
-                        @foreach ($categories as $cat)
+                        @foreach ($dailySeries as $d)
                             @php
-                                $catSpent = $r30['spent_by_type'][$cat] ?? 0;
-                                // Barra gold: proporção do vendido (dividido por 6 para distribuir)
-                                $soldPart = $sold30 / max(1, count($categories));
-                                $goldH = min(100, max(3, ($soldPart / $barMax) * 100));
-                                $tealH = min(100, max(($catSpent > 0 ? 3 : 0), ($catSpent / $barMax) * 100));
+                                $goldH = $d['sold'] > 0 ? max(2, ($d['sold'] / $dayMax) * 100) : 0;
+                                $tealH = $d['spent'] > 0 ? max(2, ($d['spent'] / $dayMax) * 100) : 0;
                             @endphp
-                            <div class="bar-pair">
+                            <div class="bar-pair" title="{{ $d['date'] }} · vendidos {{ $tok($d['sold']) }} · gastos {{ $tok($d['spent']) }}">
                                 <div class="bar bar-gold" style="height: {{ $goldH }}%;"></div>
                                 <div class="bar bar-teal" style="height: {{ $tealH }}%;"></div>
                             </div>
+                        @endforeach
+                    </div>
+                    <div class="chart-xaxis">
+                        @foreach ($dailySeries as $d)
+                            <span>{{ $d['date'] }}</span>
                         @endforeach
                     </div>
  

@@ -118,6 +118,58 @@ class AdminMetricsService
         ];
     }
 
+    /**
+     * Série DIÁRIA de tokens vendidos × gastos, para o gráfico "Vendidos × gastos"
+     * do dashboard (uma barra por dia, últimos $days dias). Antes o gráfico só
+     * tinha o total agregado por categoria; agora mostra a evolução no tempo.
+     *
+     * Fronteira de dia em São Paulo (o admin pensa no dia BR): agrupa por
+     * DATE(CONVERT_TZ(created_at, '+00:00', '-03:00')). O offset numérico NÃO
+     * depende das tz tables do MySQL (que podem não estar carregadas) — Brasil
+     * não tem mais horário de verão desde 2019, então -03:00 fixo está correto.
+     *
+     * "Vendidos" = SUM(purchase) do dia. "Gastos" = |SUM| dos seis SPEND_TYPES
+     * do dia (débitos são negativos no ledger; o gráfico mostra o valor gasto).
+     * Sempre devolve $days linhas contíguas (dias sem lançamento vêm com 0), na
+     * ordem cronológica — o front desenha na ordem que recebe.
+     *
+     * @return list<array{date:string, sold:int, spent:int}>
+     */
+    public function dailySalesVsSpend(int $days = 12): array
+    {
+        $spendTypes = array_values(self::SPEND_TYPES);
+        $tz = "'+00:00', '-03:00'";
+        // Início da janela: começo do primeiro dia (SP), convertido para UTC.
+        $since = Carbon::now('America/Sao_Paulo')->startOfDay()->subDays($days - 1)->utc();
+
+        $soldByDay = TokenLedger::query()
+            ->where('entry_type', 'purchase')
+            ->where('created_at', '>=', $since)
+            ->selectRaw("DATE(CONVERT_TZ(created_at, {$tz})) as day, SUM(amount) as total")
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $spentByDay = TokenLedger::query()
+            ->whereIn('entry_type', $spendTypes)
+            ->where('created_at', '>=', $since)
+            ->selectRaw("DATE(CONVERT_TZ(created_at, {$tz})) as day, SUM(amount) as total")
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $series = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $d = Carbon::now('America/Sao_Paulo')->startOfDay()->subDays($i);
+            $key = $d->format('Y-m-d');
+            $series[] = [
+                'date' => $d->format('d/m'),
+                'sold' => (int) round((float) ($soldByDay[$key] ?? 0)),
+                'spent' => (int) abs(round((float) ($spentByDay[$key] ?? 0))),
+            ];
+        }
+
+        return $series;
+    }
+
     public function platform(): array
     {
         $todayStart = $this->todayStart();

@@ -13,6 +13,7 @@ class DashboardController extends Controller
         return view('admin.dashboard', [
             'revenue'                => $metrics->revenue(),
             'counters'               => $metrics->counters(),
+            'dailySeries'            => $metrics->dailySalesVsSpend(),
             'platform'               => $metrics->platform(),
             'splits'                 => $metrics->splits(),
             'ledgerHealth'           => $metrics->ledgerHealth(),
