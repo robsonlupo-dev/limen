@@ -8,6 +8,7 @@ use App\Services\MemberGalleryService;
 use App\Services\PerceptualHashService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Galeria de perfil do MEMBRO (feat/member-gallery-and-profile, Estágio 1).
@@ -154,8 +155,37 @@ it('a URL da foto é chaveada no token OPACO, NUNCA no id/user_id', function () 
         ->and($url)->not->toContain('user_id')
         ->and($url)->not->toContain("/{$photo->id}");
 
-    // A rota assinada entrega os bytes.
+    // A rota assinada entrega os bytes ao DONO (preview da gestão, qualquer status).
+    $this->actingAs($member)->get($url)->assertOk();
+});
+
+it('uma foto PENDING não é servida a terceiros (só approved de perfil visível)', function () {
+    // Foto criada direto (sem autenticar o dono) → o GET abaixo é um TERCEIRO.
+    $member = mgMember();
+    $photo = mgMakePhoto($member, 'pending');
+
+    // Terceiro (sem sessão do dono) e foto pending → 404 (o gate não serve pending).
+    $this->get($photo->mediaUrl())->assertNotFound();
+
+    // Aprova e liga o perfil visível → agora a URL assinada serve a qualquer um.
+    app(MemberGalleryService::class)->approve($photo, mgModerator());
+    app(MemberGalleryService::class)->setVisibility($member, true);
+    $this->get($photo->fresh()->mediaUrl())->assertOk();
+});
+
+it('desligar o perfil visível REVOGA na hora a foto aprovada já servível', function () {
+    $member = mgMember();
+    $photo = mgMakePhoto($member, 'pending');
+    app(MemberGalleryService::class)->approve($photo, mgModerator());
+    app(MemberGalleryService::class)->setVisibility($member, true);
+    $url = $photo->fresh()->mediaUrl();
+
+    // Terceiro consegue ver enquanto aprovada + perfil visível.
     $this->get($url)->assertOk();
+
+    // Desligou → a MESMA URL assinada (ainda válida) para de servir na hora.
+    app(MemberGalleryService::class)->setVisibility($member, false);
+    $this->get($url)->assertNotFound();
 });
 
 it('member.gallery.media exige assinatura válida (sem ela, 403)', function () {
@@ -173,8 +203,8 @@ it('REVOGAR uma foto remove os bytes do serving NA HORA (URL assinada 404)', fun
     $url = $photo->mediaUrl();
     $path = $photo->path;
 
-    // A URL funcionava.
-    $this->get($url)->assertOk();
+    // A URL funcionava para o dono (preview da gestão, pending).
+    $this->actingAs($member)->get($url)->assertOk();
 
     // Remove.
     $this->actingAs($member)
@@ -184,7 +214,7 @@ it('REVOGAR uma foto remove os bytes do serving NA HORA (URL assinada 404)', fun
     // Bytes somem do disco, linha some, e a URL ASSINADA (ainda válida) 404.
     Storage::disk('local')->assertMissing($path);
     expect(MemberGalleryPhoto::find($photo->id))->toBeNull();
-    $this->get($url)->assertNotFound();
+    $this->actingAs($member)->get($url)->assertNotFound();
 });
 
 it('um membro NÃO remove a foto de outro (404, posse reconferida)', function () {
@@ -268,4 +298,21 @@ it('remover a principal reatribui a principal a outra foto aprovada', function (
 function mgModerator(): User
 {
     return User::factory()->create(['role' => 'moderator', 'status' => 'active']);
+}
+
+// helper local: cria uma foto direto (com arquivo fake), sem passar pela rota
+// autenticada — para o serving ser exercitado como TERCEIRO (não o dono).
+function mgMakePhoto(User $member, string $status = 'pending'): MemberGalleryPhoto
+{
+    $path = 'member-gallery/'.$member->id.'/'.Str::random(20).'.jpg';
+    Storage::disk('local')->put($path, 'bytes');
+
+    $photo = new MemberGalleryPhoto;
+    $photo->user_id = $member->id;
+    $photo->path = $path;
+    $photo->token = Str::random(48);
+    $photo->status = $status;
+    $photo->save();
+
+    return $photo;
 }

@@ -19,11 +19,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * foto servida à performer de vazar o member_id que o FanAlias esconde. Token
  * desconhecido/arquivo ausente → 404 (indistinguível), sem oráculo de existência.
  *
- * O GATE de "quem vê" (approved + dono com profile_visible) é aplicado na
- * GERAÇÃO da URL (MemberGalleryService só entrega URL de aprovada à performer; o
- * dono recebe URL da própria em qualquer status). Aqui só servimos os bytes se o
- * arquivo existir — removida/recusada some do disco e a URL 404 na hora
- * (revogação imediata), como o avatar.
+ * O GATE de "quem vê" é reconferido AQUI (defense-in-depth, não só na geração da
+ * URL):
+ *  - o DONO (sessão autenticada) vê a PRÓPRIA em qualquer status — é o preview da
+ *    tela de gestão (pending/aprovada);
+ *  - qualquer outro (performer com a URL assinada, ou uma URL vazada) só recebe
+ *    bytes se a foto está APROVADA E o dono está com o perfil visível. Assim,
+ *    desligar `profile_visible` REVOGA na hora até as URLs já emitidas (não espera
+ *    a assinatura de 60min expirar), e uma foto pending/recusada nunca vaza.
+ *
+ * Removida/recusada some do disco → 404 na hora (revogação imediata dos bytes),
+ * como o avatar. Token desconhecido → 404 indistinguível, sem oráculo.
  */
 class MemberGalleryMediaController extends Controller
 {
@@ -37,6 +43,14 @@ class MemberGalleryMediaController extends Controller
 
         abort_if($photo === null || $photo->path === ''
             || ! Storage::disk(MemberGalleryService::DISK)->exists($photo->path), 404);
+
+        // O dono vê a própria em qualquer status (preview da gestão). Qualquer
+        // outro só vê APROVADA de dono com perfil visível — o gate real do serving.
+        $isOwner = $request->user() !== null && $request->user()->id === $photo->user_id;
+
+        if (! $isOwner) {
+            abort_unless($photo->isApproved() && $photo->user?->profile_visible, 404);
+        }
 
         return Storage::disk(MemberGalleryService::DISK)->response($photo->path);
     }
