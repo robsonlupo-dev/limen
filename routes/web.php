@@ -1016,14 +1016,19 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:60,1')
             ->name('feed');
 
+        // Gasto em rajada do PRÓPRIO token do membro: throttle largo (60/min).
+        // O anti-carding mora no funding (compra via PIX, `throttle:3,1`), não no
+        // gasto — gastar rápido token já comprado é risco menor. 60/min = 1/s
+        // libera o humano empolgado e ainda barra script de lavagem.
         Route::post('/gorjetas', [TipController::class, 'store'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:60,1')
             ->name('tips.send');
 
         // Presente virtual do catálogo da Limen para uma performer (M.13.6).
         // Débito do membro + crédito split 75/25 da performer, idempotente.
+        // Mesmo caso da gorjeta acima: gasto em rajada do token do membro → 60/min.
         Route::post('/presentes', [GiftController::class, 'store'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:60,1')
             ->name('gifts.send');
 
         // Assistir à live pública GRÁTIS (Sprint 15, PR #139). Já sob
