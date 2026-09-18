@@ -1,6 +1,5 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
-import Button from '@/Components/Button.vue'
 import FavoriteButton from '@/Components/FavoriteButton.vue'
 
 // Ações do perfil PÚBLICO (visitante ou membro sem conversa) — feat/performer-
@@ -52,13 +51,18 @@ const emit = defineEmits(['tip', 'unlock-chat'])
             <div class="grid grid-cols-3 gap-2">
                 <Link
                     :href="route('entrada')"
-                    class="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-gold/50 px-3 text-sm text-limen-gold no-underline transition-colors hover:bg-limen-gold/10"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-3 text-sm text-limen-ink-soft no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
                 >Seguir</Link>
-                <Button v-if="canTip" variant="ghost" size="sm" class="min-h-[44px] w-full justify-center" @click="emit('tip')">Gorjeta</Button>
+                <button
+                    v-if="canTip"
+                    type="button"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-gold px-4 text-sm text-limen-gold transition-colors hover:bg-limen-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/60"
+                    @click="emit('tip')"
+                >Gorjeta</button>
                 <Link
                     v-else
                     :href="route('entrada')"
-                    class="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-3 text-sm text-limen-ink-mute no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
+                    class="mi-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-limen-line px-3 text-sm text-limen-ink-mute no-underline transition-colors hover:border-limen-gold/40 hover:text-limen-ink"
                 >Gorjeta</Link>
                 <FavoriteButton
                     v-if="favorite"

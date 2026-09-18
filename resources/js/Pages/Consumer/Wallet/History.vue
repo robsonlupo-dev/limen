@@ -41,7 +41,10 @@ function entryLabel(entry) {
                         </thead>
                         <tbody>
                             <tr v-for="(entry, i) in entries.data" :key="i" class="border-b border-frame/50 last:border-b-0">
-                                <td class="px-5 py-3 text-cream">{{ entryLabel(entry) }}</td>
+                                <td class="px-5 py-3">
+                                    <span class="block text-cream">{{ entryLabel(entry) }}</span>
+                                    <span v-if="entry.recipient" class="block text-xs text-muted">{{ entry.recipient }}</span>
+                                </td>
                                 <td class="px-5 py-3" :class="entry.amount >= 0 ? 'text-success' : 'text-danger'">
                                     {{ entry.amount >= 0 ? '+' : '' }}{{ formatTokens(entry.amount) }}
                                 </td>

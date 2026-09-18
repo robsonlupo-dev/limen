@@ -131,9 +131,9 @@ async function confirmUnlock() {
                             :poster="item.image_url"
                             controls
                             playsinline
-                            class="h-full w-full object-cover bg-black"
+                            class="h-full w-full object-contain bg-black"
                         />
-                        <img v-else-if="!item.imageFailed" :src="item.image_url" alt="" class="h-full w-full object-cover" @error="item.imageFailed = true" />
+                        <img v-else-if="!item.imageFailed" :src="item.image_url" alt="" class="h-full w-full object-contain bg-background" @error="item.imageFailed = true" />
                         <div v-else class="absolute inset-0 flex items-center justify-center text-sm text-muted">Imagem indisponível</div>
                         <span class="absolute top-3 left-3 rounded-full bg-background/70 px-2.5 py-1 text-[11px] text-gold backdrop-blur">
                             {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
@@ -147,7 +147,7 @@ async function confirmUnlock() {
                         class="group absolute inset-0 h-full w-full text-left"
                         @click="openConfirm(item)"
                     >
-                        <img v-if="item.blur_url && !item.blurFailed" :src="item.blur_url" alt="" class="h-full w-full object-cover" @error="item.blurFailed = true" />
+                        <img v-if="item.blur_url && !item.blurFailed" :src="item.blur_url" alt="" class="h-full w-full object-contain bg-background" @error="item.blurFailed = true" />
                         <div v-else class="h-full w-full bg-gradient-to-br from-surface-2 to-background" />
                         <div class="absolute inset-0 bg-background/40" />
                         <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">

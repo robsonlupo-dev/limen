@@ -25,11 +25,12 @@ it('serve a previa borrada de um conteudo bloqueado, e ela e minuscula (irrevers
         ->assertOk()
         ->assertHeader('content-type', 'image/jpeg');
 
-    // Irreversível: baixa resolução (≤ 40px no maior lado) — não dá para reconstruir
-    // o original de 800px a partir daqui.
+    // Irreversível: baixa resolução (≤ 96px no maior lado) — não dá para reconstruir
+    // o original de 800px a partir daqui. 96px dá a isca (composição) sem revelar
+    // detalhe explícito nem rosto identificável (fix/uat-content-and-gifts, fix 1).
     $size = getimagesizefromstring($res->getContent());
     expect($size)->not->toBeFalse();
-    expect(max($size[0], $size[1]))->toBeLessThanOrEqual(40);
+    expect(max($size[0], $size[1]))->toBeLessThanOrEqual(96);
 });
 
 it('a imagem ORIGINAL continua 404 para quem nao pode ver, mesmo com a previa existindo', function () {

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PerformerPublicResource;
 use App\Models\Follow;
 use App\Models\MemberPhoto;
-use App\Models\PerformerContent;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\Tip;
@@ -16,6 +15,7 @@ use App\Models\User;
 use App\Services\MemberPhotoService;
 use App\Services\TokenService;
 use App\Support\LedgerEntryLabel;
+use App\Support\SpendRecipientResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -154,7 +154,7 @@ class DashboardController extends Controller
             ->limit(self::SPENDS_PREVIEW)
             ->get();
 
-        $recipients = $this->resolveSpendRecipients($entries);
+        $recipients = (new SpendRecipientResolver)->resolve($entries);
 
         return $entries->map(fn (TokenLedger $e) => [
             'id' => $e->id,
@@ -163,59 +163,6 @@ class DashboardController extends Controller
             'amount' => $e->amount, // "-2" (readable)
             'created_at' => $e->created_at?->format('d/m/Y H:i'),
         ])->all();
-    }
-
-    /**
-     * Resolve a performer de cada gasto (ledger.id → nome artístico). Conteúdo e
-     * interesse referenciam a peça por id → performer (batched); gorjeta, presente e
-     * chat gravam o nome na própria descrição ("… para X" / "… de X"), extraído no
-     * fallback. Nunca vaza id de banco — só o nome público da performer.
-     *
-     * @param  \Illuminate\Support\Collection<int, TokenLedger>  $entries
-     * @return array<int, ?string>
-     */
-    private function resolveSpendRecipients($entries): array
-    {
-        $refMap = [PerformerContent::class => [], PerformerInterest::class => []];
-        foreach ($entries as $e) {
-            if (array_key_exists($e->reference_type, $refMap) && $e->reference_id) {
-                $refMap[$e->reference_type][$e->id] = $e->reference_id;
-            }
-        }
-
-        $byLedger = [];
-        foreach ($refMap as $model => $map) {
-            if ($map === []) {
-                continue;
-            }
-            $rows = $model::whereIn('id', array_values($map))
-                ->with('performerProfile:id,stage_name')
-                ->get()
-                ->keyBy('id');
-            foreach ($map as $ledgerId => $refId) {
-                $byLedger[$ledgerId] = $rows[$refId]?->performerProfile?->stage_name;
-            }
-        }
-
-        $out = [];
-        foreach ($entries as $e) {
-            $out[$e->id] = $byLedger[$e->id]
-                ?? (in_array($e->entry_type, ['spend_tip', 'spend_gift', 'spend_chat_access'], true)
-                    ? $this->recipientFromDescription($e->description)
-                    : null);
-        }
-
-        return $out;
-    }
-
-    /** Extrai "… para X" / "… de X" da descrição (nome já gravado no débito). */
-    private function recipientFromDescription(?string $description): ?string
-    {
-        if ($description === null) {
-            return null;
-        }
-
-        return preg_match('/ (?:para|de) (.+)$/u', $description, $m) === 1 ? trim($m[1]) : null;
     }
 
     /** @return array<string, int> */

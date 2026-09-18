@@ -134,8 +134,14 @@ class ImageProcessingService
         return $target;
     }
 
-    /** Largura (px) da prévia borrada — baixa o suficiente para ser irreversível. */
-    private const BLUR_WIDTH = 40;
+    /**
+     * Maior lado (px) da prévia borrada. Baixo o suficiente para ser irreversível,
+     * mas alto o suficiente para dar a ISCA (silhueta, composição, cores, ambiente).
+     * A ~40px o preview ficava irreconhecível e não vendia (achado do UAT); a 96px
+     * a composição aparece sem revelar detalhe explícito nem rosto identificável —
+     * um rosto ocupa ~1/6 do quadro (~16px) e ainda passa pelo blur pesado.
+     */
+    private const BLUR_WIDTH = 96;
 
     /** Intensidade do blur (0-100) sobre a imagem já minúscula. */
     private const BLUR_AMOUNT = 25;

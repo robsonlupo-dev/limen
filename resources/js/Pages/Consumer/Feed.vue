@@ -191,13 +191,13 @@ async function confirmUnlock() {
                                 :poster="item.image_url"
                                 controls
                                 playsinline
-                                class="h-full w-full object-cover bg-black"
+                                class="h-full w-full object-contain bg-black"
                             />
                             <img
                                 v-else-if="!item.locked && item.image_url"
                                 :src="item.image_url"
                                 :alt="item.performer.stage_name"
-                                class="h-full w-full object-cover"
+                                class="h-full w-full object-contain bg-limen-bg"
                             />
                             <button
                                 v-else
