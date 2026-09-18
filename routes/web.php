@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
 use App\Http\Controllers\Web\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Web\Admin\KycAdminController;
+use App\Http\Controllers\Web\Admin\PerformersController;
 use App\Http\Controllers\Web\Admin\PerformerTierController;
 use App\Http\Controllers\Web\Admin\ReportAdminController;
 use App\Http\Controllers\Web\Admin\UserBanController;
@@ -269,6 +270,11 @@ Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () 
     Route::patch('/reports/{report}', [ReportAdminController::class, 'update'])
         ->whereNumber('report')
         ->name('admin.reports.update');
+
+    // Gestão de performers (feat/admin-performers): lista/busca/filtra performers
+    // com status, tier, verificação e strikes. Só leitura + as ações já existentes
+    // (tier abaixo, ban em admin.users.ban). Sem PII de membro.
+    Route::get('/performers', [PerformersController::class, 'index'])->name('admin.performers');
 
     // Grant de tier (verificada/select/maison). tier_granted_by é autoridade
     // do servidor — os campos ficam fora do $fillable, gravação via forceFill.
