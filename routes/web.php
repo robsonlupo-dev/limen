@@ -65,6 +65,7 @@ use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
 use App\Http\Controllers\Web\Performer\MemberCatalogController;
 use App\Http\Controllers\Web\Performer\MemberEngagementController;
+use App\Http\Controllers\Web\Performer\MemberProfileController;
 use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
@@ -819,6 +820,17 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/performer/membros/visita', [MemberEngagementController::class, 'visit'])
             ->middleware(['role:performer', 'throttle:60,1'])
             ->name('performer.members.visit')
+            ->can('performer-active');
+
+        // Página de PERFIL de um membro (feat/member-gallery-and-profile, Opção B).
+        // Click-through do card: a performer vê a galeria aprovada + o rótulo antes
+        // de engajar. Só membro com perfil visível tem página (senão 404). Abrir
+        // registra a visita (Fase 13) respeitando o Ghost Mode. Handle OPACO (hex),
+        // resolvido contra os membros visíveis (mesma fonte da lista).
+        Route::get('/performer/membros/perfil/{handle}', [MemberProfileController::class, 'show'])
+            ->middleware(['role:performer', 'throttle:60,1'])
+            ->where('handle', '[a-f0-9]+')
+            ->name('performer.members.profile')
             ->can('performer-active');
 
         // Foto efêmera recebida de um membro (Sprint 9B). Dentro do grupo

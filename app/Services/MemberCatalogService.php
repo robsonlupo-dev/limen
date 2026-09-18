@@ -89,18 +89,22 @@ class MemberCatalogService
             // avatar_path/avatar_token alimentam a foto do membro no card
             // (fix/member-photo-and-crop) via User::avatarUrl() no mask — sem
             // elas no select, o accessor leria null e a foto sumiria.
+            // profile_visible: opt-in mestre da galeria/perfil (Opção B) — decide
+            // se o card usa a foto da galeria e se o perfil é clicável.
             ->select('users.id', 'users.last_login_at', 'users.invisible_status', 'users.created_at',
-                'users.avatar_path', 'users.avatar_token', 'users.nickname')
+                'users.avatar_path', 'users.avatar_token', 'users.nickname', 'users.profile_visible')
             ->orderByDesc('users.id')
             ->paginate($perPage)
             ->withQueryString();
 
-        // Estados por card em DUAS queries para a página inteira (não N):
+        // Estados por card em queries para a página inteira (não N):
         //  - `interest_sent`: dentro do cooldown do Interesse Controlado pago;
-        //  - `hearted`: a performer já deu coração a este membro.
+        //  - `hearted`: a performer já deu coração a este membro;
+        //  - `primaryPhoto`: a foto principal APROVADA da galeria (Opção B).
         $memberIds = $paginator->getCollection()->pluck('id')->all();
         $recent = $this->recentInterestMemberIds($performerProfile, $memberIds);
         $hearted = $this->hearts->heartedMemberIds($performerProfile, $memberIds);
+        $primaryPhotos = $this->primaryPhotoUrls($memberIds);
 
         $paginator->setCollection(
             $paginator->getCollection()->map(
@@ -109,6 +113,7 @@ class MemberCatalogService
                     $member,
                     in_array($member->id, $recent, true),
                     in_array($member->id, $hearted, true),
+                    $primaryPhotos[$member->id] ?? null,
                 ),
             )
         );
@@ -140,14 +145,16 @@ class MemberCatalogService
      *
      * @return array<string, mixed>
      */
-    private function mask(PerformerProfile $performerProfile, User $member, bool $interestSent, bool $hearted): array
+    private function mask(PerformerProfile $performerProfile, User $member, bool $interestSent, bool $hearted, ?string $primaryPhotoUrl = null): array
     {
+        $handle = FanAlias::handle($performerProfile->id, $member->id);
+
         return [
             // Apelido do membro se ele escolheu; senão o FanAlias de sempre
             // (feat/member-nickname). A CHAVE de resolução do alvo (member_handle)
             // segue sendo o FanAlias — o apelido é só o rótulo exibido.
             'fan_alias_label' => MemberDisplayName::for($member->nickname, $performerProfile->id, $member->id, 'Membro #'),
-            'member_handle' => FanAlias::handle($performerProfile->id, $member->id),
+            'member_handle' => $handle,
             // Foto de perfil do membro (fix/member-photo-and-crop). Decisão do PO
             // (ago/2026): o membro passou a ter avatar, e ELE é exibido à performer
             // no catálogo — reverte o antigo "membro não tem avatar no produto".
@@ -158,7 +165,16 @@ class MemberCatalogService
             // RESSALVA registrada: o ROSTO é uma chave de join global entre
             // performers (mesma natureza da Foto Efêmera) — exposição consentida
             // pela visibilidade do catálogo (só entra quem optou), não anonimato.
-            'avatar_url' => $member->avatarUrl(),
+            //
+            // Galeria de perfil (Opção B): se o membro ligou o perfil visível E tem
+            // foto principal aprovada, o card usa a foto DA GALERIA; senão cai no
+            // avatar (comportamento de antes) e, sem avatar, na silhueta. O gate de
+            // profile_visible é aplicado ao MONTAR a URL em primaryPhotoUrls().
+            'avatar_url' => $primaryPhotoUrl ?? $member->avatarUrl(),
+            // Perfil clicável (Opção B): só quando o membro ligou o perfil visível.
+            // Null → o card não navega para uma página (cai no modal, como hoje). A
+            // rota é chaveada no handle OPACO, nunca no member_id.
+            'profile_url' => $member->profile_visible ? route('performer.members.profile', ['handle' => $handle]) : null,
             // Faixa grossa, nunca relógio; suprimida para quem tem Status
             // Invisível (presença não exposta). Sinal = last_login_at.
             'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),
@@ -173,6 +189,51 @@ class MemberCatalogService
             // A performer já curtiu este membro? O card já vem com o coração cheio.
             'hearted' => $hearted,
         ];
+    }
+
+    /**
+     * URL da foto principal APROVADA da galeria de cada membro (Opção B), só para
+     * quem ligou o perfil visível. Uma query para a página inteira (não N):
+     * carrega as aprovadas dos membros da página, agrupa por membro e escolhe a
+     * principal (senão a mais antiga). O gate de profile_visible entra aqui — sem
+     * ele ligado, o card não usa a foto da galeria.
+     *
+     * @param  array<int, int>  $memberIds
+     * @return array<int, string>  member_id => URL assinada
+     */
+    private function primaryPhotoUrls(array $memberIds): array
+    {
+        if ($memberIds === []) {
+            return [];
+        }
+
+        // Só de membros com perfil visível — os demais não expõem a galeria.
+        $visibleIds = User::whereIn('id', $memberIds)
+            ->where('profile_visible', true)
+            ->pluck('id')
+            ->all();
+
+        if ($visibleIds === []) {
+            return [];
+        }
+
+        $urls = [];
+
+        \App\Models\MemberGalleryPhoto::whereIn('user_id', $visibleIds)
+            ->approved()
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('user_id')
+            ->each(function ($photos, $userId) use (&$urls) {
+                // groupBy preserva a ordem: a primeira é a principal (ou a mais antiga).
+                $url = $photos->first()?->mediaUrl();
+                if ($url !== null) {
+                    $urls[(int) $userId] = $url;
+                }
+            });
+
+        return $urls;
     }
 
     /**
