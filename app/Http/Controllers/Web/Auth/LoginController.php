@@ -67,7 +67,13 @@ class LoginController extends Controller
         // A marca é da sessão, não da conta: cada login prova o fator de novo.
         $request->session()->forget(TwoFactorService::SESSION_KEY);
 
-        return redirect()->intended(route($this->homeRouteFor($user)));
+        $home = route($this->homeRouteFor($user));
+
+        if ($user->isAdmin() || $user->isModerator()) {
+            return Inertia::location($home);
+        }
+
+        return redirect()->intended($home);
     }
 
     public function destroy(Request $request)
