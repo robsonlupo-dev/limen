@@ -158,3 +158,66 @@ telefone/e-mail/rede social seguem liberados por decisão de produto, pendentes 
 A **evasão por espaçamento não é mais uma questão em aberto**: era um defeito de
 implementação, e foi corrigido. Não há aqui nova decisão de produto nem de política a
 tomar.
+
+---
+
+## 6. Perfil do membro v2 — diretório, galeria e dados pessoais (`feat/member-profile-v2`)
+
+O membro passou a ter um **perfil rico** que a performer vê: bio, "o que busco", interesses,
+cidade/UF, estado civil, altura, faixa etária e galeria de fotos. **Tudo é opcional e
+opt-in** (o membro escreve; nada aparece sem ele preencher **e** ligar "Perfil visível", que
+segue **default OFF**). Quatro blocos precisam de orientação jurídica.
+
+### (a) Virada opt-in → opt-out do diretório de membros — DECIDIDA pelo PO, aguardando o jurídico
+
+- **O que existe hoje.** O membro só aparece para as performers se ligar `profile_visible`
+  (default OFF). É consentimento **ativo**, por gesto explícito.
+- **O que o PO decidiu (não implementado).** Inverter para **opt-out**: o membro apareceria
+  no diretório **por padrão**, e a invisibilidade viraria **perk exclusivo** de Founders
+  Circle / Black.
+- **Perguntas ao advogado:**
+  1. Qual a **base legal LGPD** para expor o membro por padrão (consentimento no cadastro vs.
+     legítimo interesse)? Um perfil em site adulto é **dado sensível** (art. 5º, II) — o
+     legítimo interesse é suficiente ou é preciso consentimento específico e destacado?
+  2. Que **texto nos Termos / no fluxo de cadastro** torna esse consentimento válido
+     (informado, específico, livre)? Colocar a invisibilidade atrás de um tier pago
+     compromete a "liberdade" do consentimento?
+  3. Direito de **oposição/eliminação**: o opt-out precisa ser tão fácil quanto o padrão, e
+     gratuito?
+
+### (b) Galeria de fotos do membro — consentimento e retenção
+
+- **O que existe hoje.** Até 4 fotos, opt-in, **moderação humana** antes de aparecer, strip
+  de EXIF/GPS + anti-CSAM, servidas por token opaco. Foto recusada tem os **bytes purgados na
+  hora**; encerramento de conta purga tudo (LGPD Hard Delete). O v2 guarda **duas variantes**
+  (enquadrada + completa) — ambas purgadas juntas.
+- **Perguntas ao advogado:**
+  1. É preciso **consentimento específico** para foto (dado biométrico/sensível — é rosto em
+     site adulto), além do consentimento geral do perfil?
+  2. **Retenção:** por quanto tempo pode ficar a foto de um perfil que o membro apenas
+     **ocultou** (desligou a visibilidade) sem encerrar a conta? Hoje ela **permanece** (o
+     interruptor é reversível). Há prazo máximo?
+  3. Prova de consentimento e de que "é foto sua" — que registro basta?
+
+### (c) Faixa etária e cidade no perfil
+
+- **O que existe hoje.** A **faixa etária** é **derivada do `birthdate`** do cadastro (nunca
+  a data nem a idade exata) e só aparece com **opt-in** (`show_age_band`). A **cidade/UF** é
+  o que o membro digita (autocomplete IBGE), e só aparece se preenchida.
+- **Perguntas ao advogado:**
+  1. Derivar e exibir uma **faixa** a partir do `birthdate` coletado para **outra finalidade**
+     (verificação 18+/KYC) é **mudança de finalidade** que exige nova base legal, mesmo com
+     opt-in e mesmo sem expor a data?
+  2. Cidade + faixa + foto juntos aumentam o risco de **reidentificação**. Há mínimo de
+     granularidade a impor (ex.: só a UF, não o município; faixas mais largas)?
+
+### (d) Moderação prévia → automática + reativa — ARQUIVADA, reavaliar pós-lançamento
+
+- **O que existe hoje.** Toda foto passa por **aprovação humana** antes de ir ao ar.
+- **O que foi arquivado.** Trocar por **moderação automática + reativa** (a foto apareceria
+  antes da revisão humana; a revisão viria depois e por denúncia). **Arquivado** — não
+  implementado neste PR.
+- **Pergunta ao advogado (para quando/se for reconsiderado):** a moderação **prévia** é
+  exigência de compliance (anti-CSAM, imagem de terceiro não consentida) ou uma escolha de
+  produto que pode ser afrouxada? Que salvaguardas a automática+reativa precisaria ter para
+  ser defensável?
