@@ -221,8 +221,9 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   `/var/www/limen` (staging/prod) são **clones SEPARADOS** — não presuma estado
   comum entre eles.
 - **`git credential store` configurado no servidor:** push/pull não pedem senha.
-  Mas **segue sem `gh` CLI** — abrir PR ou issue por código continua impossível; o
-  push devolve a URL de `pull/new` para o PO abrir manualmente.
+  **Segue sem `gh` CLI**, mas há **token do GitHub no credential store** e a API REST
+  aceita `POST`/`PATCH` — então **abrir/atualizar PR por código FUNCIONA** (ver "Nota
+  operacional — 17/09/2026"). **Mergear, porém, é exclusivo do PO.**
 - **Sem `pdo_sqlite`**, e o `phpunit.xml` aponta para sqlite. **Não edite o
   `phpunit.xml`** — prefixe os `DB_*` no comando (é o que o CI faz). A senha do
   banco de teste está no **`.env` do servidor** (usuário `limen`, banco
@@ -293,6 +294,25 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   "Landing — nomes da waitlist + fix do flake de relógio do PrivacyPerksTest".
 - **Resultado esperado da suíte com este PR:** volta a **1 única falha** (o `GeoBlockTest`
   451 deste clone de dev) — as falhas do `PrivacyPerksTest` somem, que é o objetivo.
+
+## Nota operacional — 17/09/2026 (regras de checkout e de PR)
+
+- **NUNCA TRABALHAR NO CHECKOUT QUE SERVE O SITE.** `/var/www/limen` é o checkout que
+  serve o site e deve permanecer **SEMPRE na `main`**. Criar branch, commitar ou fazer
+  `checkout` de feature ali é **proibido**. Todo trabalho acontece em `~/limen-dev`.
+  **Motivo (registrar):** em 17/09/2026 a branch `feat/nickname-in-earnings` foi criada
+  dentro de `/var/www/limen`, e o site ficou servindo código de feature não mergeado. O
+  deploy (`git pull origin main`) **não corrige isso** — ele mescla a `main` DENTRO da
+  branch e o site continua fora da `main`. **Antes de qualquer deploy, confirmar:**
+  `git branch --show-current` === `main`.
+- **VOCÊ PODE ABRIR PR PELA API, MAS NUNCA MERGEAR.** Existe token do GitHub no
+  credential store do servidor, e a API aceita `POST`/`PATCH` — então **abrir e
+  atualizar PR por código FUNCIONA** (corrige a nota antiga que dizia ser impossível). Mas
+  o **MERGE é decisão exclusiva do PO.** Você **pode:** criar PR, atualizar título e
+  corpo, e responder comentário. Você **NÃO pode, em nenhuma hipótese:** mergear PR, fazer
+  push direto na `main`, apagar branch remota, alterar proteção de branch, nem fechar PR.
+  Se um merge parecer necessário, **PARE e peça.**
+
 ## Ponteiros — onde está cada coisa
 
 - **Economia (preços, pacotes, splits, tiers, descontos, franquias, teto, payout,
