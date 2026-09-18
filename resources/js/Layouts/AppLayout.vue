@@ -132,6 +132,16 @@ function logout() {
                     >
                         Áudios
                     </Link>
+                    <!-- Fila de moderação das fotos de galeria de membro
+                         (feat/member-gallery-and-profile). Link Inertia — tela Vue
+                         sob /moderacao/*. -->
+                    <Link
+                        v-if="canModerate"
+                        :href="route('moderacao.member-photos.index')"
+                        class="text-gold/80 hover:text-gold transition-colors no-underline"
+                    >
+                        Fotos
+                    </Link>
                     <!-- Admin: só admin. <a> e não <Link> — o back-office /admin/*
                          é Blade puro, fora do Inertia. -->
                     <a
