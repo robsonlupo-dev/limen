@@ -12,6 +12,7 @@ use App\Services\ProfileVisitService;
 use App\Support\ActivitySlot;
 use App\Support\FanAlias;
 use App\Support\MemberDisplayName;
+use App\Support\MemberProfileOptions;
 use App\Support\NewBadge;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -84,12 +85,30 @@ class MemberProfileController extends Controller
                 'fan_alias_label' => MemberDisplayName::for($member->nickname, $profile->id, $member->id, 'Membro #'),
                 // O handle segue sendo a CHAVE das ações (coração/mensagem/visita).
                 'member_handle' => FanAlias::handle($profile->id, $member->id),
-                // Fotos APROVADAS da galeria, principal primeiro. URLs por token opaco.
+                // Fotos APROVADAS da galeria, principal primeiro. Cada uma com a
+                // miniatura ENQUADRADA (url) + a COMPLETA do lightbox (full_url),
+                // ambas por token opaco.
                 'photos' => $this->gallery->approvedFor($member)->values(),
                 // Faixa grossa de atividade (nunca relógio); suprimida se Invisível.
                 'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),
                 'is_new' => NewBadge::isNew($member->created_at),
                 'hearted' => $hearted,
+                // ── Perfil v2 (feat/member-profile-v2). Payload EXPLÍCITO e
+                // mascarado: SÓ o que o membro preencheu/consentiu, nunca nome/
+                // e-mail/tier/saldo. Campo vazio vira null/[] e a tela não o
+                // renderiza (nada de "não informado").
+                'bio' => $member->bio,
+                'seeking' => MemberProfileOptions::seekingLabels($member->public_seeking),
+                'interests' => MemberProfileOptions::interestLabels($member->public_interests),
+                // Faixa etária: opt-in, derivada do birthdate (nunca a data/idade).
+                'age_band' => $member->displayAgeBand(),
+                'city_label' => $member->displayCityLabel(),
+                'marital_status' => MemberProfileOptions::maritalLabel($member->marital_status),
+                'height' => MemberProfileOptions::heightLabel($member->height_cm),
+                // "Membro desde" — mês/ano do created_at (nunca o dia exato).
+                'member_since' => $member->created_at?->translatedFormat('M Y'),
+                // Selo "Verificado" — booleano do KYC de idade, nunca dado do doc.
+                'is_verified' => $member->memberIsVerified(),
             ],
             // Franquia de mensagens grátis restante hoje — a UI trava o botão.
             'messagesRemaining' => $this->chatService->remainingDailyMessages($profile),

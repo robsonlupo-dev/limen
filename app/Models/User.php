@@ -137,6 +137,17 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
             'interests_opt_out' => 'boolean',
+            // Perfil público do membro v2 (feat/member-profile-v2): "o que busco"
+            // e interesses públicos como array de slugs (lista controlada em
+            // App\Support\MemberProfileOptions), altura em cm e o opt-in da faixa
+            // etária. FORA do $fillable — a performer lê estes campos, então a
+            // escrita passa por endpoint dedicado (forceFill de allowlist), na
+            // mesma disciplina de `lifestyle_tier`/`profile_visible`. Não são
+            // $hidden: são a superfície PÚBLICA que o membro consentiu em expor.
+            'public_seeking' => 'array',
+            'public_interests' => 'array',
+            'height_cm' => 'integer',
+            'show_age_band' => 'boolean',
             // Visibilidade no catálogo de membros (Sprint 16). Nullable no banco
             // (null = "nunca escolheu"); o efetivo sai de isVisibleToPerformers().
             // Fora do $fillable — escrita só pelo endpoint dedicado de settings.
@@ -367,6 +378,50 @@ class User extends Authenticatable implements MustVerifyEmail
         // A relação em memória ficou velha: quem leu $user->interests antes do
         // sync veria a lista anterior no mesmo request (a resposta do update).
         $this->unsetRelation('interests');
+    }
+
+    // ─── Perfil público do membro v2 (feat/member-profile-v2) ─────────────────
+    // Estes derivam o que VAI AO AR para a performer. Ficam no model (não no
+    // service) porque catálogo e página de perfil precisam da MESMA regra — o
+    // selo, a faixa e o rótulo de cidade divergiriam se cada um derivasse por si.
+
+    /**
+     * O membro é VERIFICADO? Derivado do KYC de idade aprovado (`age_verified_at`).
+     * Só o BOOLEANO — nunca dado do documento (CLAUDE.md, princípio 4). Vira o
+     * selo "Verificado" no card e no perfil.
+     */
+    public function memberIsVerified(): bool
+    {
+        return $this->age_verified_at !== null;
+    }
+
+    /**
+     * A faixa etária a EXIBIR, ou null. Derivada do `birthdate` (nunca a data/
+     * idade exata), e só quando o membro OPTOU por mostrá-la (`show_age_band`) —
+     * é o que reconcilia "derivar do birthdate" com o invariante de só exibir o
+     * que o membro consentiu.
+     */
+    public function displayAgeBand(): ?string
+    {
+        return $this->show_age_band ? \App\Support\AgeBand::for($this->birthdate) : null;
+    }
+
+    /**
+     * Rótulo de cidade/UF a exibir ("São Paulo, SP"), ou null se o membro não
+     * preencheu a cidade. A UF só entra se houver — cidade sem UF sai sozinha.
+     * Só aparece porque o membro preencheu (preencher = consentir).
+     */
+    public function displayCityLabel(): ?string
+    {
+        $city = trim((string) $this->profile_city);
+
+        if ($city === '') {
+            return null;
+        }
+
+        $uf = trim((string) $this->profile_uf);
+
+        return $uf === '' ? $city : $city.', '.$uf;
     }
 
     /** The user's live subscription (active + inside the paid period), or null. */

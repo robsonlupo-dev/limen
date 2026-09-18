@@ -92,7 +92,12 @@ class MemberCatalogService
             // profile_visible: opt-in mestre da galeria/perfil (Opção B) — decide
             // se o card usa a foto da galeria e se o perfil é clicável.
             ->select('users.id', 'users.last_login_at', 'users.invisible_status', 'users.created_at',
-                'users.avatar_path', 'users.avatar_token', 'users.nickname', 'users.profile_visible')
+                'users.avatar_path', 'users.avatar_token', 'users.nickname', 'users.profile_visible',
+                // Perfil v2 (feat/member-profile-v2): selo (age_verified_at), faixa
+                // etária opt-in (birthdate + show_age_band) e cidade pública. Só
+                // vão ao card quando existem/foram consentidos — a máscara decide.
+                'users.age_verified_at', 'users.birthdate', 'users.show_age_band',
+                'users.profile_city', 'users.profile_uf')
             ->orderByDesc('users.id')
             ->paginate($perPage)
             ->withQueryString();
@@ -105,6 +110,9 @@ class MemberCatalogService
         $recent = $this->recentInterestMemberIds($performerProfile, $memberIds);
         $hearted = $this->hearts->heartedMemberIds($performerProfile, $memberIds);
         $primaryPhotos = $this->primaryPhotoUrls($memberIds);
+        // Contagem de fotos aprovadas (badge de câmera do card, estilo Seeking) —
+        // só de quem tem perfil visível, uma query para a página inteira.
+        $photoCounts = $this->approvedPhotoCounts($memberIds);
 
         $paginator->setCollection(
             $paginator->getCollection()->map(
@@ -114,6 +122,7 @@ class MemberCatalogService
                     in_array($member->id, $recent, true),
                     in_array($member->id, $hearted, true),
                     $primaryPhotos[$member->id] ?? null,
+                    $photoCounts[$member->id] ?? 0,
                 ),
             )
         );
@@ -145,7 +154,7 @@ class MemberCatalogService
      *
      * @return array<string, mixed>
      */
-    private function mask(PerformerProfile $performerProfile, User $member, bool $interestSent, bool $hearted, ?string $primaryPhotoUrl = null): array
+    private function mask(PerformerProfile $performerProfile, User $member, bool $interestSent, bool $hearted, ?string $primaryPhotoUrl = null, int $photoCount = 0): array
     {
         $handle = FanAlias::handle($performerProfile->id, $member->id);
 
@@ -188,6 +197,16 @@ class MemberCatalogService
             'interest_sent' => $interestSent,
             // A performer já curtiu este membro? O card já vem com o coração cheio.
             'hearted' => $hearted,
+            // ── Perfil v2 (feat/member-profile-v2): sobreposições do card estilo
+            // Seeking. Cada um SÓ aparece quando existe/foi consentido, e nenhum é
+            // PII involuntário — selo é booleano do KYC, faixa é opt-in derivada do
+            // birthdate, cidade é o que o membro preencheu. Campo vazio = null/0, e
+            // a UI simplesmente não renderiza.
+            'is_verified' => $member->memberIsVerified(),
+            'age_band' => $member->displayAgeBand(),
+            'city_label' => $member->displayCityLabel(),
+            // Badge de câmera: nº de fotos aprovadas (0 = sem badge).
+            'photo_count' => $photoCount,
         ];
     }
 
@@ -234,6 +253,38 @@ class MemberCatalogService
             });
 
         return $urls;
+    }
+
+    /**
+     * Nº de fotos APROVADAS por membro (badge de câmera do card), só de quem tem
+     * perfil visível. Uma query agregada para a página inteira. Membro sem perfil
+     * visível ou sem foto aprovada não entra (0 → sem badge).
+     *
+     * @param  array<int, int>  $memberIds
+     * @return array<int, int>  member_id => contagem
+     */
+    private function approvedPhotoCounts(array $memberIds): array
+    {
+        if ($memberIds === []) {
+            return [];
+        }
+
+        $visibleIds = User::whereIn('id', $memberIds)
+            ->where('profile_visible', true)
+            ->pluck('id')
+            ->all();
+
+        if ($visibleIds === []) {
+            return [];
+        }
+
+        return \App\Models\MemberGalleryPhoto::whereIn('user_id', $visibleIds)
+            ->approved()
+            ->selectRaw('user_id, COUNT(*) as aggregate')
+            ->groupBy('user_id')
+            ->pluck('aggregate', 'user_id')
+            ->map(fn ($count) => (int) $count)
+            ->all();
     }
 
     /**

@@ -1149,6 +1149,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:20,1')
             ->name('consumer.profile.update');
 
+        // Perfil PÚBLICO v2 (feat/member-profile-v2). Porta PRÓPRIA, e não o PUT
+        // acima: estes campos (bio, "o que busco"/interesses públicos, cidade,
+        // detalhes, opt-in da faixa etária) VOLTAM para a performer, então ficam
+        // fora do $fillable e entram por forceFill de allowlist — a mesma
+        // disciplina do estilo de vida. A separação também deixa a tela avisar
+        // "isto a performer vê" sem a copy de "só seu" cobrir o campo errado.
+        Route::put('/meu-perfil/publico', [ConsumerProfileController::class, 'updatePublicProfile'])
+            ->middleware('throttle:20,1')
+            ->name('consumer.profile.public.update');
+
         // Foto de perfil do membro (fix/member-photo-and-crop). Mesmo pipeline da
         // performer (ImageProcessingService + anti-CSAM), disco privado, servida
         // por member.media assinada. Opcional: adicionar/trocar (POST) e remover

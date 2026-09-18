@@ -175,6 +175,9 @@ return [
         // Perfil do membro (interesses + "o que estou buscando")
         'consumer.profile.edit',
         'consumer.profile.update',
+        // Perfil público v2 (feat/member-profile-v2): bio, tags públicas, cidade,
+        // detalhes e opt-in da faixa etária — salvos por route() na tela de perfil.
+        'consumer.profile.public.update',
         'consumer.profile.lifestyle-tier',
         'consumer.profile.photo',
         'consumer.profile.photo.destroy',
