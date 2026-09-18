@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Role;
 use App\Notifications\ResetPasswordNotification;
 use App\Notifications\VerifyEmailNotification;
 use App\Services\PrivacyPerkService;
@@ -453,6 +454,32 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isBanned(): bool
     {
         return $this->status === 'banned';
+    }
+
+    // ─── Papéis (RBAC) ───────────────────────────────────────────────────────
+    //
+    // Atalhos de LEITURA sobre `role`, com o valor vindo do enum Role (fonte
+    // única). Comparação por string crua (não cast) de propósito: `role` não é
+    // $fillable, e um cast quebraria as comparações `->role === 'performer'`
+    // espalhadas pelo código. Uma linha de `role` corrompida (ex.: '' de um
+    // insert antigo) simplesmente cai em `false` em todos — o gate nega, não
+    // explode. `canModerate()` é o ÚNICO ponto de "quem alcança /moderacao/*"
+    // (admin ⊇ moderator); o gate admin-only usa `isAdmin()`.
+
+    public function isAdmin(): bool
+    {
+        return $this->role === Role::Admin->value;
+    }
+
+    public function isModerator(): bool
+    {
+        return $this->role === Role::Moderator->value;
+    }
+
+    /** admin OU moderator — a fila de moderação e nada de admin. */
+    public function canModerate(): bool
+    {
+        return $this->isAdmin() || $this->isModerator();
     }
 
     // ─── Perks de privacidade (Black / Founders Circle) ──────────────────────
