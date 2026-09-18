@@ -203,6 +203,34 @@ it('wipes PII from the user row and closes the account by soft delete', function
         ->and($row->deleted_at)->not->toBeNull();
 });
 
+it('scrubs the v2 public profile columns on hard delete (feat/member-profile-v2)', function () {
+    $user = delMember();
+    // Preenche a superfície pública v2 — o que a performer via.
+    $user->forceFill([
+        'bio' => 'Curto arte e viagens.',
+        'public_seeking' => ['conversa'],
+        'public_interests' => ['viagens', 'musica'],
+        'profile_city' => 'São Paulo',
+        'profile_uf' => 'SP',
+        'marital_status' => 'solteiro',
+        'height_cm' => 180,
+        'show_age_band' => true,
+    ])->save();
+
+    delService()->executeDeletion($user);
+
+    $row = DB::table('users')->where('id', $user->id)->first();
+
+    expect($row->bio)->toBeNull()
+        ->and($row->public_seeking)->toBeNull()
+        ->and($row->public_interests)->toBeNull()
+        ->and($row->profile_city)->toBeNull()
+        ->and($row->profile_uf)->toBeNull()
+        ->and($row->marital_status)->toBeNull()
+        ->and($row->height_cm)->toBeNull()
+        ->and((bool) $row->show_age_band)->toBeFalse();
+});
+
 it('preserves audit_logs and payouts with their amounts', function () {
     $performer = delPerformer();
 

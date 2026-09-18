@@ -1719,6 +1719,22 @@ class DeletionService
             // qualquer URL assinada remanescente deixa de resolver na hora.
             'avatar_path' => null,
             'avatar_token' => null,
+            // Perfil PÚBLICO do membro v2 (feat/member-profile-v2). Tudo que o
+            // titular auto-declarou e a performer via — bio (texto livre pessoal),
+            // localização (cidade/UF), estado civil, altura e as tags públicas —
+            // sai junto, pelo mesmo motivo do `seeking`/`lifestyle_tier` acima: o
+            // Hard Delete apaga o que o titular deu, não só o que estava à vista, e
+            // parte disto TERCEIRO já viu. A faixa etária some por tabela (deriva
+            // do birthdate, zerado acima); o opt-in dela volta ao default. Os
+            // BYTES das fotos saem em collectFilePaths; aqui não há coluna de foto.
+            'bio' => null,
+            'public_seeking' => null,
+            'public_interests' => null,
+            'profile_city' => null,
+            'profile_uf' => null,
+            'marital_status' => null,
+            'height_cm' => null,
+            'show_age_band' => false,
             'discrete_mode' => false,
             'interests_opt_out' => false,
             // Perks de privacidade: voltam ao lado PÚBLICO, como o discrete_mode
