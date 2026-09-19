@@ -41,8 +41,17 @@ function openPhoto(i) {
 }
 
 const photos = computed(() => props.member.photos ?? [])
-const hero = computed(() => photos.value[0] ?? null)
-const thumbs = computed(() => photos.value.slice(1))
+// Capa = avatar do membro (a foto que ele escolheu como cara). Sem avatar, cai
+// na 1ª foto da galeria (comportamento antigo).
+const avatarUrl = computed(() => props.member.avatar_url ?? null)
+const heroPhoto = computed(() => (avatarUrl.value ? null : photos.value[0] ?? null))
+// Grid abaixo da capa (cada item guarda o índice REAL na galeria p/ o lightbox):
+// com avatar, mostra a galeria inteira; sem avatar, a foto[0] já é a capa.
+const galleryThumbs = computed(() => {
+    const list = photos.value.map((photo, index) => ({ photo, index }))
+    return avatarUrl.value ? list : list.slice(1)
+})
+const hasVisual = computed(() => !!avatarUrl.value || photos.value.length > 0)
 
 // Chips de status: só os que existem.
 const chips = computed(() =>
@@ -121,28 +130,37 @@ async function sendMessage() {
                 Catálogo
             </Link>
 
-            <!-- Fotos: hero grande + grade de miniaturas. Clicar abre o lightbox
-                 (variante completa, sem corte). Vazio → estado neutro. -->
-            <div v-if="photos.length" class="mt-4 grid gap-3 sm:grid-cols-[1.4fr_1fr]">
+            <!-- Capa = avatar do membro; galeria (aprovada) como miniaturas ao
+                 lado. Sem avatar, a capa cai na 1ª foto. Clicar numa miniatura
+                 abre o lightbox (variante completa). Vazio → estado neutro. -->
+            <div v-if="hasVisual" class="mt-4 grid gap-3 sm:grid-cols-[1.4fr_1fr]">
+                <!-- Capa: avatar (não entra no lightbox da galeria) OU 1ª foto -->
+                <div
+                    v-if="avatarUrl"
+                    class="relative aspect-[3/4] overflow-hidden rounded-2xl bg-limen-surface ring-1 ring-limen-line"
+                >
+                    <img :src="avatarUrl" alt="Foto de perfil do membro" class="h-full w-full object-cover" />
+                </div>
                 <button
+                    v-else
                     type="button"
                     class="relative aspect-[3/4] overflow-hidden rounded-2xl bg-limen-surface ring-1 ring-limen-line"
                     aria-label="Ampliar foto"
                     @click="openPhoto(0)"
                 >
-                    <img :src="hero.url" alt="Foto do membro" class="h-full w-full object-cover" />
+                    <img :src="heroPhoto.url" alt="Foto do membro" class="h-full w-full object-cover" />
                 </button>
 
-                <div v-if="thumbs.length" class="grid grid-cols-2 gap-3 sm:grid-cols-1 sm:content-start">
+                <div v-if="galleryThumbs.length" class="grid grid-cols-2 gap-3 sm:grid-cols-1 sm:content-start">
                     <button
-                        v-for="(photo, i) in thumbs"
-                        :key="photo.id"
+                        v-for="t in galleryThumbs"
+                        :key="t.photo.id"
                         type="button"
                         class="relative aspect-[3/4] overflow-hidden rounded-xl bg-limen-surface ring-1 ring-limen-line sm:aspect-[3/2]"
                         aria-label="Ampliar foto"
-                        @click="openPhoto(i + 1)"
+                        @click="openPhoto(t.index)"
                     >
-                        <img :src="photo.url" alt="Foto do membro" loading="lazy" class="h-full w-full object-cover" />
+                        <img :src="t.photo.url" alt="Foto do membro" loading="lazy" class="h-full w-full object-cover" />
                     </button>
                 </div>
             </div>

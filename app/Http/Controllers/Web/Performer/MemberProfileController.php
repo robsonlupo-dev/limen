@@ -89,6 +89,10 @@ class MemberProfileController extends Controller
                 // miniatura ENQUADRADA (url) + a COMPLETA do lightbox (full_url),
                 // ambas por token opaco.
                 'photos' => $this->gallery->approvedFor($member)->values(),
+                // Capa = avatar do membro (a foto que ELE escolheu como cara), a
+                // mesma que a performer já vê no chat. A galeria vira secundária.
+                // null quando o membro não tem avatar → a tela cai na 1ª foto.
+                'avatar_url' => $member->avatarUrl(),
                 // Faixa grossa de atividade (nunca relógio); suprimida se Invisível.
                 'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),
                 'is_new' => NewBadge::isNew($member->created_at),
