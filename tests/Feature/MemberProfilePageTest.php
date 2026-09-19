@@ -226,3 +226,34 @@ it('membro com perfil visível mas SEM fotos aprovadas cai no avatar/silhueta no
     // Sem avatar e sem foto aprovada → silhueta (avatar_url null).
     expect($card['avatar_url'])->toBeNull();
 });
+
+// ─── Capa = avatar do membro (feat/member-profile-avatar-cover) ───────────────
+
+it('expõe o avatar do membro como capa no payload da performer', function () {
+    $performer = mppPerformer();
+    $member = mppMember(['profile_visible' => true]);
+    $token = Str::random(48);
+    $member->forceFill([
+        'avatar_path' => 'member-avatar/'.$member->id.'.jpg',
+        'avatar_token' => $token,
+    ])->save();
+    mppPhoto($member, 'approved', false); // galeria vira secundária
+
+    $this->actingAs($performer)
+        ->get(route('performer.members.profile', mppHandle($performer, $member)))
+        ->assertOk()
+        ->assertInertia(fn (Assert $p) => $p
+            ->where('member.avatar_url', fn ($url) => is_string($url) && str_contains($url, $token))
+            ->has('member.photos', 1));
+});
+
+it('avatar_url é null quando o membro não tem avatar (capa cai na galeria)', function () {
+    $performer = mppPerformer();
+    $member = mppMember(['profile_visible' => true]);
+    mppPhoto($member, 'approved', true);
+
+    $this->actingAs($performer)
+        ->get(route('performer.members.profile', mppHandle($performer, $member)))
+        ->assertOk()
+        ->assertInertia(fn (Assert $p) => $p->where('member.avatar_url', null));
+});
