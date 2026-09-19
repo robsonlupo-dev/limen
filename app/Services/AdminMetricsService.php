@@ -119,28 +119,53 @@ class AdminMetricsService
     }
 
     /**
-     * Série DIÁRIA de tokens vendidos × gastos, para o gráfico "Vendidos × gastos"
-     * do dashboard (uma barra por dia, últimos $days dias). Antes o gráfico só
-     * tinha o total agregado por categoria; agora mostra a evolução no tempo.
+     * Janelas de período que o toggle do dashboard oferece: rótulo => nº de dias.
+     * 'ano' = 365 dias corridos (não o ano-calendário — janela rolante, como o 30/90).
+     */
+    public const PERIODS = ['30' => 30, '90' => 90, 'ano' => 365];
+
+    /** Normaliza a chave de período vinda da query (?period=) para uma das PERIODS. */
+    public static function periodDays(?string $period): int
+    {
+        return self::PERIODS[$period] ?? self::PERIODS['30'];
+    }
+
+    /**
+     * Receita/gastos agregados de uma janela rolante de $days dias — mesma forma
+     * de revenue()['last30'], mas com a janela escolhida no toggle (30/90/ano).
      *
-     * Fronteira de dia em São Paulo (o admin pensa no dia BR): agrupa por
-     * DATE(CONVERT_TZ(created_at, '+00:00', '-03:00')). O offset numérico NÃO
-     * depende das tz tables do MySQL (que podem não estar carregadas) — Brasil
-     * não tem mais horário de verão desde 2019, então -03:00 fixo está correto.
+     * @return array{tokens_sold:int, spent_by_type:array<string,int>, spent_total:int,
+     *               tokens_paid_out:int, retention:int, gross_revenue_cents:int, is_estimate:bool}
+     */
+    public function periodRevenue(int $days): array
+    {
+        return $this->revenueSince(now()->subDays($days));
+    }
+
+    /**
+     * Série de tokens vendidos × gastos para o gráfico do dashboard, agrupada em
+     * ~$buckets blocos contíguos ao longo dos últimos $days dias (o design usa
+     * "blocos de 2–3 dias" em 30 dias; em 90/ano os blocos ficam mais largos, mas
+     * o gráfico continua com ~12 barras legíveis). Quando $days <= $buckets cada
+     * bloco é um dia (comportamento diário).
      *
-     * "Vendidos" = SUM(purchase) do dia. "Gastos" = |SUM| dos seis SPEND_TYPES
-     * do dia (débitos são negativos no ledger; o gráfico mostra o valor gasto).
-     * Sempre devolve $days linhas contíguas (dias sem lançamento vêm com 0), na
-     * ordem cronológica — o front desenha na ordem que recebe.
+     * Fronteira de dia em São Paulo via DATE(CONVERT_TZ(created_at,'+00:00','-03:00')):
+     * offset numérico NÃO depende das tz tables do MySQL. Brasil sem horário de
+     * verão desde 2019, então -03:00 fixo está correto. "Vendidos" = SUM(purchase);
+     * "Gastos" = |SUM| dos seis SPEND_TYPES. Dias sem lançamento contam 0. Sempre
+     * devolve blocos contíguos em ordem cronológica.
      *
      * @return list<array{date:string, sold:int, spent:int}>
      */
-    public function dailySalesVsSpend(int $days = 12): array
+    public function salesVsSpendSeries(int $days = 12, int $buckets = 12): array
     {
+        $days = max(1, $days);
+        $buckets = max(1, min($buckets, $days));
         $spendTypes = array_values(self::SPEND_TYPES);
         $tz = "'+00:00', '-03:00'";
-        // Início da janela: começo do primeiro dia (SP), convertido para UTC.
-        $since = Carbon::now('America/Sao_Paulo')->startOfDay()->subDays($days - 1)->utc();
+
+        $startDay = Carbon::now('America/Sao_Paulo')->startOfDay()->subDays($days - 1);
+        $since = $startDay->copy()->utc();
 
         $soldByDay = TokenLedger::query()
             ->where('entry_type', 'purchase')
@@ -156,14 +181,29 @@ class AdminMetricsService
             ->groupBy('day')
             ->pluck('total', 'day');
 
+        // Distribui os $days em $buckets blocos contíguos o mais uniformes possível
+        // (os primeiros blocos recebem o dia extra da sobra).
+        $base = intdiv($days, $buckets);
+        $rem = $days % $buckets;
+
         $series = [];
-        for ($i = $days - 1; $i >= 0; $i--) {
-            $d = Carbon::now('America/Sao_Paulo')->startOfDay()->subDays($i);
-            $key = $d->format('Y-m-d');
+        $cursor = $startDay->copy();
+        for ($b = 0; $b < $buckets; $b++) {
+            $len = $base + ($b < $rem ? 1 : 0);
+            $first = $cursor->copy();
+            $sold = 0;
+            $spent = 0;
+            for ($k = 0; $k < $len; $k++) {
+                $key = $cursor->format('Y-m-d');
+                $sold += (int) round((float) ($soldByDay[$key] ?? 0));
+                $spent += (int) abs(round((float) ($spentByDay[$key] ?? 0)));
+                $cursor->addDay();
+            }
+            $last = $cursor->copy()->subDay();
             $series[] = [
-                'date' => $d->format('d/m'),
-                'sold' => (int) round((float) ($soldByDay[$key] ?? 0)),
-                'spent' => (int) abs(round((float) ($spentByDay[$key] ?? 0))),
+                'date' => $len === 1 ? $first->format('d/m') : $first->format('d/m').'–'.$last->format('d/m'),
+                'sold' => $sold,
+                'spent' => $spent,
             ];
         }
 
