@@ -222,6 +222,7 @@
             <div class="nav-group">
                 <span class="group-label">Pessoas</span>
                 <a href="{{ route('admin.performers') }}" class="nav-item nav-sub active">Performers</a>
+                <a href="{{ route('admin.members') }}" class="nav-item nav-sub">Membros</a>
                 <a href="{{ route('admin.kyc.panel') }}" class="nav-item nav-sub">Fila de KYC</a>
                 <a href="{{ route('admin.waitlist') }}" class="nav-item nav-sub">Waitlist</a>
             </div>
