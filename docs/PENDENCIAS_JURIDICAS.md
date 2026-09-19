@@ -221,3 +221,26 @@ segue **default OFF**). Quatro blocos precisam de orientação jurídica.
   exigência de compliance (anti-CSAM, imagem de terceiro não consentida) ou uma escolha de
   produto que pode ser afrouxada? Que salvaguardas a automática+reativa precisaria ter para
   ser defensável?
+
+### (e) Revelação de identidade do membro no admin ("quebrar o vidro") — VALIDAR ANTES DE LIGAR EM PRODUÇÃO
+
+- **O que existe hoje (feat/admin-members).** O painel `/admin/membros` é **anônimo por
+  padrão**: o admin busca um membro **por ID** e vê só dados de moderação (status, cadastro,
+  último login, nº de denúncias contra, blacklist) — **nenhuma PII**. Há uma ação separada
+  **"Revelar identidade"** que mostra **nome e e-mail** de UM membro, **uma única vez**, com
+  **motivo obrigatório** e **registro de auditoria** (`member.identity_revealed`: quem, quando,
+  por quê, qual membro). A identidade **não é persistida** nessa camada nem aparece em lista.
+  **CPF e documento continuam fora do app** (painel do provider/Didit), como no KYC.
+- **Por que existe.** Necessidade legítima de identificar um membro para **ação jurídica ou de
+  segurança** (conteúdo ilegal, ordem judicial, incidente grave). O padrão "break the glass"
+  preserva o anonimato como regra e torna o acesso deliberado e rastreável.
+- **Perguntas ao advogado (LGPD):**
+  1. O acesso auditado a **nome/e-mail** por um admin, com finalidade registrada, é
+     **base legal suficiente** (ex.: obrigação legal / legítimo interesse), ou exige mais
+     (aprovação de dois fatores humanos, papel dedicado "super-admin", limite temporal)?
+  2. É preciso **notificar o titular** da revelação (e em que prazo/exceções — ex.: investigação)?
+  3. Por quanto tempo o **log de auditoria** da revelação deve ser retido, e quem pode lê-lo?
+  4. A ação deve ser **restrita a papéis específicos** e/ou exigir **registro do nº do processo/
+     ofício** quando a finalidade for judicial?
+- **Recomendação de engenharia:** manter a ação **desligada por padrão em produção** (feature
+  flag/role) até o parecer. O mecanismo (audit trail) já está pronto; falta a decisão jurídica.

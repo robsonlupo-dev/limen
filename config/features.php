@@ -30,4 +30,13 @@ return [
      */
     'landing_prelaunch' => (bool) env('LANDING_PRELAUNCH', true),
 
+    /*
+     * "Quebrar o vidro": revelação auditada de nome/e-mail de UM membro no painel
+     * admin (feat/admin-members). Default FALSE (dark launch) — o mecanismo (com
+     * trilha de auditoria) já existe, mas só deve ser LIGADO após o parecer do
+     * jurídico sobre LGPD (ver docs/PENDENCIAS_JURIDICAS.md, item "(e)"). Ligar em
+     * staging/UAT para avaliar: FEATURE_MEMBER_IDENTITY_REVEAL=true no .env.
+     */
+    'member_identity_reveal' => (bool) env('FEATURE_MEMBER_IDENTITY_REVEAL', false),
+
 ];

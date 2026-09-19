@@ -483,6 +483,7 @@
             <div class="nav-group">
                 <span class="group-label">Pessoas</span>
                 <a href="{{ route('admin.performers') }}" class="nav-item nav-sub">Performers</a>
+                <a href="{{ route('admin.members') }}" class="nav-item nav-sub">Membros</a>
                 <a href="{{ route('admin.kyc.panel') }}" class="nav-item nav-sub">
                     Fila de KYC
                     @if ($platform['pending_kyc'] > 0)

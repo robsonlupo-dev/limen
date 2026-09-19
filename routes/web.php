@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
 use App\Http\Controllers\Web\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Web\Admin\KycAdminController;
+use App\Http\Controllers\Web\Admin\MembersController;
 use App\Http\Controllers\Web\Admin\PerformersController;
 use App\Http\Controllers\Web\Admin\PerformerTierController;
 use App\Http\Controllers\Web\Admin\ReportAdminController;
@@ -277,6 +278,19 @@ Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () 
     // com status, tier, verificação e strikes. Só leitura + as ações já existentes
     // (tier abaixo, ban em admin.users.ban). Sem PII de membro.
     Route::get('/performers', [PerformersController::class, 'index'])->name('admin.performers');
+
+    // Segurança por ID do membro (feat/admin-members): busca UM membro por ID,
+    // sem PII por padrão. Suspender/reativar (novo) + reveal auditado de identidade.
+    // Banir reusa admin.users.ban. `status` sempre via forceFill server-side.
+    Route::get('/membros', [MembersController::class, 'index'])->name('admin.members');
+    // Param nomeado {member} para casar com o argumento $member dos métodos —
+    // o binding implícito do Laravel liga por NOME, não por posição.
+    Route::post('/membros/{member}/suspend', [MembersController::class, 'suspend'])
+        ->whereNumber('member')->name('admin.members.suspend');
+    Route::post('/membros/{member}/reactivate', [MembersController::class, 'reactivate'])
+        ->whereNumber('member')->name('admin.members.reactivate');
+    Route::post('/membros/{member}/reveal', [MembersController::class, 'reveal'])
+        ->whereNumber('member')->name('admin.members.reveal');
 
     // Grant de tier (verificada/select/maison). tier_granted_by é autoridade
     // do servidor — os campos ficam fora do $fillable, gravação via forceFill.
