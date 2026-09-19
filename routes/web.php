@@ -322,6 +322,9 @@ Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () 
 // moderador vê a fila de denúncias, mas NÃO alcança KYC, payout, ban nem tier.
 // `moderator.access` deixa passar moderator OU admin (o admin não perde nada).
 Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(function () {
+    // Página inicial da moderação: resumo das três filas + atalhos.
+    Route::get('/', [ModerationController::class, 'overview'])->name('moderacao.overview');
+
     Route::get('/denuncias', [ModerationController::class, 'index'])->name('moderacao.reports.index');
     Route::get('/denuncias/{report}', [ModerationController::class, 'show'])
         ->whereNumber('report')

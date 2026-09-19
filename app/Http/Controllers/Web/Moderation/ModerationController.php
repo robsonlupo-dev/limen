@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Web\Moderation;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Moderation\UpdateReportRequest;
+use App\Models\MemberGalleryPhoto;
 use App\Models\MemberPhoto;
 use App\Models\Message;
 use App\Models\PerformerStory;
+use App\Models\PerformerVoiceIntro;
 use App\Models\Report;
 use App\Models\User;
 use App\Services\MemberNicknameService;
@@ -57,6 +59,22 @@ class ModerationController extends Controller
     /**
      * A fila, paginada e filtrável por status e por tipo de alvo.
      */
+    /**
+     * Página inicial da moderação: um resumo das TRÊS filas (pendentes em cada) e
+     * atalhos. O moderador cai aqui em vez de direto numa fila. Só contagens —
+     * nenhum conteúdo denunciado nem PII (o serving de prova segue nas telas).
+     */
+    public function overview(): Response
+    {
+        return Inertia::render('Moderacao/Overview', [
+            'queues' => [
+                'reports' => Report::pending()->count(),
+                'member_photos' => MemberGalleryPhoto::pending()->count(),
+                'voice_intros' => PerformerVoiceIntro::pending()->count(),
+            ],
+        ]);
+    }
+
     public function index(Request $request): Response
     {
         $status = $request->query('status', 'pending');
