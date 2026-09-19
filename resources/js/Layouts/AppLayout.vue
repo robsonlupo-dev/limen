@@ -114,11 +114,12 @@ function logout() {
                     >
                         Segurança
                     </Link>
-                    <!-- Moderação: moderador E admin. Link Inertia — a fila é
-                         uma tela Vue (/moderacao/*). -->
+                    <!-- Moderação: moderador E admin. Link Inertia — a área é
+                         Vue (/moderacao/*). Aponta para a página inicial (resumo
+                         das três filas), não direto numa fila. -->
                     <Link
                         v-if="canModerate"
-                        :href="route('moderacao.reports.index')"
+                        :href="route('moderacao.overview')"
                         class="text-gold/80 hover:text-gold transition-colors no-underline"
                     >
                         Moderação
