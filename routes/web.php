@@ -262,6 +262,8 @@ Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () 
     // Painel de receita (Sprint 16): agregados do ledger + contadores + payouts
     // em needs_review. Só role:admin — moderador não vê receita.
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
+    // Exporta os agregados da janela selecionada (?period=) como CSV — só números.
+    Route::get('/dashboard/export', [AdminDashboardController::class, 'exportCsv'])->name('admin.dashboard.export');
 
     Route::get('/waitlist', [WaitlistAdminController::class, 'index'])->name('admin.waitlist');
 

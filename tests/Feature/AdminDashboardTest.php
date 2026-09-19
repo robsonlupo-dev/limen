@@ -127,7 +127,7 @@ it('monta a série diária de vendidos × gastos por dia (SP), com dias vazios e
     admLedger($wallet, 'purchase', 300, now()->subDay());
     admLedger($wallet, 'spend_live', -70, now()->subDay());
 
-    $series = admMetrics()->dailySalesVsSpend(12);
+    $series = admMetrics()->salesVsSpendSeries(12);
 
     // 12 dias contíguos, ordem cronológica (o último é hoje).
     expect($series)->toHaveCount(12);
@@ -142,6 +142,43 @@ it('monta a série diária de vendidos × gastos por dia (SP), com dias vazios e
         ->and($yesterday['spent'])->toBe(70)
         ->and($emptyDay['sold'])->toBe(0)
         ->and($emptyDay['spent'])->toBe(0);
+});
+
+it('agrupa a série em blocos quando a janela é maior que o nº de blocos', function () {
+    $this->travelTo(Carbon::parse('2026-08-15 15:00:00', 'America/Sao_Paulo'));
+
+    $wallet = admWallet(User::factory()->create(['role' => 'consumer']));
+    admLedger($wallet, 'purchase', 500); // hoje
+    admLedger($wallet, 'purchase', 300, now()->subDay()); // ontem
+
+    // 4 dias em 2 blocos → 2 dias por bloco; hoje+ontem caem no ÚLTIMO bloco.
+    $series = admMetrics()->salesVsSpendSeries(4, 2);
+
+    expect($series)->toHaveCount(2)
+        ->and($series[1]['sold'])->toBe(800)  // 500 + 300
+        ->and($series[0]['sold'])->toBe(0)     // bloco mais antigo, sem lançamento
+        ->and($series[1]['date'])->toContain('–'); // rótulo de intervalo
+});
+
+it('periodRevenue usa a janela pedida (30/90/365)', function () {
+    $this->travelTo(Carbon::parse('2026-08-15 15:00:00', 'America/Sao_Paulo'));
+
+    $wallet = admWallet(User::factory()->create(['role' => 'consumer']));
+    admLedger($wallet, 'purchase', 100);                        // hoje
+    admLedger($wallet, 'purchase', 100, now()->subDays(60));    // dentro de 90/365, fora de 30
+    admLedger($wallet, 'purchase', 100, now()->subDays(200));   // dentro de 365, fora de 90
+
+    expect(admMetrics()->periodRevenue(30)['tokens_sold'])->toBe(100)
+        ->and(admMetrics()->periodRevenue(90)['tokens_sold'])->toBe(200)
+        ->and(admMetrics()->periodRevenue(365)['tokens_sold'])->toBe(300);
+});
+
+it('periodDays normaliza a chave do toggle', function () {
+    expect(AdminMetricsService::periodDays('30'))->toBe(30)
+        ->and(AdminMetricsService::periodDays('90'))->toBe(90)
+        ->and(AdminMetricsService::periodDays('ano'))->toBe(365)
+        ->and(AdminMetricsService::periodDays('lixo'))->toBe(30)
+        ->and(AdminMetricsService::periodDays(null))->toBe(30);
 });
 
 // ─── Receita REAL vs. estimativa (Sprint 16, item 5) ─────────────────────────
@@ -294,4 +331,66 @@ it('não expõe PII de membro no painel (só agregados)', function () {
         ->and($html)->not->toContain('zz-member-secret@example.test')
         // O agregado aparece (500 vendidos), provando que os dados estão lá em SOMA.
         ->and($html)->toContain('500');
+});
+
+// ─── Toggle de período, header e Exportar CSV ────────────────────────────────
+
+it('mostra a janela selecionada pelo toggle', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
+
+    $this->actingAs($admin)->get('/admin/dashboard?period=90')
+        ->assertOk()
+        ->assertSee('Últimos 90 dias');
+
+    $this->actingAs($admin)->get('/admin/dashboard?period=ano')
+        ->assertOk()
+        ->assertSee('Último ano');
+});
+
+it('cai em 30 dias quando o período é inválido', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
+
+    $this->actingAs($admin)->get('/admin/dashboard?period=lixo')
+        ->assertOk()
+        ->assertSee('Últimos 30 dias');
+});
+
+it('mostra o e-mail do admin logado e o botão de sair no header', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'status' => 'active', 'email' => 'chefe@limen.test']);
+
+    $html = $this->actingAs($admin)->get('/admin/dashboard')->assertOk()->getContent();
+
+    expect($html)->toContain('chefe@limen.test')
+        ->and($html)->toContain(route('logout'))
+        ->and($html)->toContain('Sair');
+});
+
+it('exporta o CSV da janela para o admin, sem PII de membro', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
+
+    $member = User::factory()->create([
+        'role' => 'consumer',
+        'name' => 'ZzMemberSecretName',
+        'email' => 'zz-member-secret@example.test',
+    ]);
+    admLedger(admWallet($member), 'purchase', 500);
+
+    $res = $this->actingAs($admin)->get('/admin/dashboard/export?period=30')->assertOk();
+
+    expect($res->headers->get('content-type'))->toContain('text/csv');
+    expect($res->headers->get('content-disposition'))->toContain('attachment');
+
+    $csv = $res->streamedContent();
+    expect($csv)->toContain('Painel de Receita')
+        ->and($csv)->toContain('Tokens vendidos')
+        ->and($csv)->toContain('500')
+        ->and($csv)->not->toContain('ZzMemberSecretName')
+        ->and($csv)->not->toContain('zz-member-secret@example.test');
+});
+
+it('barra a exportação de CSV para não-admins', function () {
+    foreach (['consumer', 'performer', 'moderator'] as $role) {
+        $user = User::factory()->create(['role' => $role, 'status' => 'active']);
+        $this->actingAs($user)->get('/admin/dashboard/export')->assertForbidden();
+    }
 });

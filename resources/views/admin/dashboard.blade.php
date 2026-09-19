@@ -98,11 +98,65 @@
                                background: #33261A; border: 1px solid var(--gold-border);
                                color: var(--gold-light); font-size: 11px; font-weight: 700;
                                letter-spacing: 0.08em; text-transform: uppercase; }
-        .topbar .env-badge { padding: 3px 9px; border-radius: 6px;
+        .topbar .env-badge { padding: 4px 10px; border-radius: 6px;
                              background: var(--teal-bg); border: 1px solid var(--teal-border);
-                             color: var(--teal-light); font-size: 10px; font-weight: 700;
+                             color: var(--teal-light); font-size: 10.5px; font-weight: 700;
                              letter-spacing: 0.1em; }
+        .topbar .sample-badge { padding: 4px 10px; border-radius: 6px; background: #2B2419;
+                                border: 1px solid #4A3C22; color: #C9B58A; font-size: 10.5px;
+                                font-weight: 600; letter-spacing: 0.06em; white-space: nowrap; }
         .topbar .spacer { flex-grow: 1; }
+        /* Busca central */
+        .topbar .search { flex-grow: 1; display: flex; justify-content: center; }
+        .topbar .search form { position: relative; width: 380px; max-width: 100%; display: flex;
+                               align-items: center; gap: 9px; padding: 0 14px; height: 40px;
+                               background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+        .topbar .search input { flex-grow: 1; background: transparent; border: 0; outline: 0;
+                                color: var(--ink); font: inherit; font-size: 13px; min-width: 0; }
+        .topbar .search kbd { font-family: "JetBrains Mono", monospace; font-size: 10.5px;
+                              color: var(--ink-mute); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; }
+        /* Sino de notificações */
+        .topbar .bell { position: relative; width: 44px; height: 44px; display: flex; align-items: center;
+                        justify-content: center; background: transparent; border: 1px solid var(--line);
+                        border-radius: 10px; cursor: pointer; color: #BDB2A3; text-decoration: none; }
+        .topbar .bell:hover { border-color: var(--gold-border); color: var(--gold-light); }
+        .topbar .bell .count { position: absolute; top: 5px; right: 5px; min-width: 15px; height: 15px;
+                               padding: 0 3px; border-radius: 999px; background: var(--red-dot); color: #FFF6F4;
+                               font-family: "JetBrains Mono", monospace; font-size: 9px; font-weight: 600;
+                               display: flex; align-items: center; justify-content: center; }
+        /* Chip do usuário + menu */
+        .topbar .user { position: relative; }
+        .topbar .user > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .topbar .user > summary::-webkit-details-marker { display: none; }
+        .topbar .avatar { width: 34px; height: 34px; border-radius: 999px; background: #3A2C1B;
+                          border: 1px solid var(--gold-border); color: var(--gold-light);
+                          font-family: "Cormorant Garamond", serif; font-size: 16px; font-weight: 600;
+                          display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .topbar .user-meta { display: flex; flex-direction: column; gap: 1px; }
+        .topbar .user-meta .who { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+        .topbar .user-meta .sess { font-size: 10.5px; color: var(--ink-mute); }
+        .topbar .user-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
+                             min-width: 180px; padding: 8px; background: var(--surface);
+                             border: 1px solid var(--line); border-radius: 10px; display: flex;
+                             flex-direction: column; gap: 4px; box-shadow: 0 12px 30px rgba(0,0,0,0.4); }
+        .topbar .user-menu .item { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+                                   border-radius: 8px; font-size: 13px; color: var(--ink-soft);
+                                   background: transparent; border: 0; width: 100%; text-align: left;
+                                   cursor: pointer; font: inherit; }
+        .topbar .user-menu .item:hover { background: var(--surface-2); color: var(--ink); }
+        .topbar .user-menu .item.danger { color: var(--red); }
+        .topbar .user-menu .item.danger:hover { background: var(--red-bg); }
+        /* Toggle de período + Exportar */
+        .period-toggle { display: flex; gap: 6px; padding: 4px; background: var(--surface);
+                         border: 1px solid var(--line); border-radius: 10px; }
+        .period-toggle a { min-height: 34px; display: inline-flex; align-items: center; padding: 0 13px;
+                           border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-dim);
+                           text-decoration: none; }
+        .period-toggle a.on { background: #2F2418; color: var(--gold-light); font-weight: 700; }
+        .export-btn { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 17px;
+                      border-radius: 10px; border: 1px solid var(--gold-border); background: #33261A;
+                      color: var(--gold-light); font-size: 13px; font-weight: 700; text-decoration: none; }
+        .export-btn:hover { border-color: var(--gold); color: var(--gold-light); }
  
         .body-row { flex-grow: 1; display: flex; min-height: 0; }
  
@@ -305,11 +359,14 @@
             .kpis { grid-template-columns: repeat(2, 1fr); }
             .revenue-grid { grid-template-columns: 1fr; }
             .alerts { flex-direction: column; }
-            .topbar { padding: 0 16px; }
+            .topbar { padding: 0 16px; gap: 10px; }
+            .topbar .search, .topbar .sample-badge, .topbar .user-meta { display: none; }
+            .title-row { flex-wrap: wrap; }
             .main { padding: 20px 16px; }
         }
         @media (max-width: 500px) {
             .kpis { grid-template-columns: 1fr; }
+            .topbar .admin-badge { display: none; }
         }
     </style>
 </head>
@@ -320,8 +377,13 @@
     $pct = fn ($rate) => number_format($rate * 100, 0) . '%';
     $spendLabels = ['chat' => 'Chat', 'gorjeta' => 'Gorjeta', 'presente' => 'Presente',
                     'conteudo' => 'Conteúdo', 'live' => 'Live', 'chamada' => 'Chamada'];
-    $periods = ['today' => 'Hoje', 'last30' => 'Últimos 30 dias'];
-    $r30 = $revenue['last30'];
+    $periodNames = ['30' => 'Últimos 30 dias', '90' => 'Últimos 90 dias', 'ano' => 'Último ano'];
+    $periodName = $periodNames[$periodKey] ?? 'Últimos 30 dias';
+    // Cards de receita: "Hoje" sempre + a janela selecionada no toggle.
+    $revenueCards = ['today' => 'Hoje', 'period' => $periodName];
+    $revenueData = ['today' => $revenue['today'], 'period' => $period];
+    // $r30 passa a ser a janela SELECIONADA (KPIs, gráfico, "gasto por vertical").
+    $r30 = $period;
     $maxSpend = max(1, max($r30['spent_by_type'] ?? [1]));
 @endphp
  
@@ -332,17 +394,62 @@
          ═══════════════════════════════════════════════════════════════════════════ --}}
     <header class="topbar">
         <div class="logo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{ '#D9B872' }}" stroke-width="1.6" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D9B872" stroke-width="1.6" aria-hidden="true">
                 <path d="M4 21V11a8 8 0 0 1 16 0v10"></path>
             </svg>
             <span class="logo-text">LIMEN</span>
         </div>
         <div class="divider"></div>
-        <span class="admin-badge">Painel Admin</span>
-        @if (app()->environment('staging', 'local'))
+        <span class="admin-badge">Admin · controle total</span>
+
+        {{-- Busca — hoje resolve por performer (única busca real); os demais tipos
+             entram quando existirem as buscas correspondentes. --}}
+        <div class="search">
+            <form method="GET" action="{{ route('admin.performers') }}" role="search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8C8073" stroke-width="2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4.3-4.3"></path>
+                </svg>
+                <label for="busca" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);">Buscar performer</label>
+                <input id="busca" name="q" type="search" placeholder="Buscar performer por nome…">
+                <kbd>/</kbd>
+            </form>
+        </div>
+
+        @if (! app()->environment('production'))
             <span class="env-badge">{{ strtoupper(app()->environment()) }}</span>
+            <span class="sample-badge">dados de exemplo</span>
         @endif
-        <div class="spacer"></div>
+
+        {{-- Sino: total real de pendências (payouts + KYC + denúncias) → vai pros alertas. --}}
+        <a href="#alertas" class="bell" aria-label="Notificações: {{ $pendingTotal }} {{ $pendingTotal === 1 ? 'pendência' : 'pendências' }}">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"></path><path d="M10.5 19a1.8 1.8 0 0 0 3 0"></path>
+            </svg>
+            @if ($pendingTotal > 0)<span class="count">{{ $pendingTotal > 99 ? '99+' : $pendingTotal }}</span>@endif
+        </a>
+
+        {{-- Chip do admin logado + menu de logout. --}}
+        @php $adminUser = auth()->user(); @endphp
+        <details class="user">
+            <summary>
+                <span class="avatar">{{ strtoupper(mb_substr($adminUser->email ?? 'A', 0, 1)) }}</span>
+                <span class="user-meta">
+                    <span class="who">{{ $adminUser->email }}</span>
+                    <span class="sess">{{ $adminUser->two_factor_confirmed_at ? 'sessão 2FA ativa' : 'sessão sem 2FA' }}</span>
+                </span>
+            </summary>
+            <div class="user-menu">
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="item danger">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path>
+                        </svg>
+                        Sair
+                    </button>
+                </form>
+            </div>
+        </details>
     </header>
  
     <div class="body-row">
@@ -416,17 +523,26 @@
              ═══════════════════════════════════════════════════════════════════════ --}}
         <main class="main">
  
-            {{-- Título --}}
+            {{-- Título + controles de período e exportação --}}
             <div class="title-row">
-                <div>
+                <div style="flex-grow: 1;">
                     <h1>Painel de Receita</h1>
                     <p class="sub">Agregados do ledger e contadores. Nenhum dado pessoal de membro — só números.</p>
                 </div>
+                <div class="period-toggle" role="group" aria-label="Período">
+                    @foreach (['30' => '30 dias', '90' => '90 dias', 'ano' => 'Ano'] as $pk => $plabel)
+                        <a href="{{ route('admin.dashboard', ['period' => $pk]) }}" class="{{ $periodKey === $pk ? 'on' : '' }}">{{ $plabel }}</a>
+                    @endforeach
+                </div>
+                <a href="{{ route('admin.dashboard.export', ['period' => $periodKey]) }}" class="export-btn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"></path><path d="M7 11l5 5 5-5"></path><path d="M4 20h16"></path></svg>
+                    Exportar CSV
+                </a>
             </div>
- 
+
             {{-- ── Alertas ────────────────────────────────────────────────────── --}}
             @if ($pendingPayouts->isNotEmpty() || $platform['pending_kyc'] > 0 || $platform['open_reports'] > 0)
-                <div class="alerts">
+                <div class="alerts" id="alertas">
                     @if ($pendingPayouts->isNotEmpty())
                         <div class="alert alert-warn">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{ '#E0A85C' }}" stroke-width="1.9" aria-hidden="true"><path d="M12 4l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17.2v.1"></path></svg>
@@ -462,7 +578,7 @@
                 <div class="kpi">
                     <span class="label">Tokens vendidos</span>
                     <span class="value">{{ $tok($r30['tokens_sold']) }}</span>
-                    <span class="note">últimos 30 dias</span>
+                    <span class="note">{{ mb_strtolower($periodName) }}</span>
                 </div>
                 <div class="kpi">
                     <span class="label">Receita bruta</span>
@@ -492,7 +608,7 @@
                 <div class="card card-pad">
                     <div class="chart-header">
                         <h2>Vendidos × gastos</h2>
-                        <span class="card-sub">tokens/dia · últimos {{ count($dailySeries) }} dias</span>
+                        <span class="card-sub">tokens · {{ mb_strtolower($periodName) }}</span>
                         <div class="chart-legend">
                             <span><span class="swatch" style="background: var(--gold);"></span>vendidos</span>
                             <span><span class="swatch" style="background: var(--teal);"></span>gastos</span>
@@ -504,12 +620,12 @@
                         // ou gasto) de qualquer dia vira 100% da altura. Sem dado → 1
                         // (evita divisão por zero); barras de dia vazio ficam em 0.
                         $dayMax = 1;
-                        foreach ($dailySeries as $d) {
+                        foreach ($series as $d) {
                             $dayMax = max($dayMax, $d['sold'], $d['spent']);
                         }
                     @endphp
                     <div class="chart-bars">
-                        @foreach ($dailySeries as $d)
+                        @foreach ($series as $d)
                             @php
                                 $goldH = $d['sold'] > 0 ? max(2, ($d['sold'] / $dayMax) * 100) : 0;
                                 $tealH = $d['spent'] > 0 ? max(2, ($d['spent'] / $dayMax) * 100) : 0;
@@ -521,7 +637,7 @@
                         @endforeach
                     </div>
                     <div class="chart-xaxis">
-                        @foreach ($dailySeries as $d)
+                        @foreach ($series as $d)
                             <span>{{ $d['date'] }}</span>
                         @endforeach
                     </div>
@@ -572,10 +688,10 @@
                 </div>
             </div>
  
-            {{-- ── Receita Hoje / 30d ─────────────────────────────────────────── --}}
+            {{-- ── Receita Hoje / janela selecionada ──────────────────────────── --}}
             <div class="revenue-grid">
-                @foreach ($periods as $key => $label)
-                    @php $r = $revenue[$key]; @endphp
+                @foreach ($revenueCards as $key => $label)
+                    @php $r = $revenueData[$key]; @endphp
                     <div class="rev-card">
                         <h3>
                             {{ $label }}
