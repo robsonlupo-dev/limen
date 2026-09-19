@@ -297,6 +297,7 @@ return [
         // Moderação (Sprint 13): fila de denúncias em Inertia/Vue. Área separada
         // de /admin/* — moderator OU admin. As telas usam route() para navegar e
         // dar PATCH no status, então os nomes precisam do allowlist.
+        'moderacao.overview',
         'moderacao.reports.index',
         'moderacao.nickname.remove',
         'moderacao.reports.show',
