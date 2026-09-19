@@ -13,6 +13,7 @@ use App\Models\Report;
 use App\Models\User;
 use App\Services\MemberNicknameService;
 use App\Services\MemberPhotoStore;
+use App\Services\ModeratorActionService;
 use App\Services\PerformerStoryStore;
 use App\Support\Audit;
 use App\Support\ReporterAlias;
@@ -179,6 +180,51 @@ class ModerationController extends Controller
         return redirect()
             ->route('moderacao.reports.show', $report)
             ->with('success', "Denúncia #{$report->id} marcada como {$validated['status']}.");
+    }
+
+    /**
+     * Advertir o alvo da denúncia (feat/moderator-actions). Ação leve do
+     * moderador — registra advertência (append-only) + trilha. Motivo obrigatório.
+     */
+    public function warn(Request $request, Report $report, ModeratorActionService $actions): RedirectResponse
+    {
+        $validated = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        $actions->warn($report, $request->user(), $validated['reason']);
+
+        return back()->with('success', "Advertência registrada na denúncia #{$report->id}.");
+    }
+
+    /**
+     * Suspender temporariamente o alvo (feat/moderator-actions). Poder novo do
+     * moderador (decisão do PO, 19/09): suspensão com prazo, reversível, que
+     * expira sozinha. Ban permanente NÃO — isso é escalar ao admin. Motivo e
+     * dias obrigatórios.
+     */
+    public function suspend(Request $request, Report $report, ModeratorActionService $actions): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+            'days' => ['required', 'integer', 'min:'.ModeratorActionService::SUSPEND_MIN_DAYS, 'max:'.ModeratorActionService::SUSPEND_MAX_DAYS],
+        ]);
+
+        $actions->suspend($report, $request->user(), $validated['reason'], (int) $validated['days']);
+
+        return back()->with('success', "Alvo da denúncia #{$report->id} suspenso por {$validated['days']} dia(s).");
+    }
+
+    /**
+     * Escalar a denúncia ao admin (feat/moderator-actions). O caminho do ban: o
+     * moderador não bane; escala com a recomendação e o admin executa. Motivo
+     * obrigatório.
+     */
+    public function escalate(Request $request, Report $report, ModeratorActionService $actions): RedirectResponse
+    {
+        $validated = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        $actions->escalate($report, $request->user(), $validated['reason']);
+
+        return back()->with('success', "Denúncia #{$report->id} escalada ao admin.");
     }
 
     /**

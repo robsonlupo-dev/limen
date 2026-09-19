@@ -18,10 +18,11 @@ use Symfony\Component\HttpFoundation\Response;
  * conversando no chat — não é aceitável. O UserBanController já revoga os tokens
  * Sanctum (porta API); isto fecha a porta web.
  *
- * **Só `banned`, deliberadamente.** `suspended` é temporário e tem tratamento
- * próprio (gates 403 por área, cobertos por teste): força-lo a logout mudaria um
- * 403 estabelecido para um 302 e reescreveria contrato existente. Banido é
- * permanente — some do site inteiro.
+ * **Só `banned` aqui.** A sessão viva de conta `suspended` é derrubada pelo
+ * BlockSuspendedUsers, que roda logo depois (a precedência ban > suspensão vale
+ * em toda porta, então o banido cai primeiro, aqui). Banido é permanente — some
+ * do site inteiro; suspenso é temporário e a conta reativa sozinha quando o
+ * prazo passa.
  */
 class BlockBannedUsers
 {

@@ -333,6 +333,21 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
         ->whereNumber('report')
         ->name('moderacao.reports.update');
 
+    // Ações do moderador sobre o alvo da denúncia (feat/moderator-actions):
+    // advertir + suspender temporário (poderes novos) e escalar ao admin (o
+    // caminho do ban, que segue exclusivo do admin). Autoridade server-side.
+    // `throttle:30,1` como os demais endpoints privilegiados da área — conter o
+    // raio de uma sessão de moderador comprometida ou automatizada.
+    Route::post('/denuncias/{report}/advertir', [ModerationController::class, 'warn'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('report')->name('moderacao.reports.warn');
+    Route::post('/denuncias/{report}/suspender', [ModerationController::class, 'suspend'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('report')->name('moderacao.reports.suspend');
+    Route::post('/denuncias/{report}/escalar', [ModerationController::class, 'escalate'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('report')->name('moderacao.reports.escalate');
+
     // Remoção forçada de apelido de membro (feat/member-nickname). Por STRING do
     // apelido (pública e única) — não expõe user_id. A denúncia pública do apelido
     // fica para um PR dedicado (atrito com o pipeline de handle numérico).

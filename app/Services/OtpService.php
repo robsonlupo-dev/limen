@@ -193,9 +193,18 @@ class OtpService
      * Suspensa/banida não loga por OTP — mesmo corte de AuthService. `pending` e
      * `pending_kyc` NÃO são bloqueio: são contas legítimas em onboarding, e o
      * login por senha as deixa entrar (o gate de KYC/onboarding é depois).
+     *
+     * Suspensão TEMPORIZADA (feat/moderator-actions): se o prazo já passou, a
+     * conta reativa aqui também — mesma fonte única de AuthService/BlockSuspended
+     * (User::liftSuspensionIfExpired) — para o OTP não trancar quem já cumpriu o
+     * prazo. `suspended_until` NULL ou no futuro segue barrando.
      */
     private function isBlocked(User $user): bool
     {
+        if ($user->liftSuspensionIfExpired()) {
+            return false;
+        }
+
         return $user->status === 'suspended' || $user->status === 'banned';
     }
 }

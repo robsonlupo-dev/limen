@@ -114,6 +114,10 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            // Suspensão temporizada (feat/moderator-actions): quando passa, o
+            // login reativa a conta. NULL = suspensão indefinida (barra até
+            // reativação manual).
+            'suspended_until' => 'datetime',
             'birthdate' => 'date',
             'age_verified_at' => 'datetime',
             // Carta dos fundadores. Fora do $fillable de propósito — é trava de
@@ -221,6 +225,12 @@ class User extends Authenticatable implements MustVerifyEmail
     public function identityVerifications(): HasMany
     {
         return $this->hasMany(IdentityVerification::class);
+    }
+
+    /** Advertências de moderação recebidas (feat/moderator-actions). */
+    public function warnings(): HasMany
+    {
+        return $this->hasMany(Warning::class);
     }
 
     /**
@@ -509,6 +519,30 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isBanned(): bool
     {
         return $this->status === 'banned';
+    }
+
+    /**
+     * Suspensão TEMPORIZADA expirada → reativa a conta e devolve true; caso
+     * contrário não mexe e devolve false (feat/moderator-actions).
+     *
+     * Fonte ÚNICA do "o prazo já passou?" para todas as portas de acesso: login
+     * por senha (AuthService), login por OTP (OtpService) e a sessão web viva
+     * (BlockSuspendedUsers). Só age em `suspended` com `suspended_until` no
+     * passado — suspensão indefinida (`suspended_until` NULL, tipicamente do
+     * admin) e prazo no futuro seguem barrando; `banned` nunca é tocado aqui.
+     * `isPast()` compara instantes absolutos (Carbon), então é correto por fuso.
+     */
+    public function liftSuspensionIfExpired(): bool
+    {
+        if ($this->status === 'suspended'
+            && $this->suspended_until !== null
+            && $this->suspended_until->isPast()) {
+            $this->forceFill(['status' => 'active', 'suspended_until' => null])->save();
+
+            return true;
+        }
+
+        return false;
     }
 
     // ─── Papéis (RBAC) ───────────────────────────────────────────────────────
