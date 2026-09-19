@@ -313,6 +313,31 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   push direto na `main`, apagar branch remota, alterar proteção de branch, nem fechar PR.
   Se um merge parecer necessário, **PARE e peça.**
 
+## Nota operacional — 19/09/2026 (seed/CLI que grava conteúdo + env cacheado)
+
+- **Seed/CLI que grava CONTEÚDO roda como `www-data`, nunca como `deploy`.** As pastas
+  `storage/app/private` e `storage/app/private/performer-content` são `750`, dono
+  `www-data` (o php-fpm). O `deploy` (usuário do CLI) é "outros" ali → **sem escrita**.
+  Rodar o `UatSeeder` (ou qualquer comando que use `ContentStore`) como `deploy` aborta
+  com `ContentStore: Falha ao gravar o conteúdo no disco`. **Solução:**
+  ```bash
+  sudo -u www-data env SEED_ADMIN_PASSWORD='<ver .env>' php artisan db:seed --class=UatSeeder --force
+  ```
+  Manter as pastas `750`/`www-data` é decisão de segurança (não afrouxar para o `deploy`).
+- **Config cacheado → `env()` volta `null`.** Com `config:cache` ativo (staging/prod),
+  `env('SEED_ADMIN_PASSWORD')` no seeder retorna null e ele se recusa a rodar. Por isso a
+  variável vai **inline** no comando (`env VAR=... php artisan ...`), que popula o env do
+  processo. Mesma pegadinha vale para qualquer `env()` fora de `config/`.
+- **Depois de mudar `config/ziggy.php` (ou qualquer config) em prod/staging:**
+  `php artisan config:cache` + reload do php-fpm — senão a mudança não é lida (foi o caso
+  do `moderacao.overview` no allowlist do Ziggy).
+- **Debug de "bug" de economia em UAT: cheque o DADO antes do código.** O chat por tier
+  (Black/FC deviam cobrar 1 token, cobravam 2) NÃO era bug de código — `chatCost` +
+  `config/monetization.php` + `docs/ECONOMIA.md` estavam corretos. Os membros de teste é
+  que estavam **sem Círculo** (`activeCircle()` = null → cai no preço `none` = 2), porque o
+  seed havia abortado no passo de conteúdo antes de assinar os Círculos. Verificação rápida:
+  `User::where('email',...)->first()->activeCircle()?->slug`.
+
 ## Ponteiros — onde está cada coisa
 
 - **Economia (preços, pacotes, splits, tiers, descontos, franquias, teto, payout,
