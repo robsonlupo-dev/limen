@@ -175,11 +175,14 @@ class MemberCatalogService
             // performers (mesma natureza da Foto Efêmera) — exposição consentida
             // pela visibilidade do catálogo (só entra quem optou), não anonimato.
             //
-            // Galeria de perfil (Opção B): se o membro ligou o perfil visível E tem
-            // foto principal aprovada, o card usa a foto DA GALERIA; senão cai no
-            // avatar (comportamento de antes) e, sem avatar, na silhueta. O gate de
-            // profile_visible é aplicado ao MONTAR a URL em primaryPhotoUrls().
-            'avatar_url' => $primaryPhotoUrl ?? $member->avatarUrl(),
+            // Capa do card = AVATAR do membro (a mesma foto que a performer vê no
+            // perfil e no chat). Consistência de "rosto" em todas as superfícies
+            // (decisão do PO, 19/09/2026 — supera a antiga "Opção B" que liderava
+            // pela foto da galeria). Sem avatar → cai na foto principal aprovada da
+            // galeria; sem nenhuma → null → o MemberCard mostra a silhueta. O gate
+            // de profile_visible é aplicado ao MONTAR a URL da galeria em
+            // primaryPhotoUrls().
+            'avatar_url' => $member->avatarUrl() ?? $primaryPhotoUrl,
             // Perfil clicável (Opção B): só quando o membro ligou o perfil visível.
             // Null → o card não navega para uma página (cai no modal, como hoje). A
             // rota é chaveada no handle OPACO, nunca no member_id.

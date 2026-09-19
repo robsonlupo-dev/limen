@@ -203,16 +203,33 @@ it('o card só ganha profile_url quando o membro ligou o perfil visível', funct
         ->and($byHandle[$hh]['profile_url'])->toBeNull();
 });
 
-it('o card usa a foto principal aprovada da galeria quando o perfil é visível', function () {
+it('o card cai na foto principal da galeria quando o membro NÃO tem avatar', function () {
     $performer = mppPerformer();
-    $member = mppMember(['profile_visible' => true]);
+    $member = mppMember(['profile_visible' => true]); // sem avatar
     $primary = mppPhoto($member, 'approved', true);
 
     $rows = app(MemberCatalogService::class)->page($performer->performerProfile)->getCollection();
     $card = $rows->firstWhere('member_handle', mppHandle($performer, $member));
 
-    // A URL do card carrega o token da foto principal da galeria (não o avatar).
+    // Sem avatar, o card cai na foto principal aprovada da galeria.
     expect($card['avatar_url'])->toContain($primary->token);
+});
+
+it('o card usa o AVATAR do membro como capa, acima da galeria', function () {
+    $performer = mppPerformer();
+    $member = mppMember(['profile_visible' => true]);
+    $token = Str::random(48);
+    $member->forceFill([
+        'avatar_path' => 'member-avatar/'.$member->id.'.jpg',
+        'avatar_token' => $token,
+    ])->save();
+    $primary = mppPhoto($member, 'approved', true); // galeria existe, mas o avatar vence
+
+    $rows = app(MemberCatalogService::class)->page($performer->performerProfile)->getCollection();
+    $card = $rows->firstWhere('member_handle', mppHandle($performer, $member));
+
+    expect($card['avatar_url'])->toContain($token)
+        ->and($card['avatar_url'])->not->toContain($primary->token);
 });
 
 it('membro com perfil visível mas SEM fotos aprovadas cai no avatar/silhueta no card', function () {
