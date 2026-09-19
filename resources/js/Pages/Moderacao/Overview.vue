@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
+import ModeratorLayout from '@/Layouts/ModeratorLayout.vue'
 
 /**
  * Página inicial da moderação (feat/moderator-overview). Resumo das três filas
@@ -40,7 +40,7 @@ const total = computed(() => cards.value.reduce((sum, c) => sum + c.count, 0))
 </script>
 
 <template>
-    <AppLayout title="Moderação">
+    <ModeratorLayout title="Moderação">
         <div class="max-w-5xl mx-auto px-6 py-10 space-y-6">
             <div class="space-y-1">
                 <h1 class="font-serif text-3xl text-cream">Moderação</h1>
@@ -73,5 +73,5 @@ const total = computed(() => cards.value.reduce((sum, c) => sum + c.count, 0))
                 </Link>
             </div>
         </div>
-    </AppLayout>
+    </ModeratorLayout>
 </template>

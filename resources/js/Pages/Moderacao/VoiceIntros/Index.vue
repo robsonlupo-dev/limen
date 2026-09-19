@@ -1,7 +1,7 @@
 <script setup>
 import { reactive } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
+import ModeratorLayout from '@/Layouts/ModeratorLayout.vue'
 import Button from '@/Components/Button.vue'
 import VoiceIntroPlayer from '@/Components/VoiceIntroPlayer.vue'
 
@@ -43,7 +43,7 @@ function reject(intro) {
 </script>
 
 <template>
-    <AppLayout title="Moderação de áudios">
+    <ModeratorLayout title="Moderação de áudios">
         <div class="mx-auto max-w-3xl space-y-6 px-6 py-10">
             <div class="flex items-center justify-between">
                 <div>
@@ -94,5 +94,5 @@ function reject(intro) {
                 </li>
             </ul>
         </div>
-    </AppLayout>
+    </ModeratorLayout>
 </template>

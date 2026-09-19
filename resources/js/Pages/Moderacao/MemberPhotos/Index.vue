@@ -1,7 +1,7 @@
 <script setup>
 import { reactive } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
+import ModeratorLayout from '@/Layouts/ModeratorLayout.vue'
 import Button from '@/Components/Button.vue'
 
 /**
@@ -43,7 +43,7 @@ function reject(photo) {
 </script>
 
 <template>
-    <AppLayout title="Moderação de fotos de membro">
+    <ModeratorLayout title="Moderação de fotos de membro">
         <div class="mx-auto max-w-4xl space-y-6 px-6 py-10">
             <div class="flex items-center justify-between">
                 <div>
@@ -91,5 +91,5 @@ function reject(photo) {
                 </li>
             </ul>
         </div>
-    </AppLayout>
+    </ModeratorLayout>
 </template>

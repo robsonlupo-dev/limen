@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
+import ModeratorLayout from '@/Layouts/ModeratorLayout.vue'
 
 /**
  * Fila de moderação de denúncias (Sprint 13).
@@ -84,7 +84,7 @@ function typeHref(type) {
 </script>
 
 <template>
-    <AppLayout title="Moderação · Denúncias">
+    <ModeratorLayout title="Moderação · Denúncias">
         <div class="max-w-5xl mx-auto px-6 py-10 space-y-6">
             <div class="space-y-1">
                 <h1 class="font-serif text-3xl text-cream">Denúncias</h1>
@@ -239,5 +239,5 @@ function typeHref(type) {
                 </template>
             </div>
         </div>
-    </AppLayout>
+    </ModeratorLayout>
 </template>

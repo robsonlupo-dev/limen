@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
+import ModeratorLayout from '@/Layouts/ModeratorLayout.vue'
 
 /**
  * Detalhe de uma denúncia + ações do moderador + VISUALIZADOR DA PROVA RETIDA.
@@ -86,7 +86,7 @@ async function revealMessage() {
 </script>
 
 <template>
-    <AppLayout title="Moderação · Denúncia">
+    <ModeratorLayout title="Moderação · Denúncia">
         <div class="max-w-2xl mx-auto px-6 py-10 space-y-8">
             <div>
                 <Link
@@ -247,5 +247,5 @@ async function revealMessage() {
                 </div>
             </form>
         </div>
-    </AppLayout>
+    </ModeratorLayout>
 </template>
