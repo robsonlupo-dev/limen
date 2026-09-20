@@ -77,6 +77,34 @@ class Report extends Model
     public const DEDUP_WINDOW_HOURS = 24;
 
     /**
+     * Prioridade da fila (feat/moderation-sla-priority). Ordem de severidade —
+     * o índice na lista É a ordem de atendimento (urgente primeiro). Derivada do
+     * motivo na abertura; gravada em coluna indexada.
+     */
+    public const PRIORITIES = ['urgent', 'high', 'normal'];
+
+    /** Motivo → prioridade. Motivo fora do mapa cai em `normal`. */
+    public const PRIORITY_BY_REASON = [
+        'underage_content' => 'urgent',
+        'non_consensual' => 'urgent',
+        'coercion' => 'high',
+        'impersonation' => 'high',
+        'spam' => 'normal',
+        'other' => 'normal',
+    ];
+
+    /**
+     * SLA: janela-alvo de atendimento por prioridade, em HORAS a partir da
+     * abertura. Passou disso e a denúncia ainda aberta → atrasada. Números de
+     * produto (ajustáveis aqui, sem migration — o alvo é derivado, não gravado).
+     */
+    public const SLA_HOURS = [
+        'urgent' => 4,
+        'high' => 24,
+        'normal' => 72,
+    ];
+
+    /**
      * Só o que de fato vem do formulário. Denunciante, alvo e status são
      * autoridade do servidor — entram por forceFill em Report::open(). Um
      * `Report::create($request->validated())` futuro forjaria os três.
@@ -105,6 +133,9 @@ class Report extends Model
             'reportable_type' => $reportable->getMorphClass(),
             'reportable_id' => $reportable->getKey(),
             'status' => 'pending',
+            // Prioridade derivada do motivo — autoridade do servidor, fora do
+            // $fillable (o denunciante não escolhe a prioridade da própria denúncia).
+            'priority' => self::priorityForReason($reason),
         ])->save();
 
         return $report;
@@ -314,5 +345,64 @@ class Report extends Model
     public function scopeReviewed(Builder $query): Builder
     {
         return $query->where('status', 'reviewed');
+    }
+
+    // ─── Prioridade + SLA (feat/moderation-sla-priority) ─────────────────────
+
+    /** Motivo → prioridade, com fallback seguro para `normal`. */
+    public static function priorityForReason(string $reason): string
+    {
+        return self::PRIORITY_BY_REASON[$reason] ?? 'normal';
+    }
+
+    /** Alvo de atendimento: abertura + a janela da prioridade. Null sem created_at. */
+    public function slaDueAt(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->created_at === null) {
+            return null;
+        }
+
+        $hours = self::SLA_HOURS[$this->priority] ?? self::SLA_HOURS['normal'];
+
+        return $this->created_at->copy()->addHours($hours);
+    }
+
+    /** Atrasada: ainda ABERTA e passou do alvo de SLA. */
+    public function isOverdue(): bool
+    {
+        if (! in_array($this->status, self::OPEN_STATUSES, true)) {
+            return false;
+        }
+
+        $due = $this->slaDueAt();
+
+        return $due !== null && $due->isPast();
+    }
+
+    /**
+     * Ordena a fila de trabalho: prioridade (urgente primeiro) e, dentro dela,
+     * a mais antiga primeiro (FIFO). FIELD() fixa a ordem de severidade
+     * independentemente da representação do enum.
+     */
+    public function scopeOrderByPriority(Builder $query): Builder
+    {
+        return $query
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal')")
+            ->orderBy('created_at')
+            ->orderBy('id');
+    }
+
+    /** Denúncias ABERTAS já fora do SLA (atrasadas), por prioridade. */
+    public function scopeOverdue(Builder $query): Builder
+    {
+        return $query->whereIn('status', self::OPEN_STATUSES)
+            ->where(function (Builder $q) {
+                foreach (self::SLA_HOURS as $priority => $hours) {
+                    $q->orWhere(function (Builder $inner) use ($priority, $hours) {
+                        $inner->where('priority', $priority)
+                            ->where('created_at', '<', now()->subHours($hours));
+                    });
+                }
+            });
     }
 }

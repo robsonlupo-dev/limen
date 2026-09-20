@@ -93,8 +93,13 @@ class ModerationController extends Controller
         $reports = Report::query()
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($typeClass, fn ($q) => $q->where('reportable_type', $typeClass))
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
+            // A fila de trabalho (pendentes) sai na ordem de atendimento —
+            // prioridade + antiguidade; as demais visões seguem por data desc.
+            ->when(
+                $status === 'pending',
+                fn ($q) => $q->orderByPriority(),
+                fn ($q) => $q->orderByDesc('created_at')->orderByDesc('id'),
+            )
             ->paginate(50)
             ->withQueryString()
             ->through(fn (Report $report) => $this->present($report));
@@ -157,22 +162,23 @@ class ModerationController extends Controller
     }
 
     /**
-     * "Próximos na fila": as denúncias PENDENTES mais antigas, exceto a atual.
-     * FIFO (mais antiga primeiro) — a ordem justa de atendimento. Compacto: só o
-     * que o cartão da lista precisa, sem PII do denunciante.
+     * "Próximos na fila": as PENDENTES exceto a atual, na ORDEM DE ATENDIMENTO —
+     * prioridade (urgente primeiro) e, dentro dela, a mais antiga (feat/moderation-
+     * sla-priority). Compacto: só o que o cartão precisa, sem PII do denunciante.
      */
     private function queueAfter(Report $report): array
     {
         return Report::pending()
             ->whereKeyNot($report->id)
-            ->orderBy('created_at')
-            ->orderBy('id')
+            ->orderByPriority()
             ->limit(5)
             ->get()
             ->map(fn (Report $r) => [
                 'id' => $r->id,
                 'target_type' => Report::aliasForClass($r->reportable_type) ?? 'desconhecido',
                 'reason' => $r->reason,
+                'priority' => $r->priority,
+                'overdue' => $r->isOverdue(),
                 'created_at' => $r->created_at,
             ])
             ->all();
@@ -193,6 +199,8 @@ class ModerationController extends Controller
                 ->whereDate('reviewed_at', $today)
                 ->count(),
             'escalated' => Report::escalated()->count(),
+            // Abertas já fora do SLA (feat/moderation-sla-priority).
+            'overdue' => Report::overdue()->count(),
             'oldest_pending_at' => Report::pending()->min('created_at'),
         ];
     }
@@ -388,6 +396,11 @@ class ModerationController extends Controller
             // Escalada ao admin (feat/moderator-actions): a tela mostra o selo e
             // desabilita o botão "Escalar" quando já foi.
             'escalated_at' => $report->escalated_at,
+            // Prioridade + SLA (feat/moderation-sla-priority): selo de severidade
+            // e "vence em / atrasada". `overdue` só é true enquanto aberta.
+            'priority' => $report->priority,
+            'sla_due_at' => $report->slaDueAt(),
+            'overdue' => $report->isOverdue(),
         ];
     }
 }
