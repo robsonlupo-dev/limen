@@ -4,24 +4,28 @@ import { Link, useForm } from '@inertiajs/vue3'
 import ModeratorLayout from '@/Layouts/ModeratorLayout.vue'
 
 /**
- * Detalhe de uma denúncia + ações do moderador + VISUALIZADOR DA PROVA RETIDA.
+ * Detalhe de uma denúncia — a TELA DE TRABALHO do moderador (Fase 2).
  *
- * O moderador fecha o caso (revisada / resolvida / descartada) com nota
- * opcional. NÃO há botão de banir/suspender aqui: isso é poder de admin, em
- * /admin/*.
+ * Reúne num só lugar: os dados da denúncia, o VISUALIZADOR DA PROVA RETIDA
+ * (inline, sem download, acesso auditado), as AÇÕES sobre o alvo
+ * (feat/moderator-actions: advertir / suspender temporário / escalar ao admin —
+ * o ban permanente segue exclusivo do admin), o encaminhamento da denúncia
+ * (revisada/resolvida/descartada + nota) e o contexto da fila (próximos +
+ * rodapé de stats).
  *
- * A seção "Evidência" renderiza o conteúdo denunciado inline, servido pelos
- * endpoints de `moderacao/evidencia/*`:
- *  - foto efêmera / story → <img> inline (com zoom em tela cheia), SEM download;
+ * A seção "Evidência":
+ *  - foto efêmera / story / conteúdo → <img> inline (zoom em tela cheia), SEM download;
  *  - mensagem → o corpo, revelado sob clique (o fetch dispara o audit de quem viu);
  *  - prova expirada (bytes recolhidos pelo GC) → hash + "expirado".
  *
- * ⚠️ A foto efêmera mostra o ROSTO do membro — é PII sensível. O acesso é
- * auditado no servidor; não há botão de baixar em lugar nenhum.
+ * ⚠️ A foto do membro mostra o ROSTO — é PII sensível. O acesso é auditado no
+ * servidor; não há botão de baixar em lugar nenhum.
  */
 const props = defineProps({
     report: { type: Object, required: true },
     evidence: { type: Object, required: true },
+    queue: { type: Array, default: () => [] },
+    stats: { type: Object, required: true },
 })
 
 const TYPE_LABELS = {
@@ -29,6 +33,7 @@ const TYPE_LABELS = {
     message: 'Mensagem',
     performer_story: 'Story',
     member_photo: 'Foto do membro',
+    performer_content: 'Conteúdo',
 }
 const REASON_LABELS = {
     underage_content: 'Conteúdo com menor',
@@ -45,24 +50,65 @@ const STATUS_LABELS = {
     dismissed: 'Descartada',
 }
 
+function fmtDateTime(iso) {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    })
+}
+function fmtDay(iso) {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleDateString('pt-BR', {
+        timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric',
+    })
+}
+
+// ── Encaminhamento (fecha a denúncia) ────────────────────────────────────────
 const form = useForm({
     status: props.report.status === 'pending' ? 'reviewed' : props.report.status,
     moderator_notes: props.report.moderator_notes ?? '',
 })
-
 function submit() {
-    form.patch(route('moderacao.reports.update', props.report.id), {
+    form.patch(route('moderacao.reports.update', props.report.id), { preserveScroll: true })
+}
+
+// ── Ações sobre o alvo (feat/moderator-actions) ──────────────────────────────
+// Um painel aberto por vez (acordeão). O alvo é resolvido no servidor a partir
+// do conteúdo denunciado — a tela nunca manda id de usuário. O flash de sucesso
+// aparece na faixa do ModeratorLayout.
+const openAction = ref(null)
+function toggle(name) {
+    openAction.value = openAction.value === name ? null : name
+}
+
+const warnForm = useForm({ reason: '' })
+function submitWarn() {
+    warnForm.post(route('moderacao.reports.warn', props.report.id), {
         preserveScroll: true,
+        onSuccess: () => { warnForm.reset(); openAction.value = null },
+    })
+}
+
+const suspendForm = useForm({ reason: '', days: 7 })
+function submitSuspend() {
+    suspendForm.post(route('moderacao.reports.suspend', props.report.id), {
+        preserveScroll: true,
+        onSuccess: () => { suspendForm.reset(); openAction.value = null },
+    })
+}
+
+const escalateForm = useForm({ reason: '' })
+function submitEscalate() {
+    escalateForm.post(route('moderacao.reports.escalate', props.report.id), {
+        preserveScroll: true,
+        onSuccess: () => { escalateForm.reset(); openAction.value = null },
     })
 }
 
 // ── Prova retida ─────────────────────────────────────────────────────────────
-// Zoom em tela cheia para as imagens.
 const zoomed = ref(false)
-
-// Corpo da mensagem: revelado sob clique. Cada fetch dispara o
-// `moderation.evidence_viewed` no servidor — ver o corpo é uma ação deliberada,
-// não um efeito colateral de abrir a página.
 const messageBody = ref(null)
 const messageError = ref(false)
 const messageLoading = ref(false)
@@ -87,7 +133,8 @@ async function revealMessage() {
 
 <template>
     <ModeratorLayout title="Moderação · Denúncia">
-        <div class="max-w-2xl mx-auto px-6 py-10 space-y-8">
+        <div class="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+            <!-- Cabeçalho -->
             <div>
                 <Link
                     :href="route('moderacao.reports.index')"
@@ -95,11 +142,20 @@ async function revealMessage() {
                 >
                     ← Voltar para a fila
                 </Link>
-                <h1 class="mt-3 font-serif text-3xl text-cream">Denúncia #{{ report.id }}</h1>
+                <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <h1 class="font-serif text-2xl text-cream sm:text-3xl">Denúncia #{{ report.id }}</h1>
+                    <span class="rounded-full border border-frame/70 bg-background/50 px-2.5 py-0.5 text-xs text-cream/80">
+                        {{ STATUS_LABELS[report.status] ?? report.status }}
+                    </span>
+                    <span
+                        v-if="report.escalated_at"
+                        class="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-0.5 text-xs text-gold"
+                    >Escalada ao admin</span>
+                </div>
             </div>
 
             <!-- Dados da denúncia -->
-            <dl class="grid grid-cols-3 gap-y-4 rounded-xl border border-frame/60 bg-surface/30 p-6 text-sm">
+            <dl class="grid grid-cols-3 gap-y-4 rounded-xl border border-frame/60 bg-surface/30 p-5 text-sm sm:p-6">
                 <dt class="text-muted">Denunciante</dt>
                 <dd class="col-span-2 font-mono text-xs text-cream/90">{{ report.reporter }}</dd>
 
@@ -113,22 +169,19 @@ async function revealMessage() {
                 <dd class="col-span-2 text-cream/90">{{ REASON_LABELS[report.reason] ?? report.reason }}</dd>
 
                 <dt class="text-muted">Detalhes</dt>
-                <dd class="col-span-2 whitespace-pre-line text-cream/80">
-                    {{ report.details || '—' }}
-                </dd>
+                <dd class="col-span-2 whitespace-pre-line text-cream/80">{{ report.details || '—' }}</dd>
 
-                <dt class="text-muted">Status atual</dt>
-                <dd class="col-span-2 text-cream/90">{{ STATUS_LABELS[report.status] ?? report.status }}</dd>
+                <dt class="text-muted">Aberta em</dt>
+                <dd class="col-span-2 text-cream/80">{{ fmtDateTime(report.created_at) }}</dd>
             </dl>
 
             <!-- Prova retida -->
-            <section class="space-y-4 rounded-xl border border-frame/60 bg-surface/30 p-6">
+            <section class="space-y-4 rounded-xl border border-frame/60 bg-surface/30 p-5 sm:p-6">
                 <div class="flex items-baseline justify-between">
                     <h2 class="font-serif text-lg text-cream">Evidência</h2>
                     <span class="text-xs text-muted/60">sem download · acesso auditado</span>
                 </div>
 
-                <!-- Prova de imagem: foto efêmera ou story -->
                 <template v-if="evidence.kind === 'image'">
                     <template v-if="evidence.available">
                         <p v-if="report.target_type === 'member_photo'" class="text-xs text-danger/90">
@@ -155,7 +208,6 @@ async function revealMessage() {
                     </div>
                 </template>
 
-                <!-- Prova de texto: corpo da mensagem, revelado sob clique -->
                 <template v-else-if="evidence.kind === 'text'">
                     <template v-if="evidence.available">
                         <button
@@ -175,15 +227,10 @@ async function revealMessage() {
                             Não foi possível carregar a mensagem — pode ter expirado.
                         </p>
                     </template>
-                    <p v-else class="text-sm text-muted">
-                        Evidência não disponível — mensagem removida.
-                    </p>
+                    <p v-else class="text-sm text-muted">Evidência não disponível — mensagem removida.</p>
                 </template>
 
-                <!-- Sem prova retida a servir (ex.: perfil público) -->
-                <p v-else class="text-sm text-muted">
-                    Sem prova retida para este tipo de denúncia.
-                </p>
+                <p v-else class="text-sm text-muted">Sem prova retida para este tipo de denúncia.</p>
             </section>
 
             <!-- Zoom em tela cheia -->
@@ -202,8 +249,140 @@ async function revealMessage() {
                 </button>
             </div>
 
-            <!-- Ações do moderador -->
-            <form class="space-y-5 rounded-xl border border-frame/60 bg-surface/30 p-6" @submit.prevent="submit">
+            <!-- Ações sobre o alvo -->
+            <section class="space-y-3 rounded-xl border border-frame/60 bg-surface/30 p-5 sm:p-6">
+                <div>
+                    <h2 class="font-serif text-lg text-cream">Ações sobre o alvo</h2>
+                    <p class="mt-1 text-xs text-muted/70">
+                        O ban permanente é do admin — para isso, escale. O alvo é resolvido a partir do conteúdo denunciado.
+                    </p>
+                </div>
+
+                <!-- Advertir -->
+                <div class="rounded-lg border border-frame/60 bg-background/30">
+                    <button
+                        type="button"
+                        class="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-cream"
+                        @click="toggle('warn')"
+                    >
+                        <span class="flex items-center gap-2">
+                            <svg class="h-4 w-4 text-cream/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                                <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            Advertir
+                        </span>
+                        <span class="text-muted/60">{{ openAction === 'warn' ? '−' : '+' }}</span>
+                    </button>
+                    <form v-if="openAction === 'warn'" class="space-y-3 border-t border-frame/50 px-4 py-4" @submit.prevent="submitWarn">
+                        <label class="block text-xs text-muted">Motivo da advertência</label>
+                        <textarea
+                            v-model="warnForm.reason"
+                            rows="3"
+                            maxlength="500"
+                            placeholder="O que o alvo fez de errado?"
+                            class="w-full rounded-lg border border-frame bg-background px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                        />
+                        <p v-if="warnForm.errors.reason" class="text-xs text-danger">{{ warnForm.errors.reason }}</p>
+                        <div class="flex justify-end">
+                            <button
+                                type="submit"
+                                :disabled="warnForm.processing"
+                                class="rounded-lg border border-frame bg-background px-4 py-2 text-sm text-cream transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >Registrar advertência</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Suspender -->
+                <div class="rounded-lg border border-frame/60 bg-background/30">
+                    <button
+                        type="button"
+                        class="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-cream"
+                        @click="toggle('suspend')"
+                    >
+                        <span class="flex items-center gap-2">
+                            <svg class="h-4 w-4 text-danger/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" /><path d="M9 9v6m6-6v6" stroke-linecap="round" />
+                            </svg>
+                            Suspender temporário
+                        </span>
+                        <span class="text-muted/60">{{ openAction === 'suspend' ? '−' : '+' }}</span>
+                    </button>
+                    <form v-if="openAction === 'suspend'" class="space-y-3 border-t border-frame/50 px-4 py-4" @submit.prevent="submitSuspend">
+                        <div class="space-y-2">
+                            <label class="block text-xs text-muted">Dias de suspensão (1–90)</label>
+                            <input
+                                v-model.number="suspendForm.days"
+                                type="number"
+                                min="1"
+                                max="90"
+                                class="w-24 rounded-lg border border-frame bg-background px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                            />
+                            <p v-if="suspendForm.errors.days" class="text-xs text-danger">{{ suspendForm.errors.days }}</p>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-xs text-muted">Motivo da suspensão</label>
+                            <textarea
+                                v-model="suspendForm.reason"
+                                rows="3"
+                                maxlength="500"
+                                placeholder="Por que suspender, e por quanto tempo?"
+                                class="w-full rounded-lg border border-frame bg-background px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                            />
+                            <p v-if="suspendForm.errors.reason" class="text-xs text-danger">{{ suspendForm.errors.reason }}</p>
+                        </div>
+                        <p class="text-xs text-muted/70">
+                            A conta cai da sessão viva na hora e reativa sozinha quando o prazo passa.
+                        </p>
+                        <div class="flex justify-end">
+                            <button
+                                type="submit"
+                                :disabled="suspendForm.processing"
+                                class="rounded-lg bg-danger/90 px-4 py-2 text-sm text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >Suspender</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Escalar -->
+                <div class="rounded-lg border border-frame/60 bg-background/30">
+                    <button
+                        type="button"
+                        :disabled="!!report.escalated_at"
+                        class="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-cream disabled:opacity-60"
+                        @click="toggle('escalate')"
+                    >
+                        <span class="flex items-center gap-2">
+                            <svg class="h-4 w-4 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                                <path d="M12 19V5m0 0-6 6m6-6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            {{ report.escalated_at ? 'Escalada ao admin' : 'Escalar ao admin (ban)' }}
+                        </span>
+                        <span v-if="!report.escalated_at" class="text-muted/60">{{ openAction === 'escalate' ? '−' : '+' }}</span>
+                    </button>
+                    <form v-if="openAction === 'escalate' && !report.escalated_at" class="space-y-3 border-t border-frame/50 px-4 py-4" @submit.prevent="submitEscalate">
+                        <label class="block text-xs text-muted">Por que isto merece o admin?</label>
+                        <textarea
+                            v-model="escalateForm.reason"
+                            rows="3"
+                            maxlength="500"
+                            placeholder="Recomendação ao admin (ex.: ban permanente por conteúdo ilegal)."
+                            class="w-full rounded-lg border border-frame bg-background px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                        />
+                        <p v-if="escalateForm.errors.reason" class="text-xs text-danger">{{ escalateForm.errors.reason }}</p>
+                        <div class="flex justify-end">
+                            <button
+                                type="submit"
+                                :disabled="escalateForm.processing"
+                                class="rounded-lg bg-gold px-4 py-2 text-sm text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >Escalar ao admin</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Encaminhamento (fecha a denúncia) -->
+            <form class="space-y-5 rounded-xl border border-frame/60 bg-surface/30 p-5 sm:p-6" @submit.prevent="submit">
                 <h2 class="font-serif text-lg text-cream">Encaminhamento</h2>
 
                 <div class="space-y-2">
@@ -231,21 +410,55 @@ async function revealMessage() {
                     <p v-if="form.errors.moderator_notes" class="text-xs text-danger">{{ form.errors.moderator_notes }}</p>
                 </div>
 
-                <!-- Fronteira explícita: o moderador NÃO bane. -->
-                <p class="text-xs text-muted/70">
-                    Ban e suspensão de conta são ações de admin. Para escalar, encaminhe ao admin.
-                </p>
-
                 <div class="flex justify-end">
                     <button
                         type="submit"
                         :disabled="form.processing"
                         class="rounded-lg bg-gold px-4 py-2 text-sm text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-                    >
-                        Salvar
-                    </button>
+                    >Salvar</button>
                 </div>
             </form>
+
+            <!-- Próximos na fila -->
+            <section v-if="queue.length" class="space-y-3 rounded-xl border border-frame/60 bg-surface/30 p-5 sm:p-6">
+                <h2 class="font-serif text-lg text-cream">Próximos na fila</h2>
+                <ul class="divide-y divide-frame/40">
+                    <li v-for="item in queue" :key="item.id">
+                        <Link
+                            :href="route('moderacao.reports.show', item.id)"
+                            class="flex items-center justify-between gap-3 py-3 no-underline transition-opacity hover:opacity-80"
+                        >
+                            <span class="min-w-0">
+                                <span class="text-sm text-cream/90">#{{ item.id }}</span>
+                                <span class="text-muted/60"> · </span>
+                                <span class="text-sm text-cream/80">{{ TYPE_LABELS[item.target_type] ?? item.target_type }}</span>
+                                <span class="block truncate text-xs text-muted">{{ REASON_LABELS[item.reason] ?? item.reason }}</span>
+                            </span>
+                            <span class="shrink-0 text-xs text-muted/70">{{ fmtDay(item.created_at) }}</span>
+                        </Link>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Rodapé de stats -->
+            <section class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div class="rounded-xl border border-frame/60 bg-surface/30 p-4 text-center">
+                    <p class="font-serif text-2xl text-cream">{{ stats.pending }}</p>
+                    <p class="mt-1 text-xs text-muted">Pendentes</p>
+                </div>
+                <div class="rounded-xl border border-frame/60 bg-surface/30 p-4 text-center">
+                    <p class="font-serif text-2xl text-cream">{{ stats.resolved_today }}</p>
+                    <p class="mt-1 text-xs text-muted">Resolvidas hoje</p>
+                </div>
+                <div class="rounded-xl border border-frame/60 bg-surface/30 p-4 text-center">
+                    <p class="font-serif text-2xl text-cream">{{ stats.escalated }}</p>
+                    <p class="mt-1 text-xs text-muted">Escaladas</p>
+                </div>
+                <div class="rounded-xl border border-frame/60 bg-surface/30 p-4 text-center">
+                    <p class="font-serif text-sm text-cream">{{ fmtDay(stats.oldest_pending_at) }}</p>
+                    <p class="mt-1 text-xs text-muted">Mais antiga</p>
+                </div>
+            </section>
         </div>
     </ModeratorLayout>
 </template>
