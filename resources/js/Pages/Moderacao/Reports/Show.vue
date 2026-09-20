@@ -49,6 +49,29 @@ const STATUS_LABELS = {
     resolved: 'Resolvida',
     dismissed: 'Descartada',
 }
+const PRIORITY_LABELS = {
+    urgent: 'Urgente',
+    high: 'Alta',
+    normal: 'Normal',
+}
+function priorityBadge(p) {
+    return {
+        urgent: 'border-danger/50 bg-danger/10 text-danger',
+        high: 'border-gold/50 bg-gold/10 text-gold',
+        normal: 'border-frame/70 bg-background/50 text-cream/70',
+    }[p] ?? 'border-frame/70 bg-background/50 text-cream/70'
+}
+
+// Texto do SLA a partir do alvo (sla_due_at): "vence em Xh" ou "atrasada há Y".
+function slaText(r) {
+    if (!r.sla_due_at) return null
+    const diffMs = new Date(r.sla_due_at).getTime() - Date.now()
+    const abs = Math.abs(diffMs)
+    const h = Math.floor(abs / 3_600_000)
+    const m = Math.floor((abs % 3_600_000) / 60_000)
+    const label = h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : (h >= 1 ? `${h}h ${m}min` : `${m}min`)
+    return diffMs >= 0 ? `vence em ${label}` : `atrasada há ${label}`
+}
 
 function fmtDateTime(iso) {
     if (!iso) return '—'
@@ -147,6 +170,14 @@ async function revealMessage() {
                     <span class="rounded-full border border-frame/70 bg-background/50 px-2.5 py-0.5 text-xs text-cream/80">
                         {{ STATUS_LABELS[report.status] ?? report.status }}
                     </span>
+                    <span class="rounded-full border px-2.5 py-0.5 text-xs" :class="priorityBadge(report.priority)">
+                        {{ PRIORITY_LABELS[report.priority] ?? report.priority }}
+                    </span>
+                    <span
+                        v-if="slaText(report)"
+                        class="rounded-full border px-2.5 py-0.5 text-xs"
+                        :class="report.overdue ? 'border-danger/50 bg-danger/10 text-danger' : 'border-frame/70 bg-background/50 text-muted'"
+                    >{{ slaText(report) }}</span>
                     <span
                         v-if="report.escalated_at"
                         class="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-0.5 text-xs text-gold"
@@ -428,23 +459,39 @@ async function revealMessage() {
                             :href="route('moderacao.reports.show', item.id)"
                             class="flex items-center justify-between gap-3 py-3 no-underline transition-opacity hover:opacity-80"
                         >
-                            <span class="min-w-0">
-                                <span class="text-sm text-cream/90">#{{ item.id }}</span>
-                                <span class="text-muted/60"> · </span>
-                                <span class="text-sm text-cream/80">{{ TYPE_LABELS[item.target_type] ?? item.target_type }}</span>
-                                <span class="block truncate text-xs text-muted">{{ REASON_LABELS[item.reason] ?? item.reason }}</span>
+                            <span class="flex min-w-0 items-center gap-2">
+                                <span
+                                    class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                                    :class="priorityBadge(item.priority)"
+                                >{{ PRIORITY_LABELS[item.priority] ?? item.priority }}</span>
+                                <span class="min-w-0">
+                                    <span class="text-sm text-cream/90">#{{ item.id }}</span>
+                                    <span class="text-muted/60"> · </span>
+                                    <span class="text-sm text-cream/80">{{ TYPE_LABELS[item.target_type] ?? item.target_type }}</span>
+                                    <span class="block truncate text-xs text-muted">{{ REASON_LABELS[item.reason] ?? item.reason }}</span>
+                                </span>
                             </span>
-                            <span class="shrink-0 text-xs text-muted/70">{{ fmtDay(item.created_at) }}</span>
+                            <span class="shrink-0 text-right text-xs">
+                                <span v-if="item.overdue" class="block text-danger">atrasada</span>
+                                <span class="text-muted/70">{{ fmtDay(item.created_at) }}</span>
+                            </span>
                         </Link>
                     </li>
                 </ul>
             </section>
 
             <!-- Rodapé de stats -->
-            <section class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <section class="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <div class="rounded-xl border border-frame/60 bg-surface/30 p-4 text-center">
                     <p class="font-serif text-2xl text-cream">{{ stats.pending }}</p>
                     <p class="mt-1 text-xs text-muted">Pendentes</p>
+                </div>
+                <div
+                    class="rounded-xl border bg-surface/30 p-4 text-center"
+                    :class="stats.overdue > 0 ? 'border-danger/50' : 'border-frame/60'"
+                >
+                    <p class="font-serif text-2xl" :class="stats.overdue > 0 ? 'text-danger' : 'text-cream'">{{ stats.overdue }}</p>
+                    <p class="mt-1 text-xs text-muted">Atrasadas</p>
                 </div>
                 <div class="rounded-xl border border-frame/60 bg-surface/30 p-4 text-center">
                     <p class="font-serif text-2xl text-cream">{{ stats.resolved_today }}</p>

@@ -59,6 +59,19 @@ const STATUS_BADGE = {
     dismissed: 'border-frame text-muted',
 }
 
+const PRIORITY_LABELS = {
+    urgent: 'Urgente',
+    high: 'Alta',
+    normal: 'Normal',
+}
+function priorityBadge(p) {
+    return {
+        urgent: 'border-danger/50 bg-danger/10 text-danger',
+        high: 'border-gold/50 bg-gold/10 text-gold',
+        normal: 'border-frame/70 text-cream/70',
+    }[p] ?? 'border-frame/70 text-cream/70'
+}
+
 function reasonLabel(reason) {
     return REASON_LABELS[reason] ?? reason
 }
@@ -178,6 +191,7 @@ function typeHref(type) {
                             <th class="px-4 py-3 font-medium">Denunciante</th>
                             <th class="px-4 py-3 font-medium">Alvo</th>
                             <th class="px-4 py-3 font-medium">Motivo</th>
+                            <th class="px-4 py-3 font-medium">Prioridade</th>
                             <th class="px-4 py-3 font-medium">Status</th>
                             <th class="px-4 py-3 font-medium"></th>
                         </tr>
@@ -195,6 +209,15 @@ function typeHref(type) {
                                 <span class="text-muted/60">#{{ report.target_id }}</span>
                             </td>
                             <td class="px-4 py-3 text-cream/90">{{ reasonLabel(report.reason) }}</td>
+                            <td class="px-4 py-3">
+                                <span
+                                    class="inline-block rounded-full border px-2.5 py-0.5 text-xs"
+                                    :class="priorityBadge(report.priority)"
+                                >
+                                    {{ PRIORITY_LABELS[report.priority] ?? report.priority }}
+                                </span>
+                                <span v-if="report.overdue" class="ml-1 text-xs text-danger">atrasada</span>
+                            </td>
                             <td class="px-4 py-3">
                                 <span
                                     :class="[
