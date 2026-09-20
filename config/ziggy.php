@@ -298,6 +298,7 @@ return [
         // de /admin/* — moderator OU admin. As telas usam route() para navegar e
         // dar PATCH no status, então os nomes precisam do allowlist.
         'moderacao.overview',
+        'moderacao.my-actions',
         'moderacao.reports.index',
         'moderacao.nickname.remove',
         'moderacao.reports.show',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Moderation;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Moderation\UpdateReportRequest;
+use App\Models\AuditLog;
 use App\Models\MemberGalleryPhoto;
 use App\Models\MemberPhoto;
 use App\Models\Message;
@@ -53,6 +54,19 @@ class ModerationController extends Controller
     /** Filtros de status aceitos na fila (o + `all`). */
     private const STATUS_FILTERS = ['pending', 'reviewed', 'resolved', 'dismissed', 'all'];
 
+    /**
+     * Ações do moderador que a fila "Minhas ações" lista (feat/moderation-queues-hub).
+     * São as ações que passam pela área de moderação — o audit já grava cada uma
+     * com o user_id de quem agiu.
+     */
+    private const MODERATOR_ACTIONS = [
+        'moderation.report_reviewed',
+        'moderator.warned',
+        'moderator.suspended',
+        'moderator.escalated',
+        'member_nickname_removed_by_moderator',
+    ];
+
     public function __construct(
         private MemberPhotoStore $photoStore,
         private PerformerStoryStore $storyStore,
@@ -66,14 +80,52 @@ class ModerationController extends Controller
      * atalhos. O moderador cai aqui em vez de direto numa fila. Só contagens —
      * nenhum conteúdo denunciado nem PII (o serving de prova segue nas telas).
      */
-    public function overview(): Response
+    public function overview(Request $request): Response
     {
         return Inertia::render('Moderacao/Overview', [
             'queues' => [
                 'reports' => Report::pending()->count(),
+                // Denúncias abertas escaladas ao admin e as fora do SLA (Fase 3/4).
+                'escalated' => Report::escalated()->count(),
+                'overdue' => Report::overdue()->count(),
                 'member_photos' => MemberGalleryPhoto::pending()->count(),
                 'voice_intros' => PerformerVoiceIntro::pending()->count(),
+                // Ações do próprio moderador hoje (fuso de exibição).
+                'my_actions_today' => AuditLog::where('user_id', $request->user()->id)
+                    ->whereIn('action', self::MODERATOR_ACTIONS)
+                    ->where('created_at', '>=', now(ProfileVisitService::DISPLAY_TIMEZONE)->startOfDay())
+                    ->count(),
             ],
+        ]);
+    }
+
+    /**
+     * "Minhas ações" (feat/moderation-queues-hub): o histórico das ações DO
+     * moderador logado, lido do audit. Só as ações dele (filtro por user_id) e
+     * sem PII do denunciante — mostra o tipo de alvo, o id e o motivo que ELE
+     * mesmo escreveu. Read-only.
+     */
+    public function myActions(Request $request): Response
+    {
+        $actions = AuditLog::where('user_id', $request->user()->id)
+            ->whereIn('action', self::MODERATOR_ACTIONS)
+            ->latest('id')
+            ->limit(100)
+            ->get()
+            ->map(fn (AuditLog $log) => [
+                'id' => $log->id,
+                'action' => $log->action,
+                'subject_type' => Report::aliasForClass($log->subject_type)
+                    ?? class_basename((string) $log->subject_type),
+                'subject_id' => $log->subject_id,
+                'reason' => $log->metadata['reason'] ?? null,
+                'days' => $log->metadata['days'] ?? null,
+                'created_at' => $log->created_at,
+            ])
+            ->all();
+
+        return Inertia::render('Moderacao/MyActions', [
+            'actions' => $actions,
         ]);
     }
 
@@ -90,13 +142,18 @@ class ModerationController extends Controller
         $type = $request->query('type');
         $typeClass = $type ? Report::classForAlias($type) : null;
 
+        // Fila "Escalados ao admin" (feat/moderation-queues-hub): recorte ortogonal
+        // ao status — abertas com escalated_at. Quando ligado, manda no status.
+        $escalated = $request->boolean('escalated');
+
         $reports = Report::query()
-            ->when($status !== 'all', fn ($q) => $q->where('status', $status))
+            ->when($escalated, fn ($q) => $q->escalated())
+            ->when(! $escalated && $status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($typeClass, fn ($q) => $q->where('reportable_type', $typeClass))
-            // A fila de trabalho (pendentes) sai na ordem de atendimento —
-            // prioridade + antiguidade; as demais visões seguem por data desc.
+            // Fila de trabalho (pendentes) e escalados saem na ordem de atendimento
+            // — prioridade + antiguidade; as demais visões seguem por data desc.
             ->when(
-                $status === 'pending',
+                $escalated || $status === 'pending',
                 fn ($q) => $q->orderByPriority(),
                 fn ($q) => $q->orderByDesc('created_at')->orderByDesc('id'),
             )
@@ -109,12 +166,14 @@ class ModerationController extends Controller
             'filters' => [
                 'status' => $status,
                 'type' => $typeClass ? $type : null,
+                'escalated' => $escalated,
             ],
             // Facetas para os controles de filtro na tela — derivadas das fontes
             // únicas, nunca listas soltas no Vue.
             'statuses' => self::STATUS_FILTERS,
             'types' => array_keys(Report::REPORTABLE_TYPES),
             'pendingCount' => Report::pending()->count(),
+            'escalatedCount' => Report::escalated()->count(),
         ]);
     }
 

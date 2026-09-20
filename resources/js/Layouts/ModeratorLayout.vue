@@ -23,6 +23,7 @@ const nav = [
     { label: 'Denúncias', routeName: 'moderacao.reports.index', match: 'moderacao.reports.*' },
     { label: 'Fotos de membro', routeName: 'moderacao.member-photos.index', match: 'moderacao.member-photos.*' },
     { label: 'Intros de voz', routeName: 'moderacao.voice-intros.index', match: 'moderacao.voice-intros.*' },
+    { label: 'Minhas ações', routeName: 'moderacao.my-actions', match: 'moderacao.my-actions' },
 ]
 
 function isActive(match) {

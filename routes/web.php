@@ -325,6 +325,10 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
     // Página inicial da moderação: resumo das três filas + atalhos.
     Route::get('/', [ModerationController::class, 'overview'])->name('moderacao.overview');
 
+    // "Minhas ações" (feat/moderation-queues-hub): histórico das ações do próprio
+    // moderador, lido do audit. Read-only.
+    Route::get('/minhas-acoes', [ModerationController::class, 'myActions'])->name('moderacao.my-actions');
+
     Route::get('/denuncias', [ModerationController::class, 'index'])->name('moderacao.reports.index');
     Route::get('/denuncias/{report}', [ModerationController::class, 'show'])
         ->whereNumber('report')

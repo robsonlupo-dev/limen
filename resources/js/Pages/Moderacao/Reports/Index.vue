@@ -16,6 +16,7 @@ const props = defineProps({
     statuses: { type: Array, required: true },
     types: { type: Array, required: true },
     pendingCount: { type: Number, required: true },
+    escalatedCount: { type: Number, default: 0 },
 })
 
 // Remoção forçada de apelido (feat/member-nickname). Por STRING do apelido
@@ -81,6 +82,7 @@ function typeLabel(type) {
 
 const activeStatus = computed(() => props.filters.status)
 const activeType = computed(() => props.filters.type)
+const activeEscalated = computed(() => !!props.filters.escalated)
 
 function statusHref(status) {
     return route('moderacao.reports.index', {
@@ -132,7 +134,7 @@ function typeHref(type) {
                 </button>
             </form>
 
-            <!-- Filtro por status -->
+            <!-- Filtro por status + recorte "Escalados ao admin" -->
             <div class="flex flex-wrap gap-2">
                 <Link
                     v-for="status in statuses"
@@ -140,12 +142,22 @@ function typeHref(type) {
                     :href="statusHref(status)"
                     :class="[
                         'rounded-lg border px-3 py-1.5 text-sm no-underline transition-colors',
-                        activeStatus === status
+                        !activeEscalated && activeStatus === status
                             ? 'border-gold text-gold'
                             : 'border-frame text-muted hover:text-cream',
                     ]"
                 >
                     {{ STATUS_LABELS[status] ?? status }}
+                </Link>
+                <Link
+                    :href="route('moderacao.reports.index', { escalated: 1 })"
+                    :class="[
+                        'rounded-lg border px-3 py-1.5 text-sm no-underline transition-colors',
+                        activeEscalated ? 'border-gold text-gold' : 'border-frame text-muted hover:text-cream',
+                    ]"
+                >
+                    Escalados ao admin
+                    <span v-if="escalatedCount > 0" class="ml-1 font-mono text-xs">{{ escalatedCount }}</span>
                 </Link>
             </div>
 
