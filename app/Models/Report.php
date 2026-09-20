@@ -87,6 +87,7 @@ class Report extends Model
     {
         return [
             'reviewed_at' => 'datetime',
+            'escalated_at' => 'datetime',
             'reportable_id' => 'integer',
         ];
     }
@@ -286,6 +287,18 @@ class Report extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /** Moderador que escalou a denúncia ao admin (feat/moderator-actions). */
+    public function escalatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'escalated_by');
+    }
+
+    /** Denúncias escaladas ao admin e ainda abertas (fila "Escalados ao admin"). */
+    public function scopeEscalated(Builder $query): Builder
+    {
+        return $query->whereNotNull('escalated_at')->whereIn('status', self::OPEN_STATUSES);
     }
 
     public function reportable(): MorphTo

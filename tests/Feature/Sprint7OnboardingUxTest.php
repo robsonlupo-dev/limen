@@ -130,11 +130,13 @@ it('lets a pending performer reach the dashboard via "Verificar depois"', functi
 });
 
 it('keeps suspended performers out of the dashboard', function () {
+    // A suspensão passou a derrubar a sessão viva no grupo web (BlockSuspendedUsers):
+    // o performer segue fora do dashboard, agora via redirect ao login em vez de 403.
     $performer = sprint7Performer(['status' => 'suspended']);
 
     $this->actingAs($performer)
         ->get(route('performer.dashboard'))
-        ->assertForbidden();
+        ->assertRedirect(route('login'));
 });
 
 it('redirects a performer without profile from the dashboard to onboarding', function () {

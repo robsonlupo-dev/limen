@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\BlockBannedUsers;
+use App\Http\Middleware\BlockSuspendedUsers;
 use App\Http\Middleware\DocumentsAccepted;
 use App\Http\Middleware\EnsureActiveCircle;
 use App\Http\Middleware\EnsureAdmin;
@@ -52,6 +53,14 @@ return Application::configure(basePath: dirname(__DIR__))
             // por área: banido some do site todo, não só do dashboard. No-op
             // para guest e para qualquer status que não seja `banned`.
             BlockBannedUsers::class,
+            // Mata a sessão web viva de conta SUSPENSA a cada request (par do
+            // BlockBannedUsers). A suspensão temporária serve para parar dano
+            // vivo — chat abusivo/coercitivo — e a superfície do membro/performer
+            // não tem gate 403 próprio; sem isto a conta seguiria operando até o
+            // cookie expirar. Depois do BlockBannedUsers de propósito (ban vence
+            // suspensão). Reativa sozinha quando o prazo passa. No-op para guest
+            // e para qualquer status que não seja `suspended`.
+            BlockSuspendedUsers::class,
             // Carimba `last_active_at` da performer (throttle 5 min) para a faixa
             // "Última atividade". DEPOIS do BlockBannedUsers de propósito: a
             // performer banida é derrubada antes daqui, então não conta como

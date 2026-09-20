@@ -193,14 +193,23 @@ it('logs out a banned user with a live web session on the next request', functio
         ->assertRedirect(route('login'));
 });
 
-it('does NOT log out a suspended user (keeps the 403 gate behavior)', function () {
-    // suspended segue com tratamento por gate (403 por área), não logout — o
-    // middleware é banned-only. Aqui só garantimos que ele NÃO redireciona.
-    $performer = User::factory()->performer()->create(['status' => 'suspended']);
+it('logs out a suspended user with a live web session on the next request', function () {
+    // A suspensão (temporária) precisa PARAR o dano vivo, não só barrar o próximo
+    // login: a sessão aberta na hora da suspensão é derrubada a cada request pelo
+    // BlockSuspendedUsers — par do BlockBannedUsers acima, mas reversível (reativa
+    // sozinha quando o prazo passa). Mesma montagem do teste de ban.
+    $user = banTarget();
 
-    $this->actingAs($performer)
-        ->get(route('performer.dashboard'))
-        ->assertForbidden();
+    // Sessão viva, autenticada antes da suspensão.
+    $this->actingAs($user)->get(route('catalog'))->assertOk();
+
+    // Suspensão temporária acontece enquanto a sessão está aberta.
+    $user->forceFill(['status' => 'suspended', 'suspended_until' => now()->addDays(7)])->save();
+
+    // Próximo request: middleware derruba a sessão e manda para o login.
+    $this->actingAs($user)
+        ->get(route('catalog'))
+        ->assertRedirect(route('login'));
 });
 
 // ─── Mass assignment ─────────────────────────────────────────────────────────

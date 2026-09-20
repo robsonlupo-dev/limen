@@ -63,12 +63,14 @@ it('performer pending acessa o dashboard e recebe kycStatus pendente', function 
             ->where('kycStatus', 'pending'));
 });
 
-it('performer suspended recebe 403', function () {
+it('performer suspended é deslogado e mandado ao login', function () {
+    // A suspensão agora derruba a sessão viva no grupo web (BlockSuspendedUsers),
+    // ANTES do gate por área — o antigo 403 do dashboard vira redirect ao login.
     [$performer] = makeWebPerformer(['status' => 'suspended']);
 
     $this->actingAs($performer)
         ->get('/performer/dashboard')
-        ->assertForbidden();
+        ->assertRedirect(route('login'));
 });
 
 it('consumer nao acessa rota de performer', function () {

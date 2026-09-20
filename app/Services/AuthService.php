@@ -138,8 +138,16 @@ class AuthService
         // e por só ser lançada DEPOIS do Hash::check, não vaza status para quem
         // não tem a senha. O bloqueio continua vivendo aqui, no service, não no
         // controller: nenhuma porta de auth loga sem passar por este ponto.
-        if ($user->status === 'suspended' || $user->status === 'banned') {
-            throw new AccountBlockedException($user->status);
+        // Suspensão TEMPORIZADA (feat/moderator-actions): se o prazo já passou, a
+        // própria porta de login reativa a conta e deixa entrar. `suspended_until`
+        // NULL (suspensão indefinida do admin) ou no futuro segue barrando. A
+        // decisão "o prazo passou?" tem dono único em User::liftSuspensionIfExpired.
+        if ($user->status === 'suspended' && ! $user->liftSuspensionIfExpired()) {
+            throw new AccountBlockedException('suspended');
+        }
+
+        if ($user->status === 'banned') {
+            throw new AccountBlockedException('banned');
         }
 
         return $user;
