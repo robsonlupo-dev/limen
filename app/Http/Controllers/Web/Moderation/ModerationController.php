@@ -15,6 +15,7 @@ use App\Services\MemberNicknameService;
 use App\Services\MemberPhotoStore;
 use App\Services\ModeratorActionService;
 use App\Services\PerformerStoryStore;
+use App\Services\ProfileVisitService;
 use App\Support\Audit;
 use App\Support\ReporterAlias;
 use Illuminate\Database\Eloquent\Model;
@@ -147,7 +148,53 @@ class ModerationController extends Controller
         return Inertia::render('Moderacao/Reports/Show', [
             'report' => $this->present($report),
             'evidence' => $this->evidenceFor($report),
+            // Contexto da tela de trabalho (Fase 2): o que vem a seguir na fila e
+            // um retrato rápido do estado dela no rodapé. Só contagens e metadados —
+            // nenhum conteúdo denunciado nem PII (o serving de prova é à parte).
+            'queue' => $this->queueAfter($report),
+            'stats' => $this->reportStats(),
         ]);
+    }
+
+    /**
+     * "Próximos na fila": as denúncias PENDENTES mais antigas, exceto a atual.
+     * FIFO (mais antiga primeiro) — a ordem justa de atendimento. Compacto: só o
+     * que o cartão da lista precisa, sem PII do denunciante.
+     */
+    private function queueAfter(Report $report): array
+    {
+        return Report::pending()
+            ->whereKeyNot($report->id)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->limit(5)
+            ->get()
+            ->map(fn (Report $r) => [
+                'id' => $r->id,
+                'target_type' => Report::aliasForClass($r->reportable_type) ?? 'desconhecido',
+                'reason' => $r->reason,
+                'created_at' => $r->created_at,
+            ])
+            ->all();
+    }
+
+    /**
+     * Retrato do estado da fila para o rodapé de stats (Fase 2). Números baratos —
+     * os indicadores mais pesados (tempo médio, taxa de reversão) ficam para a
+     * Fase 5. "resolvidas hoje" usa o fuso de exibição do produto.
+     */
+    private function reportStats(): array
+    {
+        $today = now(ProfileVisitService::DISPLAY_TIMEZONE)->toDateString();
+
+        return [
+            'pending' => Report::pending()->count(),
+            'resolved_today' => Report::where('status', 'resolved')
+                ->whereDate('reviewed_at', $today)
+                ->count(),
+            'escalated' => Report::escalated()->count(),
+            'oldest_pending_at' => Report::pending()->min('created_at'),
+        ];
     }
 
     /**
@@ -338,6 +385,9 @@ class ModerationController extends Controller
             'status' => $report->status,
             'created_at' => $report->created_at,
             'reviewed_at' => $report->reviewed_at,
+            // Escalada ao admin (feat/moderator-actions): a tela mostra o selo e
+            // desabilita o botão "Escalar" quando já foi.
+            'escalated_at' => $report->escalated_at,
         ];
     }
 }

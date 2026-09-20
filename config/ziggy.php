@@ -302,6 +302,11 @@ return [
         'moderacao.nickname.remove',
         'moderacao.reports.show',
         'moderacao.reports.update',
+        // Ações do moderador sobre o alvo da denúncia (feat/moderator-actions): a
+        // tela de detalhe dá POST em advertir/suspender/escalar via route().
+        'moderacao.reports.warn',
+        'moderacao.reports.suspend',
+        'moderacao.reports.escalate',
         // Fila de moderação das intros de voz (feat/voice-intro). A tela lista e
         // aprova/recusa; o serving do áudio é URL injetada pelo servidor.
         'moderacao.voice-intros.index',
