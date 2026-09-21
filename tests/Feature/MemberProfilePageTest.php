@@ -274,3 +274,27 @@ it('avatar_url é null quando o membro não tem avatar (capa cai na galeria)', f
         ->assertOk()
         ->assertInertia(fn (Assert $p) => $p->where('member.avatar_url', null));
 });
+
+// ─── Denunciar apelido: payload expõe o apelido isolado (feat/nickname-report, 4b-ui) ──
+
+it('expõe member.nickname quando o membro TEM apelido (habilita a denúncia)', function () {
+    $performer = mppPerformer();
+    $member = mppMember(['profile_visible' => true, 'nickname' => 'Leozito']);
+    mppPhoto($member, 'approved', true);
+
+    $this->actingAs($performer)
+        ->get(route('performer.members.profile', mppHandle($performer, $member)))
+        ->assertOk()
+        ->assertInertia(fn (Assert $p) => $p->where('member.nickname', 'Leozito'));
+});
+
+it('member.nickname é null quando o membro NÃO tem apelido (só FanAlias, nada a denunciar)', function () {
+    $performer = mppPerformer();
+    $member = mppMember(['profile_visible' => true, 'nickname' => null]);
+    mppPhoto($member, 'approved', true);
+
+    $this->actingAs($performer)
+        ->get(route('performer.members.profile', mppHandle($performer, $member)))
+        ->assertOk()
+        ->assertInertia(fn (Assert $p) => $p->where('member.nickname', null));
+});

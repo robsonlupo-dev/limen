@@ -75,6 +75,27 @@ it('o cabeçalho da conversa entrega o bloco member (alias + foto) só para a pe
             ->where('conversation.member.avatar_url', fn ($url) => is_string($url) && str_contains($url, $token)));
 });
 
+it('o cabeçalho do chat expõe member.nickname quando o membro tem apelido (habilita a denúncia)', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 5);
+    $member->forceFill(['nickname' => 'Leozito'])->save();
+
+    $this->actingAs($performer->user)->get(route('chat.show', $conversation->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('conversation.member.nickname', 'Leozito')
+            ->where('conversation.member.label', 'Leozito'));
+});
+
+it('member.nickname é null no chat quando o membro não tem apelido (só o alias)', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 5);
+
+    $this->actingAs($performer->user)->get(route('chat.show', $conversation->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('conversation.member.nickname', null));
+});
+
 it('o membro NUNCA recebe o bloco member (é o dono do lado dele)', function () {
     $performer = chatPerformer();
     [$member, $conversation] = chatUnlockedPair($performer, balance: 5);

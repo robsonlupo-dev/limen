@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import SharePhotoModal from '@/Components/SharePhotoModal.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
+import ReportNicknameModal from '@/Components/ReportNicknameModal.vue'
 import { postJson } from '@/lib/http'
 
 const props = defineProps({
@@ -35,6 +36,13 @@ const headerName = computed(() => (viewerIsPerformer.value
 const headerAvatar = computed(() => (viewerIsPerformer.value
     ? (props.conversation.member?.avatar_url ?? null)
     : (props.conversation.performer.avatar_url ?? null)))
+
+// Denunciar apelido (feat/nickname-report, 4b-ui): só do lado da performer e só
+// quando o membro tem um apelido escolhido (o alias de par não é denunciável).
+const memberNickname = computed(() => (viewerIsPerformer.value
+    ? (props.conversation.member?.nickname ?? null)
+    : null))
+const reportOpen = ref(false)
 
 // O backend entrega a página mais recente em ordem decrescente (id desc). Para o
 // chat lemos de cima (mais antiga) para baixo (mais nova).
@@ -272,6 +280,20 @@ watch(() => props.messages.data.length, scrollToBottom)
                         </div>
                         <h1 class="min-w-0 truncate font-serif text-xl text-cream" :class="performerProfileHref ? 'group-hover:text-gold transition-colors' : ''">{{ headerName }}</h1>
                     </component>
+                    <!-- Denunciar apelido: só do lado da performer e só quando o
+                         membro tem apelido escolhido. Ícone discreto, alvo >=44px. -->
+                    <button
+                        v-if="memberNickname"
+                        type="button"
+                        class="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-danger"
+                        aria-label="Denunciar apelido"
+                        title="Denunciar apelido"
+                        @click="reportOpen = true"
+                    >
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 22V4a1 1 0 0 1 1-1h11l-1.5 4L16 11H5" />
+                        </svg>
+                    </button>
                 </div>
                 <span
                     v-if="showTimer"
@@ -447,6 +469,14 @@ watch(() => props.messages.data.length, scrollToBottom)
                 :performer-profile-id="conversation.performer.profile_id"
                 @close="sharingOpen = false"
                 @shared="onShared"
+            />
+
+            <!-- Denúncia de apelido (só existe do lado da performer com apelido). -->
+            <ReportNicknameModal
+                v-if="memberNickname"
+                :show="reportOpen"
+                :nickname="memberNickname"
+                @close="reportOpen = false"
             />
         </div>
     </AppLayout>
