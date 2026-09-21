@@ -42,6 +42,8 @@ const TYPE_LABELS = {
     message: 'Mensagem',
     performer_story: 'Story',
     member_photo: 'Foto do membro',
+    performer_content: 'Conteúdo',
+    member_nickname: 'Apelido',
 }
 
 const REASON_LABELS = {

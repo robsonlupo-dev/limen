@@ -60,6 +60,14 @@ class Report extends Model
         // o story: a resposta vem do ContentVisibilityService::canView (visibleTo).
         // Denúncia em aberto congela a remoção manual (PerformerContentService).
         'performer_content' => PerformerContent::class,
+        // Apelido do membro (feat/nickname-report). O denunciável é o MEMBRO
+        // (User) — a performer denuncia o apelido público que vê no lugar do
+        // "Fã #NNNN". A ingestão tem porta PRÓPRIA (NicknameReportController), por
+        // STRING do apelido; a porta genérica (report.store) NÃO resolve este tipo
+        // — resolveFromHandle devolve null e visibleTo(User) é false, o que fecha
+        // o oráculo de varrer User por id. Aqui o mapa serve só à EXIBIÇÃO na fila
+        // (aliasForClass) e ao filtro "Apelido".
+        'member_nickname' => User::class,
     ];
 
     /**
@@ -183,6 +191,14 @@ class Report extends Model
      */
     public static function resolveFromHandle(string $alias, int $handle, ?User $reporter = null): ?Model
     {
+        // Apelido: a porta genérica NÃO resolve este tipo. A ingestão é por
+        // STRING pública do apelido, num controller próprio; devolver null aqui
+        // impede que um report.store com `member_nickname` + um id de User vire
+        // um oráculo de enumeração de contas.
+        if ($alias === 'member_nickname') {
+            return null;
+        }
+
         if ($alias === 'member_photo') {
             $profileId = $reporter?->performerProfile?->getKey();
 
@@ -229,6 +245,10 @@ class Report extends Model
             // `user_id` é `$hidden` (não sai em serialização), mas continua
             // legível aqui: $hidden esconde do JSON, não do código.
             $reportable instanceof MemberPhoto => (int) $reportable->user_id,
+            // Apelido do membro (feat/nickname-report): o denunciado É o próprio
+            // membro (o apelido é dele). Necessário para o guard de autodenúncia e
+            // para o ModeratorActionService resolver o alvo.
+            $reportable instanceof User => (int) $reportable->getKey(),
             // A peça de conteúdo é da PERFORMER, pelo perfil (como o story).
             // `withTrashed()` pela mesma razão: perfil encerrado entre a publicação
             // e a denúncia não pode zerar a checagem de autodenúncia.
@@ -306,6 +326,11 @@ class Report extends Model
             // não denuncia — mas quem viu o conteúdo (pagou/grátis) pode.
             $reportable instanceof PerformerContent => app(ContentVisibilityService::class)
                 ->canView($user, $reportable),
+            // Apelido do membro (feat/nickname-report): SEMPRE false pela porta
+            // genérica. A denúncia de apelido entra só pelo controller dedicado
+            // (por STRING pública), nunca pelo report.store — assim um POST com
+            // `member_nickname` + id de User não vira oráculo de existência de conta.
+            $reportable instanceof User => false,
             default => false,
         };
     }

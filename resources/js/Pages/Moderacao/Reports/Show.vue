@@ -34,6 +34,7 @@ const TYPE_LABELS = {
     performer_story: 'Story',
     member_photo: 'Foto do membro',
     performer_content: 'Conteúdo',
+    member_nickname: 'Apelido',
 }
 const REASON_LABELS = {
     underage_content: 'Conteúdo com menor',
