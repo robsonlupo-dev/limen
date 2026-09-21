@@ -18,7 +18,16 @@ const cards = computed(() => [
         title: 'Denúncias',
         blurb: 'Fila de denúncias de conteúdo (perfil, mensagem, story, foto).',
         count: props.queues.reports ?? 0,
+        // Quantas das pendentes já passaram do SLA — sinal de urgência no card.
+        note: (props.queues.overdue ?? 0) > 0 ? `${props.queues.overdue} atrasada${props.queues.overdue === 1 ? '' : 's'}` : null,
         href: route('moderacao.reports.index'),
+    },
+    {
+        key: 'escalated',
+        title: 'Escalados ao admin',
+        blurb: 'Denúncias que o moderador escalou e aguardam decisão do admin (ban).',
+        count: props.queues.escalated ?? 0,
+        href: route('moderacao.reports.index', { escalated: 1 }),
     },
     {
         key: 'member_photos',
@@ -34,9 +43,22 @@ const cards = computed(() => [
         count: props.queues.voice_intros ?? 0,
         href: route('moderacao.voice-intros.index'),
     },
+    {
+        key: 'my_actions',
+        title: 'Minhas ações',
+        blurb: 'O histórico das suas ações de moderação.',
+        count: props.queues.my_actions_today ?? 0,
+        countLabel: 'hoje',
+        href: route('moderacao.my-actions'),
+    },
 ])
 
-const total = computed(() => cards.value.reduce((sum, c) => sum + c.count, 0))
+// Só as filas de trabalho (o que aguarda revisão); "minhas ações" é histórico.
+const total = computed(() =>
+    (props.queues.reports ?? 0)
+    + (props.queues.member_photos ?? 0)
+    + (props.queues.voice_intros ?? 0),
+)
 </script>
 
 <template>
@@ -58,14 +80,18 @@ const total = computed(() => cards.value.reduce((sum, c) => sum + c.count, 0))
                 >
                     <div class="flex items-start justify-between gap-3">
                         <h2 class="font-serif text-xl text-cream">{{ card.title }}</h2>
-                        <span
-                            :class="[
-                                'min-w-[28px] rounded-full px-2 py-0.5 text-center font-mono text-sm font-semibold',
-                                card.count > 0 ? 'bg-gold/15 text-gold' : 'text-muted',
-                            ]"
-                        >{{ card.count }}</span>
+                        <span class="flex items-baseline gap-1">
+                            <span
+                                :class="[
+                                    'min-w-[28px] rounded-full px-2 py-0.5 text-center font-mono text-sm font-semibold',
+                                    card.count > 0 ? 'bg-gold/15 text-gold' : 'text-muted',
+                                ]"
+                            >{{ card.count }}</span>
+                            <span v-if="card.countLabel" class="text-xs text-muted">{{ card.countLabel }}</span>
+                        </span>
                     </div>
                     <p class="text-sm text-muted">{{ card.blurb }}</p>
+                    <p v-if="card.note" class="text-xs font-medium text-danger">{{ card.note }}</p>
                     <span class="mt-auto text-sm font-medium text-gold">
                         {{ card.count > 0 ? 'Revisar' : 'Abrir fila' }}
                         <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5 inline-block">→</span>
