@@ -35,7 +35,9 @@ function ovwReport(): Report
     return Report::open($reporter, $profile, 'spam', 'conteúdo suspeito');
 }
 
-it('lets a moderator open the overview with the three queue counts', function () {
+it('lets a moderator open the overview with the queue hub counts', function () {
+    // Hub de filas (feat/moderation-queues-hub): além das três filas de trabalho,
+    // a Overview traz escalados, atrasadas e "minhas ações de hoje".
     $this->actingAs(ovwModerator())
         ->get(route('moderacao.overview'))
         ->assertOk()
@@ -43,8 +45,11 @@ it('lets a moderator open the overview with the three queue counts', function ()
             ->component('Moderacao/Overview')
             ->has('queues', fn (Assert $q) => $q
                 ->where('reports', 0)
+                ->where('escalated', 0)
+                ->where('overdue', 0)
                 ->where('member_photos', 0)
-                ->where('voice_intros', 0)));
+                ->where('voice_intros', 0)
+                ->where('my_actions_today', 0)));
 });
 
 it('lets an admin open the overview', function () {
