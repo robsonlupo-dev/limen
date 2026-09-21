@@ -57,6 +57,9 @@ return [
         'performer.members.heart',
         'performer.members.message',
         'performer.members.visit',
+        // Denúncia de apelido de membro (feat/nickname-report): a performer denuncia
+        // por route() da tela onde vê o apelido.
+        'performer.members.report-nickname',
 
         // Denúncia (compliance)
         'report.store',

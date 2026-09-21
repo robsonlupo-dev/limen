@@ -67,6 +67,7 @@ use App\Http\Controllers\Web\Performer\FollowersController;
 use App\Http\Controllers\Web\Performer\InterestController as PerformerInterestController;
 use App\Http\Controllers\Web\Performer\MemberCatalogController;
 use App\Http\Controllers\Web\Performer\MemberEngagementController;
+use App\Http\Controllers\Web\Performer\NicknameReportController;
 use App\Http\Controllers\Web\Performer\MemberProfileController;
 use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
@@ -865,6 +866,15 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::post('/performer/membros/visita', [MemberEngagementController::class, 'visit'])
             ->middleware(['role:performer', 'throttle:60,1'])
             ->name('performer.members.visit')
+            ->can('performer-active');
+
+        // Denúncia de APELIDO de membro (feat/nickname-report, Fase 4b). Por STRING
+        // pública do apelido — não expõe user_id, funciona de qualquer tela onde a
+        // performer vê o apelido. Reusa Report; porta dedicada (não o report.store
+        // genérico). Anti-oráculo no controller; throttle anti-flood.
+        Route::post('/performer/membros/apelido/denunciar', [NicknameReportController::class, 'store'])
+            ->middleware(['role:performer', 'throttle:20,1'])
+            ->name('performer.members.report-nickname')
             ->can('performer-active');
 
         // Página de PERFIL de um membro (feat/member-gallery-and-profile, Opção B).
