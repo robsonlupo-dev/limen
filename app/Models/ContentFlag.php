@@ -21,6 +21,10 @@ class ContentFlag extends Model
     /** Fontes conhecidas do sinal. */
     public const SOURCE_CHAT = 'chat';
     public const SOURCE_LIVE_CHAT = 'live_chat';
+    // Sinais NÃO-chat (feat/flagged-content-more-sources, Fase 4c-b): a bio pública
+    // do membro e o apelido, quando tropeçam na CONDUTA do filtro.
+    public const SOURCE_PROFILE_TEXT = 'profile_text';
+    public const SOURCE_NICKNAME = 'nickname';
 
     /** Categorias do filtro — só conduta é sinalizada por ora. */
     public const CATEGORY_CONDUCT = 'conduct';

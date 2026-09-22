@@ -20,7 +20,7 @@ const props = defineProps({
 })
 
 const ROLE_LABELS = { consumer: 'Membro', performer: 'Performer' }
-const SOURCE_LABELS = { chat: 'Chat', live_chat: 'Chat ao vivo' }
+const SOURCE_LABELS = { chat: 'Chat', live_chat: 'Chat ao vivo', profile_text: 'Perfil', nickname: 'Apelido' }
 
 function roleLabel(role) {
     return ROLE_LABELS[role] ?? role

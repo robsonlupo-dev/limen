@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\NicknameException;
+use App\Models\ContentFlag;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Support\Audit;
@@ -157,6 +158,13 @@ class MemberNicknameService
                 throw NicknameException::cooldown((int) ceil(now()->diffInDays($cooldownEnds, false)));
             }
         }
+
+        // Sinaliza CONDUTA no apelido (feat/flagged-content-more-sources, Fase 4c-b)
+        // ANTES de validar: o apelido abusivo é rejeitado por validate() logo
+        // abaixo, e a tentativa entra na fila de reincidência. Fora da transação →
+        // persiste no throw. Só CONDUTA (recordFromText filtra); contato/reservado/
+        // risco legal não entram na fila.
+        app(ContentFlagService::class)->recordFromText($user, ContentFlag::SOURCE_NICKNAME, $nickname);
 
         $this->validate($nickname, $user);
 

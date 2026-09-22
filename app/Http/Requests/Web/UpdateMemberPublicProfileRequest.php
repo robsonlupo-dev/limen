@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests\Web;
 
+use App\Models\ContentFlag;
 use App\Rules\SafeProfileText;
+use App\Services\ContentFlagService;
 use App\Support\MemberProfileOptions;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -57,6 +60,26 @@ class UpdateMemberPublicProfileRequest extends FormRequest
             // Opt-in da faixa etária (derivada do birthdate). Booleano.
             'show_age_band' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /**
+     * Sinaliza CONDUTA na bio (feat/flagged-content-more-sources, Fase 4c-b). A bio
+     * abusiva já é rejeitada pelo SafeProfileText; aqui, além de rejeitar, a
+     * tentativa entra na fila de reincidência do moderador — o mesmo tratamento do
+     * chat. Roda no `after` (fora de qualquer transação), então o flag persiste
+     * mesmo com a validação falhando. Só CONDUTA vira flag (recordFromText filtra);
+     * contato/risco legal não.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function () {
+            $bio = $this->input('bio');
+            $user = $this->user();
+
+            if ($user !== null && is_string($bio) && trim($bio) !== '') {
+                app(ContentFlagService::class)->recordFromText($user, ContentFlag::SOURCE_PROFILE_TEXT, $bio);
+            }
+        });
     }
 
     /**
