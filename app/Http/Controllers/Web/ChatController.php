@@ -349,6 +349,11 @@ class ChatController extends Controller
                 'member' => ($viewerIsPerformer && $conversation->member_id !== null)
                     ? [
                         'label' => MemberDisplayName::for($conversation->member?->nickname, $conversation->performerProfile->id, $conversation->member_id),
+                        // O APELIDO isolado (ou null): habilita "denunciar apelido" no
+                        // cabeçalho do chat (feat/nickname-report, Fase 4b-ui). Só há o
+                        // que denunciar quando o membro escolheu um apelido — o alias
+                        // de par não é denunciável.
+                        'nickname' => MemberDisplayName::nickname($conversation->member?->nickname),
                         'avatar_url' => $conversation->member?->avatarUrl(),
                     ]
                     : null,

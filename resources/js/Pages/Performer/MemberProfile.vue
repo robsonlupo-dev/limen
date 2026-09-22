@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import Lightbox from '@/Components/Lightbox.vue'
+import ReportNicknameModal from '@/Components/ReportNicknameModal.vue'
 import { postJson } from '@/lib/http'
 
 /**
@@ -33,6 +34,10 @@ const remaining = ref(props.messagesRemaining)
 const toast = ref('')
 
 const msg = reactive({ open: false, body: '', sending: false, error: '' })
+
+// Denúncia de apelido (feat/nickname-report, 4b-ui): só quando o rótulo é um
+// apelido escolhido pelo membro (member.nickname), não o FanAlias.
+const reportOpen = ref(false)
 
 // Lightbox: índice aberto (null = fechado).
 const lightboxIndex = ref(null)
@@ -196,6 +201,20 @@ async function sendMessage() {
                         class="rounded-full border border-limen-line bg-limen-surface px-3 py-1 text-xs text-limen-ink-soft"
                     >{{ chip }}</span>
                 </div>
+
+                <!-- Denunciar apelido: só quando o rótulo é um apelido escolhido
+                     (não o FanAlias). Discreto — ação de exceção, não de destaque. -->
+                <button
+                    v-if="member.nickname"
+                    type="button"
+                    class="mt-3 inline-flex min-h-[36px] items-center gap-1.5 text-xs text-limen-ink-mute transition-colors hover:text-limen-ink"
+                    @click="reportOpen = true"
+                >
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 22V4a1 1 0 0 1 1-1h11l-1.5 4L16 11H5" />
+                    </svg>
+                    Denunciar apelido
+                </button>
             </div>
 
             <!-- Sobre mim (bio). -->
@@ -263,6 +282,14 @@ async function sendMessage() {
 
         <!-- Lightbox: variante COMPLETA (sem corte). -->
         <Lightbox v-model:index="lightboxIndex" :photos="photos" />
+
+        <!-- Denúncia de apelido (só existe quando member.nickname). -->
+        <ReportNicknameModal
+            v-if="member.nickname"
+            :show="reportOpen"
+            :nickname="member.nickname"
+            @close="reportOpen = false"
+        />
 
         <!-- Composer de mensagem personalizada (franquia diária). -->
         <Modal :show="msg.open" @close="msg.open = false">

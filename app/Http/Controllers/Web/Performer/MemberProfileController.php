@@ -83,6 +83,11 @@ class MemberProfileController extends Controller
             // Payload EXPLÍCITO e mascarado — nada de PII/tier pega carona.
             'member' => [
                 'fan_alias_label' => MemberDisplayName::for($member->nickname, $profile->id, $member->id, 'Membro #'),
+                // O APELIDO isolado (ou null quando o membro não tem): a UI usa isto
+                // para oferecer "denunciar apelido" (feat/nickname-report, Fase 4b-ui)
+                // — só há o que denunciar quando o rótulo é um apelido escolhido, não
+                // o FanAlias. É a string pública que o endpoint de denúncia resolve.
+                'nickname' => MemberDisplayName::nickname($member->nickname),
                 // O handle segue sendo a CHAVE das ações (coração/mensagem/visita).
                 'member_handle' => FanAlias::handle($profile->id, $member->id),
                 // Fotos APROVADAS da galeria, principal primeiro. Cada uma com a
