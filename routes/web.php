@@ -330,6 +330,21 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
     // moderador, lido do audit. Read-only.
     Route::get('/minhas-acoes', [ModerationController::class, 'myActions'])->name('moderacao.my-actions');
 
+    // Fila de CONTEÚDO SINALIZADO (feat/flagged-content-queue, Fase 4c): usuários
+    // com conduta auto-bloqueada, agregados por reincidência. As ações agem sobre o
+    // USUÁRIO (sem denúncia de origem); throttle como os demais endpoints da área.
+    Route::get('/conteudo-sinalizado', [ModerationController::class, 'flaggedContent'])
+        ->name('moderacao.flagged.index');
+    Route::post('/conteudo-sinalizado/{user}/advertir', [ModerationController::class, 'warnFlagged'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('user')->name('moderacao.flagged.warn');
+    Route::post('/conteudo-sinalizado/{user}/suspender', [ModerationController::class, 'suspendFlagged'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('user')->name('moderacao.flagged.suspend');
+    Route::post('/conteudo-sinalizado/{user}/dispensar', [ModerationController::class, 'dismissFlagged'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('user')->name('moderacao.flagged.dismiss');
+
     Route::get('/denuncias', [ModerationController::class, 'index'])->name('moderacao.reports.index');
     Route::get('/denuncias/{report}', [ModerationController::class, 'show'])
         ->whereNumber('report')

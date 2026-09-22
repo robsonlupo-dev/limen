@@ -24,23 +24,33 @@ class ModeratorActionService
     public const SUSPEND_MIN_DAYS = 1;
     public const SUSPEND_MAX_DAYS = 90;
 
-    /** Advertência: registro append-only + trilha. Devolve a Warning criada. */
+    /** Advertência a partir de uma DENÚNCIA: resolve o alvo do reportable. */
     public function warn(Report $report, User $moderator, string $reason): Warning
     {
-        $target = $this->targetUser($report);
+        return $this->warnUser($this->targetUser($report), $moderator, $reason, $report);
+    }
+
+    /**
+     * Advertência a um USUÁRIO direto (append-only + trilha). O `$report` é
+     * opcional: presente na fila de denúncias, NULL na fila de conteúdo
+     * sinalizado (feat/flagged-content-queue) — `warnings.report_id` é nullable.
+     * Devolve a Warning criada.
+     */
+    public function warnUser(User $target, User $moderator, string $reason, ?Report $report = null): Warning
+    {
         $this->assertActionable($target, $moderator);
 
         return DB::transaction(function () use ($target, $moderator, $reason, $report) {
             $warning = new Warning(['reason' => $reason]);
             $warning->user_id = $target->id;
             $warning->issued_by = $moderator->id;
-            $warning->report_id = $report->id;
+            $warning->report_id = $report?->id;
             $warning->save();
 
             Audit::log('moderator.warned', $target, [
                 'reason' => $reason,
                 'issued_by' => $moderator->id,
-                'report_id' => $report->id,
+                'report_id' => $report?->id,
             ]);
 
             return $warning;
@@ -54,8 +64,16 @@ class ModeratorActionService
      */
     public function suspend(Report $report, User $moderator, string $reason, int $days): User
     {
+        return $this->suspendUser($this->targetUser($report), $moderator, $reason, $days, $report);
+    }
+
+    /**
+     * Suspensão de um USUÁRIO direto. `$report` opcional (NULL na fila de conteúdo
+     * sinalizado). Mesmo corte de acesso vivo e mesma trilha.
+     */
+    public function suspendUser(User $target, User $moderator, string $reason, int $days, ?Report $report = null): User
+    {
         $days = max(self::SUSPEND_MIN_DAYS, min(self::SUSPEND_MAX_DAYS, $days));
-        $target = $this->targetUser($report);
         $this->assertActionable($target, $moderator);
 
         return DB::transaction(function () use ($target, $moderator, $reason, $days, $report) {
@@ -72,7 +90,7 @@ class ModeratorActionService
                 'days' => $days,
                 'suspended_until' => $until->toIso8601String(),
                 'suspended_by' => $moderator->id,
-                'report_id' => $report->id,
+                'report_id' => $report?->id,
             ]);
 
             return $target;
