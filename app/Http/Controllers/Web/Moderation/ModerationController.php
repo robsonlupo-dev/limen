@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Moderation;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Moderation\UpdateReportRequest;
 use App\Models\AuditLog;
+use App\Models\ContentFlag;
 use App\Models\MemberGalleryPhoto;
 use App\Models\MemberPhoto;
 use App\Models\Message;
@@ -12,6 +13,7 @@ use App\Models\PerformerStory;
 use App\Models\PerformerVoiceIntro;
 use App\Models\Report;
 use App\Models\User;
+use App\Services\ContentFlagService;
 use App\Services\MemberNicknameService;
 use App\Services\MemberPhotoStore;
 use App\Services\ModeratorActionService;
@@ -65,6 +67,8 @@ class ModerationController extends Controller
         'moderator.suspended',
         'moderator.escalated',
         'member_nickname_removed_by_moderator',
+        // Dispensa de sinalizações automáticas (feat/flagged-content-queue).
+        'moderation.flags_dismissed',
     ];
 
     public function __construct(
@@ -90,6 +94,10 @@ class ModerationController extends Controller
                 'overdue' => Report::overdue()->count(),
                 'member_photos' => MemberGalleryPhoto::pending()->count(),
                 'voice_intros' => PerformerVoiceIntro::pending()->count(),
+                // Usuários com conteúdo auto-sinalizado pendente (feat/flagged-
+                // content-queue). Conta USUÁRIOS distintos, não flags — a fila
+                // agrega por usuário (reincidência).
+                'flagged' => $this->flaggedUserCount(),
                 // Ações do próprio moderador hoje (fuso de exibição).
                 'my_actions_today' => AuditLog::where('user_id', $request->user()->id)
                     ->whereIn('action', self::MODERATOR_ACTIONS)
@@ -127,6 +135,48 @@ class ModerationController extends Controller
         return Inertia::render('Moderacao/MyActions', [
             'actions' => $actions,
         ]);
+    }
+
+    /**
+     * Fila de CONTEÚDO SINALIZADO (feat/flagged-content-queue, Fase 4c). Agrega os
+     * flags pendentes POR USUÁRIO — a moderação age por reincidência, então o
+     * cartão é o usuário, ordenado por nº de flags (mais reincidente no topo) e,
+     * em empate, pela sinalização mais recente. Sem PII e sem corpo: só id interno,
+     * papel, contagem, fontes e a data do último flag.
+     */
+    public function flaggedContent(Request $request): Response
+    {
+        $flagged = ContentFlag::query()
+            ->pending()
+            ->selectRaw('user_id, COUNT(*) as flag_count, MAX(created_at) as last_at, GROUP_CONCAT(DISTINCT source) as sources')
+            ->groupBy('user_id')
+            ->orderByDesc('flag_count')
+            ->orderByDesc('last_at')
+            ->paginate(50);
+
+        // Papel dos usuários da página (consumer/performer) — o id interno não é
+        // PII (é o mesmo que a fila de denúncias já mostra); nome/e-mail nunca sai.
+        $roles = User::whereIn('id', collect($flagged->items())->pluck('user_id'))
+            ->pluck('role', 'id');
+
+        $flagged->getCollection()->transform(fn ($row) => [
+            'user_id' => (int) $row->user_id,
+            'role' => $roles[$row->user_id] ?? 'desconhecido',
+            'flag_count' => (int) $row->flag_count,
+            'last_at' => $row->last_at,
+            'sources' => array_values(array_filter(explode(',', (string) $row->sources))),
+        ]);
+
+        return Inertia::render('Moderacao/FlaggedContent', [
+            'flagged' => $flagged,
+            'flaggedUserCount' => $this->flaggedUserCount(),
+        ]);
+    }
+
+    /** Usuários distintos com flag pendente — a contagem do hub e do cabeçalho. */
+    private function flaggedUserCount(): int
+    {
+        return (int) ContentFlag::pending()->distinct()->count('user_id');
     }
 
     public function index(Request $request): Response
@@ -339,6 +389,52 @@ class ModerationController extends Controller
         $actions->escalate($report, $request->user(), $validated['reason']);
 
         return back()->with('success', "Denúncia #{$report->id} escalada ao admin.");
+    }
+
+    /**
+     * Advertir um usuário a partir da fila de conteúdo sinalizado (feat/flagged-
+     * content-queue). Sem denúncia de origem — o alvo é o usuário reincidente. A
+     * ModeratorActionService guarda os invariantes (não age sobre admin nem sobre
+     * a própria conta). Não dispensa os flags: advertir e limpar a fila são atos
+     * distintos.
+     */
+    public function warnFlagged(Request $request, User $user, ModeratorActionService $actions): RedirectResponse
+    {
+        $validated = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        $actions->warnUser($user, $request->user(), $validated['reason']);
+
+        return back()->with('success', "Advertência registrada para o usuário #{$user->id}.");
+    }
+
+    /**
+     * Suspender temporariamente um usuário sinalizado (feat/flagged-content-queue).
+     * Mesmo poder da fila de denúncias, sem denúncia de origem.
+     */
+    public function suspendFlagged(Request $request, User $user, ModeratorActionService $actions): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+            'days' => ['required', 'integer', 'min:'.ModeratorActionService::SUSPEND_MIN_DAYS, 'max:'.ModeratorActionService::SUSPEND_MAX_DAYS],
+        ]);
+
+        $actions->suspendUser($user, $request->user(), $validated['reason'], (int) $validated['days']);
+
+        return back()->with('success', "Usuário #{$user->id} suspenso por {$validated['days']} dia(s).");
+    }
+
+    /**
+     * Dispensar TODOS os flags pendentes de um usuário (feat/flagged-content-
+     * queue): o moderador olhou e decidiu não agir (ou já agiu à parte). O usuário
+     * some da fila; um novo flag futuro o traz de volta. Auditado.
+     */
+    public function dismissFlagged(Request $request, User $user, ContentFlagService $flags): RedirectResponse
+    {
+        $flags->dismissAllFor($user, $request->user());
+
+        Audit::log('moderation.flags_dismissed', $user, []);
+
+        return back()->with('success', "Sinalizações do usuário #{$user->id} dispensadas.");
     }
 
     /**

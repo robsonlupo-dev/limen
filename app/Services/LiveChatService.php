@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\LiveChatSent;
 use App\Exceptions\LiveChatException;
 use App\Models\AuditLog;
+use App\Models\ContentFlag;
 use App\Models\LiveChatMessage;
 use App\Models\LiveChatMute;
 use App\Models\LiveSession;
@@ -206,5 +207,11 @@ class LiveChatService
                 'flagged_for_review' => $isConduct,
             ],
         ]);
+
+        // Fila de conteúdo sinalizado (feat/flagged-content-queue, Fase 4c): mesma
+        // regra do chat 1:1, com a fonte 'live_chat'. Só conduta entra.
+        if ($isConduct) {
+            app(ContentFlagService::class)->record($sender, ContentFlag::SOURCE_LIVE_CHAT, $ruleHash);
+        }
     }
 }

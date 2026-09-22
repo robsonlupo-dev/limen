@@ -6,6 +6,7 @@ use App\Events\MessageSent;
 use App\Events\NewMessage;
 use App\Exceptions\ChatException;
 use App\Models\AuditLog;
+use App\Models\ContentFlag;
 use App\Models\Conversation;
 use App\Models\Gift;
 use App\Models\Message;
@@ -495,6 +496,13 @@ class ChatService
                 'flagged_for_review' => $isConduct,
             ],
         ]);
+
+        // Fila de conteúdo sinalizado (feat/flagged-content-queue, Fase 4c): um
+        // flag por bloqueio de CONDUTA, na mesma cadência do audit (o dedup acima
+        // já filtrou a repetição). Risco legal não entra na fila de reincidência.
+        if ($isConduct) {
+            app(ContentFlagService::class)->record($sender, ContentFlag::SOURCE_CHAT, $ruleHash);
+        }
     }
 
     /**

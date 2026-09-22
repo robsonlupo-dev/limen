@@ -302,6 +302,12 @@ return [
         // dar PATCH no status, então os nomes precisam do allowlist.
         'moderacao.overview',
         'moderacao.my-actions',
+        // Fila de conteúdo sinalizado (feat/flagged-content-queue): a tela navega e
+        // dá POST em advertir/suspender/dispensar por route().
+        'moderacao.flagged.index',
+        'moderacao.flagged.warn',
+        'moderacao.flagged.suspend',
+        'moderacao.flagged.dismiss',
         'moderacao.reports.index',
         'moderacao.nickname.remove',
         'moderacao.reports.show',

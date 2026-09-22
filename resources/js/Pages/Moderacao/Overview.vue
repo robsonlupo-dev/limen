@@ -44,6 +44,13 @@ const cards = computed(() => [
         href: route('moderacao.voice-intros.index'),
     },
     {
+        key: 'flagged',
+        title: 'Conteúdo sinalizado',
+        blurb: 'Usuários com conduta auto-bloqueada no chat, agregados por reincidência.',
+        count: props.queues.flagged ?? 0,
+        href: route('moderacao.flagged.index'),
+    },
+    {
         key: 'my_actions',
         title: 'Minhas ações',
         blurb: 'O histórico das suas ações de moderação.',
@@ -57,7 +64,8 @@ const cards = computed(() => [
 const total = computed(() =>
     (props.queues.reports ?? 0)
     + (props.queues.member_photos ?? 0)
-    + (props.queues.voice_intros ?? 0),
+    + (props.queues.voice_intros ?? 0)
+    + (props.queues.flagged ?? 0),
 )
 </script>
 
@@ -67,7 +75,7 @@ const total = computed(() =>
             <div class="space-y-1">
                 <h1 class="font-serif text-3xl text-cream">Moderação</h1>
                 <p class="text-sm text-muted">
-                    {{ total }} item{{ total === 1 ? '' : 'ns' }} aguardando revisão nas três filas.
+                    {{ total }} item{{ total === 1 ? '' : 'ns' }} aguardando revisão nas filas de trabalho.
                 </p>
             </div>
 

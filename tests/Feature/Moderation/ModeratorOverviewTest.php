@@ -49,6 +49,7 @@ it('lets a moderator open the overview with the queue hub counts', function () {
                 ->where('overdue', 0)
                 ->where('member_photos', 0)
                 ->where('voice_intros', 0)
+                ->where('flagged', 0)
                 ->where('my_actions_today', 0)));
 });
 
