@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import FilterPanel from '@/Components/Catalog/FilterPanel.vue'
 import PerformerCard from '@/Components/PerformerCard.vue'
+import SkeletonCard from '@/Components/SkeletonCard.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Modal from '@/Components/Modal.vue'
 import OnboardingTutorial from '@/Components/OnboardingTutorial.vue'
@@ -143,9 +144,9 @@ function selectWorld(value) {
 
             <FilterPanel :filters="filters" :saved-searches="savedSearches" :can-save="true" />
 
-            <!-- Skeleton loading -->
+            <!-- Skeleton loading: molde com brilho dourado que varre. -->
             <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-                <div v-for="n in 8" :key="n" class="rounded-xl bg-limen-surface-2 aspect-[3/4] animate-pulse" />
+                <SkeletonCard v-for="n in 8" :key="n" />
             </div>
 
             <!-- Empty state -->
