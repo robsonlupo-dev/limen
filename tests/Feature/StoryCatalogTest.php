@@ -238,6 +238,12 @@ it('mantém o pontinho aceso para quem tem Ghost Mode', function () {
 
 it('não dispara uma query por card para resolver o pontinho', function () {
     $member = scMember();
+    // Pré-carimba o `last_active_at` do membro para dentro da janela de throttle
+    // do TrackMemberActivity (feat/member-online-presence): sem isto, o batimento
+    // gravaria no PRIMEIRO request (baseline) e seria throttled no segundo
+    // (doubled), somando 1 query só ao baseline e mascarando a contagem de N+1.
+    // O batimento é ortogonal ao "1 query por card" que este teste trava.
+    $member->forceFill(['last_active_at' => now()])->saveQuietly();
 
     foreach (range(1, 6) as $i) {
         $performer = scPerformer("Perf {$i}");

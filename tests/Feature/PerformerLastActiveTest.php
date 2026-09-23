@@ -94,15 +94,18 @@ it('carimba last_active_at no request autenticado da performer', function () {
     expect($profile->user->refresh()->last_active_at)->not->toBeNull();
 });
 
-it('nao carimba para membro nem para admin', function () {
-    // "Última atividade" é superfície de vitrine, e só a performer é vitrine.
-    $member = laMember();
+it('nao carimba para admin', function () {
+    // "Última atividade" da PERFORMER é superfície de vitrine; o admin não é
+    // vitrine e o TrackPerformerActivity o ignora.
+    //
+    // NB: o MEMBRO passou a TER presença própria (feat/member-online-presence,
+    // etapa 2b): o TrackMemberActivity carimba o `last_active_at` dele para o
+    // "Online agora". Por isso o membro saiu deste teste — a escrita dele é
+    // coberta em MemberOnlinePresenceTest. Este aqui trava só quem NÃO carimba.
     $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
 
-    foreach ([$member, $admin] as $user) {
-        test()->actingAs($user)->get(route('performers.public'))->assertOk();
-        expect($user->refresh()->last_active_at)->toBeNull();
-    }
+    test()->actingAs($admin)->get(route('performers.public'))->assertOk();
+    expect($admin->refresh()->last_active_at)->toBeNull();
 });
 
 it('nao carimba para visitante deslogado', function () {
