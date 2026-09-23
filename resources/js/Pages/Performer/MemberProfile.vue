@@ -68,11 +68,14 @@ const locations = computed(() => {
     return props.member.city_label ? [props.member.city_label] : []
 })
 
-// Chips de status: atividade (faixa) + membro desde. (O "Online" binário entra
-// numa etapa própria — aqui segue a faixa de atividade atual.)
+// "Online agora" (etapa 2b): binário. Quando online, um chip verde com pontinho
+// substitui a faixa de atividade; quando offline, a faixa segue como estava.
+const isOnline = computed(() => !!props.member.is_online)
+
+// Chips de status neutros: a faixa (só quando NÃO online) + "membro desde".
 const chips = computed(() =>
     [
-        props.member.activity_label,
+        isOnline.value ? null : props.member.activity_label,
         props.member.member_since ? `Membro desde ${props.member.member_since}` : null,
     ].filter(Boolean),
 )
@@ -237,8 +240,16 @@ async function sendMessage() {
                     </span>
                 </div>
 
-                <!-- Chips de status: atividade + membro desde. -->
-                <div v-if="chips.length" class="mt-2 flex flex-wrap gap-2">
+                <!-- Chips de status: "Online" (verde) quando online, senão a faixa
+                     de atividade, + "membro desde". -->
+                <div v-if="isOnline || chips.length" class="mt-2 flex flex-wrap gap-2">
+                    <span
+                        v-if="isOnline"
+                        class="inline-flex items-center gap-1.5 rounded-full border border-success/50 bg-success/10 px-3 py-1 text-xs font-medium text-success"
+                    >
+                        <span class="inline-block h-2 w-2 rounded-full bg-success" style="box-shadow: 0 0 0 3px rgba(75,156,107,0.18);"></span>
+                        Online
+                    </span>
                     <span
                         v-for="chip in chips"
                         :key="chip"

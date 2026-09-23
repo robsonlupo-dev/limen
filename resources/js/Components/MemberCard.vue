@@ -15,8 +15,8 @@
 import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
-    // { fan_alias_label, member_handle, avatar_url, activity_label, is_new,
-    //   hearted, is_verified, age_band, city_label, photo_count }
+    // { fan_alias_label, member_handle, avatar_url, activity_label, is_online,
+    //   is_new, hearted, is_verified, age_band, city_label, photo_count }
     member: { type: Object, required: true },
     hearted: { type: Boolean, default: false },
     hearting: { type: Boolean, default: false },
@@ -88,6 +88,12 @@ watch(
                         <path d="M10.4 14.6l-2-2 1.1-1.1.9.9 3-3 1.1 1.1-4.1 4.1z" fill="#181410" />
                     </svg>
                     <span v-if="member.is_verified" class="sr-only">Verificado</span>
+                    <!-- Online agora (etapa 2b): pontinho verde com anel escuro
+                         para ler sobre a foto. Só quando online. -->
+                    <span v-if="member.is_online" class="inline-flex shrink-0 items-center">
+                        <span class="h-2 w-2 rounded-full bg-success ring-2 ring-black/50"></span>
+                        <span class="sr-only">Online agora</span>
+                    </span>
                 </span>
                 <span v-if="meta" class="truncate text-[11px] text-white/80 drop-shadow">{{ meta }}</span>
                 <span v-else-if="member.activity_label" class="truncate text-[11px] text-white/70 drop-shadow">{{ member.activity_label }}</span>
