@@ -1215,6 +1215,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:60,1')
             ->name('consumer.profile.edit');
 
+        // Assistente de conclusão do perfil (feat/member-profile-wizard, etapa 3):
+        // via GUIADA (uma pergunta por tela) que escreve nos mesmos campos do
+        // editor. Só renderiza; a escrita reusa consumer.profile.public.update e
+        // consumer.gallery.visibility.
+        Route::get('/meu-perfil/completar', [ConsumerProfileController::class, 'complete'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.profile.complete');
+
         Route::put('/meu-perfil', [ConsumerProfileController::class, 'update'])
             ->middleware('throttle:20,1')
             ->name('consumer.profile.update');

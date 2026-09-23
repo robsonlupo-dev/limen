@@ -150,6 +150,70 @@ class ProfileController extends Controller
     }
 
     /**
+     * Assistente de conclusão do perfil (feat/member-profile-wizard, etapa 3):
+     * uma pergunta por tela, barra de progresso, "Pular" em tudo. Escreve nos
+     * MESMOS campos públicos do editor — reusa `consumer.profile.public.update`
+     * (campos) e `consumer.gallery.visibility` (o opt-in mestre no fim). Nenhuma
+     * regra nova no servidor: só uma apresentação passo-a-passo do que já existe.
+     *
+     * O editor completo (`edit`) continua sendo a via de edição "tudo numa
+     * página"; este é a via GUIADA, com CTA a partir do editor.
+     */
+    public function complete(Request $request): Response
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return Inertia::render('Consumer/Profile/Complete', [
+            // Valores atuais (o assistente pré-preenche o que já existe).
+            'public_profile' => [
+                'bio' => $user->bio,
+                'headline' => $user->headline,
+                'public_seeking' => $user->public_seeking ?? [],
+                'public_interests' => $user->public_interests ?? [],
+                'profile_city' => $user->profile_city,
+                'profile_uf' => $user->profile_uf,
+                'profile_city_2' => $user->profile_city_2,
+                'profile_uf_2' => $user->profile_uf_2,
+                'profile_city_3' => $user->profile_city_3,
+                'profile_uf_3' => $user->profile_uf_3,
+                'marital_status' => $user->marital_status,
+                'height_cm' => $user->height_cm,
+                'weight_kg' => $user->weight_kg,
+                'education' => $user->education,
+                'occupation_area' => $user->occupation_area,
+                'children' => $user->children,
+                'drinks' => $user->drinks,
+                'smokes' => $user->smokes,
+                'availability' => $user->availability,
+                'show_age_band' => (bool) $user->show_age_band,
+                // Preview da faixa etária (nunca a data/idade); só aparece se o
+                // membro ligar o toggle.
+                'age_band' => AgeBand::for($user->birthdate),
+            ],
+            'publicProfileOptions' => [
+                'seeking' => MemberProfileOptions::seekingOptions(),
+                'interests' => MemberProfileOptions::interestOptions(),
+                'marital' => MemberProfileOptions::maritalOptions(),
+                'heights' => MemberProfileOptions::heightOptions(),
+                'weights' => MemberProfileOptions::weightOptions(),
+                'education' => MemberProfileOptions::educationOptions(),
+                'occupation_area' => MemberProfileOptions::occupationAreaOptions(),
+                'children' => MemberProfileOptions::childrenOptions(),
+                'drinks' => MemberProfileOptions::drinksOptions(),
+                'smokes' => MemberProfileOptions::smokesOptions(),
+                'availability' => MemberProfileOptions::availabilityOptions(),
+                'max_seeking' => MemberProfileOptions::MAX_SEEKING,
+                'max_interests' => MemberProfileOptions::MAX_INTERESTS,
+            ],
+            // Apelido atual (o 1º passo do assistente), e o opt-in mestre para o
+            // passo final "deixar meu perfil visível".
+            'nickname' => $user->nickname,
+            'profile_visible' => (bool) $user->profile_visible,
+        ]);
+    }
+
+    /**
      * Salva o perfil PÚBLICO v2 (bio, "o que busco"/interesses públicos, cidade/
      * UF, estado civil, altura, opt-in da faixa etária). Endpoint PRÓPRIO — como
      * o de estilo de vida e o de apelido — porque estes campos VOLTAM para a
