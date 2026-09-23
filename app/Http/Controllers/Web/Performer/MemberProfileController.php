@@ -107,13 +107,24 @@ class MemberProfileController extends Controller
                 // e-mail/tier/saldo. Campo vazio vira null/[] e a tela não o
                 // renderiza (nada de "não informado").
                 'bio' => $member->bio,
+                // Título/headline (frase curta em itálico sob o apelido).
+                'headline' => $member->headline,
                 'seeking' => MemberProfileOptions::seekingLabels($member->public_seeking),
                 'interests' => MemberProfileOptions::interestLabels($member->public_interests),
                 // Faixa etária: opt-in, derivada do birthdate (nunca a data/idade).
                 'age_band' => $member->displayAgeBand(),
+                // 1ª cidade (compat) + até 3 localizações (1ª/2ª/3ª), só as preenchidas.
                 'city_label' => $member->displayCityLabel(),
+                'locations' => $member->displayLocations(),
                 'marital_status' => MemberProfileOptions::maritalLabel($member->marital_status),
                 'height' => MemberProfileOptions::heightLabel($member->height_cm),
+                'weight' => MemberProfileOptions::weightLabel($member->weight_kg),
+                'education' => MemberProfileOptions::educationLabel($member->education),
+                'occupation_area' => MemberProfileOptions::occupationAreaLabel($member->occupation_area),
+                'children' => MemberProfileOptions::childrenLabel($member->children),
+                'drinks' => MemberProfileOptions::drinksLabel($member->drinks),
+                'smokes' => MemberProfileOptions::smokesLabel($member->smokes),
+                'availability' => MemberProfileOptions::availabilityLabel($member->availability),
                 // "Membro desde" — mês/ano do created_at (nunca o dia exato).
                 'member_since' => $member->created_at?->translatedFormat('M Y'),
                 // Selo "Verificado" — booleano do KYC de idade, nunca dado do doc.

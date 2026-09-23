@@ -61,12 +61,24 @@ const pp = props.public_profile ?? {}
 const ppOpts = props.publicProfileOptions ?? {}
 const publicForm = useForm({
     bio: pp.bio ?? '',
+    headline: pp.headline ?? '',
     public_seeking: [...(pp.public_seeking ?? [])],
     public_interests: [...(pp.public_interests ?? [])],
     profile_city: pp.profile_city ?? '',
     profile_uf: pp.profile_uf ?? '',
+    profile_city_2: pp.profile_city_2 ?? '',
+    profile_uf_2: pp.profile_uf_2 ?? '',
+    profile_city_3: pp.profile_city_3 ?? '',
+    profile_uf_3: pp.profile_uf_3 ?? '',
     marital_status: pp.marital_status ?? '',
     height_cm: pp.height_cm ?? '',
+    weight_kg: pp.weight_kg ?? '',
+    education: pp.education ?? '',
+    occupation_area: pp.occupation_area ?? '',
+    children: pp.children ?? '',
+    drinks: pp.drinks ?? '',
+    smokes: pp.smokes ?? '',
+    availability: pp.availability ?? '',
     show_age_band: pp.show_age_band ?? false,
 })
 
@@ -107,18 +119,42 @@ function onCitySelect({ name, uf }) {
     publicForm.profile_city = name
     publicForm.profile_uf = uf ?? ''
 }
+function onCitySelect2({ name, uf }) {
+    publicForm.profile_city_2 = name
+    publicForm.profile_uf_2 = uf ?? ''
+}
+function onCitySelect3({ name, uf }) {
+    publicForm.profile_city_3 = name
+    publicForm.profile_uf_3 = uf ?? ''
+}
+
+// Número vazio → null (não 0); string vazia → null.
+const numOrNull = (v) => (v === '' || v == null ? null : Number(v))
+const strOrNull = (v) => (typeof v === 'string' ? v.trim() || null : v || null)
 
 function savePublic() {
     publicForm
         .transform((data) => ({
             ...data,
             // '' → null nos escalares (o servidor também normaliza; isto deixa o
-            // payload limpo). height_cm vazio vira null (não 0).
-            profile_city: data.profile_city?.trim() || null,
-            profile_uf: data.profile_uf?.trim() || null,
+            // payload limpo). Números vazios viram null (não 0).
+            bio: strOrNull(data.bio),
+            headline: strOrNull(data.headline),
+            profile_city: strOrNull(data.profile_city),
+            profile_uf: strOrNull(data.profile_uf),
+            profile_city_2: strOrNull(data.profile_city_2),
+            profile_uf_2: strOrNull(data.profile_uf_2),
+            profile_city_3: strOrNull(data.profile_city_3),
+            profile_uf_3: strOrNull(data.profile_uf_3),
             marital_status: data.marital_status || null,
-            height_cm: data.height_cm === '' || data.height_cm == null ? null : Number(data.height_cm),
-            bio: data.bio?.trim() || null,
+            height_cm: numOrNull(data.height_cm),
+            weight_kg: numOrNull(data.weight_kg),
+            education: data.education || null,
+            occupation_area: data.occupation_area || null,
+            children: data.children || null,
+            drinks: data.drinks || null,
+            smokes: data.smokes || null,
+            availability: data.availability || null,
         }))
         .put(route('consumer.profile.public.update'), { preserveScroll: true })
 }
@@ -445,6 +481,24 @@ function saveLifestyle() {
                         <p v-if="publicForm.errors.bio" class="text-xs text-danger">{{ publicForm.errors.bio }}</p>
                     </div>
 
+                    <!-- Título (headline): frase curta em itálico sob o apelido -->
+                    <div class="flex flex-col gap-1.5">
+                        <label for="headline" class="text-sm font-medium text-cream">Título</label>
+                        <input
+                            id="headline"
+                            v-model="publicForm.headline"
+                            type="text"
+                            maxlength="80"
+                            placeholder="Uma frase curta que te define"
+                            class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
+                        />
+                        <div class="flex items-baseline justify-between">
+                            <span class="text-xs text-muted">Aparece em destaque, logo abaixo do seu apelido.</span>
+                            <span class="text-xs text-muted tabular-nums shrink-0">{{ publicForm.headline.length }}/80</span>
+                        </div>
+                        <p v-if="publicForm.errors.headline" class="text-xs text-danger">{{ publicForm.errors.headline }}</p>
+                    </div>
+
                     <!-- O que busco (tags controladas) -->
                     <div class="border-t border-frame pt-6 space-y-2">
                         <div class="flex items-baseline justify-between gap-3">
@@ -529,6 +583,98 @@ function saveLifestyle() {
                             </select>
                             <p v-if="publicForm.errors.height_cm" class="text-xs text-danger">{{ publicForm.errors.height_cm }}</p>
                         </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label for="weight" class="text-sm font-medium text-cream">Peso</label>
+                            <select
+                                id="weight"
+                                v-model="publicForm.weight_kg"
+                                class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none"
+                            >
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.weights" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p class="text-xs text-muted">Mostrado como faixa (ex.: "65–69 kg"), nunca o valor exato.</p>
+                            <p v-if="publicForm.errors.weight_kg" class="text-xs text-danger">{{ publicForm.errors.weight_kg }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Localizações extras (2ª e 3ª) — opt-in, para quem frequenta
+                         mais de uma cidade. Só cidade (nunca bairro), como a 1ª. -->
+                    <div class="border-t border-frame pt-6 grid gap-4 sm:grid-cols-2">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-cream">2ª cidade <span class="text-muted">(opcional)</span></label>
+                            <CityAutocomplete
+                                v-model="publicForm.profile_city_2"
+                                :placeholder="'Outra cidade que você frequenta…'"
+                                aria-label="Segunda cidade"
+                                @select="onCitySelect2"
+                            />
+                            <p v-if="publicForm.errors.profile_city_2" class="text-xs text-danger">{{ publicForm.errors.profile_city_2 }}</p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-sm font-medium text-cream">3ª cidade <span class="text-muted">(opcional)</span></label>
+                            <CityAutocomplete
+                                v-model="publicForm.profile_city_3"
+                                :placeholder="'Mais uma cidade…'"
+                                aria-label="Terceira cidade"
+                                @select="onCitySelect3"
+                            />
+                            <p v-if="publicForm.errors.profile_city_3" class="text-xs text-danger">{{ publicForm.errors.profile_city_3 }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Mais detalhes (selects controlados, opt-in): escolaridade,
+                         área, filhos, bebe, fuma, disponibilidade. -->
+                    <div class="border-t border-frame pt-6 grid gap-4 sm:grid-cols-2">
+                        <div class="flex flex-col gap-1.5">
+                            <label for="education" class="text-sm font-medium text-cream">Escolaridade</label>
+                            <select id="education" v-model="publicForm.education" class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none">
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.education" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.education" class="text-xs text-danger">{{ publicForm.errors.education }}</p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="occupation_area" class="text-sm font-medium text-cream">Área de atuação</label>
+                            <select id="occupation_area" v-model="publicForm.occupation_area" class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none">
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.occupation_area" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.occupation_area" class="text-xs text-danger">{{ publicForm.errors.occupation_area }}</p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="children" class="text-sm font-medium text-cream">Filhos</label>
+                            <select id="children" v-model="publicForm.children" class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none">
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.children" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.children" class="text-xs text-danger">{{ publicForm.errors.children }}</p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="availability" class="text-sm font-medium text-cream">Disponibilidade</label>
+                            <select id="availability" v-model="publicForm.availability" class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none">
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.availability" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.availability" class="text-xs text-danger">{{ publicForm.errors.availability }}</p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="drinks" class="text-sm font-medium text-cream">Bebe</label>
+                            <select id="drinks" v-model="publicForm.drinks" class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none">
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.drinks" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.drinks" class="text-xs text-danger">{{ publicForm.errors.drinks }}</p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="smokes" class="text-sm font-medium text-cream">Fuma</label>
+                            <select id="smokes" v-model="publicForm.smokes" class="min-h-[44px] rounded-lg border border-frame bg-surface-2 px-3 text-sm text-cream focus:border-gold focus:outline-none">
+                                <option value="">Prefiro não dizer</option>
+                                <option v-for="opt in publicProfileOptions.smokes" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                            <p v-if="publicForm.errors.smokes" class="text-xs text-danger">{{ publicForm.errors.smokes }}</p>
+                        </div>
                     </div>
 
                     <!-- Faixa etária: opt-in de EXIBIÇÃO (derivada da sua data de
@@ -567,6 +713,7 @@ function saveLifestyle() {
                                 <span class="font-serif text-lg text-cream">{{ nickname || 'Seu apelido' }}</span>
                                 <span v-if="public_profile.is_verified" class="rounded-full bg-gold/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold">Verificado</span>
                             </div>
+                            <p v-if="publicForm.headline.trim()" class="font-serif text-sm italic text-cream/80">{{ publicForm.headline }}</p>
                             <p class="text-xs text-muted">
                                 <template v-if="publicForm.show_age_band && public_profile.age_band">{{ public_profile.age_band }}</template>
                                 <template v-if="publicForm.show_age_band && public_profile.age_band && previewCity"> · </template>

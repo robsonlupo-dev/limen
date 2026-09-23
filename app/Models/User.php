@@ -152,6 +152,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'public_seeking' => 'array',
             'public_interests' => 'array',
             'height_cm' => 'integer',
+            'weight_kg' => 'integer',
             'show_age_band' => 'boolean',
             // Visibilidade no catálogo de membros (Sprint 16). Nullable no banco
             // (null = "nunca escolheu"); o efetivo sai de isVisibleToPerformers().
@@ -424,13 +425,35 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function displayCityLabel(): ?string
     {
-        $city = trim((string) $this->profile_city);
+        return self::cityLabel($this->profile_city, $this->profile_uf);
+    }
+
+    /**
+     * Até 3 localizações ("São Paulo, SP", "Campinas, SP", ...) — a principal
+     * mais até duas extras (opt-in), na ordem 1ª/2ª/3ª, só as preenchidas. É o
+     * que a performer vê: cidade (nunca bairro), como a 1ª.
+     *
+     * @return array<int, string>
+     */
+    public function displayLocations(): array
+    {
+        return array_values(array_filter([
+            self::cityLabel($this->profile_city, $this->profile_uf),
+            self::cityLabel($this->profile_city_2, $this->profile_uf_2),
+            self::cityLabel($this->profile_city_3, $this->profile_uf_3),
+        ]));
+    }
+
+    /** "Cidade, UF" (UF só se houver), ou null quando não há cidade. */
+    private static function cityLabel(?string $city, ?string $uf): ?string
+    {
+        $city = trim((string) $city);
 
         if ($city === '') {
             return null;
         }
 
-        $uf = trim((string) $this->profile_uf);
+        $uf = trim((string) $uf);
 
         return $uf === '' ? $city : $city.', '.$uf;
     }

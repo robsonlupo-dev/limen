@@ -81,6 +81,105 @@ final class MemberProfileOptions
     /** Alturas em cm, em passos de 5 (faixa grossa, nunca precisão que identifique). */
     private const HEIGHTS = [150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200];
 
+    /**
+     * Pesos como FAIXA: o valor guardado é o PISO de 5kg; o rótulo é "65–69 kg".
+     * Nunca precisão (que identificaria) — só a faixa, opt-in.
+     *
+     * @var array<int, int>
+     */
+    private const WEIGHTS = [40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120];
+
+    /**
+     * Escolaridade. Select controlado, sem texto livre.
+     *
+     * @var array<string, string>
+     */
+    private const EDUCATION = [
+        'fundamental' => 'Fundamental',
+        'medio' => 'Ensino médio',
+        'tecnico' => 'Técnico',
+        'superior' => 'Ensino superior',
+        'pos' => 'Pós-graduação',
+        'mestrado' => 'Mestrado',
+        'doutorado' => 'Doutorado',
+        'prefiro_nao_dizer' => 'Prefiro não dizer',
+    ];
+
+    /**
+     * Área de atuação — lista controlada (nunca texto livre, que vazaria contato/
+     * empresa). Ampla de propósito.
+     *
+     * @var array<string, string>
+     */
+    private const OCCUPATION_AREA = [
+        'tecnologia' => 'Tecnologia',
+        'saude' => 'Saúde',
+        'direito' => 'Direito',
+        'financas' => 'Finanças',
+        'educacao' => 'Educação',
+        'engenharia' => 'Engenharia',
+        'artes' => 'Artes & design',
+        'comunicacao' => 'Comunicação',
+        'negocios' => 'Negócios',
+        'servico_publico' => 'Serviço público',
+        'outra' => 'Outra',
+        'prefiro_nao_dizer' => 'Prefiro não dizer',
+    ];
+
+    /**
+     * Filhos.
+     *
+     * @var array<string, string>
+     */
+    private const CHILDREN = [
+        'nao_tenho' => 'Não tenho',
+        'tenho_moram' => 'Tenho — moram comigo',
+        'tenho_nao_moram' => 'Tenho — não moram comigo',
+        'prefiro_nao_dizer' => 'Prefiro não dizer',
+    ];
+
+    /**
+     * Bebe. Coluna NOVA em `users` (a homônima da performer vive em
+     * performer_profiles); vocabulário próprio do membro, com "prefiro não dizer".
+     *
+     * @var array<string, string>
+     */
+    private const DRINKS = [
+        'nao_bebo' => 'Não bebo',
+        'socialmente' => 'Socialmente',
+        'frequentemente' => 'Frequentemente',
+        'prefiro_nao_dizer' => 'Prefiro não dizer',
+    ];
+
+    /**
+     * Fuma.
+     *
+     * @var array<string, string>
+     */
+    private const SMOKES = [
+        'nao_fumo' => 'Não fumo',
+        'socialmente' => 'Socialmente',
+        'fumo' => 'Fumo',
+        'prefiro_nao_dizer' => 'Prefiro não dizer',
+    ];
+
+    /**
+     * Disponibilidade — quando o membro costuma estar por perto.
+     *
+     * @var array<string, string>
+     */
+    private const AVAILABILITY = [
+        'dias_de_semana' => 'Dias de semana',
+        'noites' => 'Noites',
+        'fins_de_semana' => 'Fins de semana',
+        'noites_e_fins' => 'Noites e fins de semana',
+        'flexivel' => 'Horário flexível',
+        'prefiro_nao_dizer' => 'Prefiro não dizer',
+    ];
+
+    /** Teto de localizações (cidade principal + até 2 extras). */
+    public const MAX_LOCATIONS = 3;
+
     /** Teto de tags "o que busco" que o membro escolhe. */
     public const MAX_SEEKING = 6;
 
@@ -113,6 +212,48 @@ final class MemberProfileOptions
         return self::HEIGHTS;
     }
 
+    /** @return array<int, int> */
+    public static function weightValues(): array
+    {
+        return self::WEIGHTS;
+    }
+
+    /** @return array<int, string> */
+    public static function educationSlugs(): array
+    {
+        return array_keys(self::EDUCATION);
+    }
+
+    /** @return array<int, string> */
+    public static function occupationAreaSlugs(): array
+    {
+        return array_keys(self::OCCUPATION_AREA);
+    }
+
+    /** @return array<int, string> */
+    public static function childrenSlugs(): array
+    {
+        return array_keys(self::CHILDREN);
+    }
+
+    /** @return array<int, string> */
+    public static function drinksSlugs(): array
+    {
+        return array_keys(self::DRINKS);
+    }
+
+    /** @return array<int, string> */
+    public static function smokesSlugs(): array
+    {
+        return array_keys(self::SMOKES);
+    }
+
+    /** @return array<int, string> */
+    public static function availabilitySlugs(): array
+    {
+        return array_keys(self::AVAILABILITY);
+    }
+
     // ─── Opções para o formulário [{value,label}] ────────────────────────────
 
     /** @return array<int, array{value: string, label: string}> */
@@ -140,6 +281,51 @@ final class MemberProfileOptions
             fn (int $cm) => ['value' => $cm, 'label' => self::heightLabel($cm)],
             self::HEIGHTS,
         );
+    }
+
+    /** @return array<int, array{value: int, label: string}> */
+    public static function weightOptions(): array
+    {
+        return array_map(
+            fn (int $kg) => ['value' => $kg, 'label' => self::weightLabel($kg)],
+            self::WEIGHTS,
+        );
+    }
+
+    /** @return array<int, array{value: string, label: string}> */
+    public static function educationOptions(): array
+    {
+        return self::pairs(self::EDUCATION);
+    }
+
+    /** @return array<int, array{value: string, label: string}> */
+    public static function occupationAreaOptions(): array
+    {
+        return self::pairs(self::OCCUPATION_AREA);
+    }
+
+    /** @return array<int, array{value: string, label: string}> */
+    public static function childrenOptions(): array
+    {
+        return self::pairs(self::CHILDREN);
+    }
+
+    /** @return array<int, array{value: string, label: string}> */
+    public static function drinksOptions(): array
+    {
+        return self::pairs(self::DRINKS);
+    }
+
+    /** @return array<int, array{value: string, label: string}> */
+    public static function smokesOptions(): array
+    {
+        return self::pairs(self::SMOKES);
+    }
+
+    /** @return array<int, array{value: string, label: string}> */
+    public static function availabilityOptions(): array
+    {
+        return self::pairs(self::AVAILABILITY);
     }
 
     // ─── Slug → rótulo (montagem do payload da performer) ─────────────────────
@@ -178,6 +364,46 @@ final class MemberProfileOptions
 
         // "1,75 m" — separador decimal pt-BR.
         return number_format($cm / 100, 2, ',', '.').' m';
+    }
+
+    /** Peso como FAIXA de 5kg: piso 65 → "65–69 kg". null/fora da lista → null. */
+    public static function weightLabel(?int $kg): ?string
+    {
+        if ($kg === null || ! in_array($kg, self::WEIGHTS, true)) {
+            return null;
+        }
+
+        return $kg.'–'.($kg + 4).' kg';
+    }
+
+    public static function educationLabel(?string $slug): ?string
+    {
+        return $slug === null ? null : (self::EDUCATION[$slug] ?? null);
+    }
+
+    public static function occupationAreaLabel(?string $slug): ?string
+    {
+        return $slug === null ? null : (self::OCCUPATION_AREA[$slug] ?? null);
+    }
+
+    public static function childrenLabel(?string $slug): ?string
+    {
+        return $slug === null ? null : (self::CHILDREN[$slug] ?? null);
+    }
+
+    public static function drinksLabel(?string $slug): ?string
+    {
+        return $slug === null ? null : (self::DRINKS[$slug] ?? null);
+    }
+
+    public static function smokesLabel(?string $slug): ?string
+    {
+        return $slug === null ? null : (self::SMOKES[$slug] ?? null);
+    }
+
+    public static function availabilityLabel(?string $slug): ?string
+    {
+        return $slug === null ? null : (self::AVAILABILITY[$slug] ?? null);
     }
 
     // ─── Internos ─────────────────────────────────────────────────────────────

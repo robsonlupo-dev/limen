@@ -21,8 +21,10 @@ import { postJson } from '@/lib/http'
  */
 const props = defineProps({
     // { fan_alias_label, member_handle, photos:[{id,url,full_url}], activity_label,
-    //   is_new, hearted, bio, seeking[], interests[], age_band, city_label,
-    //   marital_status, height, member_since, is_verified }
+    //   is_new, hearted, bio, headline, seeking[], interests[], age_band,
+    //   city_label, locations[], marital_status, height, weight, education,
+    //   occupation_area, children, drinks, smokes, availability, member_since,
+    //   is_verified }
     member: { type: Object, required: true },
     messagesRemaining: { type: Number, default: 0 },
     messagesDailyLimit: { type: Number, default: 0 },
@@ -58,7 +60,16 @@ const galleryThumbs = computed(() => {
 })
 const hasVisual = computed(() => !!avatarUrl.value || photos.value.length > 0)
 
-// Chips de status: só os que existem.
+// Localizações (1ª/2ª/3ª): a principal + até 2 extras, só as preenchidas. Compat
+// com payloads antigos que só mandavam city_label.
+const locations = computed(() => {
+    const list = props.member.locations
+    if (Array.isArray(list) && list.length) return list
+    return props.member.city_label ? [props.member.city_label] : []
+})
+
+// Chips de status: atividade (faixa) + membro desde. (O "Online" binário entra
+// numa etapa própria — aqui segue a faixa de atividade atual.)
 const chips = computed(() =>
     [
         props.member.activity_label,
@@ -66,21 +77,29 @@ const chips = computed(() =>
     ].filter(Boolean),
 )
 
-// "Detalhes" — grid de rótulo/valor, só os preenchidos.
-const details = computed(() =>
+// Faixa de dados (4 tiles escaneáveis): faixa etária, estado civil, altura, peso.
+// Só os preenchidos — nada de "não informado".
+const statStrip = computed(() =>
     [
         { label: 'Faixa etária', value: props.member.age_band },
-        { label: 'Cidade', value: props.member.city_label },
-        { label: 'Estado civil', value: maritalLabel(props.member.marital_status) },
+        { label: 'Estado civil', value: props.member.marital_status },
         { label: 'Altura', value: props.member.height },
-    ].filter((d) => d.value),
+        { label: 'Peso', value: props.member.weight },
+    ].filter((s) => s.value),
 )
 
-// O estado civil chega como rótulo pronto do servidor (marital_status já é o
-// label quando montado no controller); guardado por robustez se vier slug.
-function maritalLabel(v) {
-    return v || null
-}
+// Detalhes com ícone (2 colunas): escolaridade, área, filhos, bebe, fuma,
+// disponibilidade. Cada um traz a chave do ícone; só os preenchidos aparecem.
+const iconDetails = computed(() =>
+    [
+        { key: 'education', label: 'Escolaridade', value: props.member.education },
+        { key: 'occupation_area', label: 'Área', value: props.member.occupation_area },
+        { key: 'children', label: 'Filhos', value: props.member.children },
+        { key: 'drinks', label: 'Bebe', value: props.member.drinks },
+        { key: 'smokes', label: 'Fuma', value: props.member.smokes },
+        { key: 'availability', label: 'Disponibilidade', value: props.member.availability },
+    ].filter((d) => d.value),
+)
 
 function flash(text) {
     toast.value = text
@@ -193,6 +212,31 @@ async function sendMessage() {
                     >Novo</span>
                 </div>
 
+                <!-- Título/headline: frase curta em itálico, personalidade em 1 linha. -->
+                <p v-if="member.headline" class="mt-1.5 font-serif text-lg italic leading-snug text-limen-ink-soft">
+                    {{ member.headline }}
+                </p>
+
+                <!-- Localizações 1ª/2ª/3ª: cidade (nunca bairro). A 1ª com pin; as
+                     extras com o ordinal, discretas. -->
+                <div v-if="locations.length" class="mt-2 flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 rounded-full border border-limen-line bg-limen-surface px-3 py-1 text-xs text-limen-ink-soft">
+                        <svg class="h-3.5 w-3.5 text-limen-ink-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 21s7-6.5 7-11a7 7 0 0 0-14 0c0 4.5 7 11 7 11z" />
+                            <circle cx="12" cy="10" r="2.5" />
+                        </svg>
+                        {{ locations[0] }}
+                    </span>
+                    <span
+                        v-for="(loc, i) in locations.slice(1)"
+                        :key="loc"
+                        class="inline-flex items-center gap-1.5 rounded-full border border-dashed border-limen-line px-3 py-1 text-xs text-limen-ink-mute"
+                    >
+                        <span class="text-[10px] text-limen-ink-mute/80">{{ i + 2 }}ª</span>
+                        {{ loc }}
+                    </span>
+                </div>
+
                 <!-- Chips de status: atividade + membro desde. -->
                 <div v-if="chips.length" class="mt-2 flex flex-wrap gap-2">
                     <span
@@ -215,6 +259,24 @@ async function sendMessage() {
                     </svg>
                     Denunciar apelido
                 </button>
+            </div>
+
+            <!-- Faixa de dados: até 4 tiles escaneáveis (faixa etária, estado
+                 civil, altura, peso). Só os preenchidos; a grade se ajusta. -->
+            <div
+                v-if="statStrip.length"
+                class="mt-5 grid divide-x divide-limen-line overflow-hidden rounded-2xl border border-limen-line bg-limen-surface"
+                :class="{
+                    'grid-cols-1': statStrip.length === 1,
+                    'grid-cols-2': statStrip.length === 2,
+                    'grid-cols-3': statStrip.length === 3,
+                    'grid-cols-4': statStrip.length === 4,
+                }"
+            >
+                <div v-for="s in statStrip" :key="s.label" class="flex flex-col items-center gap-1 px-2 py-3.5 text-center">
+                    <span class="text-sm font-semibold text-limen-ink">{{ s.value }}</span>
+                    <span class="text-[10px] uppercase tracking-wide text-limen-ink-mute">{{ s.label }}</span>
+                </div>
             </div>
 
             <!-- Sobre mim (bio). -->
@@ -247,15 +309,36 @@ async function sendMessage() {
                 </div>
             </section>
 
-            <!-- Detalhes (grid rótulo/valor). -->
-            <section v-if="details.length" class="mt-6">
+            <!-- Detalhes com ícones (2 colunas): escolaridade, área, filhos, bebe,
+                 fuma, disponibilidade. Só os preenchidos. Ícones SVG (nunca emoji). -->
+            <section v-if="iconDetails.length" class="mt-6">
                 <h2 class="font-serif text-lg text-limen-ink">Detalhes</h2>
-                <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
-                    <div v-for="d in details" :key="d.label" class="min-w-0">
-                        <dt class="text-[11px] uppercase tracking-wide text-limen-ink-mute">{{ d.label }}</dt>
-                        <dd class="truncate text-sm text-limen-ink">{{ d.value }}</dd>
+                <div class="mt-2 grid grid-cols-2 gap-2.5">
+                    <div
+                        v-for="d in iconDetails"
+                        :key="d.key"
+                        class="flex items-center gap-2.5 rounded-xl border border-limen-line bg-limen-surface p-3"
+                    >
+                        <svg class="h-[18px] w-[18px] shrink-0 text-limen-ink-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <!-- escolaridade: capelo -->
+                            <template v-if="d.key === 'education'"><path d="M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" /></template>
+                            <!-- área: maleta -->
+                            <template v-else-if="d.key === 'occupation_area'"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></template>
+                            <!-- filhos: pessoas -->
+                            <template v-else-if="d.key === 'children'"><circle cx="9" cy="7" r="3" /><circle cx="17" cy="9" r="2" /><path d="M3 21c0-3.5 2.7-6 6-6s6 2.5 6 6" /><path d="M15 21c0-2.5 1.4-4 3.5-4" /></template>
+                            <!-- bebe: taça -->
+                            <template v-else-if="d.key === 'drinks'"><path d="M5 3h14l-7 9z" /><path d="M12 12v8" /><path d="M8 20h8" /></template>
+                            <!-- fuma: cigarro cortado -->
+                            <template v-else-if="d.key === 'smokes'"><path d="M3 3l18 18" /><path d="M4 14h9" /><path d="M17 14h3v4h-3" /><path d="M4 18h12" /></template>
+                            <!-- disponibilidade: relógio -->
+                            <template v-else><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></template>
+                        </svg>
+                        <div class="flex min-w-0 flex-col gap-0.5">
+                            <span class="text-sm text-limen-ink">{{ d.value }}</span>
+                            <span class="text-[10px] uppercase tracking-wide text-limen-ink-mute">{{ d.label }}</span>
+                        </div>
                     </div>
-                </dl>
+                </div>
             </section>
 
             <!-- Ações: barra fixa no rodapé no mobile; inline no desktop. Dourado
