@@ -104,12 +104,24 @@ class ProfileController extends Controller
             // listas controladas (rótulos do servidor, nunca duplicados no Vue).
             'public_profile' => [
                 'bio' => $user->bio,
+                'headline' => $user->headline,
                 'public_seeking' => $user->public_seeking ?? [],
                 'public_interests' => $user->public_interests ?? [],
                 'profile_city' => $user->profile_city,
                 'profile_uf' => $user->profile_uf,
+                'profile_city_2' => $user->profile_city_2,
+                'profile_uf_2' => $user->profile_uf_2,
+                'profile_city_3' => $user->profile_city_3,
+                'profile_uf_3' => $user->profile_uf_3,
                 'marital_status' => $user->marital_status,
                 'height_cm' => $user->height_cm,
+                'weight_kg' => $user->weight_kg,
+                'education' => $user->education,
+                'occupation_area' => $user->occupation_area,
+                'children' => $user->children,
+                'drinks' => $user->drinks,
+                'smokes' => $user->smokes,
+                'availability' => $user->availability,
                 'show_age_band' => (bool) $user->show_age_band,
                 // Derivados, para o PREVIEW de "como a performer vê": a faixa (do
                 // birthdate), o selo (do KYC) e "membro desde". A faixa vem SEMPRE
@@ -124,6 +136,13 @@ class ProfileController extends Controller
                 'interests' => MemberProfileOptions::interestOptions(),
                 'marital' => MemberProfileOptions::maritalOptions(),
                 'heights' => MemberProfileOptions::heightOptions(),
+                'weights' => MemberProfileOptions::weightOptions(),
+                'education' => MemberProfileOptions::educationOptions(),
+                'occupation_area' => MemberProfileOptions::occupationAreaOptions(),
+                'children' => MemberProfileOptions::childrenOptions(),
+                'drinks' => MemberProfileOptions::drinksOptions(),
+                'smokes' => MemberProfileOptions::smokesOptions(),
+                'availability' => MemberProfileOptions::availabilityOptions(),
                 'max_seeking' => MemberProfileOptions::MAX_SEEKING,
                 'max_interests' => MemberProfileOptions::MAX_INTERESTS,
             ],
@@ -150,16 +169,26 @@ class ProfileController extends Controller
         $changes = [];
 
         // Texto/escalares: '' vira null (uma representação só para "vazio").
-        foreach (['bio', 'profile_city', 'profile_uf', 'marital_status'] as $field) {
+        $scalarFields = [
+            'bio', 'headline',
+            'profile_city', 'profile_uf',
+            'profile_city_2', 'profile_uf_2',
+            'profile_city_3', 'profile_uf_3',
+            'marital_status', 'education', 'occupation_area',
+            'children', 'drinks', 'smokes', 'availability',
+        ];
+        foreach ($scalarFields as $field) {
             if (array_key_exists($field, $validated)) {
                 $value = trim((string) ($validated[$field] ?? ''));
                 $changes[$field] = $value === '' ? null : $value;
             }
         }
 
-        // Altura: inteiro ou null.
-        if (array_key_exists('height_cm', $validated)) {
-            $changes['height_cm'] = $validated['height_cm'] !== null ? (int) $validated['height_cm'] : null;
+        // Altura e peso: inteiro ou null.
+        foreach (['height_cm', 'weight_kg'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $changes[$field] = $validated[$field] !== null ? (int) $validated[$field] : null;
+            }
         }
 
         // Arrays de slugs: [] vira null (vazio tem uma representação só).

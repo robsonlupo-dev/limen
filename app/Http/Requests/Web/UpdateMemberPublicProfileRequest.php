@@ -48,14 +48,31 @@ class UpdateMemberPublicProfileRequest extends FormRequest
             'public_interests' => ['sometimes', 'nullable', 'array', 'max:'.MemberProfileOptions::MAX_INTERESTS],
             'public_interests.*' => ['string', 'distinct', Rule::in(MemberProfileOptions::interestSlugs())],
 
+            // Título/headline — frase curta em itálico sob o apelido. Texto livre
+            // curto + guarda de contato (SafeProfileText), como a bio.
+            'headline' => ['sometimes', 'nullable', 'string', 'max:80', new SafeProfileText],
+
             // Cidade/UF (autocomplete IBGE — nome livre por baixo, como a
             // performer). A UF é validada contra as 27; a cidade é só tamanho.
             'profile_city' => ['sometimes', 'nullable', 'string', 'max:120'],
             'profile_uf' => ['sometimes', 'nullable', 'string', 'size:2', Rule::in(self::UFS)],
 
+            // 2ª e 3ª localização (opt-in) — mesmas regras da 1ª.
+            'profile_city_2' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'profile_uf_2' => ['sometimes', 'nullable', 'string', 'size:2', Rule::in(self::UFS)],
+            'profile_city_3' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'profile_uf_3' => ['sometimes', 'nullable', 'string', 'size:2', Rule::in(self::UFS)],
+
             // Detalhes — selects controlados (sem texto livre).
             'marital_status' => ['sometimes', 'nullable', 'string', Rule::in(MemberProfileOptions::maritalSlugs())],
             'height_cm' => ['sometimes', 'nullable', 'integer', Rule::in(MemberProfileOptions::heightValues())],
+            'weight_kg' => ['sometimes', 'nullable', 'integer', Rule::in(MemberProfileOptions::weightValues())],
+            'education' => ['sometimes', 'nullable', 'string', Rule::in(MemberProfileOptions::educationSlugs())],
+            'occupation_area' => ['sometimes', 'nullable', 'string', Rule::in(MemberProfileOptions::occupationAreaSlugs())],
+            'children' => ['sometimes', 'nullable', 'string', Rule::in(MemberProfileOptions::childrenSlugs())],
+            'drinks' => ['sometimes', 'nullable', 'string', Rule::in(MemberProfileOptions::drinksSlugs())],
+            'smokes' => ['sometimes', 'nullable', 'string', Rule::in(MemberProfileOptions::smokesSlugs())],
+            'availability' => ['sometimes', 'nullable', 'string', Rule::in(MemberProfileOptions::availabilitySlugs())],
 
             // Opt-in da faixa etária (derivada do birthdate). Booleano.
             'show_age_band' => ['sometimes', 'boolean'],
@@ -73,11 +90,19 @@ class UpdateMemberPublicProfileRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function () {
-            $bio = $this->input('bio');
             $user = $this->user();
+            if ($user === null) {
+                return;
+            }
 
-            if ($user !== null && is_string($bio) && trim($bio) !== '') {
-                app(ContentFlagService::class)->recordFromText($user, ContentFlag::SOURCE_PROFILE_TEXT, $bio);
+            // Bio e headline são texto livre — ambos entram na fila de reincidência
+            // quando têm CONDUTA (recordFromText filtra: contato/risco legal não vira
+            // flag). Mesmo tratamento do chat.
+            foreach (['bio', 'headline'] as $field) {
+                $text = $this->input($field);
+                if (is_string($text) && trim($text) !== '') {
+                    app(ContentFlagService::class)->recordFromText($user, ContentFlag::SOURCE_PROFILE_TEXT, $text);
+                }
             }
         });
     }
@@ -88,8 +113,10 @@ class UpdateMemberPublicProfileRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        if ($this->has('profile_uf') && is_string($this->input('profile_uf'))) {
-            $this->merge(['profile_uf' => strtoupper(trim($this->input('profile_uf')))]);
+        foreach (['profile_uf', 'profile_uf_2', 'profile_uf_3'] as $field) {
+            if ($this->has($field) && is_string($this->input($field))) {
+                $this->merge([$field => strtoupper(trim($this->input($field)))]);
+            }
         }
     }
 
