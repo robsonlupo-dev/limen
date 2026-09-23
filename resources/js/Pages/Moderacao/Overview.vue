@@ -58,6 +58,14 @@ const cards = computed(() => [
         countLabel: 'hoje',
         href: route('moderacao.my-actions'),
     },
+    {
+        key: 'stats',
+        title: 'Estatísticas',
+        blurb: 'Tempo de resolução, SLA, volume e reversão.',
+        count: null,
+        countLabel: '',
+        href: route('moderacao.estatisticas'),
+    },
 ])
 
 // Só as filas de trabalho (o que aguarda revisão); "minhas ações" é histórico.
@@ -88,7 +96,7 @@ const total = computed(() =>
                 >
                     <div class="flex items-start justify-between gap-3">
                         <h2 class="font-serif text-xl text-cream">{{ card.title }}</h2>
-                        <span class="flex items-baseline gap-1">
+                        <span v-if="card.count !== null" class="flex items-baseline gap-1">
                             <span
                                 :class="[
                                     'min-w-[28px] rounded-full px-2 py-0.5 text-center font-mono text-sm font-semibold',
@@ -101,7 +109,7 @@ const total = computed(() =>
                     <p class="text-sm text-muted">{{ card.blurb }}</p>
                     <p v-if="card.note" class="text-xs font-medium text-danger">{{ card.note }}</p>
                     <span class="mt-auto text-sm font-medium text-gold">
-                        {{ card.count > 0 ? 'Revisar' : 'Abrir fila' }}
+                        {{ card.count === null ? 'Ver' : (card.count > 0 ? 'Revisar' : 'Abrir fila') }}
                         <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5 inline-block">→</span>
                     </span>
                 </Link>
