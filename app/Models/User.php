@@ -407,6 +407,29 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->age_verified_at !== null;
     }
 
+    /** Janela do "Online agora": ativo nos últimos N min conta como online. */
+    public const ONLINE_WINDOW_MINUTES = 5;
+
+    /**
+     * O membro está ONLINE agora? (feat/member-online-presence, etapa 2b.)
+     * Binário: ativo (last_active_at) dentro da janela E sem Status Invisível.
+     *
+     * A supressão principal já é na ESCRITA (TrackMemberActivity não carimba quem
+     * é invisível/ghost), então last_active_at fica velho/nulo para esses; a
+     * checagem do atributo cru aqui é o cinto-e-suspensório (cobre o instante
+     * entre ligar o invisível e o carimbo velho expirar). Nunca expõe o horário —
+     * só o booleano.
+     */
+    public function isOnlineNow(): bool
+    {
+        if ($this->invisible_status) {
+            return false;
+        }
+
+        return $this->last_active_at !== null
+            && $this->last_active_at->greaterThan(now()->subMinutes(self::ONLINE_WINDOW_MINUTES));
+    }
+
     /**
      * A faixa etária a EXIBIR, ou null. Derivada do `birthdate` (nunca a data/
      * idade exata), e só quando o membro OPTOU por mostrá-la (`show_age_band`) —

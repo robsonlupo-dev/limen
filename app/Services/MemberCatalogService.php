@@ -91,7 +91,7 @@ class MemberCatalogService
             // elas no select, o accessor leria null e a foto sumiria.
             // profile_visible: opt-in mestre da galeria/perfil (Opção B) — decide
             // se o card usa a foto da galeria e se o perfil é clicável.
-            ->select('users.id', 'users.last_login_at', 'users.invisible_status', 'users.created_at',
+            ->select('users.id', 'users.last_login_at', 'users.last_active_at', 'users.invisible_status', 'users.created_at',
                 'users.avatar_path', 'users.avatar_token', 'users.nickname', 'users.profile_visible',
                 // Perfil v2 (feat/member-profile-v2): selo (age_verified_at), faixa
                 // etária opt-in (birthdate + show_age_band) e cidade pública. Só
@@ -190,6 +190,9 @@ class MemberCatalogService
             // Faixa grossa, nunca relógio; suprimida para quem tem Status
             // Invisível (presença não exposta). Sinal = last_login_at.
             'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),
+            // "Online agora" (etapa 2b): pontinho verde no card. Booleano binário
+            // (ativo nos últimos 5 min, sem Status Invisível); nunca o horário.
+            'is_online' => $member->isOnlineNow(),
             // Selo "Novo" (feat/activity-badges): BOOLEANO derivado do `created_at`
             // da conta, nunca a data. A janela de 7 dias é mais grossa que a faixa
             // de atividade, então não data a criação ao minuto; e o catálogo já

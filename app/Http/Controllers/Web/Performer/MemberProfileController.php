@@ -100,6 +100,10 @@ class MemberProfileController extends Controller
                 'avatar_url' => $member->avatarUrl(),
                 // Faixa grossa de atividade (nunca relógio); suprimida se Invisível.
                 'activity_label' => ActivitySlot::for($member->invisible_status ? null : $member->last_login_at),
+                // "Online agora" (etapa 2b): booleano binário, ativo nos últimos 5
+                // min e sem Status Invisível. Nunca o horário — só true/false. A tela
+                // mostra "Online" quando true; quando false, cai na faixa acima.
+                'is_online' => $member->isOnlineNow(),
                 'is_new' => NewBadge::isNew($member->created_at),
                 'hearted' => $hearted,
                 // ── Perfil v2 (feat/member-profile-v2). Payload EXPLÍCITO e

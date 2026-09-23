@@ -12,6 +12,7 @@ use App\Http\Middleware\FeatureEnabled;
 use App\Http\Middleware\GeoBlock;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\TrackMemberActivity;
 use App\Http\Middleware\TrackPerformerActivity;
 use App\Http\Middleware\TwoFactorChallenge;
 use App\Http\Middleware\VerifyAsaasWebhookIp;
@@ -66,6 +67,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // performer banida é derrubada antes daqui, então não conta como
             // ativa. No-op para guest, membro e admin. Ver TrackPerformerActivity.
             TrackPerformerActivity::class,
+            // Par do anterior, para o MEMBRO: carimba `last_active_at` do membro
+            // (throttle 2 min) para o "Online agora" que a performer vê. Mesma
+            // supressão na escrita (invisível/ghost). No-op para guest, performer
+            // e admin. Ver TrackMemberActivity.
+            TrackMemberActivity::class,
         ]);
         // UI-only flags written by the front-end in plaintext (age gate + intro).
         // They carry no secret, so they must be exempt from cookie encryption —
