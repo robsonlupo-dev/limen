@@ -29,7 +29,7 @@ class MemberGalleryPhoto extends Model
     public const STATUS_REJECTED = 'rejected';
 
     /** Teto de fotos ATIVAS (pending+approved) por membro. */
-    public const MAX_ACTIVE = 4;
+    public const MAX_ACTIVE = 10;
 
     protected $fillable = [];
 
@@ -42,6 +42,7 @@ class MemberGalleryPhoto extends Model
     {
         return [
             'is_primary' => 'boolean',
+            'is_private' => 'boolean',
             'moderated_at' => 'datetime',
         ];
     }
@@ -49,6 +50,16 @@ class MemberGalleryPhoto extends Model
     public function isApproved(): bool
     {
         return $this->status === self::STATUS_APPROVED;
+    }
+
+    /**
+     * ABERTA: vista por qualquer performer que já vê o perfil. PRIVADA (o inverso)
+     * sai borrada e só abre para quem o membro liberar (Etapa 2). Foto nova nasce
+     * privada (default da coluna).
+     */
+    public function isPublic(): bool
+    {
+        return ! $this->is_private;
     }
 
     public function isPending(): bool
@@ -68,7 +79,7 @@ class MemberGalleryPhoto extends Model
         return $query->where('status', self::STATUS_PENDING);
     }
 
-    /** Ativas = ocupam um dos 4 slots (pending ou approved). Rejeitada não conta. */
+    /** Ativas = ocupam um dos MAX_ACTIVE slots (pending ou approved). Rejeitada não conta. */
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', [self::STATUS_PENDING, self::STATUS_APPROVED]);

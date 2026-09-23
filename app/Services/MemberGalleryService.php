@@ -152,6 +152,11 @@ class MemberGalleryService
         // Só aprovada pode ser exibida — logo, só aprovada vira principal.
         abort_unless($photo->isApproved(), 422);
 
+        // Foto PRIVADA não vira principal: a principal é a cara PÚBLICA do card
+        // (feat/member-gallery-per-photo-privacy). Destranque antes — o botão do
+        // front já some para foto privada; esta trava fecha a porta pela API.
+        abort_if($photo->is_private, 422);
+
         DB::transaction(function () use ($user, $photo) {
             MemberGalleryPhoto::where('user_id', $user->id)
                 ->where('is_primary', true)
@@ -175,6 +180,45 @@ class MemberGalleryService
         $user->forceFill(['profile_visible' => $visible])->save();
 
         Audit::log('member_gallery.visibility_updated', $user, ['visible' => $visible], $request);
+    }
+
+    /**
+     * Alterna a visibilidade de UMA foto (aberta ↔ privada) —
+     * feat/member-gallery-per-photo-privacy. Só o dono (assertOwned → 404
+     * indistinguível de inexistente, como remove/setPrimary). `is_private` está
+     * fora do $fillable: forceFill, nunca payload. Recusada não tem o que trancar
+     * (bytes purgados) → 404.
+     */
+    public function setPhotoVisibility(User $user, MemberGalleryPhoto $photo, bool $isPrivate, ?Request $request = null): void
+    {
+        $this->assertOwned($user, $photo);
+
+        abort_if($photo->status === MemberGalleryPhoto::STATUS_REJECTED, 404);
+
+        $photo->forceFill(['is_private' => $isPrivate])->save();
+
+        Audit::log('member_gallery.photo_visibility_updated', $photo, ['id' => $photo->id, 'is_private' => $isPrivate], $request);
+    }
+
+    /**
+     * Predicado ÚNICO de "estes bytes saem para este espectador" — a dona única
+     * da regra de serving (feat/member-gallery-per-photo-privacy). Lido pelo
+     * MemberGalleryMediaController; a mesma disciplina do PhotoAccessService da
+     * performer (as duas pontas não podem divergir, senão vira oráculo):
+     *  - o DONO vê a própria em qualquer status (preview da gestão);
+     *  - qualquer outro só recebe bytes de foto APROVADA, de dono com o perfil
+     *    visível, e PÚBLICA. Privada = só o dono (na Etapa 2 entram os grants por
+     *    performer; até lá, ninguém além do dono).
+     */
+    public function canServeToViewer(MemberGalleryPhoto $photo, ?User $viewer): bool
+    {
+        if ($viewer !== null && $viewer->id === $photo->user_id) {
+            return true;
+        }
+
+        return $photo->isApproved()
+            && (bool) $photo->user?->profile_visible
+            && $photo->isPublic();
     }
 
     /**
@@ -267,6 +311,9 @@ class MemberGalleryService
                 'id' => $photo->id,
                 'status' => $photo->status,
                 'is_primary' => $photo->is_primary,
+                // Nível de visibilidade (feat/member-gallery-per-photo-privacy): a
+                // tela de gestão desenha o cadeado e o botão trancar/destrancar.
+                'is_private' => $photo->is_private,
                 'reject_reason' => $photo->status === MemberGalleryPhoto::STATUS_REJECTED ? $photo->reject_reason : null,
                 'url' => $photo->mediaUrl(),
             ])
@@ -287,14 +334,34 @@ class MemberGalleryService
             ->orderByDesc('is_primary')
             ->orderBy('id')
             ->get()
-            ->map(fn (MemberGalleryPhoto $photo) => [
-                'id' => $photo->id,
-                'is_primary' => $photo->is_primary,
-                // Enquadrada (miniatura) + completa (lightbox). full_url cai na
-                // enquadrada quando a linha é antiga (sem variante completa).
-                'url' => $photo->mediaUrl(),
-                'full_url' => $photo->fullMediaUrl() ?? $photo->mediaUrl(),
-            ]);
+            ->map(function (MemberGalleryPhoto $photo) {
+                // Foto PRIVADA (feat/member-gallery-per-photo-privacy): a performer
+                // vê o cadeado, NUNCA os bytes — nenhuma URL é montada aqui. O
+                // serving reconfere o mesmo predicado (canServeToViewer), então
+                // "borrado na tela / 200 no download" não vira oráculo. Na Etapa 1
+                // não há liberação por performer ainda; privada = só o dono vê.
+                if ($photo->is_private) {
+                    return [
+                        'id' => $photo->id,
+                        'is_primary' => $photo->is_primary,
+                        'is_private' => true,
+                        'locked' => true,
+                        'url' => null,
+                        'full_url' => null,
+                    ];
+                }
+
+                return [
+                    'id' => $photo->id,
+                    'is_primary' => $photo->is_primary,
+                    'is_private' => false,
+                    'locked' => false,
+                    // Enquadrada (miniatura) + completa (lightbox). full_url cai na
+                    // enquadrada quando a linha é antiga (sem variante completa).
+                    'url' => $photo->mediaUrl(),
+                    'full_url' => $photo->fullMediaUrl() ?? $photo->mediaUrl(),
+                ];
+            });
     }
 
     /**
@@ -306,6 +373,10 @@ class MemberGalleryService
     {
         $photo = MemberGalleryPhoto::where('user_id', $user->id)
             ->approved()
+            // Só PÚBLICA vira thumbnail do catálogo: a foto privada nunca sai sem
+            // pedido, então não pode virar a cara pública do card por ser a
+            // principal (feat/member-gallery-per-photo-privacy).
+            ->where('is_private', false)
             ->orderByDesc('is_primary')
             ->orderBy('id')
             ->first();

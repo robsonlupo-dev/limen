@@ -193,6 +193,7 @@ return [
         'consumer.gallery.store',
         'consumer.gallery.destroy',
         'consumer.gallery.primary',
+        'consumer.gallery.photo-visibility',
         'consumer.gallery.visibility',
 
         // Favoritos do membro (bookmark privado — a performer não tem rota

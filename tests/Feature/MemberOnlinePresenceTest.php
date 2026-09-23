@@ -122,7 +122,7 @@ it('o perfil expoe is_online (booleano) e nunca o last_active_at', function () {
     $photo->user_id = $member->id;
     $photo->path = $path; $photo->full_path = $path;
     $photo->token = Str::random(48); $photo->full_token = Str::random(48);
-    $photo->status = 'approved'; $photo->is_primary = true; $photo->save();
+    $photo->status = 'approved'; $photo->is_primary = true; $photo->is_private = false; $photo->save();
 
     $handle = FanAlias::handle($performer->performerProfile->id, $member->id);
 

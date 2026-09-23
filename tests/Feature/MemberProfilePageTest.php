@@ -61,6 +61,9 @@ function mppPhoto(User $member, string $status = 'approved', bool $primary = fal
     $photo->token = Str::random(48);
     $photo->status = $status;
     $photo->is_primary = $primary;
+    // Público: estes testes cobrem o card/catálogo e o gate mestre, não a
+    // privacidade por foto (MemberGalleryPhotoPrivacyTest). Foto real nasce privada.
+    $photo->is_private = false;
     $photo->save();
 
     return $photo;

@@ -254,6 +254,9 @@ const galleryForm = useForm({ file: null, cropped: null })
 const pendingGalleryFile = ref(null)
 const galleryVisible = ref(props.profile_visible)
 const busyPhotoId = ref(null)
+// Consentimento legal obrigatório antes de enviar (só fotos suas, 18+, sem
+// menores). Sem o aceite, o seletor de arquivo fica travado.
+const uploadConsent = ref(false)
 
 // Ocupam slot: pending + aprovada (a recusada não conta, o membro pode reenviar).
 const activeGalleryCount = computed(
@@ -302,6 +305,16 @@ function removeGalleryPhoto(photo) {
 function makePrimary(photo) {
     busyPhotoId.value = photo.id
     router.patch(route('consumer.gallery.primary', photo.id), {}, {
+        preserveScroll: true,
+        onFinish: () => (busyPhotoId.value = null),
+    })
+}
+
+// Tranca/destranca uma foto (aberta ↔ privada). Privada sai borrada para a
+// performer; só o membro a vê — até liberar (Etapa 2). Foto nova nasce privada.
+function togglePhotoPrivacy(photo) {
+    busyPhotoId.value = photo.id
+    router.patch(route('consumer.gallery.photo-visibility', photo.id), { is_private: !photo.is_private }, {
         preserveScroll: true,
         onFinish: () => (busyPhotoId.value = null),
     })
@@ -762,9 +775,23 @@ function saveLifestyle() {
                 <div class="space-y-1">
                     <h2 class="font-serif text-xl text-cream">Suas fotos</h2>
                     <p class="text-xs text-muted">
-                        Opcional. Até {{ gallery_max }} fotos. Cada foto passa por uma
+                        Opcional. Até {{ gallery_max }} fotos. Cada foto nasce
+                        <span class="text-cream">privada</span> e passa por
                         <span class="text-cream">análise</span> antes de aparecer no seu perfil.
-                        JPG, PNG ou WebP, até 5 MB. Envie apenas fotos suas.
+                        Você decide quais deixar abertas. JPG, PNG ou WebP, até 5 MB.
+                    </p>
+                </div>
+
+                <!-- Aviso legal (não-negociável): fotos suas, 18+, nada de menores.
+                     A moderação humana + anti-CSAM já roda no envio; o aviso deixa a
+                     regra explícita ANTES do upload. -->
+                <div class="rounded-lg border border-danger/30 bg-danger/5 p-4 text-xs leading-relaxed text-muted">
+                    <p class="font-semibold text-cream">Envie apenas fotos suas.</p>
+                    <p class="mt-1">
+                        É crime publicar imagem de outra pessoa sem autorização, e é crime gravíssimo
+                        publicar qualquer imagem de menor de 18 anos (ECA, arts. 240 e 241, e Lei nº
+                        13.718/2018). Toda foto passa por verificação antes de ir ao ar. Violações levam à
+                        <span class="text-cream">exclusão imediata da conta e denúncia às autoridades</span>.
                     </p>
                 </div>
 
@@ -818,6 +845,18 @@ function saveLifestyle() {
                                 class="absolute left-1.5 top-1.5 rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-background"
                             >Principal</span>
 
+                            <!-- Cadeado: a foto está privada (só o membro vê; a
+                                 performer vê borrada). -->
+                            <span
+                                v-if="photo.is_private && photo.status !== 'rejected'"
+                                class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-cream"
+                            >
+                                <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                                Privada
+                            </span>
+
                             <span
                                 class="absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium"
                                 :class="{
@@ -828,34 +867,67 @@ function saveLifestyle() {
                             >{{ statusLabels[photo.status] }}</span>
                         </div>
 
-                        <div class="flex items-center justify-between gap-1 p-2">
+                        <div class="flex flex-col gap-1 p-2">
+                            <!-- Trancar/destrancar: aberta ↔ privada. Só faz sentido
+                                 em foto não-recusada (recusada não tem bytes). -->
                             <button
-                                v-if="photo.status === 'approved' && !photo.is_primary"
+                                v-if="photo.status !== 'rejected'"
                                 type="button"
-                                class="min-h-[36px] text-xs text-gold hover:underline disabled:opacity-40"
+                                class="inline-flex min-h-[36px] items-center gap-1.5 text-xs text-gold hover:underline disabled:opacity-40"
                                 :disabled="busyPhotoId === photo.id"
-                                @click="makePrimary(photo)"
-                            >Tornar principal</button>
-                            <span v-else class="text-xs text-muted">
-                                {{ photo.status === 'rejected' ? 'Recusada' : (photo.is_primary ? 'Foto principal' : '') }}
-                            </span>
-                            <button
-                                type="button"
-                                aria-label="Remover foto"
-                                class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:text-danger disabled:opacity-40"
-                                :disabled="busyPhotoId === photo.id"
-                                @click="removeGalleryPhoto(photo)"
+                                @click="togglePhotoPrivacy(photo)"
                             >
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                <svg v-if="photo.is_private" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />
                                 </svg>
+                                <svg v-else class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                                {{ photo.is_private ? 'Tornar pública' : 'Tornar privada' }}
                             </button>
+
+                            <div class="flex items-center justify-between gap-1">
+                                <button
+                                    v-if="photo.status === 'approved' && !photo.is_primary && !photo.is_private"
+                                    type="button"
+                                    class="min-h-[36px] text-xs text-gold hover:underline disabled:opacity-40"
+                                    :disabled="busyPhotoId === photo.id"
+                                    @click="makePrimary(photo)"
+                                >Tornar principal</button>
+                                <span v-else class="text-xs text-muted">
+                                    {{ photo.status === 'rejected' ? 'Recusada' : (photo.is_primary ? 'Foto principal' : '') }}
+                                </span>
+                                <button
+                                    type="button"
+                                    aria-label="Remover foto"
+                                    class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:text-danger disabled:opacity-40"
+                                    :disabled="busyPhotoId === photo.id"
+                                    @click="removeGalleryPhoto(photo)"
+                                >
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div>
-                    <label v-if="!galleryFull" class="cursor-pointer inline-block">
+                <div v-if="!galleryFull" class="space-y-3">
+                    <!-- Aceite obrigatório: trava o seletor de arquivo até marcar. -->
+                    <label class="flex items-start gap-2.5 text-xs text-muted cursor-pointer">
+                        <input
+                            v-model="uploadConsent"
+                            type="checkbox"
+                            class="mt-0.5 h-4 w-4 shrink-0 rounded border-frame bg-surface-2 text-gold focus:ring-gold"
+                        />
+                        <span>Declaro que sou a pessoa retratada e que tenho <span class="text-cream">18 anos ou mais</span>.</span>
+                    </label>
+
+                    <label
+                        class="inline-block"
+                        :class="uploadConsent ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'"
+                    >
                         <span class="inline-flex min-h-[44px] items-center rounded-lg border border-gold px-4 py-2 text-sm text-gold transition-colors hover:bg-gold/10">
                             {{ galleryForm.processing ? 'Enviando...' : 'Adicionar foto' }}
                         </span>
@@ -863,16 +935,16 @@ function saveLifestyle() {
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
                             class="hidden"
-                            :disabled="galleryForm.processing"
+                            :disabled="galleryForm.processing || !uploadConsent"
                             @change="pickGalleryPhoto"
                         />
                     </label>
-                    <p v-else class="text-xs text-muted">
-                        Você atingiu o limite de {{ gallery_max }} fotos. Remova uma para enviar outra.
-                    </p>
-                    <p v-if="galleryForm.errors.file" class="mt-2 text-xs text-danger">{{ galleryForm.errors.file }}</p>
-                    <p v-if="galleryForm.errors.cropped" class="mt-2 text-xs text-danger">{{ galleryForm.errors.cropped }}</p>
+                    <p v-if="galleryForm.errors.file" class="text-xs text-danger">{{ galleryForm.errors.file }}</p>
+                    <p v-if="galleryForm.errors.cropped" class="text-xs text-danger">{{ galleryForm.errors.cropped }}</p>
                 </div>
+                <p v-else class="text-xs text-muted">
+                    Você atingiu o limite de {{ gallery_max }} fotos. Remova uma para enviar outra.
+                </p>
 
                 <!-- Enquadramento 3:4 antes de enviar. O membro vê o recorte que
                      vira o card; o servidor sanitiza o recorte E o original (a
