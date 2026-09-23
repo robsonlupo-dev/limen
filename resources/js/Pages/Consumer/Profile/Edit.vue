@@ -462,6 +462,19 @@ function saveLifestyle() {
                     </p>
                 </div>
 
+                <!-- Via GUIADA: assistente passo-a-passo (etapa 3). O editor abaixo
+                     continua sendo a edição "tudo numa página". -->
+                <Link
+                    :href="route('consumer.profile.complete')"
+                    class="flex items-center justify-between gap-3 rounded-xl border border-gold/40 bg-gold/5 p-4 no-underline transition-colors hover:border-gold/70"
+                >
+                    <span class="flex items-center gap-3">
+                        <svg class="h-5 w-5 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h11l3 3v15H5z" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>
+                        <span class="text-sm text-cream">Completar meu perfil<span class="mt-0.5 block text-xs text-muted">Passo a passo, uma pergunta por vez.</span></span>
+                    </span>
+                    <svg class="h-5 w-5 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                </Link>
+
                 <form class="space-y-6" @submit.prevent="savePublic">
                     <!-- Sobre mim -->
                     <div class="flex flex-col gap-1.5">
