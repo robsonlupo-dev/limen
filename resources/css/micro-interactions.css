@@ -106,6 +106,39 @@
     100% { transform: translateX(350%); }
 }
 
+/* ── 5b. Esqueleto de carregamento: molde + brilho dourado que varre ────────
+   Substitui o `animate-pulse` (piscar de opacidade) do catálogo por um "shimmer":
+   um bloco cinza (a cor de card `limen-surface-2`) com um brilho dourado
+   TRANSLÚCIDO que atravessa da esquerda pra direita, como uma vitrine sendo
+   iluminada enquanto as fotos chegam. Sensação de que a página já está viva,
+   não travada.
+
+   Só anima `transform` no pseudo-elemento (composição de GPU) — nunca
+   width/left. O brilho é o limen-gold com alfa, não cor nova. Cada card carrega
+   a classe `.mi-skeleton`; o `::after` é o facho. */
+.mi-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-limen-surface-2);
+}
+.mi-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+        100deg,
+        transparent 20%,
+        rgba(214, 184, 114, 0.10) 45%, /* limen-gold @ 10% */
+        rgba(240, 233, 220, 0.08) 55%, /* limen-ink @ 8% (o brilho quente) */
+        transparent 80%
+    );
+    animation: mi-skeleton-sweep 1.6s ease-in-out infinite;
+}
+@keyframes mi-skeleton-sweep {
+    to { transform: translateX(100%); }
+}
+
 /* ── 6. Erros de formulário: slide + fade (Vue <transition name="mi-error">) ─
    A mensagem desliza de cima com fade em vez de piscar de repente. */
 .mi-error-enter-active,
@@ -129,10 +162,19 @@
     .mi-pop,
     .mi-page-enter,
     .mi-loading-bar::after,
+    .mi-skeleton::after,
     .mi-error-enter-active,
     .mi-error-leave-active {
         transition: none !important;
         animation: none !important;
+    }
+    /* Sem o facho, o esqueleto vira um pulsar suave de opacidade — ainda
+       comunica "carregando", sem movimento lateral. */
+    .mi-skeleton {
+        animation: mi-skeleton-fade 1.6s ease-in-out infinite !important;
+    }
+    @keyframes mi-skeleton-fade {
+        50% { opacity: 0.55; }
     }
     .mi-card:hover,
     .mi-glow:hover,

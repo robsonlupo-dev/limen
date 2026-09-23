@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import PublicPerformerCard from '@/Components/PublicPerformerCard.vue'
+import SkeletonCard from '@/Components/SkeletonCard.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import FilterPanel from '@/Components/Catalog/FilterPanel.vue'
 import { WORLD_FILTERS } from '@/lib/worlds'
@@ -104,15 +105,9 @@ const isActive = (value) => (props.filters.mundo ?? null) === value
                 :base-params="filters.mundo ? { mundo: filters.mundo } : {}"
             />
 
-            <!-- Skeleton loading -->
+            <!-- Skeleton loading: molde com brilho dourado que varre. -->
             <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                <div v-for="n in 8" :key="n" class="rounded-xl border border-frame bg-surface overflow-hidden animate-pulse">
-                    <div class="aspect-[4/3] bg-surface-2" />
-                    <div class="p-4 space-y-2">
-                        <div class="h-4 w-3/4 bg-surface-2 rounded" />
-                        <div class="h-3 w-1/2 bg-surface-2 rounded" />
-                    </div>
-                </div>
+                <SkeletonCard v-for="n in 8" :key="n" variant="card" />
             </div>
 
             <!-- Empty state. Duas copies, e a distinção passou a importar com

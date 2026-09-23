@@ -1,10 +1,11 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import MemberCard from '@/Components/MemberCard.vue'
+import SkeletonCard from '@/Components/SkeletonCard.vue'
 import { postJson } from '@/lib/http'
 
 /**
@@ -35,6 +36,19 @@ const heartingHandle = ref(null)
 const remaining = ref(props.messagesRemaining)
 
 const toastMessage = ref('')
+
+// Molde de carregamento: liga em qualquer navegação Inertia (troca de página do
+// paginador, filtro) e desliga ao terminar. Mesmo padrão dos outros catálogos.
+const loading = ref(false)
+let removeStart, removeFinish
+onMounted(() => {
+    removeStart = router.on('start', () => (loading.value = true))
+    removeFinish = router.on('finish', () => (loading.value = false))
+})
+onUnmounted(() => {
+    removeStart?.()
+    removeFinish?.()
+})
 
 // Modal de mensagem personalizada.
 const msg = reactive({ open: false, member: null, body: '', sending: false, error: '' })
@@ -157,8 +171,13 @@ async function sendMessage() {
                     </div>
                 </div>
 
+                <!-- Skeleton loading: molde com brilho dourado que varre. -->
+                <div v-if="loading" class="grid grid-cols-2 gap-3.5 md:grid-cols-3 lg:grid-cols-4">
+                    <SkeletonCard v-for="n in 8" :key="n" />
+                </div>
+
                 <p
-                    v-if="members.data.length === 0"
+                    v-else-if="members.data.length === 0"
                     class="rounded-xl border border-limen-line bg-limen-surface p-8 text-center text-limen-ink-mute"
                 >
                     Nenhum membro disponível no momento.
