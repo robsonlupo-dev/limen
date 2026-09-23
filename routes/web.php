@@ -330,6 +330,10 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
     // moderador, lido do audit. Read-only.
     Route::get('/minhas-acoes', [ModerationController::class, 'myActions'])->name('moderacao.my-actions');
 
+    // Estatísticas de moderação (Fase 5): tempo de resolução, SLA, volume, ações
+    // por moderador e taxa de reversão (estimada). Read-only.
+    Route::get('/estatisticas', [ModerationController::class, 'stats'])->name('moderacao.estatisticas');
+
     // Fila de CONTEÚDO SINALIZADO (feat/flagged-content-queue, Fase 4c): usuários
     // com conduta auto-bloqueada, agregados por reincidência. As ações agem sobre o
     // USUÁRIO (sem denúncia de origem); throttle como os demais endpoints da área.

@@ -113,6 +113,117 @@ class ModerationController extends Controller
      * sem PII do denunciante — mostra o tipo de alvo, o id e o motivo que ELE
      * mesmo escreveu. Read-only.
      */
+    /**
+     * Estatísticas de moderação (Fase 5). Indicadores mais pesados que o rodapé
+     * de `reportStats()`: tempo médio de resolução, % dentro do SLA, volume,
+     * ações por moderador e a taxa de REVERSÃO (estimada — ver abaixo). Tudo lido
+     * do que já é registrado (reports + content_flags + audit_logs); NENHUMA
+     * coluna nova. Read-only, moderator-only.
+     *
+     * Janela: 7 / 30 / 90 dias (padrão 30), por `?dias=`. "Resolução" mede quem
+     * FECHOU na janela (reviewed_at dentro do período), não quem abriu.
+     *
+     * A taxa de reversão é ESTIMADA (decisão do PO): o Limen não tem uma ação de
+     * "reverter/reabrir" de primeira classe, então inferimos dos rastros — uma
+     * denúncia com ≥2 registros `report_reviewed` (a decisão mudou) e uma
+     * suspensão reativada por admin (`member.reactivated`) sobre o total de
+     * suspensões. Não amarra revisor→ação original; a tela rotula "estimada".
+     */
+    public function stats(Request $request): Response
+    {
+        $days = in_array((int) $request->query('dias'), [7, 30, 90], true)
+            ? (int) $request->query('dias')
+            : 30;
+        $from = now()->subDays($days);
+
+        // ── Tempo de resolução + SLA (denúncias fechadas na janela) ───────────
+        $closed = Report::whereIn('status', ['reviewed', 'resolved', 'dismissed'])
+            ->whereNotNull('reviewed_at')
+            ->where('reviewed_at', '>=', $from)
+            ->get(['priority', 'created_at', 'reviewed_at']);
+
+        $resolvedCount = $closed->count();
+        $avgHours = $resolvedCount
+            ? round($closed->avg(fn (Report $r) => $r->created_at->diffInMinutes($r->reviewed_at)) / 60, 1)
+            : null;
+        $withinSla = $closed->filter(function (Report $r) {
+            $limit = (Report::SLA_HOURS[$r->priority] ?? Report::SLA_HOURS['normal']) * 60;
+
+            return $r->created_at->diffInMinutes($r->reviewed_at) <= $limit;
+        })->count();
+        $slaPct = $resolvedCount ? (int) round($withinSla / $resolvedCount * 100) : null;
+
+        // ── Tempo de resolução dos flags de conteúdo (dispensados na janela) ──
+        $flags = ContentFlag::where('status', ContentFlag::STATUS_DISMISSED)
+            ->whereNotNull('reviewed_at')
+            ->where('reviewed_at', '>=', $from)
+            ->get(['created_at', 'reviewed_at']);
+        $flagAvgHours = $flags->count()
+            ? round($flags->avg(fn (ContentFlag $f) => $f->created_at->diffInMinutes($f->reviewed_at)) / 60, 1)
+            : null;
+
+        // ── Volume (denúncias) ────────────────────────────────────────────────
+        $received = Report::where('created_at', '>=', $from)->count();
+        $receivedByPriority = Report::where('created_at', '>=', $from)
+            ->selectRaw('priority, count(*) as c')->groupBy('priority')->pluck('c', 'priority');
+
+        // ── Ações por moderador (do audit) ────────────────────────────────────
+        $actionRows = AuditLog::whereIn('action', self::MODERATOR_ACTIONS)
+            ->where('created_at', '>=', $from)
+            ->selectRaw('user_id, count(*) as c')
+            ->groupBy('user_id')->orderByDesc('c')->limit(10)->get();
+        $names = User::whereIn('id', $actionRows->pluck('user_id'))->pluck('name', 'id');
+        $byModerator = $actionRows->map(fn ($row) => [
+            'name' => $names[$row->user_id] ?? "Moderador #{$row->user_id}",
+            'count' => (int) $row->c,
+        ])->all();
+        $totalActions = (int) $actionRows->sum('c');
+
+        // ── Taxa de REVERSÃO (estimada) ───────────────────────────────────────
+        // Denúncias re-decididas: ≥2 `report_reviewed` na janela / distintas revistas.
+        $reviewedReports = AuditLog::where('action', 'moderation.report_reviewed')
+            ->where('created_at', '>=', $from)->distinct()->count('subject_id');
+        $redecided = AuditLog::where('action', 'moderation.report_reviewed')
+            ->where('created_at', '>=', $from)
+            ->selectRaw('subject_id, count(*) as c')->groupBy('subject_id')
+            ->havingRaw('count(*) >= 2')->get()->count();
+        // Suspensões reativadas cedo por admin / total de suspensões na janela.
+        $suspensions = AuditLog::whereIn('action', ['moderator.suspended', 'member.suspended'])
+            ->where('created_at', '>=', $from)->count();
+        $reactivated = AuditLog::where('action', 'member.reactivated')
+            ->where('created_at', '>=', $from)->count();
+
+        $reversalDen = $reviewedReports + $suspensions;
+        $reversalPct = $reversalDen > 0
+            ? round(($redecided + $reactivated) / $reversalDen * 100, 1)
+            : null;
+
+        return Inertia::render('Moderacao/Stats', [
+            'dias' => $days,
+            'metrics' => [
+                'avg_resolution_hours' => $avgHours,
+                'flag_avg_resolution_hours' => $flagAvgHours,
+                'sla_pct' => $slaPct,
+                'received' => $received,
+                'resolved' => $resolvedCount,
+                'received_by_priority' => [
+                    'urgent' => (int) ($receivedByPriority['urgent'] ?? 0),
+                    'high' => (int) ($receivedByPriority['high'] ?? 0),
+                    'normal' => (int) ($receivedByPriority['normal'] ?? 0),
+                ],
+                'total_actions' => $totalActions,
+                'by_moderator' => $byModerator,
+                'reversal' => [
+                    'pct' => $reversalPct,
+                    'redecided_reports' => $redecided,
+                    'reviewed_reports' => $reviewedReports,
+                    'reactivated' => $reactivated,
+                    'suspensions' => $suspensions,
+                ],
+            ],
+        ]);
+    }
+
     public function myActions(Request $request): Response
     {
         $actions = AuditLog::where('user_id', $request->user()->id)
