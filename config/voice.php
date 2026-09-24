@@ -51,4 +51,11 @@ return [
     'sample_rate' => 44100,
     'channels' => 1,
 
+    // ── Mensagem de VOZ no chat (feat/chat-voice-message) ──────────────────────
+    // Reusa TODO o pipeline acima (mesmo ffmpeg, mesmo codec MP3 mono). Só os
+    // tetos são próprios: uma nota de voz de conversa é mais longa que a intro de
+    // 20s. Continua re-encodada (strip de metadado/exploit) antes de servir.
+    'chat_max_duration_seconds' => 120,
+    'chat_max_bytes' => 16 * 1024 * 1024, // folga para 2 min de WAV/webm crus
+
 ];

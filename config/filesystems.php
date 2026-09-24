@@ -205,6 +205,17 @@ return [
             'report' => false,
         ],
 
+        // Mensagens de voz do chat (feat/chat-voice-message). Mesma disciplina da
+        // intro: privado, `serve => false` (servido por request autorizado, nunca
+        // por URL de disco), Store confere put/delete e lança.
+        'chat_audio' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/chat-audio'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

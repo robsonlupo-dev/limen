@@ -275,6 +275,23 @@ async function revealMessage() {
                     <p v-else class="text-sm text-muted">Evidência não disponível — mensagem removida.</p>
                 </template>
 
+                <!-- Mensagem de VOZ denunciada (feat/chat-voice-message): o
+                     moderador ouve o áudio. O GET dos bytes dispara o audit de
+                     "quem ouviu", como a <img> da foto. -->
+                <template v-else-if="evidence.kind === 'audio'">
+                    <template v-if="evidence.available">
+                        <audio :src="evidence.url" controls preload="none" class="w-full">
+                            Seu navegador não reproduz áudio.
+                        </audio>
+                    </template>
+                    <div v-else class="space-y-2 rounded-lg border border-frame/60 bg-background/40 p-4">
+                        <p class="text-sm text-muted">Áudio não disponível — expirado ou ainda em processamento.</p>
+                        <p v-if="evidence.content_hash" class="break-all font-mono text-xs text-muted/70">
+                            SHA-256: {{ evidence.content_hash }}
+                        </p>
+                    </div>
+                </template>
+
                 <p v-else class="text-sm text-muted">Sem prova retida para este tipo de denúncia.</p>
             </section>
 

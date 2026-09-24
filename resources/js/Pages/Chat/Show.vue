@@ -6,7 +6,7 @@ import Button from '@/Components/Button.vue'
 import SharePhotoModal from '@/Components/SharePhotoModal.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
 import ReportNicknameModal from '@/Components/ReportNicknameModal.vue'
-import { postJson } from '@/lib/http'
+import { postJson, postForm } from '@/lib/http'
 
 const props = defineProps({
     conversation: { type: Object, required: true },
@@ -222,6 +222,126 @@ async function send() {
     }
 }
 
+// ── Mensagem de voz (feat/chat-voice-message) ────────────────────────────────
+// Grava com MediaRecorder (mesmo padrão da intro de voz) e sobe multipart. O
+// servidor é a autoridade de duração/tamanho — o corte no cliente só evita mandar
+// um arquivo grande à toa. O áudio nasce `processing` e o job troca por `ready`.
+const MAX_AUDIO_SECONDS = 120 // espelha config('voice.chat_max_duration_seconds')
+const canRecord = computed(() => typeof navigator !== 'undefined'
+    && !!navigator.mediaDevices?.getUserMedia
+    && typeof MediaRecorder !== 'undefined')
+const recording = ref(false)
+const recElapsed = ref(0)
+const audioSending = ref(false)
+let mediaRecorder = null
+let mediaStream = null
+let audioChunks = []
+let recTimer = null
+let recHardStop = null
+let cancelled = false
+
+function fmtElapsed(s) {
+    const m = Math.floor(s / 60)
+    return `${m}:${String(s % 60).padStart(2, '0')}`
+}
+
+async function startRecording() {
+    if (recording.value || audioSending.value || !canRecord.value) return
+    sendError.value = ''
+    cancelled = false
+    try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+        sendError.value = 'Não foi possível acessar o microfone. Verifique a permissão do navegador.'
+        return
+    }
+    audioChunks = []
+    mediaRecorder = new MediaRecorder(mediaStream)
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data) }
+    mediaRecorder.onstop = () => {
+        stopStream()
+        if (cancelled) { audioChunks = []; return }
+        const blob = new Blob(audioChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
+        audioChunks = []
+        if (blob.size > 0) uploadAudio(blob)
+    }
+    mediaRecorder.start()
+    recording.value = true
+    recElapsed.value = 0
+    recTimer = setInterval(() => { recElapsed.value += 1 }, 1000)
+    // Corte duro no cliente (+1s de folga para o gate do servidor).
+    recHardStop = setTimeout(() => stopRecording(), (MAX_AUDIO_SECONDS + 1) * 1000)
+}
+
+function clearRecTimers() {
+    if (recTimer) { clearInterval(recTimer); recTimer = null }
+    if (recHardStop) { clearTimeout(recHardStop); recHardStop = null }
+}
+
+function stopStream() {
+    if (mediaStream) { mediaStream.getTracks().forEach((t) => t.stop()); mediaStream = null }
+}
+
+// Para e ENVIA (o onstop dispara o upload).
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
+    recording.value = false
+    clearRecTimers()
+}
+
+// Para e DESCARTA (não envia).
+function cancelRecording() {
+    cancelled = true
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
+    recording.value = false
+    clearRecTimers()
+}
+
+async function uploadAudio(blob) {
+    const item = { key: (globalThis.crypto?.randomUUID?.() ?? `tmp-${Date.now()}`), at: new Date().toISOString(), audio: true }
+    outbox.value.push(item)
+    audioSending.value = true
+    scrollToBottom()
+
+    const form = new FormData()
+    // Nome com extensão para o servidor sniffar; o re-encode ffmpeg enforça o formato.
+    form.append('audio', blob, 'mensagem-de-voz.webm')
+
+    try {
+        await postForm(route('chat.messages.audio', props.conversation.id), form)
+        router.reload({
+            only: ['messages', 'access', 'balance'],
+            onSuccess: () => { removeOutbox(item.key); scrollToBottom(); scheduleAudioPoll() },
+        })
+    } catch (e) {
+        removeOutbox(item.key)
+        sendError.value = sendErrorMessage(e)
+    } finally {
+        audioSending.value = false
+    }
+}
+
+// Enquanto houver áudio `processing` no thread, recarrega periodicamente para
+// pegar o `ready` (sem Reverb, é o que troca o "processando…" pelo player). Cap
+// para não recarregar para sempre se o job falhar em silêncio.
+let audioPollTries = 0
+let audioPollTimer = null
+function hasProcessingAudio() {
+    return orderedMessages.value.some((m) => m.audio_status === 'processing')
+}
+function scheduleAudioPoll() {
+    if (audioPollTimer || !hasProcessingAudio()) return
+    if (audioPollTries >= 10) { audioPollTries = 0; return }
+    audioPollTimer = setTimeout(() => {
+        audioPollTimer = null
+        audioPollTries += 1
+        router.reload({
+            only: ['messages', 'access', 'balance'],
+            onSuccess: () => { if (hasProcessingAudio()) scheduleAudioPoll(); else audioPollTries = 0 },
+        })
+    }, 2500)
+}
+
 async function renew() {
     if (renewing.value) return
     renewing.value = true
@@ -273,10 +393,17 @@ onMounted(() => {
             if (payload.sender_id !== myId.value) reloadThread()
         })
     }
+
+    // Abriu o thread com um áudio ainda processando (ex.: recebido agora) → puxa
+    // o `ready` sem depender do Reverb.
+    scheduleAudioPoll()
 })
 
 onBeforeUnmount(() => {
     if (channel) window.Echo?.leave(`conversation.${props.conversation.id}`)
+    // Encerra gravação/stream e timers pendentes ao sair da tela.
+    cancelRecording()
+    if (audioPollTimer) { clearTimeout(audioPollTimer); audioPollTimer = null }
 })
 
 // Nova mensagem própria/recarga → cola no fim.
@@ -432,6 +559,28 @@ watch(() => props.messages.data.length, scrollToBottom)
                             </div>
                             <span class="relative mt-1 block text-right text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
                         </div>
+                        <!-- Mensagem de VOZ (feat/chat-voice-message). ready → player;
+                             processing → "processando…"; failed → aviso. -->
+                        <div v-else-if="m.audio_status" class="max-w-[80%] flex flex-col" :class="isMine(m) ? 'items-end' : 'items-start'">
+                            <div
+                                class="flex items-center gap-2 rounded-2xl px-3 py-2"
+                                :class="isMine(m)
+                                    ? 'bg-gold/15 border border-gold/40 rounded-br-sm'
+                                    : 'bg-surface border border-frame rounded-bl-sm'"
+                            >
+                                <svg class="h-4 w-4 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+                                <template v-if="m.audio_status === 'ready' && m.audio_url">
+                                    <audio :src="m.audio_url" controls preload="none" class="h-9 w-56 max-w-full"></audio>
+                                </template>
+                                <span v-else-if="m.audio_status === 'processing'" class="text-sm text-muted">Processando áudio…</span>
+                                <span v-else class="text-sm text-danger">Não foi possível processar este áudio.</span>
+                            </div>
+                            <span class="flex items-center gap-1.5 pt-1 pr-1 text-[10px] text-muted">
+                                {{ timeLabel(m.created_at) }}
+                                <span v-if="m.audio_status === 'ready' && m.audio_duration">· {{ fmtElapsed(m.audio_duration) }}</span>
+                                <span v-if="isMine(m) && m.read_at">· Lida</span>
+                            </span>
+                        </div>
                         <!-- Mensagem legível -->
                         <div v-else class="max-w-[75%] flex flex-col" :class="isMine(m) ? 'items-end' : 'items-start'">
                             <div
@@ -460,8 +609,15 @@ watch(() => props.messages.data.length, scrollToBottom)
                      do "Lida"; some quando o reload traz a mensagem real. -->
                 <div v-for="o in outbox" :key="o.key" class="flex justify-end">
                     <div class="max-w-[75%] flex flex-col items-end">
-                        <div class="msg-pop rounded-2xl rounded-br-sm bg-gold px-4 py-2.5 text-sm text-background whitespace-pre-line break-words">
-                            {{ o.body }}
+                        <div
+                            class="msg-pop rounded-2xl rounded-br-sm px-4 py-2.5 text-sm break-words"
+                            :class="o.audio ? 'flex items-center gap-2 bg-gold/15 border border-gold/40 text-cream' : 'bg-gold text-background whitespace-pre-line'"
+                        >
+                            <template v-if="o.audio">
+                                <svg class="h-4 w-4 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+                                <span class="text-muted">Enviando áudio…</span>
+                            </template>
+                            <template v-else>{{ o.body }}</template>
                         </div>
                         <span class="flex items-center gap-1 pt-1 pr-1 text-[10px] text-muted">
                             {{ timeLabel(o.at) }}
@@ -483,19 +639,44 @@ watch(() => props.messages.data.length, scrollToBottom)
                     <span v-if="shareFeedback" class="text-xs text-muted">{{ shareFeedback }}</span>
                 </div>
 
-                <form v-if="showComposer" class="flex items-end gap-2" @submit.prevent="send">
-                    <textarea
-                        v-model="draft"
-                        rows="1"
-                        maxlength="1000"
-                        placeholder="Escreva uma mensagem…"
-                        class="flex-1 resize-none rounded-xl border border-frame bg-surface px-4 py-3 text-sm text-cream placeholder:text-muted focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold"
-                        @keydown.enter.exact.prevent="send"
-                    />
-                    <Button type="submit" variant="primary" size="sm" :loading="sending" :disabled="!draft.trim()">
-                        Enviar
-                    </Button>
-                </form>
+                <template v-if="showComposer">
+                    <!-- Gravando (feat/chat-voice-message): a linha de composição vira
+                         a barra de gravação — cronômetro + cancelar/enviar. -->
+                    <div v-if="recording" class="flex items-center gap-3 rounded-xl border border-gold/40 bg-gold/5 px-4 py-3">
+                        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-danger motion-safe:animate-pulse" aria-hidden="true"></span>
+                        <span class="text-sm tabular-nums text-cream">{{ fmtElapsed(recElapsed) }}</span>
+                        <span class="hidden text-xs text-muted sm:inline">Gravando…</span>
+                        <div class="ml-auto flex items-center gap-2">
+                            <button type="button" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-cream" @click="cancelRecording">Cancelar</button>
+                            <Button type="button" variant="primary" size="sm" @click="stopRecording">Enviar</Button>
+                        </div>
+                    </div>
+
+                    <form v-else class="flex items-end gap-2" @submit.prevent="send">
+                        <!-- Botão de microfone. Só quando o navegador permite gravar. -->
+                        <button
+                            v-if="canRecord"
+                            type="button"
+                            :disabled="audioSending"
+                            aria-label="Gravar mensagem de voz"
+                            class="shrink-0 rounded-xl border border-frame bg-surface p-3 text-gold transition-colors hover:border-gold disabled:opacity-50"
+                            @click="startRecording"
+                        >
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+                        </button>
+                        <textarea
+                            v-model="draft"
+                            rows="1"
+                            maxlength="1000"
+                            placeholder="Escreva uma mensagem…"
+                            class="flex-1 resize-none rounded-xl border border-frame bg-surface px-4 py-3 text-sm text-cream placeholder:text-muted focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold"
+                            @keydown.enter.exact.prevent="send"
+                        />
+                        <Button type="submit" variant="primary" size="sm" :loading="sending" :disabled="!draft.trim()">
+                            Enviar
+                        </Button>
+                    </form>
+                </template>
                 <!-- Custo mostrado ANTES da cobrança. Quando o card "Pagar para ler"
                      também aparece (a performer mandou algo), os dois caminhos abrem
                      A MESMA janela — o texto deixa explícito que é UMA cobrança só,

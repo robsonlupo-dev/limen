@@ -13,6 +13,15 @@ class Message extends Model
     // hard-delete — ver docs e a decisão de retenção do PO.
     use SoftDeletes;
 
+    // Estados da mensagem de VOZ (feat/chat-voice-message). NULL = mensagem de
+    // texto/presente. processing = subiu, ffmpeg rodando; ready = servível;
+    // failed = não processou (o remetente reenvia).
+    public const AUDIO_PROCESSING = 'processing';
+
+    public const AUDIO_READY = 'ready';
+
+    public const AUDIO_FAILED = 'failed';
+
     // Só o corpo vem de input do usuário. sender_id é setado pelo ChatService
     // (forceFill), nunca por mass assignment — fora do fillable p/ não forjar autor.
     protected $fillable = [
@@ -20,11 +29,25 @@ class Message extends Model
         'body',
     ];
 
+    // Caminho e hash do áudio NUNCA saem em serialização — o áudio é servido por
+    // request autorizado, não por URL de disco (mesma disciplina da intro de voz).
+    protected $hidden = [
+        'audio_path',
+        'audio_content_hash',
+    ];
+
     protected function casts(): array
     {
         return [
             'read_at' => 'datetime',
+            'audio_duration_seconds' => 'integer',
         ];
+    }
+
+    /** Mensagem de voz? (marca pela presença do status de áudio.) */
+    public function isAudio(): bool
+    {
+        return $this->audio_status !== null;
     }
 
     public function conversation(): BelongsTo

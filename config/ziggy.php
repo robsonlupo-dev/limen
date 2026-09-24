@@ -350,6 +350,10 @@ return [
         'chat.with',
         'chat.start',
         'chat.messages.store',
+        // Mensagem de voz (feat/chat-voice-message): a tela dá POST no upload e
+        // monta a URL do player via route('chat.audio').
+        'chat.messages.audio',
+        'chat.audio',
         'chat.access.open',
         'chat.performer.start',
     ],
