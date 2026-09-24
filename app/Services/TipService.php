@@ -11,6 +11,7 @@ use App\Models\TokenWallet;
 use App\Models\User;
 use App\Support\FanAlias;
 use Illuminate\Support\Facades\DB;
+use App\Support\ClientFingerprint;
 
 class TipService
 {
@@ -112,7 +113,7 @@ class TipService
                 'action' => 'tip.sent',
                 'subject_type' => Tip::class,
                 'subject_id' => $tip->id,
-                'ip' => request()->ip(),
+                'ip_hash' => ClientFingerprint::hash(request()->ip()),
                 'metadata' => [
                     'amount' => $amount,
                     'performer_profile_id' => $performerProfile->id,
@@ -126,7 +127,7 @@ class TipService
                 'action' => 'tip.received',
                 'subject_type' => Tip::class,
                 'subject_id' => $tip->id,
-                'ip' => null,
+                'ip_hash' => null,
                 'metadata' => [
                     'amount' => $performerAmount,
                     'consumer_id' => $consumer->id,

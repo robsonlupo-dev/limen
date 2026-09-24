@@ -142,6 +142,17 @@ log perde a leitura direta que o torna útil numa investigação; (b) política 
 retenção que expurgue `audit_logs.ip` depois de N meses; (c) aceitar e declarar.
 Decisão do PO.
 
+> **RESOLVIDO (security/audit-ip-hash, 24/09/2026) — opção (a).** A coluna virou
+> `audit_logs.ip_hash` e guarda o HMAC-SHA256 do IP com a APP_KEY (mesmo
+> `ClientFingerprint` do aceite). Um dump do banco não revela mais o octeto cru, e
+> a correlação por origem ("mesmas contas, mesmo IP") sobrevive porque o HMAC
+> preserva igualdade. Linhas antigas re-hasheadas na migration. **Ressalva
+> registrada:** três ações de falha de auth de webhook — `webhook.auth_failed`,
+> `kyc.webhook_auth_failed`, `webhook.transfer_auth_failed` — ainda gravam o IP do
+> CHAMADOR em claro no `metadata`, de propósito: é um IP servidor/atacante sem
+> `user_id`, sinal de operação onde o valor cru é o ponto (investigar/bloquear a
+> origem), fora do risco de correlação de usuários que esta seção trata.
+
 ### O que ESTÁ implementado no aceite
 
 - Tabela `document_acceptances` append-only (o model recusa `update`), uma linha
@@ -214,11 +225,12 @@ flag ou apontar para o IP de outra performer e incriminá-la.
 
 ### 3. `audit_logs` guarda o IP do cadastro em texto puro
 
-`Audit::log('auth.register_performer')` roda no mesmo request e grava
-`audit_logs.ip` cru. Quem tiver leitura do banco correlaciona performers por IP
-**sem precisar da APP_KEY** — exatamente o que o HMAC existe para impedir. Mesma
-lacuna já registrada na seção do aceite de documentos; aqui pesa mais, porque o
-dado correlacionado é a hipótese de coerção.
+~~`Audit::log('auth.register_performer')` roda no mesmo request e grava
+`audit_logs.ip` cru.~~ **RESOLVIDO (security/audit-ip-hash, 24/09/2026):**
+`audit_logs.ip_hash` guarda o HMAC com a APP_KEY, então a correlação por IP num
+dump do banco deixou de ser possível sem a chave — ver a seção "Aceite de
+documentos — IP em claro" acima. Continua sendo o mesmo hash do
+`registration_ip_hash`, então o sinal de cadastro compartilhado é o mesmo.
 
 ### 4. Retenção não definida
 

@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\URL;
+use App\Support\ClientFingerprint;
 
 /**
  * CORAÇÃO — o "interesse grátis" do catálogo de membros (home da performer).
@@ -59,7 +60,7 @@ class PerformerHeartService
                 'action' => 'heart.sent',
                 'subject_type' => PerformerHeart::class,
                 'subject_id' => $heart->id,
-                'ip' => request()->ip(),
+                'ip_hash' => ClientFingerprint::hash(request()->ip()),
                 // member_id (chave interna, como interest.sent) — nunca o FanAlias,
                 // que é apresentação. O audit é interno e sobrevive ao Hard Delete.
                 'metadata' => ['member_id' => $member->id],

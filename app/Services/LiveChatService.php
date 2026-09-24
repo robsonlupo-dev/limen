@@ -16,6 +16,7 @@ use App\Support\MemberDisplayName;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Support\ClientFingerprint;
 
 /**
  * Dona única do chat da live (feat/live-room-console) — a live deixou de subir "no
@@ -199,7 +200,7 @@ class LiveChatService
         AuditLog::create([
             'user_id' => $sender->id,
             'action' => 'live_chat.message_blocked',
-            'ip' => request()->ip(),
+            'ip_hash' => ClientFingerprint::hash(request()->ip()),
             'metadata' => [
                 'category' => $match['category'],
                 'rule_hash' => $ruleHash,

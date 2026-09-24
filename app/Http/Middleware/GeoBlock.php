@@ -56,9 +56,9 @@ class GeoBlock
      * importa (quem, de onde, quando começou) sobrevive à deduplicação; o que
      * se perde é a contagem exata de tentativas, que ninguém consome.
      *
-     * O IP entra no metadata em HMAC, não em claro. O `audit_logs.ip` da mesma
-     * linha já grava o IP cru — é a ressalva conhecida do projeto, registrada em
-     * docs/SECURITY_ISSUES.md — mas isso não é razão para gravar de novo.
+     * O IP entra no metadata em HMAC, não em claro — e o `audit_logs.ip_hash` da
+     * mesma linha também é HMAC agora (security/audit-ip-hash), então nenhuma das
+     * duas pontas guarda o octeto cru.
      */
     private function auditOnce(Request $request, ?string $country): void
     {

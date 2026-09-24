@@ -11,6 +11,7 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Support\ClientFingerprint;
 
 /**
  * Acesso pago ao chat. Ver docs/COMMUNICATION_ECONOMY.md §2.
@@ -216,7 +217,7 @@ class ChatAccessService
             'action' => 'chat.access_purchased',
             'subject_type' => ChatAccess::class,
             'subject_id' => $access->id,
-            'ip' => request()->ip(),
+            'ip_hash' => ClientFingerprint::hash(request()->ip()),
             'metadata' => [
                 'performer_profile_id' => $performerProfile->id,
                 'cost' => $cost,
@@ -416,7 +417,7 @@ class ChatAccessService
                         'action' => 'chat.access_purged',
                         'subject_type' => ChatAccess::class,
                         'subject_id' => $access->id,
-                        'ip' => null,
+                        'ip_hash' => null,
                         'metadata' => [
                             'performer_profile_id' => $access->performer_profile_id,
                             'soft_deleted' => true,
