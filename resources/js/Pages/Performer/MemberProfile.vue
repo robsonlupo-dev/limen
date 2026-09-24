@@ -115,6 +115,28 @@ function flash(text) {
     setTimeout(() => (toast.value = ''), 4000)
 }
 
+// Acesso às fotos PRIVADAS (feat/member-gallery-access-requests). Estado por par
+// (membro↔esta performer): 'none' → pode solicitar; 'pending' → já solicitou;
+// 'granted' → as privadas já vêm destrancadas em `photos`. `has_private` esconde
+// tudo quando o membro não tem privada.
+const accessState = ref(props.member.private_access?.state ?? 'none')
+const hasPrivate = computed(() => !!props.member.private_access?.has_private)
+const requestingAccess = ref(false)
+
+async function requestPrivateAccess() {
+    if (requestingAccess.value || accessState.value !== 'none') return
+    requestingAccess.value = true
+    try {
+        const data = await postJson(route('performer.members.gallery-access-request'), { member_handle: props.member.member_handle })
+        accessState.value = data?.state ?? 'pending'
+        flash(accessState.value === 'granted' ? 'Acesso concedido.' : 'Pedido enviado. Você verá as fotos quando for liberada.')
+    } catch {
+        flash('Não foi possível solicitar agora.')
+    } finally {
+        requestingAccess.value = false
+    }
+}
+
 async function toggleHeart() {
     if (hearting.value) return
     hearting.value = true
@@ -226,6 +248,32 @@ async function sendMessage() {
             </div>
             <div v-else class="mt-4 grid place-items-center rounded-2xl border border-limen-line bg-limen-surface py-16 text-center">
                 <p class="text-sm text-limen-ink-mute">Este membro ainda não adicionou fotos.</p>
+            </div>
+
+            <!-- Acesso às fotos privadas (feat/member-gallery-access-requests). Só
+                 aparece quando o membro tem privada E a performer ainda não foi
+                 liberada (liberada → elas já vêm destrancadas acima). -->
+            <div
+                v-if="hasPrivate && accessState !== 'granted'"
+                class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-limen-line bg-limen-surface px-4 py-3"
+            >
+                <div class="flex items-center gap-2 text-sm text-limen-ink-soft">
+                    <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span>Este membro tem fotos privadas.</span>
+                </div>
+                <button
+                    type="button"
+                    :disabled="accessState === 'pending' || requestingAccess"
+                    class="inline-flex min-h-[40px] items-center rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-default"
+                    :class="accessState === 'pending'
+                        ? 'border border-limen-line text-limen-ink-mute'
+                        : 'bg-limen-gold text-limen-bg hover:opacity-90'"
+                    @click="requestPrivateAccess"
+                >
+                    {{ accessState === 'pending' ? 'Acesso solicitado' : (requestingAccess ? 'Enviando…' : 'Solicitar acesso') }}
+                </button>
             </div>
 
             <!-- Cabeçalho: nome + selo verificado + cidade. Nada de PII. -->

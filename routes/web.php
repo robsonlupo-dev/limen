@@ -888,6 +888,15 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.members.visit')
             ->can('performer-active');
 
+        // Solicitar acesso às fotos PRIVADAS de um membro
+        // (feat/member-gallery-access-requests, Etapa 2). Mesma resolução de alvo
+        // por handle opaco (ResolvesCatalogMember) das outras portas; idempotente;
+        // membro sem privada/perfil oculto → 404 uniforme no service.
+        Route::post('/performer/membros/galeria/solicitar-acesso', [MemberEngagementController::class, 'requestGalleryAccess'])
+            ->middleware(['role:performer', 'throttle:20,1'])
+            ->name('performer.members.gallery-access-request')
+            ->can('performer-active');
+
         // Denúncia de APELIDO de membro (feat/nickname-report, Fase 4b). Por STRING
         // pública do apelido — não expõe user_id, funciona de qualquer tela onde a
         // performer vê o apelido. Reusa Report; porta dedicada (não o report.store
@@ -1279,6 +1288,21 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:20,1')
             ->whereNumber('photo')
             ->name('consumer.gallery.photo-visibility');
+
+        // Liberar / revogar acesso de uma performer às fotos PRIVADAS do membro
+        // (feat/member-gallery-access-requests, Etapa 2). Por par (não por foto):
+        // liberar abre todas as privadas para aquela performer. `{performer}` é o
+        // id numérico do perfil, bindado; o service age só sobre as linhas do
+        // próprio membro.
+        Route::post('/meu-perfil/galeria/acesso/{performer}/liberar', [ConsumerGalleryController::class, 'grantAccess'])
+            ->middleware('throttle:30,1')
+            ->whereNumber('performer')
+            ->name('consumer.gallery.access.grant');
+
+        Route::delete('/meu-perfil/galeria/acesso/{performer}/revogar', [ConsumerGalleryController::class, 'revokeAccess'])
+            ->middleware('throttle:30,1')
+            ->whereNumber('performer')
+            ->name('consumer.gallery.access.revoke');
 
         // Opt-in mestre: liga/desliga o perfil visível (galeria + página de perfil
         // acessíveis à performer). Default OFF; `profile_visible` fora do $fillable.

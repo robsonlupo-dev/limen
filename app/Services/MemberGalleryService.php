@@ -50,6 +50,7 @@ class MemberGalleryService
     public function __construct(
         private ImageProcessingService $imageProcessor,
         private CsamScanService $csam,
+        private MemberGalleryAccessService $access,
     ) {}
 
     /**
@@ -210,15 +211,34 @@ class MemberGalleryService
      *    visível, e PÚBLICA. Privada = só o dono (na Etapa 2 entram os grants por
      *    performer; até lá, ninguém além do dono).
      */
+    /**
+     * O membro tem ao menos uma foto PRIVADA aprovada? A performer só vê o botão
+     * "Solicitar acesso" quando há o que solicitar (feat/member-gallery-access-
+     * requests). Uma query (exists).
+     */
+    public function hasPrivatePhotos(User $user): bool
+    {
+        return MemberGalleryPhoto::where('user_id', $user->id)
+            ->approved()
+            ->where('is_private', true)
+            ->exists();
+    }
+
     public function canServeToViewer(MemberGalleryPhoto $photo, ?User $viewer): bool
     {
         if ($viewer !== null && $viewer->id === $photo->user_id) {
             return true;
         }
 
-        return $photo->isApproved()
-            && (bool) $photo->user?->profile_visible
-            && $photo->isPublic();
+        if (! $photo->isApproved() || ! (bool) $photo->user?->profile_visible) {
+            return false;
+        }
+
+        // Pública: qualquer performer que vê o perfil. Privada: só quem o membro
+        // LIBEROU (feat/member-gallery-access-requests, Etapa 2) — o predicado do
+        // par mora no MemberGalleryAccessService, lido também pelo presenter.
+        return $photo->isPublic()
+            || ($photo->user !== null && $this->access->hasGrant($photo->user, $viewer));
     }
 
     /**
@@ -327,20 +347,23 @@ class MemberGalleryService
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function approvedFor(User $user): Collection
+    public function approvedFor(User $user, ?User $viewer = null): Collection
     {
+        // A performer que vê o perfil LIBERADA às privadas deste membro? Uma query
+        // só (não por foto): a liberação é por par (Etapa 2). O serving reconfere o
+        // MESMO predicado (canServeToViewer), então url-vs-cadeado nunca divergem.
+        $unlocked = $viewer !== null && $this->access->hasGrant($user, $viewer);
+
         return MemberGalleryPhoto::where('user_id', $user->id)
             ->approved()
             ->orderByDesc('is_primary')
             ->orderBy('id')
             ->get()
-            ->map(function (MemberGalleryPhoto $photo) {
-                // Foto PRIVADA (feat/member-gallery-per-photo-privacy): a performer
-                // vê o cadeado, NUNCA os bytes — nenhuma URL é montada aqui. O
-                // serving reconfere o mesmo predicado (canServeToViewer), então
-                // "borrado na tela / 200 no download" não vira oráculo. Na Etapa 1
-                // não há liberação por performer ainda; privada = só o dono vê.
-                if ($photo->is_private) {
+            ->map(function (MemberGalleryPhoto $photo) use ($unlocked) {
+                // Foto PRIVADA: só emite bytes se a performer foi liberada; senão
+                // cadeado (url null). Na Etapa 1 não havia liberação; na 2, `unlocked`
+                // abre todas as privadas do membro para esta performer.
+                if ($photo->is_private && ! $unlocked) {
                     return [
                         'id' => $photo->id,
                         'is_primary' => $photo->is_primary,
@@ -354,7 +377,7 @@ class MemberGalleryService
                 return [
                     'id' => $photo->id,
                     'is_primary' => $photo->is_primary,
-                    'is_private' => false,
+                    'is_private' => $photo->is_private,
                     'locked' => false,
                     // Enquadrada (miniatura) + completa (lightbox). full_url cai na
                     // enquadrada quando a linha é antiga (sem variante completa).

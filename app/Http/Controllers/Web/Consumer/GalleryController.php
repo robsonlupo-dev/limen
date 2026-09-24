@@ -8,6 +8,8 @@ use App\Exceptions\MemberGalleryException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\UploadGalleryPhotoRequest;
 use App\Models\MemberGalleryPhoto;
+use App\Models\PerformerProfile;
+use App\Services\MemberGalleryAccessService;
 use App\Services\MemberGalleryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,6 +71,29 @@ class GalleryController extends Controller
         return back()->with('success', $validated['is_private']
             ? 'Foto trancada. Só você vê — até liberar para alguém.'
             : 'Foto aberta. As performers que veem seu perfil agora veem esta foto.');
+    }
+
+    /**
+     * O membro LIBERA uma performer a ver suas fotos privadas
+     * (feat/member-gallery-access-requests). Só aprova um pedido que existe (404
+     * no service senão). O `{performer}` é bindado pelo id numérico do perfil.
+     */
+    public function grantAccess(Request $request, PerformerProfile $performer, MemberGalleryAccessService $access): RedirectResponse
+    {
+        $access->grant($request->user(), $performer, $request);
+
+        return back()->with('success', 'Acesso liberado. Ela agora vê suas fotos privadas.');
+    }
+
+    /**
+     * O membro REVOGA um acesso ou RECUSA um pedido (mesmo verbo — a linha some).
+     * Idempotente.
+     */
+    public function revokeAccess(Request $request, PerformerProfile $performer, MemberGalleryAccessService $access): RedirectResponse
+    {
+        $access->revoke($request->user(), $performer, $request);
+
+        return back()->with('success', 'Acesso revogado.');
     }
 
     /**
