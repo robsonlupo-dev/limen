@@ -70,7 +70,7 @@ async function sendTip() {
 
         emit('sent', data)
         emit('close')
-        toastMessage.value = 'Gorjeta enviada! 🎉'
+        toastMessage.value = 'Gorjeta enviada!'
         setTimeout(() => (toastMessage.value = ''), 4000)
     } catch (error) {
         if (error.status === 422 && error.data?.reason === 'insufficient_balance') {

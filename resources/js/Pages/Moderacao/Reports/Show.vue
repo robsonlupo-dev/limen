@@ -228,8 +228,9 @@ async function revealMessage() {
 
                 <template v-if="evidence.kind === 'image'">
                     <template v-if="evidence.available">
-                        <p v-if="report.target_type === 'member_photo'" class="text-xs text-danger/90">
-                            ⚠️ Foto do membro — mostra o rosto. Conteúdo sensível; sua visualização fica registrada.
+                        <p v-if="report.target_type === 'member_photo'" class="flex items-start gap-1.5 text-xs text-danger/90">
+                            <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5L21.5 20h-19L12 3.5z" /><path d="M12 9.5v4.5M12 17h.01" /></svg>
+                            <span>Foto do membro — mostra o rosto. Conteúdo sensível; sua visualização fica registrada.</span>
                         </p>
                         <button
                             type="button"

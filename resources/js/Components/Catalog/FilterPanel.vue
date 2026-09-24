@@ -400,7 +400,8 @@ async function deleteSaved(id) {
                 class="inline-flex items-center gap-2 rounded-lg border border-frame bg-surface px-4 py-2.5 text-sm text-cream hover:border-gold/50 transition-colors"
                 @click="open = !open"
             >
-                ⚙ Filtros
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4.5v5M8 14.5v5" /></svg>
+                Filtros
                 <span v-if="activeCount" class="rounded-full bg-gold text-background text-xs px-1.5 py-0.5">
                     {{ activeCount }}
                 </span>
@@ -427,7 +428,7 @@ async function deleteSaved(id) {
                     <div v-if="sections.disponibilidade" class="space-y-2 pt-2">
                         <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
                             <input v-model="form.is_live" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />
-                            ☉ Ao vivo agora
+                            <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full bg-limen-live" /> Ao vivo agora
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
                             <input v-model="form.available" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />

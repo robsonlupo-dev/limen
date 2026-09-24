@@ -7,6 +7,7 @@ import SkeletonCard from '@/Components/SkeletonCard.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import FilterPanel from '@/Components/Catalog/FilterPanel.vue'
 import { WORLD_FILTERS } from '@/lib/worlds'
+import WorldIcon from '@/Components/WorldIcon.vue'
 import { HEIGHT_MIN_CM, HEIGHT_MAX_CM } from '@/lib/performerAttributes'
 
 const props = defineProps({
@@ -92,7 +93,7 @@ const isActive = (value) => (props.filters.mundo ?? null) === value
                         : 'border-frame text-muted hover:border-gold/50 hover:text-cream'"
                     @click="selectWorld(world.value)"
                 >
-                    <span aria-hidden="true">{{ world.icon }}</span>
+                    <WorldIcon :world="world.value" />
                     {{ world.label }}
                 </button>
             </div>

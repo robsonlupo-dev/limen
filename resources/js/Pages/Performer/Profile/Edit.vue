@@ -84,7 +84,7 @@ const profileForm = useForm({
 // submit. Ordem decrescente: o primeiro `min` alcançado ganha.
 const BIO_TIERS = [
     { min: 300, text: 'Perfil completo atrai mais membros ✓', class: 'text-success' },
-    { min: 150, text: 'Você está indo bem! 🔥', class: 'text-gold' },
+    { min: 150, text: 'Você está indo bem!', class: 'text-gold' },
     { min: 50, text: 'Bom começo! Continue...', class: 'text-muted' },
     { min: 0, text: 'Conte mais sobre você...', class: 'text-muted' },
 ]

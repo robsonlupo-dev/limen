@@ -80,7 +80,7 @@ async function sendGift() {
 
         emit('sent', data)
         emit('close')
-        toastMessage.value = 'Presente enviado ✨'
+        toastMessage.value = 'Presente enviado'
         setTimeout(() => (toastMessage.value = ''), 4000)
     } catch (error) {
         if (error.status === 422 && error.data?.reason === 'insufficient_balance') {

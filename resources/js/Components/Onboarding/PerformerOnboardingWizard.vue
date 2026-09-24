@@ -446,7 +446,7 @@ const continueLabel = computed(() => {
                             alt="Prévia do avatar"
                             class="h-full w-full object-cover"
                         />
-                        <span v-else class="text-4xl" aria-hidden="true">🌟</span>
+                        <svg v-else class="h-10 w-10 text-[#f3c97e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></svg>
                     </div>
                     <label class="cursor-pointer">
                         <span class="inline-flex items-center rounded-lg border border-[#f3c97e] text-[#f3c97e] px-5 py-2.5 text-sm hover:bg-[#f3c97e]/10 transition-colors">

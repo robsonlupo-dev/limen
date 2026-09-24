@@ -62,7 +62,7 @@ async function buyPackage(pkg) {
 
 function handlePaid(newBalance) {
     currentBalance.value = newBalance
-    toastMessage.value = 'Tokens creditados! 🎉'
+    toastMessage.value = 'Tokens creditados!'
     setTimeout(() => (toastMessage.value = ''), 4000)
 }
 
