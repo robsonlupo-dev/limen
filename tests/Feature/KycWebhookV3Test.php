@@ -132,6 +132,37 @@ it('does not re-process a different event_id once the verification is terminal',
     expect(\App\Models\AuditLog::where('action', 'kyc.approved')->count())->toBe(1);
 });
 
+// ─── 6c. Transação falha → a reserva do event_id é devolvida ─────────────────
+// O Cache::add marca o evento ANTES da transação. Sem devolver a reserva no
+// catch, a retentativa da Didit (mesmo event_id) seria descartada como duplicada
+// e a verificação ficaria presa em `pending`.
+
+it('releases the event_id reservation when processing fails, so the retry is not swallowed', function () {
+    makePendingVerification('sess_v3_retry');
+
+    $payload = v3Payload(['session_id' => 'sess_v3_retry', 'event_id' => 'evt_retry_1']);
+    $headers = kycV3Headers($payload);
+
+    // UM único mock com DUAS expectativas ORDENADAS de approve — sem trocar o
+    // dublê no meio do teste (o que falhava): a 1ª chamada explode (banco/e-mail
+    // fora), a 2ª passa. Sem withoutExceptionHandling: deixamos o handler
+    // renderizar o 500, que é o sinal (não-2xx) que faz a Didit reenviar.
+    $this->mock(KycService::class, function ($mock) {
+        $mock->shouldReceive('approve')->once()->ordered()->andThrow(new RuntimeException('transient'));
+        $mock->shouldReceive('approve')->once()->ordered()->andReturnNull();
+    });
+
+    // 1ª entrega: o approve explode. O controller, antes de propagar, devolve a
+    // reserva do event_id no catch.
+    $this->postJson('/api/v1/webhooks/kyc', $payload, $headers)->assertStatus(500);
+
+    // 2ª entrega (retry da Didit, MESMO event_id): só chega ao approve porque a
+    // reserva foi devolvida (senão o Cache::add barraria e approve NÃO seria
+    // chamado — a 2ª expectativa `->once()` ficaria insatisfeita e o teste
+    // falharia no teardown do Mockery). É isso que prova a devolução.
+    $this->postJson('/api/v1/webhooks/kyc', $payload, $headers)->assertOk();
+});
+
 // ─── 7. X-Signature-Simple fallback → processed ───────────────────────────────
 
 it('accepts the X-Signature-Simple fallback signature', function () {

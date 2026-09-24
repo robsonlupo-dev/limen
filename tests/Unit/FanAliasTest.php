@@ -134,3 +134,37 @@ it('muda todos os pseudônimos quando a APP_KEY é rotacionada', function () {
 
     expect(FanAlias::handle(7, 42))->not->toBe($antes);
 });
+
+it('resolve um handle emitido com a chave anterior durante a rotação da APP_KEY', function () {
+    $antiga = (string) config('app.key');
+    $handleAntigo = FanAlias::handle(7, 20);
+
+    // Rotação: chave nova em app.key, a antiga em app.previous_keys (é o que
+    // APP_PREVIOUS_KEYS alimenta, e o que o Crypt já usa para material antigo).
+    config([
+        'app.key' => 'base64:'.base64_encode(random_bytes(32)),
+        'app.previous_keys' => [$antiga],
+    ]);
+
+    // Emitir usa SEMPRE a chave atual → o handle exibido muda (aceito).
+    expect(FanAlias::handle(7, 20))->not->toBe($handleAntigo);
+
+    // Mas um POST em voo com o handle antigo ainda resolve — sem isto ele caía
+    // em "não encontrado" na janela de troca (SECURITY_ISSUES §1.9).
+    expect(FanAlias::resolveHandle(7, [10, 20, 30], $handleAntigo))->toBe(20);
+
+    // A chave antiga NÃO relaxa a regra dos candidatos nem a de outra performer.
+    expect(FanAlias::resolveHandle(7, [10, 30], $handleAntigo))->toBeNull();
+    expect(FanAlias::resolveHandle(8, [10, 20, 30], $handleAntigo))->toBeNull();
+});
+
+it('não aceita handle de chave que já saiu de previous_keys', function () {
+    $aposentada = (string) config('app.key');
+    $handle = FanAlias::handle(7, 20);
+
+    // Duas rotações depois, sem a chave na lista: o handle é lixo, como deve ser.
+    config(['app.key' => 'base64:'.base64_encode(random_bytes(32)), 'app.previous_keys' => []]);
+
+    expect(FanAlias::resolveHandle(7, [20], $handle))->toBeNull();
+    expect($aposentada)->not->toBe(config('app.key'));
+});

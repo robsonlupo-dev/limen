@@ -75,27 +75,49 @@ class KycWebhookController extends Controller
         // approve()/reject() abrem a própria transação; aninhada nesta, vira
         // savepoint, e os dispatch `afterCommit` disparam no commit DESTA (a mais
         // externa) — a semântica do e-mail/carta fica intacta.
-        DB::transaction(function () use ($reference, $status, $payload) {
-            $verification = IdentityVerification::where('provider_reference', $reference)
-                ->lockForUpdate()
-                ->first();
+        // O Cache::add acima marcou o event_id como visto ANTES da transação.
+        // Se ela falhar (deadlock, banco fora, exceção no approve), a retentativa
+        // da Didit — que reenvia o MESMO event_id — cairia no "já visto" e seria
+        // descartada: a verificação ficaria presa em `pending` sem ninguém saber.
+        // Devolver a reserva no catch faz o retry reprocessar de verdade; o
+        // lockForUpdate + guardião terminal continuam impedindo o dobro.
+        try {
+            DB::transaction(function () use ($reference, $status, $payload) {
+                $verification = IdentityVerification::where('provider_reference', $reference)
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $verification) {
-                return;
+                if (! $verification) {
+                    return;
+                }
+
+                // Estados terminais nunca transicionam de novo (2º guardião além do
+                // event_id; agora sob o lock, à prova de corrida).
+                if (in_array($verification->status, ['approved', 'rejected'], true)) {
+                    return;
+                }
+
+                if ($status === 'approved') {
+                    $this->kycService->approve($verification);
+                } elseif ($status === 'rejected') {
+                    $this->kycService->reject($verification, data_get($payload, 'decision.reason'));
+                }
+            });
+        } catch (\Throwable $e) {
+            if ($eventId !== null) {
+                try {
+                    Cache::forget($this->eventKey($eventId));
+                } catch (\Throwable $cacheError) {
+                    // Não mascarar a exceção original: sem a reserva devolvida o
+                    // retry será descartado, então fica registrado para operação.
+                    Log::warning('KYC webhook: failed to release event_id reservation', [
+                        'event_id' => $eventId, 'error' => $cacheError->getMessage(),
+                    ]);
+                }
             }
 
-            // Estados terminais nunca transicionam de novo (2º guardião além do
-            // event_id; agora sob o lock, à prova de corrida).
-            if (in_array($verification->status, ['approved', 'rejected'], true)) {
-                return;
-            }
-
-            if ($status === 'approved') {
-                $this->kycService->approve($verification);
-            } elseif ($status === 'rejected') {
-                $this->kycService->reject($verification, data_get($payload, 'decision.reason'));
-            }
-        });
+            throw $e;
+        }
 
         return response()->json(['message' => 'OK.']);
     }

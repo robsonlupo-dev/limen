@@ -79,21 +79,44 @@ final class FanAlias
      */
     public static function resolveHandle(int $performerProfileId, iterable $candidateMemberIds, string $handle): ?int
     {
-        foreach ($candidateMemberIds as $memberId) {
-            if (hash_equals(self::handle($performerProfileId, (int) $memberId), $handle)) {
-                return (int) $memberId;
+        // Chave atual primeiro; depois as anteriores (`app.previous_keys`, que o
+        // Laravel já lê de APP_PREVIOUS_KEYS para o Crypt). Fecha a lacuna
+        // registrada em SECURITY_ISSUES §1.9: na janela de rotação da APP_KEY,
+        // um POST em voo (Interesse Controlado, galeria) traz o handle emitido
+        // com a chave antiga; sem isto ele caía em "não encontrado". O alias
+        // EXIBIDO continua mudando na rotação — isso já foi aceito; o que não
+        // pode é a request quebrar. Só a resolução aceita chave antiga: emitir
+        // (handle/for/label) usa sempre a atual.
+        $candidates = is_array($candidateMemberIds) ? $candidateMemberIds : iterator_to_array($candidateMemberIds, false);
+
+        foreach (self::keys() as $key) {
+            foreach ($candidates as $memberId) {
+                if (hash_equals(substr(self::digestWith($key, $performerProfileId, (int) $memberId), 0, 16), $handle)) {
+                    return (int) $memberId;
+                }
             }
         }
 
         return null;
     }
 
+    /** Chave atual seguida das anteriores (sem vazias, sem repetidas). */
+    private static function keys(): array
+    {
+        $keys = array_merge([(string) config('app.key')], (array) config('app.previous_keys', []));
+
+        $keys = array_map('trim', $keys);
+
+        return array_values(array_unique(array_filter($keys, fn ($k) => $k !== '')));
+    }
+
     private static function digest(int $performerProfileId, int $memberId): string
     {
-        return hash_hmac(
-            'sha256',
-            "fan_alias:{$performerProfileId}:{$memberId}",
-            (string) config('app.key')
-        );
+        return self::digestWith((string) config('app.key'), $performerProfileId, $memberId);
+    }
+
+    private static function digestWith(string $key, int $performerProfileId, int $memberId): string
+    {
+        return hash_hmac('sha256', "fan_alias:{$performerProfileId}:{$memberId}", $key);
     }
 }
