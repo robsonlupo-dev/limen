@@ -255,30 +255,76 @@ it('trata o destinatario pelo primeiro nome e assina pelos dois fundadores', fun
         ->and($html)->toContain('Fundadores do Limen');
 });
 
-it('nao carrega imagem remota', function () {
-    $user = User::factory()->create(['role' => 'consumer']);
+it('nao carrega imagem remota em nenhuma das duas cartas', function () {
+    foreach (['consumer', 'performer'] as $role) {
+        $html = (new WelcomeFounderEmail(User::factory()->create(['role' => $role])))->render();
 
-    $html = (new WelcomeFounderEmail($user))->render();
-
-    // <img> remoto em e-mail é pixel de leitura: diz quando e de onde a pessoa
-    // abriu. A auditoria de 20/07 já tirou um do header do vendor
-    // (docs/PIXEL_AUDIT.md, item 5). Carta de fundador não rastreia leitor.
-    expect($html)->not->toContain('<img');
+        // <img> remoto em e-mail é pixel de leitura: diz quando e de onde a
+        // pessoa abriu. A auditoria de 20/07 já tirou um do header do vendor
+        // (docs/PIXEL_AUDIT.md, item 5). Carta de fundador não rastreia leitor.
+        expect($html)->not->toContain('<img');
+    }
 });
 
-it('manda a mesma carta para membro e performer', function () {
+// ─── Duas cartas, um envelope (decisão do PO, 24/09/2026) ───────────────────
+
+it('manda ao membro a carta de privacidade, com o catalogo como destino', function () {
     $member = User::factory()->create(['role' => 'consumer', 'name' => 'Carlos Lima']);
-    $performer = User::factory()->create(['role' => 'performer', 'name' => 'Carlos Lima']);
 
-    $memberHtml = (new WelcomeFounderEmail($member))->render();
-    $performerHtml = (new WelcomeFounderEmail($performer))->render();
+    $html = (new WelcomeFounderEmail($member))->render();
 
-    // Texto e CTA únicos, por decisão do PO: a carta é dos fundadores, não um
-    // onboarding por papel. Com o mesmo primeiro nome dos dois lados, o HTML
-    // tem que sair IDÊNTICO — é o que impede uma variação por papel de voltar
-    // sem ninguém notar.
-    expect($memberHtml)->toBe($performerHtml)
-        ->and($memberHtml)->toContain('Explore o catálogo e descubra o que preparamos para você.')
-        ->and($memberHtml)->toContain(route('catalog'))
-        ->and($memberHtml)->not->toContain(route('performer.dashboard'));
+    expect($html)->toContain('Poucas portas merecem uma carta.')
+        ->and($html)->toContain('Explore o catálogo no seu ritmo e descubra o que preparamos para você.')
+        ->and($html)->toContain(route('catalog'))
+        ->and($html)->not->toContain(route('performer.dashboard'))
+        // Nada de conta de ganho na carta do membro.
+        ->and($html)->not->toContain('R$');
+});
+
+it('manda a performer a carta de ganho, com o painel como destino', function () {
+    $performer = User::factory()->create(['role' => 'performer', 'name' => 'Ana Souza']);
+
+    $html = (new WelcomeFounderEmail($performer))->render();
+
+    // Fala do MECANISMO (a primeira mensagem já paga; a maior parte fica com
+    // ela; vira dinheiro por PIX), nunca de cifra — ver o teste seguinte.
+    expect($html)->toContain('Você não entrou numa plataforma.')
+        ->and($html)->toContain('A primeira')
+        ->and($html)->toContain('Comece pelo seu painel: preços, conteúdo, visibilidade — tudo é seu para decidir.')
+        ->and($html)->toContain(route('performer.dashboard'))
+        ->and($html)->not->toContain(route('catalog'));
+});
+
+it('nao grava numero, porcentagem nem valor em reais na carta da performer', function () {
+    $performer = User::factory()->create(['role' => 'performer', 'name' => 'Ana Souza']);
+
+    $html = (new WelcomeFounderEmail($performer))->render();
+
+    // Decisão do PO (24/09/2026): splits, valor do token e mínimo de saque
+    // mudam por decisão de negócio. Uma cifra numa carta assinada pelos
+    // fundadores viraria promessa vencida no dia da mudança — a fonte dos
+    // números é docs/ECONOMIA.md e a interface, nunca esta carta.
+    //
+    // stripTags() no HTML INTEIRO: as tags (com seus style="...padding:52px...")
+    // saem por completo, sobrando só o texto visível. Recortar por `<body` deixava
+    // os dígitos do estilo do próprio <body> como texto e dava falso positivo.
+    $body = Str::of($html)->stripTags()->value();
+
+    expect($body)->not->toContain('%')
+        ->and($body)->not->toContain('R$')
+        ->and(preg_match('/\d/', $body))->toBe(0);
+});
+
+it('usa o mesmo envelope neutro nas duas cartas', function () {
+    $member = new WelcomeFounderEmail(User::factory()->create(['role' => 'consumer']));
+    $performer = new WelcomeFounderEmail(User::factory()->create(['role' => 'performer']));
+
+    // O papel muda o CORPO, nunca o envelope: assunto, remetente e preheader
+    // são o que aparece na lista da caixa de entrada e na tela bloqueada.
+    expect($member->envelope()->subject)->toBe($performer->envelope()->subject)
+        ->and($member->envelope()->from->name)->toBe($performer->envelope()->from->name);
+
+    foreach ([$member, $performer] as $mail) {
+        expect($mail->render())->toContain('Uma palavra dos fundadores.');
+    }
 });
