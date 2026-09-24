@@ -40,6 +40,7 @@ class Message extends Model
     {
         return [
             'read_at' => 'datetime',
+            'redacted_at' => 'datetime',
             'audio_duration_seconds' => 'integer',
         ];
     }
@@ -48,6 +49,16 @@ class Message extends Model
     public function isAudio(): bool
     {
         return $this->audio_status !== null;
+    }
+
+    /**
+     * O remetente "desfez o envio" (feat/chat-unsend-message)? É uma REDAÇÃO de
+     * EXIBIÇÃO: o conteúdo some da tela das duas pontas, mas `body`/áudio seguem
+     * no banco para a moderação. Nunca confundir com o soft-delete de retenção.
+     */
+    public function isRedacted(): bool
+    {
+        return $this->redacted_at !== null;
     }
 
     public function conversation(): BelongsTo

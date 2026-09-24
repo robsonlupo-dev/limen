@@ -750,6 +750,10 @@ class ModerationController extends Controller
                 'available' => $hasBytes,
                 'url' => $hasBytes ? route('moderacao.evidence.message-audio', $report->reportable_id) : null,
                 'content_hash' => $message->audio_content_hash,
+                // "Desfazer envio" (feat/chat-unsend-message): o remetente escondeu
+                // a mensagem no chat, mas a prova é RETIDA e segue servida aqui. O
+                // selo dá transparência ao moderador (não reduz a disponibilidade).
+                'redacted_at' => $message->redacted_at,
             ];
         }
 
@@ -758,6 +762,7 @@ class ModerationController extends Controller
             'available' => $available,
             'url' => $available ? route('moderacao.evidence.message', $report->reportable_id) : null,
             'content_hash' => null,
+            'redacted_at' => $message?->redacted_at,
         ];
     }
 

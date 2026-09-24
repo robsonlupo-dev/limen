@@ -293,6 +293,12 @@ async function revealMessage() {
                 </template>
 
                 <p v-else class="text-sm text-muted">Sem prova retida para este tipo de denúncia.</p>
+
+                <!-- "Desfazer envio" (feat/chat-unsend-message): o remetente escondeu
+                     a mensagem no chat, mas a prova é RETIDA e segue acima. -->
+                <p v-if="evidence.redacted_at" class="mt-3 rounded-md border border-dashed border-frame bg-surface/50 px-3 py-2 text-xs text-muted">
+                    O remetente apagou esta mensagem no chat (desfazer envio). O conteúdo original foi retido e é o mostrado acima.
+                </p>
             </section>
 
             <!-- Zoom em tela cheia -->
