@@ -11,9 +11,13 @@ use App\Services\SharedRegistrationIpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class AdminKycController extends Controller
 {
+    /** Estados que ainda podem transicionar (mesma lista do painel web e do webhook). */
+    private const ACTIONABLE = ['pending', 'review'];
+
     public function __construct(
         private KycService $kycService,
         private SharedRegistrationIpService $sharedIps,
@@ -45,17 +49,42 @@ class AdminKycController extends Controller
         return IdentityVerificationResource::collection($verifications);
     }
 
+    /**
+     * lockForUpdate + re-check do status, igual ao painel web e ao webhook Didit:
+     * dois admins (ou um admin correndo contra o webhook) não aprovam duas vezes
+     * nem disparam e-mail/carta em dobro. Já terminal → no-op idempotente (200).
+     */
     public function approve(Request $request, IdentityVerification $verification): JsonResponse
     {
-        $this->kycService->approve($verification, $request->user()->id);
+        return DB::transaction(function () use ($request, $verification) {
+            $verification = IdentityVerification::whereKey($verification->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        return response()->json(['message' => 'Verificação aprovada.']);
+            if (! in_array($verification->status, self::ACTIONABLE, true)) {
+                return response()->json(['message' => "Verificação já está \"{$verification->status}\" — nada foi regravado."]);
+            }
+
+            $this->kycService->approve($verification, $request->user()->id);
+
+            return response()->json(['message' => 'Verificação aprovada.']);
+        });
     }
 
     public function reject(AdminKycRejectRequest $request, IdentityVerification $verification): JsonResponse
     {
-        $this->kycService->reject($verification, $request->input('reason'), $request->user()->id);
+        return DB::transaction(function () use ($request, $verification) {
+            $verification = IdentityVerification::whereKey($verification->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        return response()->json(['message' => 'Verificação rejeitada.']);
+            if (! in_array($verification->status, self::ACTIONABLE, true)) {
+                return response()->json(['message' => "Verificação já está \"{$verification->status}\" — nada foi regravado."]);
+            }
+
+            $this->kycService->reject($verification, $request->input('reason'), $request->user()->id);
+
+            return response()->json(['message' => 'Verificação rejeitada.']);
+        });
     }
 }

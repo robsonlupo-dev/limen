@@ -9,6 +9,7 @@ use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -61,25 +62,40 @@ class KycWebhookController extends Controller
             return response()->json(['message' => 'OK.']);
         }
 
-        $verification = IdentityVerification::where('provider_reference', $reference)->first();
+        // Corrida de webhooks concorrentes: dois eventos com event_id DIFERENTES
+        // para a MESMA sessão (a retentativa da Didit chega com id novo) passam os
+        // dois pelo Cache::add acima (chaves distintas), leem os dois
+        // status='pending' e chamariam approve() em DOBRO — dupla concessão de
+        // idade, e-mails/carta repetidos. lockForUpdate serializa
+        // read→check→transição na linha da verificação: o segundo webhook espera,
+        // relê o estado já terminal e vira no-op. O Cache::add segue como 1ª linha
+        // (event_id repetido) e o guardião de estado terminal como 2ª — o lock é
+        // o que os torna atômicos sob concorrência real.
+        //
+        // approve()/reject() abrem a própria transação; aninhada nesta, vira
+        // savepoint, e os dispatch `afterCommit` disparam no commit DESTA (a mais
+        // externa) — a semântica do e-mail/carta fica intacta.
+        DB::transaction(function () use ($reference, $status, $payload) {
+            $verification = IdentityVerification::where('provider_reference', $reference)
+                ->lockForUpdate()
+                ->first();
 
-        if (! $verification) {
-            return response()->json(['message' => 'OK.']);
-        }
+            if (! $verification) {
+                return;
+            }
 
-        // Terminal states never transition again (second guard beyond event_id).
-        if (in_array($verification->status, ['approved', 'rejected'], true)) {
-            return response()->json(['message' => 'OK.']);
-        }
+            // Estados terminais nunca transicionam de novo (2º guardião além do
+            // event_id; agora sob o lock, à prova de corrida).
+            if (in_array($verification->status, ['approved', 'rejected'], true)) {
+                return;
+            }
 
-        // The transition itself is a short DB transaction and the notification
-        // emails are already dispatched to the queue, so we answer inline and
-        // still return quickly — no separate webhook job needed.
-        if ($status === 'approved') {
-            $this->kycService->approve($verification);
-        } elseif ($status === 'rejected') {
-            $this->kycService->reject($verification, data_get($payload, 'decision.reason'));
-        }
+            if ($status === 'approved') {
+                $this->kycService->approve($verification);
+            } elseif ($status === 'rejected') {
+                $this->kycService->reject($verification, data_get($payload, 'decision.reason'));
+            }
+        });
 
         return response()->json(['message' => 'OK.']);
     }

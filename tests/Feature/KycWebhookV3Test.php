@@ -112,6 +112,26 @@ it('processes a duplicated event_id only once', function () {
     $spy->shouldHaveReceived('approve')->once();
 });
 
+// ─── 6b. Different event_id, same session, already terminal → no re-process ────
+// A retentativa da Didit chega com event_id NOVO (o Cache::add não pega), então é
+// o guardião de estado terminal — agora sob lockForUpdate — que barra o reprocesso.
+// Roda com o KycService REAL para exercitar a transição + o guardião de verdade.
+
+it('does not re-process a different event_id once the verification is terminal', function () {
+    makePendingVerification('sess_v3_terminal');
+
+    $p1 = v3Payload(['session_id' => 'sess_v3_terminal', 'event_id' => 'evt_term_a']);
+    $this->postJson('/api/v1/webhooks/kyc', $p1, kycV3Headers($p1))->assertOk();
+
+    // event_id DIFERENTE, mesma sessão: passa o Cache::add, mas a verificação já
+    // está 'approved' → no-op.
+    $p2 = v3Payload(['session_id' => 'sess_v3_terminal', 'event_id' => 'evt_term_b']);
+    $this->postJson('/api/v1/webhooks/kyc', $p2, kycV3Headers($p2))->assertOk();
+
+    // approve() rodou UMA vez só (o Audit é gravado a cada transição real).
+    expect(\App\Models\AuditLog::where('action', 'kyc.approved')->count())->toBe(1);
+});
+
 // ─── 7. X-Signature-Simple fallback → processed ───────────────────────────────
 
 it('accepts the X-Signature-Simple fallback signature', function () {
