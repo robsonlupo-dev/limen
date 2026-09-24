@@ -49,16 +49,22 @@ function openPhoto(i) {
 
 const photos = computed(() => props.member.photos ?? [])
 // Capa = avatar do membro (a foto que ele escolheu como cara). Sem avatar, cai
-// na 1ª foto da galeria (comportamento antigo).
+// na 1ª foto VISÍVEL da galeria (comportamento antigo).
 const avatarUrl = computed(() => props.member.avatar_url ?? null)
-const heroPhoto = computed(() => (avatarUrl.value ? null : photos.value[0] ?? null))
-// Grid abaixo da capa (cada item guarda o índice REAL na galeria p/ o lightbox):
-// com avatar, mostra a galeria inteira; sem avatar, a foto[0] já é a capa.
+// Só as fotos ABERTAS têm bytes: a privada vem `locked` (url null) e vira
+// placeholder de cadeado — NUNCA entra no lightbox nem tenta carregar imagem
+// (feat/member-gallery-per-photo-privacy). O gate real é do servidor; aqui só
+// desenhamos o que ele liberou.
+const viewablePhotos = computed(() => photos.value.filter((p) => !p.locked && p.url))
+const lockedCount = computed(() => photos.value.filter((p) => p.locked).length)
+const heroPhoto = computed(() => (avatarUrl.value ? null : viewablePhotos.value[0] ?? null))
+// Grid abaixo da capa (o índice é dentro de viewablePhotos, a mesma lista do
+// lightbox): com avatar, todas as visíveis; sem avatar, a [0] já é a capa.
 const galleryThumbs = computed(() => {
-    const list = photos.value.map((photo, index) => ({ photo, index }))
+    const list = viewablePhotos.value.map((photo, index) => ({ photo, index }))
     return avatarUrl.value ? list : list.slice(1)
 })
-const hasVisual = computed(() => !!avatarUrl.value || photos.value.length > 0)
+const hasVisual = computed(() => !!avatarUrl.value || viewablePhotos.value.length > 0 || lockedCount.value > 0)
 
 // Localizações (1ª/2ª/3ª): a principal + até 2 extras, só as preenchidas. Compat
 // com payloads antigos que só mandavam city_label.
@@ -161,7 +167,8 @@ async function sendMessage() {
                  lado. Sem avatar, a capa cai na 1ª foto. Clicar numa miniatura
                  abre o lightbox (variante completa). Vazio → estado neutro. -->
             <div v-if="hasVisual" class="mt-4 grid gap-3 sm:grid-cols-[1.4fr_1fr]">
-                <!-- Capa: avatar (não entra no lightbox da galeria) OU 1ª foto -->
+                <!-- Capa: avatar (não entra no lightbox da galeria) OU 1ª foto
+                     visível OU, se só há privadas, um placeholder de cadeado. -->
                 <div
                     v-if="avatarUrl"
                     class="relative aspect-[3/4] overflow-hidden rounded-2xl bg-limen-surface ring-1 ring-limen-line"
@@ -169,7 +176,7 @@ async function sendMessage() {
                     <img :src="avatarUrl" alt="Foto de perfil do membro" class="h-full w-full object-cover" />
                 </div>
                 <button
-                    v-else
+                    v-else-if="heroPhoto"
                     type="button"
                     class="relative aspect-[3/4] overflow-hidden rounded-2xl bg-limen-surface ring-1 ring-limen-line"
                     aria-label="Ampliar foto"
@@ -177,8 +184,19 @@ async function sendMessage() {
                 >
                     <img :src="heroPhoto.url" alt="Foto do membro" class="h-full w-full object-cover" />
                 </button>
+                <div
+                    v-else
+                    class="grid aspect-[3/4] place-items-center rounded-2xl bg-limen-surface ring-1 ring-limen-line"
+                >
+                    <div class="flex flex-col items-center gap-2 text-limen-ink-mute">
+                        <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        <span class="text-xs">Fotos privadas</span>
+                    </div>
+                </div>
 
-                <div v-if="galleryThumbs.length" class="grid grid-cols-2 gap-3 sm:grid-cols-1 sm:content-start">
+                <div v-if="galleryThumbs.length || lockedCount" class="grid grid-cols-2 gap-3 sm:grid-cols-1 sm:content-start">
                     <button
                         v-for="t in galleryThumbs"
                         :key="t.photo.id"
@@ -189,6 +207,21 @@ async function sendMessage() {
                     >
                         <img :src="t.photo.url" alt="Foto do membro" loading="lazy" class="h-full w-full object-cover" />
                     </button>
+
+                    <!-- Placeholders das fotos PRIVADAS (borradas / cadeado). Sem
+                         bytes, não clicáveis: na Etapa 1 ainda não há pedir acesso. -->
+                    <div
+                        v-for="n in lockedCount"
+                        :key="'locked-' + n"
+                        class="relative grid aspect-[3/4] place-items-center overflow-hidden rounded-xl bg-limen-surface ring-1 ring-limen-line sm:aspect-[3/2]"
+                    >
+                        <div class="flex flex-col items-center gap-1 text-limen-ink-mute">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            <span class="text-[11px]">Privada</span>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div v-else class="mt-4 grid place-items-center rounded-2xl border border-limen-line bg-limen-surface py-16 text-center">
@@ -375,7 +408,7 @@ async function sendMessage() {
         </div>
 
         <!-- Lightbox: variante COMPLETA (sem corte). -->
-        <Lightbox v-model:index="lightboxIndex" :photos="photos" />
+        <Lightbox v-model:index="lightboxIndex" :photos="viewablePhotos" />
 
         <!-- Denúncia de apelido (só existe quando member.nickname). -->
         <ReportNicknameModal

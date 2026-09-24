@@ -55,6 +55,8 @@ function v2bPhoto(User $member): MemberGalleryPhoto
     $photo->full_token = Str::random(48);
     $photo->status = 'approved';
     $photo->is_primary = true;
+    // Público: teste de presença/perfil, não de privacidade por foto.
+    $photo->is_private = false;
     $photo->save();
 
     return $photo;

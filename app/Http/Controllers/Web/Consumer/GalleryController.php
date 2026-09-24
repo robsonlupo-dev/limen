@@ -14,7 +14,8 @@ use Illuminate\Http\Request;
 
 /**
  * Galeria de fotos do MEMBRO — lado do dono (feat/member-gallery-and-profile).
- * Subir (até 4), remover, designar principal e ligar/desligar o perfil visível.
+ * Subir (até MAX_ACTIVE), remover, designar principal, trancar/destrancar por foto
+ * (feat/member-gallery-per-photo-privacy) e ligar/desligar o perfil visível.
  * Toda a regra vive no MemberGalleryService; aqui traduzimos as recusas do
  * pipeline (imagem-bomba/CSAM/limite) para erro de formulário 422, nunca 500 —
  * mesma disciplina do avatar (Consumer\ProfileController::avatar).
@@ -51,6 +52,23 @@ class GalleryController extends Controller
         $gallery->setPrimary($request->user(), $photo, $request);
 
         return back()->with('success', 'Foto principal definida.');
+    }
+
+    /**
+     * Tranca/destranca UMA foto (aberta ↔ privada) —
+     * feat/member-gallery-per-photo-privacy. Booleano do payload, aplicado por
+     * forceFill no service (`is_private` fora do $fillable). Foto de outro / recusada
+     * → 404 no service.
+     */
+    public function photoVisibility(Request $request, MemberGalleryPhoto $photo, MemberGalleryService $gallery): RedirectResponse
+    {
+        $validated = $request->validate(['is_private' => ['required', 'boolean']]);
+
+        $gallery->setPhotoVisibility($request->user(), $photo, $validated['is_private'], $request);
+
+        return back()->with('success', $validated['is_private']
+            ? 'Foto trancada. Só você vê — até liberar para alguém.'
+            : 'Foto aberta. As performers que veem seu perfil agora veem esta foto.');
     }
 
     /**

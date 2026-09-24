@@ -63,19 +63,20 @@ it('foto PENDING NÃO aparece para a performer (approvedFor vazio até aprovar)'
         ->and($gallery->primaryApprovedUrlFor($member))->toBeNull();
 });
 
-// ─── Teto de 4 fotos ATIVAS ──────────────────────────────────────────────────
+// ─── Teto de MAX_ACTIVE fotos ATIVAS ─────────────────────────────────────────
 
-it('recusa a 5ª foto: no máximo 4 ativas (pending+approved)', function () {
+it('recusa a foto além do teto de MAX_ACTIVE ativas (pending+approved)', function () {
     $member = mgMember();
-    foreach (range(1, 4) as $i) {
+    $max = MemberGalleryPhoto::MAX_ACTIVE;
+    foreach (range(1, $max) as $i) {
         mgUpload($member, "p{$i}.jpg");
     }
 
     $this->actingAs($member)
-        ->post(route('consumer.gallery.store'), ['file' => UploadedFile::fake()->image('fifth.jpg', 600, 600)])
+        ->post(route('consumer.gallery.store'), ['file' => UploadedFile::fake()->image('over.jpg', 600, 600)])
         ->assertSessionHasErrors('file');
 
-    expect(MemberGalleryPhoto::where('user_id', $member->id)->count())->toBe(4);
+    expect(MemberGalleryPhoto::where('user_id', $member->id)->count())->toBe($max);
 });
 
 it('uma foto RECUSADA não conta no teto — o membro pode reenviar', function () {
@@ -312,6 +313,10 @@ function mgMakePhoto(User $member, string $status = 'pending'): MemberGalleryPho
     $photo->path = $path;
     $photo->token = Str::random(48);
     $photo->status = $status;
+    // Público por padrão: estes testes cobrem o opt-in MESTRE (profile_visible) e o
+    // serving, não a privacidade POR FOTO (feat/member-gallery-per-photo-privacy,
+    // coberta em MemberGalleryPhotoPrivacyTest). Foto de verdade nasce privada.
+    $photo->is_private = false;
     $photo->save();
 
     return $photo;

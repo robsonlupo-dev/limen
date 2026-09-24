@@ -103,8 +103,9 @@ Route::get('/membro/midia', MemberMediaController::class)
 // Serving das fotos da GALERIA de perfil do membro (feat/member-gallery-and-profile).
 // Gêmeo do member.media do avatar: disco privado, rota ASSINADA (sem sessão),
 // chaveada pelo `token` OPACO da foto — nunca id/user_id. O gate de "quem vê"
-// (approved + dono com profile_visible) é aplicado na GERAÇÃO da URL; aqui só
-// servimos bytes que existirem (removida/recusada some do disco → 404 na hora).
+// (dono em qualquer status; senão approved + profile_visible + PÚBLICA) é
+// reconferido A CADA serve pelo MemberGalleryService::canServeToViewer — o mesmo
+// predicado do presenter (sem oráculo), então trancar a foto revoga na hora.
 Route::get('/membro/galeria/midia', MemberGalleryMediaController::class)
     ->middleware('signed')
     ->name('member.gallery.media');
@@ -1271,6 +1272,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:20,1')
             ->whereNumber('photo')
             ->name('consumer.gallery.primary');
+
+        // Tranca/destranca uma foto por vez (aberta ↔ privada) —
+        // feat/member-gallery-per-photo-privacy. `is_private` fora do $fillable.
+        Route::patch('/meu-perfil/galeria/{photo}/visibilidade', [ConsumerGalleryController::class, 'photoVisibility'])
+            ->middleware('throttle:20,1')
+            ->whereNumber('photo')
+            ->name('consumer.gallery.photo-visibility');
 
         // Opt-in mestre: liga/desliga o perfil visível (galeria + página de perfil
         // acessíveis à performer). Default OFF; `profile_visible` fora do $fillable.

@@ -246,6 +246,11 @@ class MemberCatalogService
 
         \App\Models\MemberGalleryPhoto::whereIn('user_id', $visibleIds)
             ->approved()
+            // Só PÚBLICA vira thumbnail do card: a privada nunca sai sem pedido,
+            // então não pode virar a cara pública do catálogo por ser a principal
+            // — nem gerar URL que dá 404 no fetch (oráculo). Espelha o mesmo filtro
+            // do serving (canServeToViewer) — feat/member-gallery-per-photo-privacy.
+            ->where('is_private', false)
             ->orderByDesc('is_primary')
             ->orderBy('id')
             ->get()
@@ -286,6 +291,10 @@ class MemberCatalogService
 
         return \App\Models\MemberGalleryPhoto::whereIn('user_id', $visibleIds)
             ->approved()
+            // Badge conta só as PÚBLICAS: o nº de privadas é dado próprio do membro
+            // e não se anuncia no card antes de a performer nem abrir o perfil
+            // (feat/member-gallery-per-photo-privacy).
+            ->where('is_private', false)
             ->selectRaw('user_id, COUNT(*) as aggregate')
             ->groupBy('user_id')
             ->pluck('aggregate', 'user_id')

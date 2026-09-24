@@ -59,6 +59,10 @@ function v2Photo(User $member, string $status = 'approved', bool $primary = fals
     $photo->full_token = Str::random(48);
     $photo->status = $status;
     $photo->is_primary = $primary;
+    // Público por padrão: estes testes cobrem as duas variantes (enquadrada/completa)
+    // e o gate MESTRE, não a privacidade por foto (coberta em
+    // MemberGalleryPhotoPrivacyTest). Foto de verdade nasce privada.
+    $photo->is_private = false;
     $photo->save();
 
     return $photo;
