@@ -162,3 +162,10 @@ jobs:
             crontab -l 2>/dev/null | grep -Fq 'artisan schedule:run' || \
               ( crontab -l 2>/dev/null; echo "* * * * * cd /var/www/limen && php artisan schedule:run >> /dev/null 2>&1" ) | crontab -
             sudo supervisorctl restart limen-worker:*
+            # Reverb (WebSocket do chat em tempo real). Reinicia junto com os
+            # workers pra assumir o código novo a cada deploy. TOLERANTE: enquanto
+            # o programa `limen-reverb` não existir no supervisor (antes do setup
+            # de infra do Reverb — ver docs/runbooks/REVERB_ATIVACAO.md), o
+            # `restart` erra e o `|| true` impede que isso derrube o deploy. Some
+            # com o `|| true` só quando o Reverb já estiver de pé em produção.
+            sudo supervisorctl restart limen-reverb || true
