@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Events\MessageSent;
 use App\Events\NewMessage;
 use App\Exceptions\ChatException;
+use App\Jobs\ProcessChatAudio;
 use App\Models\AuditLog;
 use App\Models\ContentFlag;
 use App\Models\Conversation;
 use App\Models\Gift;
 use App\Models\Message;
+use Illuminate\Http\UploadedFile;
 use App\Models\PerformerInterest;
 use App\Models\PerformerMessageQuota;
 use App\Models\PerformerProfile;
@@ -38,7 +40,10 @@ use App\Support\ClientFingerprint;
  */
 class ChatService
 {
-    public function __construct(private ChatAccessService $chatAccessService) {}
+    public function __construct(
+        private ChatAccessService $chatAccessService,
+        private ChatAudioStore $audioStore,
+    ) {}
 
     /**
      * Abre (ou recupera) o canal do par no desbloqueio do Interesse. Idempotente:
@@ -130,6 +135,85 @@ class ChatService
 
             return $message;
         });
+
+        $this->broadcastMessage($conversation, $message);
+
+        return $message;
+    }
+
+    /**
+     * Mensagem de VOZ (feat/chat-voice-message). Segue as MESMAS guardas e a MESMA
+     * cobrança do `sendMessage` (a performer manda de graça; o membro abre/paga a
+     * janela no 1º envio; carência/expirado bloqueia), mas:
+     *
+     *  - NÃO passa pelo filtro de conteúdo de texto — não há texto. O ffmpeg
+     *    (ProcessChatAudio) é a defesa de payload/metadado; a moderação é por
+     *    denúncia depois (a mensagem já é denunciável). Registrado no jurídico:
+     *    fala em áudio não passa pelo filtro de troca de contato.
+     *  - O corpo é um rótulo de SISTEMA ("Mensagem de voz") para preview/teaser/
+     *    a11y — o áudio em si nasce `processing` e só vira servível quando o job
+     *    termina o re-encode.
+     *
+     * @throws ChatException não-participante, conversa arquivada, ou acesso em carência/expirado
+     * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente no 1º envio
+     */
+    public function sendVoiceMessage(Conversation $conversation, User $sender, UploadedFile $file): Message
+    {
+        $conversation->loadMissing('performerProfile');
+
+        if (! $conversation->hasParticipant($sender)) {
+            throw ChatException::notAParticipant();
+        }
+
+        if ($conversation->status !== 'active') {
+            throw ChatException::conversationArchived();
+        }
+
+        $senderIsPerformer = $sender->id === $conversation->performerProfile->user_id;
+
+        if (! $senderIsPerformer) {
+            $access = $this->chatAccessService->accessFor($conversation, $sender);
+
+            if ($access !== null && ! $access->hasFullAccess()) {
+                throw ChatException::accessRequired();
+            }
+        }
+
+        // Guarda o CRU antes da transação (o temporário do PHP some no fim do
+        // request). Se a cobrança falhar (saldo), apaga o cru e propaga — sem
+        // mensagem, sem cobrança, sem lixo.
+        $rawPath = $this->audioStore->storeRaw($file, $conversation->id);
+
+        try {
+            $message = DB::transaction(function () use ($conversation, $sender, $senderIsPerformer) {
+                if (! $senderIsPerformer && $this->chatAccessService->accessFor($conversation, $sender) === null) {
+                    $this->chatAccessService->openForFirstSend($conversation, $sender);
+                }
+
+                $message = Message::forceCreate([
+                    'conversation_id' => $conversation->id,
+                    'sender_id' => $sender->id,
+                    'body' => 'Mensagem de voz',
+                    'audio_status' => Message::AUDIO_PROCESSING,
+                ]);
+
+                $conversation->forceFill(['last_message_at' => $message->created_at])->save();
+
+                return $message;
+            });
+        } catch (\Throwable $e) {
+            try {
+                $this->audioStore->delete($rawPath);
+            } catch (\Throwable) {
+                // best-effort; o GC de tmp recolhe órfãos
+            }
+
+            throw $e;
+        }
+
+        // Sanitização (ffmpeg) fora do request; o job re-emite MessageSent quando
+        // fica pronto. Dispatch após o commit — a linha já existe para o job achar.
+        ProcessChatAudio::dispatch($message->id, $rawPath);
 
         $this->broadcastMessage($conversation, $message);
 

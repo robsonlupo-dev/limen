@@ -8,12 +8,14 @@ use App\Models\MemberPhoto;
 use App\Models\Message;
 use App\Models\PerformerStory;
 use App\Models\Report;
+use App\Services\ChatAudioStore;
 use App\Services\MemberPhotoStore;
 use App\Services\PerformerStoryStore;
 use App\Support\Audit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
 /**
@@ -63,6 +65,7 @@ class EvidenceController extends Controller
     public function __construct(
         private MemberPhotoStore $photoStore,
         private PerformerStoryStore $storyStore,
+        private ChatAudioStore $chatAudioStore,
     ) {}
 
     /**
@@ -136,6 +139,35 @@ class EvidenceController extends Controller
         return response()->json([
             'body' => $model->body,
             'sent_at' => $model->created_at,
+        ]);
+    }
+
+    /**
+     * Serve os BYTES de uma mensagem de voz denunciada, inline (feat/chat-voice-
+     * message). Mesma disciplina do corpo de texto: `withTrashed` (a mensagem é
+     * soft-deletada ao vencer a carência) + `assertReported` (só com denúncia
+     * aberta apontando exatamente para ela) + trilha `evidence_viewed`. Sem
+     * download; Content-Type fixo (o MP3 é produzido por nós). Bytes ausentes
+     * (áudio já recolhido / nunca ficou `ready`) → 404, como as imagens.
+     */
+    public function messageAudio(int $message): BinaryFileResponse
+    {
+        $model = Message::withTrashed()->find($message);
+        $report = $this->assertReported($model, 'message');
+
+        abort_unless(
+            $model->audio_status === Message::AUDIO_READY && $model->audio_path
+                && $this->chatAudioStore->exists($model->audio_path),
+            404,
+        );
+
+        $this->auditViewed($report, 'message_audio');
+
+        return response()->file($this->chatAudioStore->absolutePath($model->audio_path), [
+            'Content-Type' => 'audio/mpeg',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Disposition' => 'inline; filename="evidencia.mp3"',
+            'Cache-Control' => 'private, no-store, max-age=0',
         ]);
     }
 

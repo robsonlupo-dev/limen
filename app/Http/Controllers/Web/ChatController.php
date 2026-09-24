@@ -7,6 +7,7 @@ use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OpenChatAccessRequest;
 use App\Http\Requests\SendMessageRequest;
+use App\Http\Requests\Web\StoreChatAudioRequest;
 use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -14,6 +15,7 @@ use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\ChatAccessService;
+use App\Services\ChatAudioStore;
 use App\Services\ChatService;
 use App\Services\MemberPhotoService;
 use App\Services\PerformerCatalogService;
@@ -29,6 +31,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Chat pós-desbloqueio de Interesse. Membro e performer usam as mesmas telas; a
@@ -48,6 +51,7 @@ class ChatController extends Controller
         private MemberPhotoService $memberPhotos,
         private TokenCreditPolicy $creditPolicy,
         private PerformerCatalogService $catalog,
+        private ChatAudioStore $audioStore,
     ) {}
 
     /**
@@ -306,6 +310,16 @@ class ChatController extends Controller
                     // renderiza o ícone do item pelo slug.
                     'gift_slug' => $m->gift?->slug,
                     'gift_name' => $m->gift?->name,
+                    // Voz (feat/chat-voice-message): status/duração sempre (a UI
+                    // mostra "processando…"/"falhou" e o comprimento), mas a URL do
+                    // áudio SÓ com leitura destravada — segue o paywall do corpo. A
+                    // performer nunca fica travada (state.locked é sempre false do
+                    // lado dela).
+                    'audio_status' => $m->audio_status,
+                    'audio_duration' => $m->audio_duration_seconds,
+                    'audio_url' => (! $state['locked'] && $m->audio_status === Message::AUDIO_READY)
+                        ? route('chat.audio', [$conversation->id, $m->id])
+                        : null,
                     // Confirmação de leitura só nas MINHAS mensagens, e só se
                     // quem lê não desligou o perk. read_at de uma mensagem que
                     // EU recebi diz quando eu a li — não acrescenta nada na
@@ -392,6 +406,65 @@ class ChatController extends Controller
             'message_id' => $message->id,
             'created_at' => $message->created_at,
         ], 201);
+    }
+
+    /**
+     * Mensagem de VOZ (feat/chat-voice-message). Mesma porta do storeMessage
+     * (mesma policy, mesma cobrança/exceções), só que recebe um ARQUIVO. O corpo
+     * do áudio é sanitizado por ffmpeg fora do request (nasce `processing`).
+     */
+    public function storeAudio(StoreChatAudioRequest $request, Conversation $conversation): JsonResponse
+    {
+        abort_if($request->user()->cannot('view', $conversation), 404);
+
+        try {
+            $message = $this->chatService->sendVoiceMessage(
+                $conversation,
+                $request->user(),
+                $request->file('audio'),
+            );
+        } catch (ChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (InsufficientBalanceException) {
+            return response()->json([
+                'reason' => 'insufficient_balance',
+                'message' => 'Saldo de tokens insuficiente para enviar. Compre tokens na sua carteira.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message_id' => $message->id,
+            'created_at' => $message->created_at,
+        ], 201);
+    }
+
+    /**
+     * Serve os bytes de uma mensagem de voz (feat/chat-voice-message). Autorização
+     * por PARTICIPAÇÃO na conversa (a policy `view`) + PAYWALL (leitura destravada,
+     * como o corpo do texto) + a mensagem tem que ser desta conversa e estar
+     * `ready`. Sem URL assinada: acesso conferido a cada request. Content-Type FIXO
+     * (nós produzimos o MP3); Range é tratado pelo BinaryFileResponse.
+     */
+    public function audio(Request $request, Conversation $conversation, Message $message): BinaryFileResponse
+    {
+        abort_if($request->user()->cannot('view', $conversation), 404);
+        abort_if($message->conversation_id !== $conversation->id, 404);
+        abort_unless($message->audio_status === Message::AUDIO_READY && $message->audio_path, 404);
+
+        // Paywall: com a leitura travada (grace/expired), o áudio fica indisponível
+        // igual ao corpo do texto. A performer nunca cai aqui — `stateFor` (role-
+        // aware) curto-circuita a dona da conversa como não-travada; usar o
+        // `accessState` cru aqui travaria a performer (accessFor→null→'none'/locked),
+        // deixando 404 todo áudio pronto que ela recebe ou envia.
+        $state = $this->stateFor($request, $conversation);
+        abort_if($state['locked'], 404);
+
+        return response()->file($this->audioStore->absolutePath($message->audio_path), [
+            'Content-Type' => 'audio/mpeg',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Disposition' => 'inline; filename="mensagem-de-voz.mp3"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
     }
 
     /**

@@ -403,6 +403,12 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
             ->whereNumber('message')
             ->name('moderacao.evidence.message');
 
+        // Áudio de uma mensagem de voz denunciada (feat/chat-voice-message): o
+        // moderador OUVE a prova. Bytes, mesma disciplina da prova retida.
+        Route::get('/evidencia/mensagem/{message}/audio', [EvidenceController::class, 'messageAudio'])
+            ->whereNumber('message')
+            ->name('moderacao.evidence.message-audio');
+
         // Serving do áudio da intro de voz para o moderador OUVIR na fila
         // (feat/voice-intro). Sob o mesmo `throttle:30,1` da prova retida — lê
         // bytes e é sensível. Toca qualquer status COM bytes (a fila só lista
@@ -555,6 +561,18 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->middleware(['throttle:30,1', 'documents.accepted'])
         ->whereNumber('conversation')
         ->name('chat.messages.store');
+
+    // Mensagem de voz (feat/chat-voice-message): upload (multipart) num throttle
+    // mais apertado — é mídia, como o upload da intro/foto — e o serving dos bytes.
+    Route::post('/chat/{conversation}/audio', [ChatController::class, 'storeAudio'])
+        ->middleware(['throttle:10,1', 'documents.accepted'])
+        ->whereNumber('conversation')
+        ->name('chat.messages.audio');
+
+    Route::get('/chat/{conversation}/audio/{message}', [ChatController::class, 'audio'])
+        ->middleware(['throttle:120,1', 'documents.accepted'])
+        ->whereNumber('conversation')->whereNumber('message')
+        ->name('chat.audio');
 
     // Compra/renova o acesso ao chat desta conversa (membro sem assinatura).
     Route::post('/chat/{conversation}/acesso', [ChatController::class, 'openAccess'])

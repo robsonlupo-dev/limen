@@ -244,3 +244,39 @@ segue **default OFF**). Quatro blocos precisam de orientação jurídica.
      ofício** quando a finalidade for judicial?
 - **Recomendação de engenharia:** manter a ação **desligada por padrão em produção** (feature
   flag/role) até o parecer. O mecanismo (audit trail) já está pronto; falta a decisão jurídica.
+
+## 7. Mensagem de voz no chat (`feat/chat-voice-message`)
+
+O chat de perfil passou a aceitar **mensagem de voz** (nota de áudio), além do texto.
+Registrado aqui para o parecer jurídico; a engenharia seguiu com as mesmas defesas do
+áudio que já existe (intro de voz) e da mensagem de texto.
+
+### O que existe hoje
+- **Não é pré-moderada.** Como o texto do chat 1:1 entre dois adultos verificados (KYC dos
+  dois lados) **não** é pré-moderado, o áudio também não é: entrega direto. A moderação é
+  **por denúncia** depois — a mensagem de voz é denunciável como qualquer mensagem, e o
+  moderador **ouve** a prova na fila (`moderacao.evidence.message-audio`), com trilha de
+  auditoria de quem ouviu.
+- **Sanitização técnica obrigatória.** Todo áudio é **re-encodado por ffmpeg** antes de ser
+  servível (strip de metadado/EXIF/GPS embutido e de streams estranhos — mesmo pipeline da
+  intro de voz). O arquivo servido é um MP3 que **nós** produzimos, nunca o arquivo enviado.
+- **Retenção.** O áudio segue a retenção da conversa: a mensagem é soft-deletada ao vencer a
+  carência, e os bytes ficam retidos para trilha de abuso/legal e para a denúncia (como
+  foto/story). Servido só sob request autorizado (participação + paywall), nunca por URL de
+  disco.
+
+### Perguntas ao advogado
+1. **Filtro de troca de contato.** O filtro de conteúdo do chat (§1) bloqueia troca de
+   telefone/rede social **no texto**. **Fala em áudio NÃO passa por esse filtro** — não há
+   transcrição/varredura de voz. Isso é aceitável (a denúncia cobre depois), ou o áudio
+   precisa de tratamento extra (ex.: transcrição automática para reaplicar o filtro,
+   desabilitar áudio para não-assinantes, limite de duração menor)?
+2. **Retenção de conversa adulta (§2) aplicada a áudio.** O prazo/critério de retenção do
+   áudio deve ser o mesmo do texto, ou áudio (mídia mais sensível) pede prazo próprio?
+3. **Consentimento/aviso.** Precisa de aviso explícito ao gravar (ex.: "esta mensagem fica
+   registrada e pode ser usada em moderação/ordem judicial") antes do primeiro envio de voz?
+
+### Recomendação de engenharia
+O mecanismo está pronto e é seguro tecnicamente (sanitização + denúncia + retenção). Se o
+jurídico exigir, dá para **desligar o áudio por trás de uma flag/tier** ou **encurtar a
+duração** sem mexer no resto do chat. Até o parecer, fica ligado com as defesas acima.

@@ -733,7 +733,25 @@ class ModerationController extends Controller
      */
     private function messageEvidence(Report $report, bool $open): array
     {
-        $available = $open && Message::withTrashed()->whereKey($report->reportable_id)->exists();
+        $message = Message::withTrashed()->find($report->reportable_id);
+        $available = $open && $message !== null;
+
+        // Mensagem de VOZ (feat/chat-voice-message): a prova é o ÁUDIO, servido por
+        // um endpoint próprio (bytes), não o corpo de texto (que é o rótulo de
+        // sistema "Mensagem de voz"). `content_hash` = SHA-256 dos bytes
+        // processados, que sobrevive mesmo se o áudio já tiver sido recolhido.
+        if ($message !== null && $message->isAudio()) {
+            $hasBytes = $available
+                && $message->audio_status === Message::AUDIO_READY
+                && (bool) $message->audio_path;
+
+            return [
+                'kind' => 'audio',
+                'available' => $hasBytes,
+                'url' => $hasBytes ? route('moderacao.evidence.message-audio', $report->reportable_id) : null,
+                'content_hash' => $message->audio_content_hash,
+            ];
+        }
 
         return [
             'kind' => 'text',
