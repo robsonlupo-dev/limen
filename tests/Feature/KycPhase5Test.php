@@ -326,6 +326,27 @@ it('admin can manually approve a pending verification', function () {
     expect($verification->reviewed_by)->not->toBeNull();
 });
 
+// ─── Test 9b: Admin approve is idempotent (lock + terminal re-check) ──────────
+
+it('admin approve does not re-process an already-approved verification', function () {
+    Storage::fake('kyc');
+    Queue::fake();
+
+    [$user, $token] = makePendingPerformer();
+    postKyc($this, validKycPayload(), kycFiles(), $token)->assertStatus(201);
+    $verification = IdentityVerification::where('user_id', $user->id)->latest()->first();
+    [$admin] = makeAdminUser();
+
+    $this->actingAs($admin, 'sanctum')
+        ->postJson("/api/v1/admin/kyc/{$verification->id}/approve")->assertOk();
+
+    // Segundo clique (ou corrida com o webhook): já terminal → no-op, sem 2º audit.
+    $this->actingAs($admin, 'sanctum')
+        ->postJson("/api/v1/admin/kyc/{$verification->id}/approve")->assertOk();
+
+    expect(\App\Models\AuditLog::where('action', 'kyc.approved')->count())->toBe(1);
+});
+
 // ─── Test 10: Admin rejects → same result as webhook rejected ────────────────
 
 it('admin can manually reject a pending verification', function () {
