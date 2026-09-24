@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 
 /**
  * Carta pessoal dos fundadores, enviada uma vez, depois do KYC aprovado.
+ * Duas redações (membro / performer), um envelope — ver content().
  *
  * **A regra que governa esta classe é a separação envelope × corpo.**
  *
@@ -67,19 +68,30 @@ class WelcomeFounderEmail extends Mailable
         );
     }
 
+    /**
+     * A carta tem DUAS redações e um envelope só (decisão do PO, 24/09/2026,
+     * que substitui a carta única do Sprint 9). O membro lê sobre privacidade
+     * e pertencimento — foi o que ele comprou ao entrar. A performer lê sobre
+     * ganho e autonomia — para quem trabalha aqui, privacidade é pressuposto,
+     * não argumento. As duas dividem o mesmo layout (`emails.layouts.founders`),
+     * então marca, saudação e assinatura não divergem.
+     *
+     * O papel decide a VIEW, nunca o envelope: assunto, remetente e preheader
+     * continuam idênticos e neutros nos dois casos (ver o cabeçalho da classe).
+     */
     public function content(): Content
     {
+        $performer = $this->user->role === 'performer';
+
         return new Content(
-            view: 'emails.welcome',
+            view: $performer ? 'emails.welcome-performer' : 'emails.welcome',
             with: [
                 // Primeiro nome só. O nome composto num "Olá, ..." soa a mala
                 // direta, que é o oposto do que esta carta tenta ser.
                 'firstName' => Str::of($this->user->name)->trim()->explode(' ')->first(),
-                // Texto e destino ÚNICOS para membro e performer, por decisão
-                // do PO: é uma carta dos fundadores, não um onboarding — a
-                // mesma mensagem para as duas pontas é o que a mantém pessoal
-                // em vez de segmentada.
-                'ctaUrl' => route('catalog'),
+                // A performer é levada ao próprio painel (preços, conteúdo,
+                // visibilidade); o membro, ao catálogo.
+                'ctaUrl' => $performer ? route('performer.dashboard') : route('catalog'),
             ],
         );
     }
