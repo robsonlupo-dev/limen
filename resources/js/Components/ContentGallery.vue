@@ -181,7 +181,7 @@ async function confirmUnlock() {
                     <img v-if="item.blur_url && !item.blurFailed" :src="item.blur_url" alt="" class="h-full w-full object-cover" @error="item.blurFailed = true" />
                     <div v-else class="h-full w-full bg-gradient-to-br from-surface-2 to-background" />
                     <div class="absolute inset-0 flex items-center justify-center bg-background/40">
-                        <span class="text-lg" aria-hidden="true">🔒</span>
+                        <svg class="h-5 w-5 text-cream" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                     </div>
                 </div>
             </Link>

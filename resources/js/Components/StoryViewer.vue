@@ -37,8 +37,8 @@ const currentGroup = computed(() => props.groups[groupIndex.value] ?? null)
 const currentStory = computed(() => currentGroup.value?.stories[storyIndex.value] ?? null)
 
 const LEVEL_BADGE = {
-    subscribers: '⭐ Assinantes',
-    exclusive: '🔒 Exclusivo',
+    subscribers: 'Assinantes',
+    exclusive: 'Exclusivo',
 }
 const levelBadge = computed(() => LEVEL_BADGE[currentStory.value?.visibility_level] ?? null)
 
@@ -204,7 +204,8 @@ function segmentWidth(i) {
                     <p class="flex-1 truncate text-sm font-medium text-white drop-shadow">
                         {{ currentGroup.performer.stage_name }}
                     </p>
-                    <span v-if="levelBadge" class="rounded-full bg-black/40 px-2 py-0.5 text-[11px] text-white">
+                    <span v-if="levelBadge" class="inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[11px] text-white">
+                        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                         {{ levelBadge }}
                     </span>
                     <button
@@ -245,7 +246,10 @@ function segmentWidth(i) {
                     @pointerdown.stop
                     @pointerup.stop
                 >
-                    <span class="rounded-full bg-gold/90 px-3 py-1 text-xs font-medium text-background">💌 Convite</span>
+                    <span class="inline-flex items-center gap-1 rounded-full bg-gold/90 px-3 py-1 text-xs font-medium text-background">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+                        Convite
+                    </span>
                     <Link
                         :href="route('subscribe.index')"
                         class="rounded-lg bg-white px-5 py-2 text-sm font-medium text-background no-underline transition-colors hover:bg-white/90"

@@ -4,6 +4,7 @@ import { Room, Track, VideoPresets, ConnectionQuality, RoomEvent } from 'livekit
 import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveChat from '@/Components/LiveChat.vue'
 import LiveReactionFeed from '@/Components/LiveReactionFeed.vue'
+import TokenCoin from '@/Components/TokenCoin.vue'
 import CallIncoming from '@/Components/CallIncoming.vue'
 import PrivateCall from '@/Components/PrivateCall.vue'
 
@@ -361,11 +362,11 @@ onBeforeUnmount(disconnectRoom)
             <div class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2">
                 <div>
                     <p class="text-[11px] uppercase tracking-wide text-muted">Assistindo agora</p>
-                    <p class="font-serif text-2xl text-cream" aria-live="polite">👁 {{ viewers }}</p>
+                    <p class="flex items-center gap-1.5 font-serif text-2xl text-cream" aria-live="polite"><svg class="h-5 w-5 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>{{ viewers }}</p>
                 </div>
                 <div>
                     <p class="text-[11px] uppercase tracking-wide text-muted">Ganho nesta live</p>
-                    <p class="font-serif text-2xl text-gold" aria-live="polite">{{ earned }} <span class="text-sm">🪙</span></p>
+                    <p class="flex items-center gap-1.5 font-serif text-2xl text-gold" aria-live="polite">{{ earned }} <TokenCoin class="h-5 w-5" /></p>
                 </div>
             </div>
 

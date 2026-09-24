@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
+import TokenCoin from '@/Components/TokenCoin.vue'
 import { useNotificationSound } from '@/composables/useNotificationSound'
 
 /**
@@ -148,7 +149,7 @@ function labelFor(reaction) {
     if (reaction.type === 'gift') {
         return `${reaction.fan_alias_label} enviou`
     }
-    return `${reaction.fan_alias_label} · ${reaction.amount_tokens} 🪙`
+    return `${reaction.fan_alias_label} · ${reaction.amount_tokens} tokens`
 }
 
 onMounted(() => {
@@ -220,11 +221,9 @@ onBeforeUnmount(() => {
                 :style="{ width: iconPx(item.size), height: iconPx(item.size), animationDuration: `${item.duration}ms` }"
             >
                 <GiftIcon v-if="item.type === 'gift'" :slug="item.gift_slug" />
-                <span
-                    v-else
-                    class="grid h-full w-full place-items-center leading-none"
-                    :style="{ fontSize: iconPx(item.size) }"
-                >🪙</span>
+                <span v-else class="grid h-full w-full place-items-center text-gold">
+                    <TokenCoin class="h-[85%] w-[85%]" />
+                </span>
             </span>
 
             <span class="relative rounded-full bg-black/60 px-3 py-1 text-sm font-medium text-white">

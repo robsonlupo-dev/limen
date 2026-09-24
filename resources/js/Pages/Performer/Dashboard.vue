@@ -346,7 +346,7 @@ async function decideAccess(req, approve) {
             >
                 <div class="flex items-center justify-between gap-3">
                     <p class="text-sm text-cream flex items-center gap-2">
-                        <span aria-hidden="true">⚡</span> Destaque no catálogo
+                        <svg class="h-4 w-4 text-gold" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z" /></svg> Destaque no catálogo
                     </p>
                     <span v-if="!boostState.is_boosted" class="text-xs text-muted">
                         {{ boostState.available_slots }} de {{ boostState.max_slots }} vagas

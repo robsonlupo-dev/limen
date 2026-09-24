@@ -60,7 +60,7 @@ function submit() {
                 <div class="uploader">
                     <div class="preview">
                         <img v-if="preview" :src="preview" alt="Prévia da selfie" />
-                        <span v-else class="preview-icon">🙂</span>
+                        <span v-else class="preview-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="1em" height="1em"><circle cx="12" cy="9" r="4" /><path d="M4 20a8 8 0 0 1 16 0" /></svg></span>
                     </div>
                     <label class="file-btn">
                         {{ form.selfie ? 'Trocar selfie' : 'Escolher selfie' }}

@@ -395,7 +395,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                         >
                             <div class="blur-sm select-none text-sm text-muted">████████ ████ ██████</div>
                             <div class="absolute inset-0 flex items-center justify-center gap-2 bg-background/40 backdrop-blur-sm">
-                                <span class="text-xs text-gold flex items-center gap-1">🔒 Pague para ler</span>
+                                <span class="text-xs text-gold flex items-center gap-1"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> Pague para ler</span>
                             </div>
                             <span class="relative mt-1 block text-right text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
                         </div>
@@ -429,7 +429,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                         class="text-xs text-gold/80 hover:text-gold transition-colors"
                         @click="sharingOpen = true"
                     >
-                        📷 Compartilhar foto
+                        <span class="inline-flex items-center gap-1"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-4z" /><circle cx="12" cy="13" r="3.5" /></svg> Compartilhar foto</span>
                     </button>
                     <span v-if="shareFeedback" class="text-xs text-muted">{{ shareFeedback }}</span>
                 </div>

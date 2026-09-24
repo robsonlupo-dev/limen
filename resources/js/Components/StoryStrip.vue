@@ -45,8 +45,8 @@ const hasStories = computed(() => props.stories.length > 0)
 // 403 do serving já diz.
 const LOCK_BY_LEVEL = {
     public: null,
-    subscribers: { icon: '🔒', class: 'text-muted', label: 'Para assinantes' },
-    exclusive: { icon: '🔒', class: 'text-gold', label: 'Exclusivo Black e Founders' },
+    subscribers: { class: 'text-muted', label: 'Para assinantes' },
+    exclusive: { class: 'text-gold', label: 'Exclusivo Black e Founders' },
 }
 
 function lockFor(level) {
@@ -74,15 +74,12 @@ function lockFor(level) {
                     @click="open = story"
                 >
                     <img :src="story.image_url" alt="" class="h-full w-full object-cover" />
-                    <span
+                    <svg
                         v-if="lockFor(story.visibility_level)"
-                        class="absolute bottom-1 right-1 text-xs"
+                        class="absolute bottom-1 right-1 h-3.5 w-3.5"
                         :class="lockFor(story.visibility_level).class"
-                        :title="lockFor(story.visibility_level).label"
-                        aria-hidden="true"
-                    >
-                        {{ lockFor(story.visibility_level).icon }}
-                    </span>
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                    ><title>{{ lockFor(story.visibility_level).label }}</title><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 </button>
 
                 <!-- Fechado: placeholder, NUNCA o conteúdo. Não há `image_url`
@@ -92,11 +89,11 @@ function lockFor(level) {
                     :href="lockedHref"
                     class="group relative flex h-24 w-24 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-frame bg-gradient-to-br from-surface-2 to-background no-underline"
                 >
-                    <span
-                        class="text-xl"
+                    <svg
+                        class="h-5 w-5"
                         :class="lockFor(story.visibility_level)?.class ?? 'text-muted'"
-                        aria-hidden="true"
-                    >🔒</span>
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                    ><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                     <span class="px-1.5 text-center text-[10px] leading-tight text-muted group-hover:text-gold transition-colors">
                         {{ lockedLabel }}
                     </span>

@@ -104,29 +104,6 @@ export function smokeLabel(slug) {
     return SMOKE_LABELS[slug] ?? slug
 }
 
-// Ícone por escolha, só para a EXIBIÇÃO — a tela de edição não usa emoji. Fica
-// aqui, junto do rótulo, para os dois perfis públicos não divergirem no primeiro
-// valor novo. Fallback neutro para slug desconhecido.
-const DRINK_ICONS = {
-    nao_bebe: '🚫',
-    bebe_socialmente: '🍷',
-    bebe_frequentemente: '🍸',
-}
-
-const SMOKE_ICONS = {
-    nao_fuma: '🚭',
-    fuma_socialmente: '🚬',
-    fuma: '🚬',
-}
-
-export function drinkIcon(slug) {
-    return DRINK_ICONS[slug] ?? '🥂'
-}
-
-export function smokeIcon(slug) {
-    return SMOKE_ICONS[slug] ?? '🚬'
-}
-
 /**
  * Agrupa os slugs de tag da performer pela mesma estrutura de TAG_GROUPS que a
  * tela de edição usa, para o perfil público exibir as pílulas na mesma ordem e

@@ -85,13 +85,15 @@ function initial(name) {
                         <span v-else class="font-serif text-lg text-limen-gold">{{ initial(group.performer.stage_name) }}</span>
                     </span>
 
-                    <!-- Selo de convite (Sprint 12): "💌" quando o grupo traz um
-                         convite para este membro. -->
+                    <!-- Selo de convite (Sprint 12): ícone de envelope quando o grupo
+                         traz um convite para este membro. -->
                     <span
                         v-if="hasInvite(group)"
-                        class="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-limen-bg text-[11px] ring-2 ring-limen-bg"
+                        class="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-limen-bg text-limen-gold ring-2 ring-limen-bg"
                         aria-label="Convite"
-                    >💌</span>
+                    >
+                        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+                    </span>
                 </span>
                 <span class="max-w-[62px] truncate text-xs text-limen-ink-mute">{{ group.performer.stage_name }}</span>
             </button>

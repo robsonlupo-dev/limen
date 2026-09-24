@@ -155,7 +155,8 @@ async function persistOrder() {
                     :class="photo.is_private ? 'bg-gold/90 text-background' : 'bg-black/60 text-cream opacity-0 group-hover:opacity-100 focus:opacity-100'"
                     @click="toggleVisibility(photo)"
                 >
-                    <span aria-hidden="true">{{ photo.is_private ? '🔒' : '🌐' }}</span>
+                    <svg v-if="photo.is_private" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                    <svg v-else class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" /></svg>
                     {{ photo.is_private ? 'Privada' : 'Pública' }}
                 </button>
             </div>

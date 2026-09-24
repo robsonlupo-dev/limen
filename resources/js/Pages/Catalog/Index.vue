@@ -124,7 +124,8 @@ function selectWorld(value) {
                     <h1 class="font-serif text-4xl text-limen-ink">Catálogo</h1>
                     <p class="text-limen-ink-soft text-sm">Performers verificados, ao vivo agora ou disponíveis para conteúdo.</p>
                     <p class="text-xs text-limen-ink-mute flex items-center gap-1.5">
-                        🌐 Mundo: <span class="text-limen-gold">{{ worldLabel(currentWorld) }}</span>
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" /></svg>
+                        Mundo: <span class="text-limen-gold">{{ worldLabel(currentWorld) }}</span>
                     </p>
                 </div>
                 <button
@@ -132,7 +133,7 @@ function selectWorld(value) {
                     class="shrink-0 text-xs text-limen-ink-mute hover:text-limen-gold transition-colors border border-limen-line rounded-lg px-3 py-2"
                     @click="showWorldPicker = true"
                 >
-                    🌐 Mudar Mundo
+                    <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" /></svg> Mudar Mundo</span>
                 </button>
             </div>
 

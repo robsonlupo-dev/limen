@@ -207,7 +207,7 @@ async function confirmUnlock() {
                             >
                                 <div class="absolute inset-0 backdrop-blur-sm bg-limen-bg/30" />
                                 <div class="relative flex flex-col items-center gap-2 text-center px-4">
-                                    <span class="text-3xl" aria-hidden="true">🔒</span>
+                                    <svg class="h-8 w-8 text-limen-ink-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                                     <span class="text-xs text-limen-ink-mute group-hover:text-limen-gold transition-colors">
                                         {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
                                     </span>

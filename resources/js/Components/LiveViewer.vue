@@ -6,6 +6,7 @@ import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveOverlay from '@/Components/LiveOverlay.vue'
 import LiveChat from '@/Components/LiveChat.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
+import TokenCoin from '@/Components/TokenCoin.vue'
 import PrivateCall from '@/Components/PrivateCall.vue'
 
 /**
@@ -370,7 +371,7 @@ onBeforeUnmount(teardown)
 
                 <div class="absolute left-3 top-3 flex items-center gap-2">
                     <span class="rounded-full bg-limen-live px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">Ao vivo</span>
-                    <span class="rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-cream">👁 {{ viewers }}</span>
+                    <span class="inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-cream"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>{{ viewers }}</span>
                 </div>
 
                 <div class="absolute bottom-3 left-3 flex items-center gap-2">
@@ -392,7 +393,9 @@ onBeforeUnmount(teardown)
                     class="mi-press flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-gold/50 bg-gold/10 px-4 text-sm font-semibold text-gold hover:bg-gold/20 disabled:opacity-40"
                     @click="requestCall"
                 >
-                    📹 Pedir chamada privada · {{ callPricePerMinute }} 🪙/min
+                    <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 10 4.5-2.5v9L16 14" /><rect x="3" y="6" width="13" height="12" rx="2" /></svg>
+                    <span>Pedir chamada privada · {{ callPricePerMinute }}</span>
+                    <TokenCoin class="h-4 w-4 shrink-0" /><span>/min</span>
                 </button>
                 <div v-else-if="callState === 'requesting' || callState === 'waiting'" class="rounded-lg border border-frame bg-surface px-4 py-2.5 text-sm text-cream">
                     Aguardando a performer aceitar a chamada…
@@ -411,7 +414,7 @@ onBeforeUnmount(teardown)
                         class="mi-press shrink-0 rounded-lg border border-gold/40 px-3 py-1.5 text-sm text-gold hover:bg-gold/10 disabled:opacity-40"
                         @click="sendTip(amount)"
                     >
-                        {{ amount }} 🪙
+                        <span class="inline-flex items-center gap-1">{{ amount }} <TokenCoin class="h-3.5 w-3.5" /></span>
                     </button>
 
                     <span class="mx-1 h-5 w-px shrink-0 bg-frame" />
@@ -423,7 +426,10 @@ onBeforeUnmount(teardown)
                         class="mi-press shrink-0 rounded-lg border border-frame px-3 py-1.5 text-sm text-cream hover:border-gold/40 disabled:opacity-40"
                         @click="showGifts = !showGifts"
                     >
-                        🎁 Presentes
+                        <span class="inline-flex items-center gap-1.5">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M12 8v13M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /><path d="M12 8C12 8 11 4 8.5 4S6 8 12 8zM12 8s1-4 3.5-4S12 8 12 8z" /></svg>
+                            Presentes
+                        </span>
                     </button>
                 </div>
 
@@ -440,7 +446,7 @@ onBeforeUnmount(teardown)
                         <span class="h-6 w-6 shrink-0 text-gold"><GiftIcon :slug="gift.slug" /></span>
                         <span class="min-w-0">
                             <span class="block truncate text-sm text-cream">{{ gift.name }}</span>
-                            <span class="block text-xs text-gold">{{ gift.price_tokens }} 🪙</span>
+                            <span class="flex items-center gap-1 text-xs text-gold">{{ gift.price_tokens }} <TokenCoin class="h-3 w-3" /></span>
                         </span>
                     </button>
                 </div>

@@ -35,17 +35,17 @@ const items = computed(() => {
     const langCount = Array.isArray(p.languages) ? p.languages.length : 0
 
     return [
-        { key: 'avatar', weight: 20, done: !!p.has_avatar, label: '📷 Adicionar foto de perfil' },
-        { key: 'cover', weight: 10, done: !!p.has_cover, label: '🖼️ Adicionar foto de capa' },
-        { key: 'bio', weight: 15, done: bioLen >= BIO_MIN_CHARS, label: `✍️ Escrever bio (mín. ${BIO_MIN_CHARS} caracteres)` },
-        { key: 'tags', weight: 15, done: tagCount >= TAGS_MIN, label: `🏷️ Escolher ao menos ${TAGS_MIN} tags` },
-        { key: 'looking_for', weight: 10, done: filled(p.looking_for), label: '💬 Descrever o que você procura' },
-        { key: 'languages', weight: 5, done: langCount > 0, label: '🗣️ Informar os idiomas que fala' },
-        { key: 'drinks', weight: 5, done: filled(p.drinks), label: '🍷 Informar preferência de bebida' },
-        { key: 'smokes', weight: 5, done: filled(p.smokes), label: '🚬 Informar preferência de fumo' },
-        { key: 'height_cm', weight: 5, done: p.height_cm !== null && p.height_cm !== undefined, label: '📏 Informar sua altura' },
-        { key: 'state', weight: 5, done: filled(p.state), label: '📍 Informar seu estado' },
-        { key: 'city', weight: 5, done: filled(p.city), label: '🏙️ Informar sua cidade' },
+        { key: 'avatar', weight: 20, done: !!p.has_avatar, label: 'Adicionar foto de perfil' },
+        { key: 'cover', weight: 10, done: !!p.has_cover, label: 'Adicionar foto de capa' },
+        { key: 'bio', weight: 15, done: bioLen >= BIO_MIN_CHARS, label: `Escrever bio (mín. ${BIO_MIN_CHARS} caracteres)` },
+        { key: 'tags', weight: 15, done: tagCount >= TAGS_MIN, label: `Escolher ao menos ${TAGS_MIN} tags` },
+        { key: 'looking_for', weight: 10, done: filled(p.looking_for), label: 'Descrever o que você procura' },
+        { key: 'languages', weight: 5, done: langCount > 0, label: 'Informar os idiomas que fala' },
+        { key: 'drinks', weight: 5, done: filled(p.drinks), label: 'Informar preferência de bebida' },
+        { key: 'smokes', weight: 5, done: filled(p.smokes), label: 'Informar preferência de fumo' },
+        { key: 'height_cm', weight: 5, done: p.height_cm !== null && p.height_cm !== undefined, label: 'Informar sua altura' },
+        { key: 'state', weight: 5, done: filled(p.state), label: 'Informar seu estado' },
+        { key: 'city', weight: 5, done: filled(p.city), label: 'Informar sua cidade' },
     ]
 })
 
