@@ -104,7 +104,7 @@ function submitKyc() {
 
             <!-- Aprovada -->
             <div v-if="kycStatus === 'approved'" class="rounded-xl border border-success/30 bg-success/5 p-6 text-center space-y-3">
-                <div class="text-4xl">✅</div>
+                <svg class="mx-auto h-10 w-10 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="m8.5 12 2.5 2.5 4.5-5" /></svg>
                 <p class="text-sm text-cream">Identidade verificada com sucesso.</p>
                 <Link :href="route('catalog')" class="inline-block">
                     <Button variant="primary">Explorar o portal</Button>
@@ -113,7 +113,7 @@ function submitKyc() {
 
             <!-- Enviada, aguardando análise -->
             <div v-else-if="kycInProgress" class="rounded-xl border border-gold/30 bg-gold/5 p-6 text-center space-y-3">
-                <div class="text-4xl">🕐</div>
+                <svg class="mx-auto h-10 w-10 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
                 <p class="text-sm text-muted">
                     Documentos recebidos — sua verificação está em andamento.
                     Você receberá um e-mail quando concluída.
@@ -181,7 +181,7 @@ function submitKyc() {
                     <div class="flex items-center gap-4">
                         <div class="h-20 w-28 rounded-lg overflow-hidden bg-surface-2 border border-frame flex items-center justify-center shrink-0">
                             <img v-if="previews[field]" :src="previews[field]" :alt="label" class="h-full w-full object-cover" />
-                            <span v-else class="text-2xl">📄</span>
+                            <svg v-else class="h-7 w-7 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
                         </div>
                         <label class="cursor-pointer">
                             <span class="inline-flex items-center rounded-lg border border-gold text-gold px-4 py-2 text-sm hover:bg-gold/10 transition-colors">

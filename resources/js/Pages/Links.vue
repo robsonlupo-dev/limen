@@ -32,7 +32,7 @@ const btnClass =
                     Limen
                 </h1>
                 <p class="max-w-xs text-center text-sm leading-relaxed text-muted">
-                    O portal do desejo, verificado e real. 🔞
+                    O portal do desejo, verificado e real.
                 </p>
             </div>
 

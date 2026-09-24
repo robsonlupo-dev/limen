@@ -197,13 +197,14 @@ async function remove(piece) {
                     >
                         <div class="h-16 w-16 shrink-0 rounded-lg border border-frame overflow-hidden bg-surface-2 flex items-center justify-center">
                             <img v-if="piece.image_url" :src="piece.image_url" alt="" class="h-full w-full object-cover" />
-                            <span v-else class="text-xl" aria-hidden="true">{{ piece.kind === 'video' ? '🎬' : '🖼️' }}</span>
+                            <svg v-else-if="piece.kind === 'video'" class="h-6 w-6 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4" /></svg>
+                            <svg v-else class="h-6 w-6 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="9" r="1.8" /><path d="m21 15-4.5-4.5L5 21" /></svg>
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-cream">
                                 <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-gold">{{ levelLabel(piece.access_level) }}</span>
                                 <span class="ml-2 text-muted">{{ piece.price_tokens }} tokens</span>
-                                <span v-if="piece.kind === 'video'" class="ml-2 text-xs text-muted">🎬 vídeo</span>
+                                <span v-if="piece.kind === 'video'" class="ml-2 inline-flex items-center gap-1 text-xs text-muted"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4" /></svg> vídeo</span>
                             </p>
                             <p v-if="piece.status === 'processing'" class="mt-1 text-xs text-gold">
                                 Processando o vídeo… ficará disponível em breve.

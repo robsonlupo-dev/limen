@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
                                         <span class="text-cream/90">{{ c.last_message_preview }}</span>
                                         <span class="text-gold/70"> · desbloqueie para ler</span>
                                     </template>
-                                    <span v-else-if="c.locked" class="text-gold/70">🔒 Renove para ler</span>
+                                    <span v-else-if="c.locked" class="inline-flex items-center gap-1 text-gold/70"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> Renove para ler</span>
                                     <span v-else-if="c.last_message_preview">{{ c.last_message_preview }}</span>
                                     <span v-else class="italic">Sem mensagens</span>
                                 </p>

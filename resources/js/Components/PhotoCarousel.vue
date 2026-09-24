@@ -99,7 +99,7 @@ function onTouchEnd(event) {
                 v-else-if="current"
                 class="flex h-full w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-surface-2 via-surface to-background px-6 text-center"
             >
-                <span class="text-3xl" aria-hidden="true">🔒</span>
+                <svg class="h-8 w-8 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 <p class="text-sm text-cream">Foto privada</p>
                 <template v-if="canRequest">
                     <button
@@ -159,7 +159,7 @@ function onTouchEnd(event) {
                 @click="go(i)"
             >
                 <img v-if="!photo.locked" :src="photo.url" alt="" class="h-full w-full object-cover" />
-                <span v-else class="text-lg text-muted" aria-hidden="true">🔒</span>
+                <svg v-else class="h-4 w-4 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
             </button>
         </div>
     </div>

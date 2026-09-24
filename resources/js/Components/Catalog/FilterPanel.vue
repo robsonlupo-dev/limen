@@ -35,11 +35,13 @@ const props = defineProps({
 const open = ref(false)
 
 const levels = [
+    // Sem emoji nos rótulos: são <option> de <select> nativo, onde não cabe SVG —
+    // texto limpo é a forma correta de honrar "ícone é SVG, nunca emoji".
     { value: '', label: 'Todos os níveis' },
-    { value: 'iniciante', label: '🥉 Iniciante' },
-    { value: 'estrela', label: '🥈 Estrela' },
-    { value: 'premium', label: '🥇 Premium' },
-    { value: 'vip', label: '💎 VIP' },
+    { value: 'iniciante', label: 'Iniciante' },
+    { value: 'estrela', label: 'Estrela' },
+    { value: 'premium', label: 'Premium' },
+    { value: 'vip', label: 'VIP' },
 ]
 
 const sorts = [
@@ -336,7 +338,8 @@ async function deleteSaved(id) {
                 class="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-frame bg-surface px-3 py-2.5 text-sm text-cream hover:border-gold/50 transition-colors"
                 @click="saveOpen = true"
             >
-                💾 Salvar busca
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h8" /></svg>
+                Salvar busca
             </button>
 
             <!-- Dropdown das buscas salvas -->
@@ -347,7 +350,8 @@ async function deleteSaved(id) {
                     class="inline-flex items-center gap-1.5 rounded-lg border border-frame bg-surface px-3 py-2.5 text-sm text-cream hover:border-gold/50 transition-colors"
                     @click="savedOpen = !savedOpen"
                 >
-                    💾 Buscas salvas
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h8" /></svg>
+                    Buscas salvas
                     <span class="rounded-full bg-gold text-background text-xs px-1.5 py-0.5">
                         {{ savedSearches.length }}
                     </span>

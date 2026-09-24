@@ -4,8 +4,6 @@ import {
     languageLabel,
     drinkLabel,
     smokeLabel,
-    drinkIcon,
-    smokeIcon,
     groupTags,
 } from '@/lib/performerAttributes'
 
@@ -48,7 +46,6 @@ const hasAny = computed(
             <div v-if="performer.drinks" class="space-y-1">
                 <dt class="text-xs uppercase tracking-wide text-muted">Bebida</dt>
                 <dd class="text-sm text-cream flex items-center gap-2">
-                    <span aria-hidden="true">{{ drinkIcon(performer.drinks) }}</span>
                     {{ drinkLabel(performer.drinks) }}
                 </dd>
             </div>
@@ -56,7 +53,6 @@ const hasAny = computed(
             <div v-if="performer.smokes" class="space-y-1">
                 <dt class="text-xs uppercase tracking-wide text-muted">Fumo</dt>
                 <dd class="text-sm text-cream flex items-center gap-2">
-                    <span aria-hidden="true">{{ smokeIcon(performer.smokes) }}</span>
                     {{ smokeLabel(performer.smokes) }}
                 </dd>
             </div>

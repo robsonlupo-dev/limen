@@ -27,7 +27,7 @@ function logout() {
         </div>
 
         <div v-else class="card">
-            <div class="icon clock">🕐</div>
+            <div class="icon clock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="1em" height="1em"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg></div>
             <h1 class="title">Verificação em andamento</h1>
             <p class="subtitle">
                 Você receberá um e-mail em até 48h quando sua verificação for concluída.

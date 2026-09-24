@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
+import TokenCoin from '@/Components/TokenCoin.vue'
 
 /**
  * Feed de gorjetas/presentes do console da performer (feat/live-room-console). No
@@ -63,7 +64,7 @@ onBeforeUnmount(() => {
                 <span v-if="r.type === 'gift'" class="h-6 w-6 shrink-0 text-gold">
                     <GiftIcon :slug="r.giftSlug" />
                 </span>
-                <span v-else class="text-lg leading-none">🪙</span>
+                <span v-else class="h-6 w-6 shrink-0 text-gold"><TokenCoin class="h-full w-full" /></span>
 
                 <span class="min-w-0 flex-1 truncate text-[13px] text-cream/90">{{ r.label }}</span>
                 <span class="shrink-0 text-sm font-semibold text-gold">{{ r.amount }}</span>

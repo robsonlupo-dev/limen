@@ -138,9 +138,12 @@ async function remove(story) {
                              seguidores sem chat veem este story com destaque. -->
                         <span
                             v-if="story.is_invite"
-                            class="ml-1 rounded-full bg-gold/10 px-2 py-0.5 text-[10px] text-gold"
+                            class="ml-1 inline-flex items-center gap-1 rounded-full bg-gold/10 px-2 py-0.5 text-[10px] text-gold"
                             title="Enviado como convite: novos seguidores sem chat veem com destaque"
-                        >💌 Convite</span>
+                        >
+                            <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+                            Convite
+                        </span>
                     </p>
                     <p class="text-xs text-muted">
                         Expira em {{ story.expires_in_hours }}h ·
