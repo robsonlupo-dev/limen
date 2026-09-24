@@ -4,6 +4,7 @@ import { useForm, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
+import WorldIcon from '@/Components/WorldIcon.vue'
 
 // ── Landing cinematográfica — foco em lista de espera ("feat/landing-waitlist-focus") ─
 // O site está em PRÉ-LANÇAMENTO: a landing NÃO oferece cadastro ainda. As 5 cenas
@@ -262,11 +263,12 @@ onBeforeUnmount(() => {
 // Wizard de 2 passos: passo 1 é comum (papel + e-mail + 18+), passo 2 ramifica por
 // papel. Um único POST no fim — o servidor re-valida por papel, então o wizard é
 // conveniência de UX, não a verdade.
+// Ícone de cada mundo é SVG (WorldIcon) — glifo Unicode virava quadrado/emoji.
 const worlds = [
-    { value: 'mulheres', label: 'Mulheres', glyph: '♀' },
-    { value: 'homens', label: 'Homens', glyph: '♂' },
-    { value: 'casais', label: 'Casais', glyph: '⚭' },
-    { value: 'trans', label: 'Trans', glyph: '⚧' },
+    { value: 'mulheres', label: 'Mulheres' },
+    { value: 'homens', label: 'Homens' },
+    { value: 'casais', label: 'Casais' },
+    { value: 'trans', label: 'Trans' },
 ]
 
 const submitted = ref(false)
@@ -541,7 +543,7 @@ function onSubmit() {
                 <div data-reveal class="wl-card rounded-3xl border border-limen-line bg-limen-surface/95 p-8 shadow-2xl backdrop-blur-sm md:p-10">
                     <template v-if="submitted">
                         <div class="py-6 text-center">
-                            <div class="mb-4 text-4xl text-limen-gold">✓</div>
+                            <div class="mb-4 text-limen-gold"><svg class="mx-auto h-12 w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.6 2.6L16 9.5" /></svg></div>
                             <h2 class="font-serif text-3xl text-limen-ink">Pronto! Você está na lista</h2>
                             <p class="mx-auto mt-4 max-w-sm text-limen-ink-soft leading-relaxed">
                                 Fique de olho no seu e-mail — e <span class="text-limen-ink">confira a caixa de spam</span>.
@@ -578,7 +580,7 @@ function onSubmit() {
                                                 : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/50'"
                                             @click="selectRole('member')"
                                         >
-                                            👤 Associado
+                                            <svg class="mr-1.5 inline-block h-4 w-4 align-[-0.15em]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>Associado
                                         </button>
                                         <button
                                             type="button"
@@ -588,7 +590,7 @@ function onSubmit() {
                                                 : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/50'"
                                             @click="selectRole('performer')"
                                         >
-                                            🌟 Anfitrião
+                                            <svg class="mr-1.5 inline-block h-4 w-4 align-[-0.15em]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></svg>Anfitrião
                                         </button>
                                     </div>
                                     <p v-if="form.errors.role" class="mt-1 text-xs text-danger">{{ form.errors.role }}</p>
@@ -663,7 +665,7 @@ function onSubmit() {
                                                 : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/50'"
                                             @click="toggleWorldPreference(world.value)"
                                         >
-                                            {{ world.glyph }} {{ world.label }}
+                                            <WorldIcon :world="world.value" class="mr-1.5" />{{ world.label }}
                                         </button>
                                     </div>
                                 </div>
@@ -682,7 +684,7 @@ function onSubmit() {
                                                 : 'border-limen-line text-limen-ink-soft hover:border-limen-gold/50'"
                                             @click="pickPerformerWorld(world.value)"
                                         >
-                                            {{ world.glyph }} {{ world.label }}
+                                            <WorldIcon :world="world.value" class="mr-1.5" />{{ world.label }}
                                         </button>
                                     </div>
                                     <p v-if="form.errors.world" class="mt-1 text-xs text-danger">{{ form.errors.world }}</p>

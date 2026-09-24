@@ -267,7 +267,7 @@ async function sendTip(amount) {
     notice.value = ''
     try {
         await postJson(route('tips.send'), { performer_slug: slug, amount, idempotency_key: crypto.randomUUID() })
-        notice.value = `Gorjeta de ${amount} enviada 💛`
+        notice.value = `Gorjeta de ${amount} enviada`
     } catch (e) {
         notice.value = errorMessage(e, 'Não foi possível enviar a gorjeta.')
     }
@@ -277,7 +277,7 @@ async function sendGift(gift) {
     notice.value = ''
     try {
         await postJson(route('gifts.send'), { performer_slug: slug, gift_slug: gift.slug, idempotency_key: crypto.randomUUID() })
-        notice.value = `${gift.name} enviado ✨`
+        notice.value = `${gift.name} enviado`
         showGifts.value = false
     } catch (e) {
         notice.value = errorMessage(e, 'Não foi possível enviar o presente.')

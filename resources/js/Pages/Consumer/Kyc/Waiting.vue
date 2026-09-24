@@ -17,7 +17,7 @@ function logout() {
     <div class="page">
         <!-- Rejeitada não pertence a esta tela: o reenvio vive em consumer.kyc.index. -->
         <div v-if="kycStatus === 'rejected'" class="card">
-            <div class="icon">⚠️</div>
+            <div class="icon"><svg style="width:56px;height:56px;display:inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5L21.5 20h-19L12 3.5z" /><path d="M12 9.5v4.5M12 17h.01" /></svg></div>
             <h1 class="title">Verificação rejeitada</h1>
             <p class="subtitle">
                 <span v-if="kycRejectionReason">{{ kycRejectionReason }}</span>

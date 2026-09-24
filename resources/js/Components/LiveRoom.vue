@@ -353,7 +353,8 @@ onBeforeUnmount(disconnectRoom)
                     :aria-label="expanded ? 'Reduzir prévia' : 'Ampliar prévia para conferir o enquadramento'"
                     @click="expanded = !expanded"
                 >
-                    {{ expanded ? '✕ Fechar' : '⤢ Ampliar' }}
+                    <template v-if="expanded">✕ Fechar</template>
+                    <template v-else><svg class="inline-block h-3 w-3 align-[-0.1em]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg> Ampliar</template>
                 </button>
 
                 <span v-if="expanded" class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-[11px] text-cream/80">Prévia espelhada — só você vê</span>
@@ -441,7 +442,7 @@ onBeforeUnmount(disconnectRoom)
             aria-live="polite"
             class="flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
         >
-            <span aria-hidden="true">🔇</span>
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M9 9v3a3 3 0 0 0 5.1 2.1M15 10V6a3 3 0 0 0-6 0v1M19 11a7 7 0 0 1-1.6 4.5M5 11a7 7 0 0 0 7 7m0 0v3" /></svg>
             Seu microfone está mudo — o público não está ouvindo você.
         </p>
 

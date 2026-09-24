@@ -181,9 +181,9 @@ onBeforeUnmount(() => {
                 <span
                     v-for="(p, i) in PETALS"
                     :key="i"
-                    class="petal absolute top-0 text-2xl"
+                    class="petal absolute top-0"
                     :style="petalStyle(p, item.duration)"
-                >🌹</span>
+                ><svg class="h-6 w-6 text-rose-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c3.5 3.2 6 7 6 11a6 6 0 0 1-12 0c0-4 2.5-7.8 6-11z" /></svg></span>
             </div>
 
             <!-- Champagne: bolhas subindo do fundo. -->

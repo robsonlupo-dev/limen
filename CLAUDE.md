@@ -69,11 +69,12 @@ vive em `docs/ARQUITETURA.md` (seção "Stack").** Mudar de stack só com aprova
   que aconteceu com a câmera/calendário dos botões de chamada e com o símbolo do
   token. Todo ícone de UI (botão, rótulo, estado) é `<svg>` inline (stroke,
   `currentColor`, `aria-hidden`), como o resto do projeto. Emoji só é aceitável como
-  CONTEÚDO textual (ex.: numa mensagem de chat), nunca como ícone. **Ainda usam emoji
-  como ícone (dívida a migrar, achado da varredura):** `LiveViewer`/`LiveOverlay` 🪙
-  (token), `StoryStrip`/`PhotoCarousel`/`Subscription` 🔒 (cadeado), `NowStrip` 💌,
-  `Catalog/FilterPanel` 💾, `Catalog/Index` 🌐, `Content/Index` 🎬🖼, `Links` 🔞,
-  `Dashboard` ⚡, `Onboarding` 📄🕐✅ — trocar por SVG num PR de limpeza.
+  CONTEÚDO textual (ex.: numa mensagem de chat), nunca como ícone. **Dívida zerada**
+  (#259 + `fix/emoji-to-svg-round-2`): não resta emoji pictográfico como ícone no
+  front. Ícones de mundo (♀ ♂ ⚭ ⚧, que viravam quadrado/emoji) vivem em
+  `Components/WorldIcon.vue`; o token em `TokenCoin.vue`. Glifos TIPOGRÁFICOS
+  inline em texto/botão (`→ ← ✕ ✓ ★ ☆ ✦ ◈ ◉`) são aceitos — renderizam igual em
+  toda fonte. Toast/copy de UI não leva emoji.
 - **UMA formatação de token no front: `formatTokens()` de `@/lib/tokens`
   (fix/uat-round-polish).** Separador SEMPRE pt-BR (vírgula decimal, ponto de milhar).
   Casas por contexto, mas o separador não muda: **saldo/ganho da performer** mostra

@@ -9,12 +9,9 @@ export const WORLD_LABELS = {
     trans: 'Trans',
 }
 
-export const WORLD_ICONS = {
-    mulheres: '♀',
-    homens: '♂',
-    casais: '⚭',
-    trans: '⚧',
-}
+// Ícones: são SVG, no componente `WorldIcon` (`<WorldIcon :world="value" />`,
+// null = "Todos") — não glifos Unicode aqui. ♀ ♂ ⚭ ⚧ faltam em muitas fontes de
+// sistema e ⚧ vira emoji em alguns aparelhos (fix/emoji-to-svg-round-2).
 
 // Concordância de gênero/número do selo de verificação, por mundo. Vive aqui e
 // não dentro dos componentes porque DOIS deles escrevem a palavra — o selo
@@ -35,11 +32,8 @@ export function verifiedLabel(category) {
 }
 
 // Filter pills for the public catalog: "Todos" (no filter) + one per world.
+// The icon is rendered by `WorldIcon` from `value`.
 export const WORLD_FILTERS = [
-    { value: null, label: 'Todos', icon: '✦' },
-    ...PUBLIC_WORLDS.map((value) => ({
-        value,
-        label: WORLD_LABELS[value],
-        icon: WORLD_ICONS[value],
-    })),
+    { value: null, label: 'Todos' },
+    ...PUBLIC_WORLDS.map((value) => ({ value, label: WORLD_LABELS[value] })),
 ]
