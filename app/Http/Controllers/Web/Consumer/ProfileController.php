@@ -12,6 +12,7 @@ use App\Http\Requests\Web\UpdateMemberPublicProfileRequest;
 use App\Exceptions\NicknameException;
 use App\Models\User;
 use App\Services\MemberAvatarService;
+use App\Services\MemberGalleryAccessService;
 use App\Services\MemberGalleryService;
 use App\Services\MemberNicknameService;
 use App\Support\AgeBand;
@@ -55,7 +56,7 @@ use Inertia\Response;
  */
 class ProfileController extends Controller
 {
-    public function edit(Request $request, MemberGalleryService $gallery): Response
+    public function edit(Request $request, MemberGalleryService $gallery, MemberGalleryAccessService $galleryAccess): Response
     {
         /** @var User $user */
         $user = $request->user();
@@ -96,6 +97,11 @@ class ProfileController extends Controller
             'gallery' => $gallery->forOwner($user),
             'profile_visible' => (bool) $user->profile_visible,
             'gallery_max' => \App\Models\MemberGalleryPhoto::MAX_ACTIVE,
+            // Acesso às fotos privadas (feat/member-gallery-access-requests, Etapa 2):
+            // performers que PEDIRAM acesso (para liberar/recusar) e as que JÁ têm
+            // (para revogar). A performer é pública — nome de palco/slug/avatar.
+            'access_requests' => $galleryAccess->pendingRequestsFor($user),
+            'access_granted' => $galleryAccess->grantedFor($user),
 
             // Perfil PÚBLICO v2 (feat/member-profile-v2). Ao contrário de
             // interests/seeking acima, TUDO aqui VOLTA para a performer quando o

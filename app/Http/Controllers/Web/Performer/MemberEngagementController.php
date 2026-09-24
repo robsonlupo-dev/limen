@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Web\Performer;
 use App\Exceptions\ChatException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RecordMemberVisitRequest;
+use App\Http\Requests\RequestGalleryAccessRequest;
 use App\Http\Requests\SendCatalogMessageRequest;
 use App\Http\Requests\SendHeartRequest;
 use App\Services\ChatService;
+use App\Services\MemberGalleryAccessService;
 use App\Services\PerformerHeartService;
 use App\Services\ProfileVisitService;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +30,24 @@ class MemberEngagementController extends Controller
         private PerformerHeartService $hearts,
         private ChatService $chatService,
         private ProfileVisitService $visits,
+        private MemberGalleryAccessService $galleryAccess,
     ) {}
+
+    /**
+     * A performer SOLICITA acesso às fotos PRIVADAS de um membro
+     * (feat/member-gallery-access-requests). Idempotente: o corpo devolve o estado
+     * atual ('pending'|'granted'). Membro sem perfil visível ou sem privada → 404
+     * uniforme no service (nada a solicitar, sem oráculo).
+     */
+    public function requestGalleryAccess(RequestGalleryAccessRequest $request): JsonResponse
+    {
+        $member = $request->resolvedMember();
+        $profile = $request->user()->performerProfile;
+
+        $state = $this->galleryAccess->request($profile, $member);
+
+        return response()->json(['state' => $state], 200);
+    }
 
     /**
      * Registra a visita da performer ao perfil de um membro (visitas

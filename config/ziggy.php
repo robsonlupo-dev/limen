@@ -57,6 +57,8 @@ return [
         'performer.members.heart',
         'performer.members.message',
         'performer.members.visit',
+        // Solicitar acesso às fotos privadas do membro (feat/member-gallery-access-requests).
+        'performer.members.gallery-access-request',
         // Denúncia de apelido de membro (feat/nickname-report): a performer denuncia
         // por route() da tela onde vê o apelido.
         'performer.members.report-nickname',
@@ -194,6 +196,9 @@ return [
         'consumer.gallery.destroy',
         'consumer.gallery.primary',
         'consumer.gallery.photo-visibility',
+        // Liberar/revogar acesso de performer às privadas (feat/member-gallery-access-requests).
+        'consumer.gallery.access.grant',
+        'consumer.gallery.access.revoke',
         'consumer.gallery.visibility',
 
         // Favoritos do membro (bookmark privado — a performer não tem rota

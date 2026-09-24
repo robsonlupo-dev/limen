@@ -33,6 +33,10 @@ const props = defineProps({
     gallery: { type: Array, default: () => [] },
     profile_visible: { type: Boolean, default: false },
     gallery_max: { type: Number, default: 4 },
+    // Acesso às fotos privadas (feat/member-gallery-access-requests, Etapa 2):
+    // performers que PEDIRAM (liberar/recusar) e as que JÁ têm acesso (revogar).
+    access_requests: { type: Array, default: () => [] },
+    access_granted: { type: Array, default: () => [] },
     // Perfil PÚBLICO v2 (feat/member-profile-v2): valores atuais + preview
     // (age_band/is_verified/member_since derivados) e as listas controladas.
     public_profile: { type: Object, default: () => ({}) },
@@ -263,6 +267,9 @@ const activeGalleryCount = computed(
     () => props.gallery.filter((p) => p.status === 'pending' || p.status === 'approved').length,
 )
 const galleryFull = computed(() => activeGalleryCount.value >= props.gallery_max)
+// Tem foto privada aprovada? Decide se a seção de "acesso às privadas" aparece
+// (feat/member-gallery-access-requests).
+const hasApprovedPrivate = computed(() => props.gallery.some((p) => p.is_private && p.status === 'approved'))
 
 const statusLabels = {
     pending: 'Em análise',
@@ -311,12 +318,30 @@ function makePrimary(photo) {
 }
 
 // Tranca/destranca uma foto (aberta ↔ privada). Privada sai borrada para a
-// performer; só o membro a vê — até liberar (Etapa 2). Foto nova nasce privada.
+// performer; só o membro a vê — até liberar. Foto nova nasce privada.
 function togglePhotoPrivacy(photo) {
     busyPhotoId.value = photo.id
     router.patch(route('consumer.gallery.photo-visibility', photo.id), { is_private: !photo.is_private }, {
         preserveScroll: true,
         onFinish: () => (busyPhotoId.value = null),
+    })
+}
+
+// Acesso às privadas por performer (feat/member-gallery-access-requests): liberar
+// abre TODAS as privadas para aquela performer; revogar/recusar re-tranca.
+const busyAccessId = ref(null)
+function grantAccess(performer) {
+    busyAccessId.value = performer.performer_profile_id
+    router.post(route('consumer.gallery.access.grant', performer.performer_profile_id), {}, {
+        preserveScroll: true,
+        onFinish: () => (busyAccessId.value = null),
+    })
+}
+function revokeAccess(performer) {
+    busyAccessId.value = performer.performer_profile_id
+    router.delete(route('consumer.gallery.access.revoke', performer.performer_profile_id), {
+        preserveScroll: true,
+        onFinish: () => (busyAccessId.value = null),
     })
 }
 
@@ -958,6 +983,76 @@ function saveLifestyle() {
                     @crop="onGalleryCropped"
                     @cancel="pendingGalleryFile = null"
                 />
+            </div>
+
+            <!-- Acesso às fotos PRIVADAS por performer (feat/member-gallery-access-
+                 requests, Etapa 2). Só aparece quando há foto privada aprovada ou
+                 algum pedido/acesso. Liberar abre TODAS as privadas para a
+                 performer; revogar/recusar re-tranca. -->
+            <div
+                v-if="hasApprovedPrivate || access_requests.length || access_granted.length"
+                class="rounded-xl border border-frame bg-surface p-6 space-y-5"
+            >
+                <div class="space-y-1">
+                    <h2 class="font-serif text-xl text-cream">Acesso às suas fotos privadas</h2>
+                    <p class="text-xs text-muted">
+                        Quando uma performer pede para ver suas fotos privadas, o pedido aparece aqui.
+                        Liberar abre <span class="text-cream">todas</span> as suas fotos privadas para ela;
+                        você pode revogar quando quiser.
+                    </p>
+                </div>
+
+                <!-- Pedidos pendentes: liberar / recusar. -->
+                <div v-if="access_requests.length" class="space-y-2">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">Pedidos</p>
+                    <div
+                        v-for="p in access_requests"
+                        :key="'req-' + p.performer_profile_id"
+                        class="flex items-center gap-3 rounded-lg border border-frame bg-surface-2 p-3"
+                    >
+                        <img v-if="p.avatar_url" :src="p.avatar_url" alt="" class="h-10 w-10 shrink-0 rounded-full object-cover" />
+                        <div v-else class="h-10 w-10 shrink-0 rounded-full bg-background"></div>
+                        <span class="min-w-0 flex-1 truncate text-sm text-cream">{{ p.stage_name }}</span>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <button
+                                type="button"
+                                class="inline-flex min-h-[40px] items-center rounded-lg bg-gold px-3 py-2 text-xs font-semibold text-background transition-colors hover:bg-gold-light disabled:opacity-40"
+                                :disabled="busyAccessId === p.performer_profile_id"
+                                @click="grantAccess(p)"
+                            >Liberar</button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-[40px] items-center rounded-lg border border-frame px-3 py-2 text-xs font-medium text-muted transition-colors hover:text-danger disabled:opacity-40"
+                                :disabled="busyAccessId === p.performer_profile_id"
+                                @click="revokeAccess(p)"
+                            >Recusar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quem já tem acesso: revogar. -->
+                <div v-if="access_granted.length" class="space-y-2">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">Com acesso</p>
+                    <div
+                        v-for="p in access_granted"
+                        :key="'grant-' + p.performer_profile_id"
+                        class="flex items-center gap-3 rounded-lg border border-frame bg-surface-2 p-3"
+                    >
+                        <img v-if="p.avatar_url" :src="p.avatar_url" alt="" class="h-10 w-10 shrink-0 rounded-full object-cover" />
+                        <div v-else class="h-10 w-10 shrink-0 rounded-full bg-background"></div>
+                        <span class="min-w-0 flex-1 truncate text-sm text-cream">{{ p.stage_name }}</span>
+                        <button
+                            type="button"
+                            class="inline-flex min-h-[40px] shrink-0 items-center rounded-lg border border-frame px-3 py-2 text-xs font-medium text-muted transition-colors hover:text-danger disabled:opacity-40"
+                            :disabled="busyAccessId === p.performer_profile_id"
+                            @click="revokeAccess(p)"
+                        >Revogar</button>
+                    </div>
+                </div>
+
+                <p v-if="!access_requests.length && !access_granted.length" class="text-xs text-muted">
+                    Nenhum pedido no momento. Quando alguém pedir, você decide aqui.
+                </p>
             </div>
 
             <!-- A copy de privacidade fica ANTES do formulário, não num rodapé:

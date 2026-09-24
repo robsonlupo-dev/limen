@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\ChatService;
 use App\Services\MemberCatalogService;
+use App\Services\MemberGalleryAccessService;
 use App\Services\MemberGalleryService;
 use App\Services\PerformerHeartService;
 use App\Services\ProfileVisitService;
@@ -42,6 +43,7 @@ class MemberProfileController extends Controller
     public function __construct(
         private MemberCatalogService $catalog,
         private MemberGalleryService $gallery,
+        private MemberGalleryAccessService $galleryAccess,
         private PerformerHeartService $hearts,
         private ProfileVisitService $visits,
         private ChatService $chatService,
@@ -93,7 +95,16 @@ class MemberProfileController extends Controller
                 // Fotos APROVADAS da galeria, principal primeiro. Cada uma com a
                 // miniatura ENQUADRADA (url) + a COMPLETA do lightbox (full_url),
                 // ambas por token opaco.
-                'photos' => $this->gallery->approvedFor($member)->values(),
+                'photos' => $this->gallery->approvedFor($member, $request->user())->values(),
+                // Acesso às fotos PRIVADAS (feat/member-gallery-access-requests):
+                // se o membro tem privadas e qual o estado desta performer
+                // ('none'|'pending'|'granted'). A UI mostra "Solicitar acesso" /
+                // "Acesso solicitado" / (liberado → as privadas vêm destrancadas em
+                // `photos`). Quando não há privada, `has_private` false esconde tudo.
+                'private_access' => [
+                    'has_private' => $this->gallery->hasPrivatePhotos($member),
+                    'state' => $this->galleryAccess->stateFor($member, $request->user()),
+                ],
                 // Capa = avatar do membro (a foto que ELE escolheu como cara), a
                 // mesma que a performer já vê no chat. A galeria vira secundária.
                 // null quando o membro não tem avatar → a tela cai na 1ª foto.
