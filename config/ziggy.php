@@ -325,6 +325,9 @@ return [
         'moderacao.reports.warn',
         'moderacao.reports.suspend',
         'moderacao.reports.escalate',
+        // Reversão de primeira classe (feat/moderation-reversal-action): a tela de
+        // detalhe dá POST em reabrir via route().
+        'moderacao.reports.reopen',
         // Fila de moderação das intros de voz (feat/voice-intro). A tela lista e
         // aprova/recusa; o serving do áudio é URL injetada pelo servidor.
         'moderacao.voice-intros.index',

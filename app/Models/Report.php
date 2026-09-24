@@ -123,6 +123,7 @@ class Report extends Model
     {
         return [
             'reviewed_at' => 'datetime',
+            'reopened_at' => 'datetime',
             'escalated_at' => 'datetime',
             'reportable_id' => 'integer',
         ];
@@ -380,16 +381,28 @@ class Report extends Model
         return self::PRIORITY_BY_REASON[$reason] ?? 'normal';
     }
 
-    /** Alvo de atendimento: abertura + a janela da prioridade. Null sem created_at. */
+    /**
+     * Início do relógio de SLA: a reabertura, se houve; senão a abertura. Uma
+     * denúncia revertida ganha um ciclo novo (feat/moderation-reversal-action) —
+     * o relógio não roda desde a abertura original.
+     */
+    public function slaClockStart(): ?\Illuminate\Support\Carbon
+    {
+        return $this->reopened_at ?? $this->created_at;
+    }
+
+    /** Alvo de atendimento: início do ciclo + a janela da prioridade. Null sem início. */
     public function slaDueAt(): ?\Illuminate\Support\Carbon
     {
-        if ($this->created_at === null) {
+        $start = $this->slaClockStart();
+
+        if ($start === null) {
             return null;
         }
 
         $hours = self::SLA_HOURS[$this->priority] ?? self::SLA_HOURS['normal'];
 
-        return $this->created_at->copy()->addHours($hours);
+        return $start->copy()->addHours($hours);
     }
 
     /** Atrasada: ainda ABERTA e passou do alvo de SLA. */
@@ -417,7 +430,13 @@ class Report extends Model
             ->orderBy('id');
     }
 
-    /** Denúncias ABERTAS já fora do SLA (atrasadas), por prioridade. */
+    /**
+     * Denúncias ABERTAS já fora do SLA (atrasadas), por prioridade. O relógio
+     * conta desde `COALESCE(reopened_at, created_at)` — uma denúncia reaberta
+     * (feat/moderation-reversal-action) tem o ciclo novo, não a idade original.
+     * Para toda denúncia nunca reaberta o coalesce cai em `created_at`, então o
+     * comportamento existente não muda.
+     */
     public function scopeOverdue(Builder $query): Builder
     {
         return $query->whereIn('status', self::OPEN_STATUSES)
@@ -425,7 +444,7 @@ class Report extends Model
                 foreach (self::SLA_HOURS as $priority => $hours) {
                     $q->orWhere(function (Builder $inner) use ($priority, $hours) {
                         $inner->where('priority', $priority)
-                            ->where('created_at', '<', now()->subHours($hours));
+                            ->whereRaw('COALESCE(reopened_at, created_at) < ?', [now()->subHours($hours)]);
                     });
                 }
             });

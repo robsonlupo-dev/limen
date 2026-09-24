@@ -70,10 +70,10 @@ const maxActions = computed(() => Math.max(1, ...m.value.by_moderator.map((x) =>
                 </div>
                 <div class="rounded-xl border border-gold/40 bg-gold/5 p-4">
                     <div class="flex items-center gap-1.5">
-                        <p class="text-2xl font-semibold text-cream">{{ fmtPct(m.reversal.pct) }}</p>
-                        <span class="rounded-full border border-gold/50 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-gold">estimada</span>
+                        <p class="text-2xl font-semibold text-cream">{{ fmtPct(m.reversal.exact_pct) }}</p>
+                        <span class="rounded-full border border-gold/50 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-gold">exata</span>
                     </div>
-                    <p class="mt-1 text-xs text-muted">Taxa de reversão</p>
+                    <p class="mt-1 text-xs text-muted">Taxa de reversão<span class="block text-muted/70">{{ m.reversal.reopened }} reaberta(s) de {{ m.reversal.decisions }} decisão(ões)</span></p>
                 </div>
             </div>
 
@@ -121,18 +121,22 @@ const maxActions = computed(() => Math.max(1, ...m.value.by_moderator.map((x) =>
                 <p v-else class="mt-4 text-sm text-muted">Nenhuma ação de moderação no período.</p>
             </div>
 
-            <!-- Como a reversão é estimada (transparência). -->
+            <!-- Como a reversão é medida (transparência). -->
             <div class="rounded-xl border border-frame/60 bg-background/30 p-5 text-sm text-muted">
-                <h2 class="font-serif text-base text-cream">Sobre a taxa de reversão (estimada)</h2>
+                <h2 class="font-serif text-base text-cream">Sobre a taxa de reversão</h2>
                 <p class="mt-2">
-                    O Limen ainda não tem uma ação de "reverter/reabrir" própria, então a taxa é
-                    <strong class="text-cream/80">inferida</strong> de dois sinais no período:
+                    A taxa principal agora é <strong class="text-cream/80">exata</strong>: vem da ação de
+                    <strong class="text-cream/80">reabrir denúncia</strong> — uma reversão explícita e auditada, que amarra quem reabriu à decisão desfeita.
                 </p>
                 <ul class="mt-2 space-y-1">
-                    <li>• Denúncias <strong class="text-cream/80">re-decididas</strong> (a decisão mudou): {{ m.reversal.redecided_reports }} de {{ m.reversal.reviewed_reports }} revistas.</li>
-                    <li>• Suspensões <strong class="text-cream/80">reativadas cedo</strong> por um admin: {{ m.reversal.reactivated }} de {{ m.reversal.suspensions }} suspensões.</li>
+                    <li>• Reaberturas registradas no período: <strong class="text-cream/80">{{ m.reversal.reopened }}</strong> sobre <strong class="text-cream/80">{{ m.reversal.decisions }}</strong> decisão(ões) fechada(s).</li>
                 </ul>
-                <p class="mt-2 text-muted/80">É uma estimativa — não amarra quem reverteu à ação original. Um número exato viria de uma ação de reversão dedicada (PR futuro).</p>
+                <p class="mt-3 border-t border-frame/40 pt-3 text-muted/80">
+                    <strong class="text-cream/70">Estimativa (histórico):</strong>
+                    {{ fmtPct(m.reversal.pct) }} — usada antes da ação de reabrir existir, inferida de rastros:
+                    {{ m.reversal.redecided_reports }} de {{ m.reversal.reviewed_reports }} denúncias re-decididas e
+                    {{ m.reversal.reactivated }} de {{ m.reversal.suspensions }} suspensões reativadas. Não amarra quem reverteu à ação original; fica como referência para o período anterior.
+                </p>
             </div>
         </div>
     </ModeratorLayout>
