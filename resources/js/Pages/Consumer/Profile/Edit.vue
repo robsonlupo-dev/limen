@@ -820,6 +820,23 @@ function saveLifestyle() {
                     </p>
                 </div>
 
+                <!-- Aviso de PRIVACIDADE (correlação por rosto): o apelido/número que a
+                     performer vê é diferente para cada uma, mas o ROSTO não — uma foto
+                     aberta ou liberada pode ser vista, salva e reconhecida entre
+                     performers. É consentimento, não bloqueio (§ SECURITY_ISSUES 1.1). -->
+                <div class="rounded-lg border border-frame bg-surface-2 p-4 text-xs leading-relaxed text-muted">
+                    <p class="flex items-center gap-1.5 font-medium text-cream">
+                        <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+                        Antes de abrir ou liberar uma foto
+                    </p>
+                    <p class="mt-1">
+                        Uma foto <span class="text-cream">pública</span> ou <span class="text-cream">liberada</span>
+                        pode ser vista, salva e reconhecida pela performer — inclusive relacionada a você
+                        em outros perfis onde apareça. Só abra ou libere fotos que você aceita que circulem
+                        assim; o que ficar <span class="text-cream">privado</span> só você vê.
+                    </p>
+                </div>
+
                 <!-- Opt-in mestre: sem isto ligado, nada da galeria/perfil fica
                      visível para as performers. Default OFF. -->
                 <div class="flex items-center justify-between gap-4 rounded-lg border border-gold/30 bg-gold/5 p-4">
@@ -998,7 +1015,8 @@ function saveLifestyle() {
                     <p class="text-xs text-muted">
                         Quando uma performer pede para ver suas fotos privadas, o pedido aparece aqui.
                         Liberar abre <span class="text-cream">todas</span> as suas fotos privadas para ela;
-                        você pode revogar quando quiser.
+                        você pode revogar quando quiser. Uma vez vista, uma foto pode ser salva e
+                        reconhecida — libere só para quem você confia.
                     </p>
                 </div>
 
