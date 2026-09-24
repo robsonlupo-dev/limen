@@ -443,9 +443,15 @@ performer em hipótese alguma (é a ação dela) nem para o membro em relógio.
 
 `config/app.php` já configura `previous_keys` via `APP_PREVIOUS_KEYS`, então
 `Crypt` decifra material antigo durante a rotação — fotos e KYC seguem legíveis.
-**`FanAlias::digest()` não tem esse fallback**: usa `config('app.key')` direto.
-Rotacionar rotaciona todos os pseudônimos, o que já é aceito, mas com efeito novo:
-as fotos continuam decifráveis enquanto o alias de quem as enviou muda.
+~~**`FanAlias::digest()` não tem esse fallback**: usa `config('app.key')` direto.~~
+**RESOLVIDO (security/hardening-followups, 24/09/2026):** `FanAlias::resolveHandle()`
+tenta a chave atual e depois `app.previous_keys` — um POST em voo com handle da chave
+antiga continua resolvendo na janela de rotação. Emitir (handle/for/label) usa só a
+atual, então os pseudônimos EXIBIDOS ainda mudam na rotação (aceito). **Operação:**
+`APP_PREVIOUS_KEYS` só deve viver o bastante para drenar requests em voo — uma chave
+antiga ali continua servindo ao oráculo de pertencimento do handle (mesmo poder da
+chave atual, não um poder novo); depois de uma rotação por COMPROMETIMENTO, retire a
+chave assim que a re-cifragem do `Crypt` terminar.
 
 **Decisão:** disco próprio (`member_photos`), `serve => false`, **nunca** o disco
 `kyc` — isolar blast radius e não confundir o `DeletionService`, que trata o disco
