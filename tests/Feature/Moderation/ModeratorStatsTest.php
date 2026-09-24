@@ -96,7 +96,10 @@ it('lets a moderator open the stats page with the default 30-day window', functi
             ->where('metrics.resolved', 0)
             ->where('metrics.avg_resolution_hours', null)
             ->where('metrics.sla_pct', null)
-            ->where('metrics.reversal.pct', null));
+            ->where('metrics.reversal.pct', null)
+            ->where('metrics.reversal.exact_pct', null)
+            ->where('metrics.reversal.reopened', 0)
+            ->where('metrics.reversal.decisions', 0));
 });
 
 it('accepts 7/30/90 as the period and falls back to 30 for anything else', function () {
@@ -217,6 +220,32 @@ it('estimates the reversal rate from re-decided reports and early reactivations'
             ->where('metrics.reversal.reviewed_reports', 2)
             ->where('metrics.reversal.reactivated', 1)
             ->where('metrics.reversal.suspensions', 2));
+
+    Carbon::setTestNow();
+});
+
+it('computes the EXACT reversal rate by cohort (reopened ⊆ decided, never > 100%)', function () {
+    Carbon::setTestNow('2026-09-23 12:00:00');
+
+    $mod = statModerator();
+
+    // Quatro denúncias DECIDIDAS na janela (cada fechamento loga report_reviewed)…
+    foreach (range(1, 4) as $i) {
+        statAudit($mod->id, 'moderation.report_reviewed', 800 + $i);
+    }
+    // …UMA delas foi reaberta → coorte: 1 de 4 = 25% exato.
+    statAudit($mod->id, 'moderation.report_reopened', 801);
+    // Reabertura de uma denúncia FORA da coorte (não decidida na janela) não
+    // conta — o numerador é subconjunto do denominador, então nunca estoura 100%.
+    statAudit($mod->id, 'moderation.report_reopened', 999);
+
+    $this->actingAs($mod)
+        ->get(route('moderacao.estatisticas', ['dias' => 30]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('metrics.reversal.reopened', 1)
+            ->where('metrics.reversal.decisions', 4)
+            // 25.0 → int 25 depois do round-trip JSON do Inertia (assertSame estrito).
+            ->where('metrics.reversal.exact_pct', 25));
 
     Carbon::setTestNow();
 });

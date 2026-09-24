@@ -373,6 +373,13 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
         ->middleware('throttle:30,1')
         ->whereNumber('report')->name('moderacao.reports.escalate');
 
+    // Reverter/reabrir uma decisão (feat/moderation-reversal-action): ação de
+    // primeira classe de reversão, auditada. Mesmo throttle das demais ações
+    // privilegiadas da área. Autoridade server-side; só denúncia decidida reabre.
+    Route::post('/denuncias/{report}/reabrir', [ModerationController::class, 'reopen'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('report')->name('moderacao.reports.reopen');
+
     // Remoção forçada de apelido de membro (feat/member-nickname). Por STRING do
     // apelido (pública e única) — não expõe user_id. A denúncia pública do apelido
     // fica para um PR dedicado (atrito com o pipeline de handle numérico).

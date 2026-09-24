@@ -24,6 +24,7 @@ use App\Support\ReporterAlias;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -63,6 +64,10 @@ class ModerationController extends Controller
      */
     private const MODERATOR_ACTIONS = [
         'moderation.report_reviewed',
+        // Reversão de primeira classe (feat/moderation-reversal-action): reabrir
+        // uma denúncia já decidida É uma ação do moderador — conta em "minhas
+        // ações" e no ranking por moderador, como as demais.
+        'moderation.report_reopened',
         'moderator.warned',
         'moderator.suspended',
         'moderator.escalated',
@@ -70,6 +75,14 @@ class ModerationController extends Controller
         // Dispensa de sinalizações automáticas (feat/flagged-content-queue).
         'moderation.flags_dismissed',
     ];
+
+    /**
+     * Estados de uma denúncia JÁ decidida — os que a reabertura pode reverter.
+     * `pending` fica de fora de propósito: a fila é o estado inicial, não uma
+     * decisão a reverter (mesma razão pela qual o UpdateReportRequest não o
+     * aceita como destino).
+     */
+    private const DECIDED_STATUSES = ['reviewed', 'resolved', 'dismissed'];
 
     public function __construct(
         private MemberPhotoStore $photoStore,
@@ -137,19 +150,24 @@ class ModerationController extends Controller
         $from = now()->subDays($days);
 
         // ── Tempo de resolução + SLA (denúncias fechadas na janela) ───────────
+        // Mede o CICLO atual: de `COALESCE(reopened_at, created_at)` até o
+        // fechamento. Sem isso, uma denúncia reaberta e re-fechada
+        // (feat/moderation-reversal-action) reportaria meses de "resolução" e uma
+        // quebra de SLA garantida, sujando a média nesta mesma tela. Nunca-reaberta
+        // → reopened_at nulo → cai em created_at (comportamento inalterado).
         $closed = Report::whereIn('status', ['reviewed', 'resolved', 'dismissed'])
             ->whereNotNull('reviewed_at')
             ->where('reviewed_at', '>=', $from)
-            ->get(['priority', 'created_at', 'reviewed_at']);
+            ->get(['priority', 'created_at', 'reopened_at', 'reviewed_at']);
 
         $resolvedCount = $closed->count();
         $avgHours = $resolvedCount
-            ? round($closed->avg(fn (Report $r) => $r->created_at->diffInMinutes($r->reviewed_at)) / 60, 1)
+            ? round($closed->avg(fn (Report $r) => $r->slaClockStart()->diffInMinutes($r->reviewed_at)) / 60, 1)
             : null;
         $withinSla = $closed->filter(function (Report $r) {
             $limit = (Report::SLA_HOURS[$r->priority] ?? Report::SLA_HOURS['normal']) * 60;
 
-            return $r->created_at->diffInMinutes($r->reviewed_at) <= $limit;
+            return $r->slaClockStart()->diffInMinutes($r->reviewed_at) <= $limit;
         })->count();
         $slaPct = $resolvedCount ? (int) round($withinSla / $resolvedCount * 100) : null;
 
@@ -179,8 +197,30 @@ class ModerationController extends Controller
         ])->all();
         $totalActions = (int) $actionRows->sum('c');
 
-        // ── Taxa de REVERSÃO (estimada) ───────────────────────────────────────
-        // Denúncias re-decididas: ≥2 `report_reviewed` na janela / distintas revistas.
+        // ── Taxa de REVERSÃO — EXATA (feat/moderation-reversal-action) ─────────
+        // Agora que reverter é uma ação de primeira classe, a taxa é EXATA e por
+        // COORTE: das denúncias DECIDIDAS na janela, quantas foram reabertas (em
+        // qualquer momento). O numerador é um SUBCONJUNTO do denominador — logo
+        // ≤ 100%, ao contrário de dividir dois contadores independentes (que
+        // deixaria uma reabertura de decisão antiga estourar os 100%). `decisions`
+        // = denúncias distintas fechadas na janela; `reopened` = quantas dessas
+        // foram reabertas. Sem decisão nenhuma → null → a tela mostra "—".
+        $decisions = AuditLog::where('action', 'moderation.report_reviewed')
+            ->where('created_at', '>=', $from)
+            ->distinct()->count('subject_id');
+        $reopened = AuditLog::where('action', 'moderation.report_reopened')
+            ->whereIn('subject_id', function ($q) use ($from) {
+                $q->select('subject_id')->from('audit_logs')
+                    ->where('action', 'moderation.report_reviewed')
+                    ->where('created_at', '>=', $from);
+            })
+            ->distinct()->count('subject_id');
+        $exactPct = $decisions > 0 ? round($reopened / $decisions * 100, 1) : null;
+
+        // ── Taxa de REVERSÃO — ESTIMADA (fallback histórico, rotulado) ─────────
+        // Mantida para o período ANTERIOR à ação de primeira classe, quando não
+        // havia reabertura registrada. Denúncias re-decididas: ≥2 `report_reviewed`
+        // na janela / distintas revistas.
         $reviewedReports = AuditLog::where('action', 'moderation.report_reviewed')
             ->where('created_at', '>=', $from)->distinct()->count('subject_id');
         $redecided = AuditLog::where('action', 'moderation.report_reviewed')
@@ -214,6 +254,11 @@ class ModerationController extends Controller
                 'total_actions' => $totalActions,
                 'by_moderator' => $byModerator,
                 'reversal' => [
+                    // Exata (ação de primeira classe) — passa a ser a métrica principal.
+                    'exact_pct' => $exactPct,
+                    'reopened' => $reopened,
+                    'decisions' => $decisions,
+                    // Estimativa (fallback histórico) — mantida rotulada.
                     'pct' => $reversalPct,
                     'redecided_reports' => $redecided,
                     'reviewed_reports' => $reviewedReports,
@@ -503,6 +548,65 @@ class ModerationController extends Controller
     }
 
     /**
+     * Reabrir/reverter a decisão de uma denúncia (feat/moderation-reversal-action).
+     *
+     * É a AÇÃO DE PRIMEIRA CLASSE que a "taxa de reversão" das estatísticas antes
+     * só conseguia ESTIMAR por rastros (denúncia tocada 2×, suspensão reativada).
+     * Agora reverter é um ato explícito e auditado — `moderation.report_reopened`
+     * com o status anterior no metadata — do qual a métrica exata deriva; a
+     * estimativa fica como fallback histórico rotulado.
+     *
+     * Só reabre denúncia JÁ decidida (reviewed/resolved/dismissed); pendente não é
+     * decisão a reverter → no-op idempotente. `lockForUpdate` + re-check do status
+     * SOB o lock (mesmo padrão do webhook KYC e do AdminKyc) serializa o
+     * read→check→transição: duplo-clique ou dois moderadores concorrentes não
+     * geram duas reaberturas (nem dois registros de reversão que inflariam a
+     * métrica). A denúncia volta a `pending`, limpando reviewed_at/reviewed_by; a
+     * nota da decisão FICA (é o registro do que se reverteu). Motivo obrigatório,
+     * como nas demais ações do moderador — vai no audit, não no corpo da denúncia.
+     */
+    public function reopen(Request $request, Report $report): RedirectResponse
+    {
+        $validated = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        $reopened = DB::transaction(function () use ($report, $validated) {
+            $fresh = Report::whereKey($report->getKey())->lockForUpdate()->firstOrFail();
+
+            // Sob o lock: já pendente (ou reaberta por outra aba) → nada a reverter.
+            if (! in_array($fresh->status, self::DECIDED_STATUSES, true)) {
+                return false;
+            }
+
+            $previousStatus = $fresh->status;
+
+            $fresh->forceFill([
+                'status' => 'pending',
+                'reviewed_at' => null,
+                'reviewed_by' => null,
+                // Novo início do relógio de SLA/resolução: o ciclo reaberto não
+                // herda a idade da abertura original (senão nasceria "atrasado").
+                'reopened_at' => now(),
+            ])->save();
+
+            // `previous_status` amarra a reversão à decisão que ela desfez — o elo
+            // que a estimativa nunca teve. O `reason` é do moderador (não é PII do
+            // denunciante), como em warn/suspend/escalate, que já o gravam no audit.
+            Audit::log('moderation.report_reopened', $fresh, [
+                'previous_status' => $previousStatus,
+                'reason' => $validated['reason'],
+            ]);
+
+            return true;
+        });
+
+        if (! $reopened) {
+            return back()->with('info', "Denúncia #{$report->id} não estava fechada — nada a reabrir.");
+        }
+
+        return back()->with('success', "Denúncia #{$report->id} reaberta e devolvida à fila.");
+    }
+
+    /**
      * Advertir um usuário a partir da fila de conteúdo sinalizado (feat/flagged-
      * content-queue). Sem denúncia de origem — o alvo é o usuário reincidente. A
      * ModeratorActionService guarda os invariantes (não age sobre admin nem sobre
@@ -667,6 +771,9 @@ class ModerationController extends Controller
             'priority' => $report->priority,
             'sla_due_at' => $report->slaDueAt(),
             'overdue' => $report->isOverdue(),
+            // Reversão de primeira classe (feat/moderation-reversal-action): a tela
+            // só oferece "Reabrir" quando há uma decisão a reverter.
+            'can_reopen' => in_array($report->status, self::DECIDED_STATUSES, true),
         ];
     }
 }

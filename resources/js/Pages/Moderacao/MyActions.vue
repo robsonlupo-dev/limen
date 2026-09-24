@@ -13,6 +13,7 @@ defineProps({
 
 const ACTION_LABELS = {
     'moderation.report_reviewed': 'Fechou denúncia',
+    'moderation.report_reopened': 'Reabriu denúncia',
     'moderator.warned': 'Advertiu',
     'moderator.suspended': 'Suspendeu',
     'moderator.escalated': 'Escalou ao admin',
@@ -39,7 +40,7 @@ function subjectLabel(t) {
 }
 // Ação sobre uma denúncia → dá pra abrir a denúncia; sobre usuário, não há tela.
 function reportHref(a) {
-    return ['moderation.report_reviewed', 'moderator.escalated'].includes(a.action)
+    return ['moderation.report_reviewed', 'moderation.report_reopened', 'moderator.escalated'].includes(a.action)
         ? route('moderacao.reports.show', a.subject_id)
         : null
 }

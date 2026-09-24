@@ -131,6 +131,18 @@ function submitEscalate() {
     })
 }
 
+// ── Reverter decisão (feat/moderation-reversal-action) ───────────────────────
+// Reabre uma denúncia JÁ decidida e a devolve à fila como pendente. É a reversão
+// de primeira classe — auditada, e a estatística de reversão exata deriva dela.
+// O motivo é obrigatório; o servidor barra reabrir o que não está fechado.
+const reopenForm = useForm({ reason: '' })
+function submitReopen() {
+    reopenForm.post(route('moderacao.reports.reopen', props.report.id), {
+        preserveScroll: true,
+        onSuccess: () => reopenForm.reset(),
+    })
+}
+
 // ── Prova retida ─────────────────────────────────────────────────────────────
 const zoomed = ref(false)
 const messageBody = ref(null)
@@ -450,6 +462,46 @@ async function revealMessage() {
                     >Salvar</button>
                 </div>
             </form>
+
+            <!-- Reverter decisão (feat/moderation-reversal-action) -->
+            <section v-if="report.can_reopen" class="space-y-3 rounded-xl border border-gold/40 bg-gold/5 p-5 sm:p-6">
+                <div>
+                    <h2 class="flex items-center gap-2 font-serif text-lg text-cream">
+                        <svg class="h-5 w-5 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                            <path d="M3 3v6h6" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M3.5 9a9 9 0 1 1-1.2 6" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        Reverter decisão
+                    </h2>
+                    <p class="mt-1 text-xs text-muted/70">
+                        Reabre esta denúncia decidida e a devolve à fila como pendente. Fica registrado como reversão (auditado); o motivo é obrigatório.
+                    </p>
+                </div>
+                <form class="space-y-3" @submit.prevent="submitReopen">
+                    <textarea
+                        v-model="reopenForm.reason"
+                        rows="3"
+                        maxlength="500"
+                        required
+                        placeholder="Por que a decisão está sendo revertida?"
+                        class="w-full rounded-lg border border-frame bg-background px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                    />
+                    <p v-if="reopenForm.errors.reason" class="text-xs text-danger">{{ reopenForm.errors.reason }}</p>
+                    <div class="flex justify-end">
+                        <button
+                            type="submit"
+                            :disabled="reopenForm.processing"
+                            class="inline-flex items-center gap-2 rounded-lg border border-gold/50 bg-gold/10 px-4 py-2 text-sm text-gold transition-opacity hover:opacity-90 disabled:opacity-50"
+                        >
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                                <path d="M3 3v6h6" stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M3.5 9a9 9 0 1 1-1.2 6" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            Reabrir denúncia
+                        </button>
+                    </div>
+                </form>
+            </section>
 
             <!-- Próximos na fila -->
             <section v-if="queue.length" class="space-y-3 rounded-xl border border-frame/60 bg-surface/30 p-5 sm:p-6">
