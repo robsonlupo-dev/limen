@@ -52,6 +52,12 @@ const hasOlder = computed(() => props.messages.current_page < props.messages.las
 const draft = ref('')
 const sending = ref(false)
 const sendError = ref('')
+// Envio otimista (feat/chat-optimistic-send): a bolha "brota" na hora, como no
+// WhatsApp, sem esperar o servidor. Cada item fica aqui até o reload trazer a
+// mensagem REAL (id do banco) e então é removido — a troca é imperceptível
+// porque as duas bolhas são idênticas. Só o MEU envio é otimista; a mensagem do
+// outro lado depende do push (Echo/Reverb) ou do próximo reload.
+const outbox = ref([])
 const renewing = ref(false)
 const renewError = ref('')
 const scroller = ref(null)
@@ -157,33 +163,60 @@ function showDaySeparator(i) {
     return i === 0 || dayStart(orderedMessages.value[i].created_at) !== dayStart(orderedMessages.value[i - 1].created_at)
 }
 
+function removeOutbox(key) {
+    outbox.value = outbox.value.filter((o) => o.key !== key)
+}
+
+function sendErrorMessage(e) {
+    return e.status === 422 && e.data?.reason === 'insufficient_balance'
+        ? 'Saldo insuficiente. Compre tokens na sua carteira para enviar.'
+        : (e.data?.message ?? 'Não foi possível enviar. Tente novamente.')
+}
+
 async function send() {
     const body = draft.value.trim()
     if (!body || sending.value) return
 
     sending.value = true
     sendError.value = ''
-    try {
-        if (isComposeMode.value) {
-            // Modo compor: o canal nasce agora. O backend cria a conversa, cobra o
-            // tier no envio e devolve o id — navegamos para a conversa real.
+
+    if (isComposeMode.value) {
+        // Modo compor: o canal nasce agora. O backend cria a conversa, cobra o
+        // tier no envio e devolve o id — navegamos para a conversa real. Sem
+        // otimismo aqui: é uma troca de página, não um append no mesmo thread.
+        try {
             const res = await postJson(route('chat.start', performerSlug.value), { body })
             draft.value = ''
             router.visit(route('chat.show', res.conversation_id))
-        } else {
-            // Conversa existente: enviar cobra automaticamente se não houver janela
-            // vigente (feat/chat-economy-v2). Recarrega só as mensagens (corpo
-            // gateado no servidor) + estado/saldo; o parceiro recebe via Echo.
-            await postJson(route('chat.messages.store', props.conversation.id), { body })
-            draft.value = ''
-            reloadThread()
+        } catch (e) {
+            sendError.value = sendErrorMessage(e)
+        } finally {
+            sending.value = false
         }
+        return
+    }
+
+    // Conversa existente: envio OTIMISTA. A bolha aparece na hora (brota, com
+    // animação), o campo limpa. O servidor cobra a janela se preciso
+    // (feat/chat-economy-v2) e o reload traz a mensagem real, que substitui a
+    // otimista sem piscar. No erro (filtro/saldo), a bolha some e o texto volta.
+    const item = { key: (globalThis.crypto?.randomUUID?.() ?? `tmp-${Date.now()}`), body, at: new Date().toISOString() }
+    outbox.value.push(item)
+    draft.value = ''
+    scrollToBottom()
+
+    try {
+        await postJson(route('chat.messages.store', props.conversation.id), { body })
+        // Só remove a bolha otimista DEPOIS que a real chega no reload — assim não
+        // há um quadro em que a mensagem some e reaparece.
+        router.reload({
+            only: ['messages', 'access', 'balance'],
+            onSuccess: () => { removeOutbox(item.key); scrollToBottom() },
+        })
     } catch (e) {
-        // Texto PRESERVADO no campo (não limpamos `draft` no erro): mensagem barrada
-        // pelo filtro ou saldo insuficiente não perde o que foi digitado.
-        sendError.value = e.status === 422 && e.data?.reason === 'insufficient_balance'
-            ? 'Saldo insuficiente. Compre tokens na sua carteira para enviar.'
-            : (e.data?.message ?? 'Não foi possível enviar. Tente novamente.')
+        removeOutbox(item.key)
+        draft.value = body // não perde o texto barrado pelo filtro/saldo
+        sendError.value = sendErrorMessage(e)
     } finally {
         sending.value = false
     }
@@ -420,6 +453,22 @@ watch(() => props.messages.data.length, scrollToBottom)
                         </div>
                     </div>
                 </template>
+
+                <!-- Bolhas OTIMISTAS (feat/chat-optimistic-send): a mensagem que
+                     acabei de enviar, ainda sem confirmação do servidor. Aparece
+                     na hora com a animação "brota" (msg-pop) e um relógio no lugar
+                     do "Lida"; some quando o reload traz a mensagem real. -->
+                <div v-for="o in outbox" :key="o.key" class="flex justify-end">
+                    <div class="max-w-[75%] flex flex-col items-end">
+                        <div class="msg-pop rounded-2xl rounded-br-sm bg-gold px-4 py-2.5 text-sm text-background whitespace-pre-line break-words">
+                            {{ o.body }}
+                        </div>
+                        <span class="flex items-center gap-1 pt-1 pr-1 text-[10px] text-muted">
+                            {{ timeLabel(o.at) }}
+                            <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                        </span>
+                    </div>
+                </div>
             </div>
 
             <!-- Compositor -->
@@ -502,5 +551,23 @@ watch(() => props.messages.data.length, scrollToBottom)
 }
 .messages-area::-webkit-scrollbar-thumb:hover {
     background: rgba(201, 162, 75, 0.4);
+}
+
+/* "Brota" — a bolha enviada nasce crescendo do canto inferior direito (origem
+   no lado de quem enviou), como no WhatsApp, em vez de aparecer seca. Uma vez
+   só, no mount da bolha otimista. */
+@keyframes msg-pop {
+    0%   { opacity: 0; transform: scale(0.6) translateY(6px); }
+    60%  { opacity: 1; transform: scale(1.03); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.msg-pop {
+    transform-origin: bottom right;
+    animation: msg-pop 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Acessibilidade (regra do projeto): quem pede menos movimento não vê a escala —
+   a bolha só aparece. */
+@media (prefers-reduced-motion: reduce) {
+    .msg-pop { animation: none; }
 }
 </style>
