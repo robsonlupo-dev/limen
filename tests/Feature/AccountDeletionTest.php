@@ -240,7 +240,9 @@ it('preserves audit_logs and payouts with their amounts', function () {
     AuditLog::create([
         'user_id' => $performer->id,
         'action' => 'login',
-        'ip' => '203.0.113.10',
+        // Coluna é `ip_hash` (HMAC) desde security/audit-ip-hash; aqui só um
+        // placeholder — o teste checa que a LINHA sobrevive, não o valor.
+        'ip_hash' => str_repeat('a', 64),
     ]);
 
     delService()->executeDeletion($performer);

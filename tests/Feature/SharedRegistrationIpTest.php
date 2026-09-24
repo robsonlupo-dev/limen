@@ -168,9 +168,10 @@ it('grava o HMAC do IP, nunca o IP em texto puro', function () {
 
     // Varredura das colunas de texto de users + performer_profiles atrás dos
     // octetos crus. NÃO varre a base toda de propósito: `sessions.ip_address`
-    // guarda IP em claro (driver `database` em produção) e `audit_logs.ip`
-    // também — em teste o driver é `array`, então uma varredura global passaria
-    // e prometeria uma garantia que produção não cumpre. Ver SECURITY_ISSUES.md.
+    // guarda IP em claro (driver `database` em produção) — em teste o driver é
+    // `array`, então uma varredura global passaria e prometeria uma garantia que
+    // produção não cumpre. (`audit_logs.ip_hash` já é HMAC desde
+    // security/audit-ip-hash.) Ver SECURITY_ISSUES.md.
     foreach (['users', 'performer_profiles'] as $table) {
         $row = (array) DB::table($table)
             ->when($table === 'users', fn ($q) => $q->where('email', 'hash@example.com'))

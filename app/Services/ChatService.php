@@ -20,6 +20,7 @@ use App\Support\MessageTeaser;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
+use App\Support\ClientFingerprint;
 
 /**
  * Chat pós-desbloqueio de Interesse. Ver docs/INTEREST_SYSTEM_SPEC.md §4-5 e
@@ -269,7 +270,7 @@ class ChatService
                 'action' => 'chat.suppressed_send',
                 'subject_type' => PerformerInterest::class,
                 'subject_id' => $interest->id,
-                'ip' => request()->ip(),
+                'ip_hash' => ClientFingerprint::hash(request()->ip()),
                 'metadata' => ['member_id' => $interest->member_id],
             ]);
 
@@ -485,7 +486,7 @@ class ChatService
         AuditLog::create([
             'user_id' => $sender->id,
             'action' => 'chat.message_blocked',
-            'ip' => request()->ip(),
+            'ip_hash' => ClientFingerprint::hash(request()->ip()),
             'metadata' => [
                 'category' => $match['category'],
                 'rule_hash' => $ruleHash,

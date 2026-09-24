@@ -9,6 +9,7 @@ use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use App\Support\ClientFingerprint;
 
 /**
  * Sistema de Interesse Controlado (Performer → Membro).
@@ -167,7 +168,7 @@ class InterestService
                 'action' => 'interest.sent',
                 'subject_type' => PerformerInterest::class,
                 'subject_id' => $interest->id,
-                'ip' => request()->ip(),
+                'ip_hash' => ClientFingerprint::hash(request()->ip()),
                 'metadata' => [
                     'member_id' => $member->id,
                     'source' => $source,
@@ -272,7 +273,7 @@ class InterestService
                 'action' => 'interest.unlocked',
                 'subject_type' => PerformerInterest::class,
                 'subject_id' => $locked->id,
-                'ip' => request()->ip(),
+                'ip_hash' => ClientFingerprint::hash(request()->ip()),
                 'metadata' => [
                     'performer_profile_id' => $locked->performer_profile_id,
                     'cost' => $freeReveal ? 0 : $this->unlockCost(),
@@ -298,7 +299,7 @@ class InterestService
             'action' => 'interest.opt_out',
             'subject_type' => User::class,
             'subject_id' => $member->id,
-            'ip' => request()->ip(),
+            'ip_hash' => ClientFingerprint::hash(request()->ip()),
             'metadata' => ['opt_out' => $optOut],
         ]);
     }

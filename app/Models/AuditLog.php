@@ -12,7 +12,9 @@ class AuditLog extends Model
 
     protected $fillable = [
         'user_id', 'action', 'subject_type', 'subject_id',
-        'ip', 'metadata',
+        // HMAC do IP (ClientFingerprint), nunca o octeto cru — ver a migration
+        // hash_ip_on_audit_logs.
+        'ip_hash', 'metadata',
     ];
 
     protected function casts(): array
