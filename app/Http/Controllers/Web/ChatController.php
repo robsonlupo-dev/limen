@@ -463,6 +463,11 @@ class ChatController extends Controller
     {
         abort_if($request->user()->cannot('view', $conversation), 404);
         abort_if($message->conversation_id !== $conversation->id, 404);
+        // "Desfazer envio" (feat/chat-unsend-message): áudio redigido fica
+        // indisponível aqui igual ao corpo de texto — senão o destinatário poderia
+        // rebuscar os bytes pela URL direta depois do "apagar". A moderação ouve o
+        // áudio retido por outro endpoint (moderacao.evidence.message-audio).
+        abort_if($message->isRedacted(), 404);
         abort_unless($message->audio_status === Message::AUDIO_READY && $message->audio_path, 404);
 
         // Paywall: com a leitura travada (grace/expired), o áudio fica indisponível

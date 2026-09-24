@@ -7,6 +7,7 @@ use App\Models\Report;
 use App\Services\ChatService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -191,6 +192,64 @@ it('hides a redacted voice message in the chat but still serves the audio eviden
             ->where('evidence.kind', 'audio')
             ->where('evidence.available', true)               // redigir NÃO tira a prova
             ->whereNot('evidence.redacted_at', null));
+});
+
+// ─── 7b. Áudio redigido não é mais servível pela URL direta ao destinatário ────
+
+it('stops serving the audio bytes to the recipient once the voice message is redacted', function () {
+    Storage::fake(App\Services\ChatAudioStore::DISK);
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 5);
+    grantChatAccess($member, $conversation);
+
+    // Áudio pronto no disco fake, enviado pelo membro.
+    $path = $conversation->id.'/'.Illuminate\Support\Str::random(20).'.mp3';
+    Storage::disk(App\Services\ChatAudioStore::DISK)->put($path, 'MP3-BYTES');
+    $message = Message::forceCreate([
+        'conversation_id' => $conversation->id,
+        'sender_id' => $member->id,
+        'body' => 'Mensagem de voz',
+        'audio_status' => Message::AUDIO_READY,
+        'audio_path' => $path,
+        'audio_duration_seconds' => 5,
+        'audio_content_hash' => str_repeat('a', 64),
+    ]);
+
+    // Antes de apagar: a performer (destinatária) consegue ouvir.
+    $this->actingAs($performer->user)
+        ->get(route('chat.audio', [$conversation->id, $message->id]))
+        ->assertOk();
+
+    app(ChatService::class)->redactMessage($conversation, $member, $message);
+
+    // Depois de apagar: 404 mesmo com a URL direta (o destinatário não rebusca).
+    $this->actingAs($performer->user)
+        ->get(route('chat.audio', [$conversation->id, $message->id]))
+        ->assertNotFound();
+});
+
+// ─── 7c. Presente não é redigível nem por request forjado (servidor é autoridade) ─
+
+it('refuses to redact a gift message even via a crafted request', function () {
+    $gift = App\Models\Gift::create(['name' => 'Rosa', 'slug' => 'rosa-'.Illuminate\Support\Str::random(4), 'price_tokens' => 4, 'active' => true]);
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 5);
+    grantChatAccess($member, $conversation);
+
+    // Bolha de presente (membro→performer), dentro da janela.
+    $message = Message::forceCreate([
+        'conversation_id' => $conversation->id,
+        'sender_id' => $member->id,
+        'body' => 'Presente',
+        'gift_id' => $gift->id,
+    ]);
+
+    $this->actingAs($member)
+        ->deleteJson(route('chat.messages.destroy', [$conversation->id, $message->id]))
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'gift_not_redactable');
+
+    expect($message->refresh()->isRedacted())->toBeFalse();
 });
 
 // ─── 8. A moderação lê o corpo ORIGINAL de uma mensagem de texto redigida ──────

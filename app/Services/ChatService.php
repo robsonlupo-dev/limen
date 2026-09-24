@@ -247,6 +247,13 @@ class ChatService
             throw ChatException::notYourMessage();
         }
 
+        // Presente NÃO é redigível — a regra é do SERVIDOR, não só do `can_redact`
+        // da UI: um DELETE forjado no id de uma bolha de presente esconderia o
+        // registro do presente (dinheiro movido) das duas pontas. Recusa fechado.
+        if ($message->gift_id !== null) {
+            throw ChatException::giftNotRedactable();
+        }
+
         // Já redigida: no-op idempotente (duplo-clique / corrida de abas).
         if ($message->isRedacted()) {
             return $message;

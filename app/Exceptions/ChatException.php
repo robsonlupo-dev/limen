@@ -32,6 +32,8 @@ class ChatException extends DomainException
 
     public const REDACT_WINDOW_CLOSED = 'redact_window_closed';
 
+    public const GIFT_NOT_REDACTABLE = 'gift_not_redactable';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -126,6 +128,19 @@ class ChatException extends DomainException
         return new self(
             self::REDACT_WINDOW_CLOSED,
             "O prazo para apagar esta mensagem já passou (até {$minutes} min após o envio).",
+        );
+    }
+
+    /**
+     * Presente não é redigível (feat/chat-unsend-message): é ação de dinheiro
+     * (tokens movidos/creditados); esconder a bolha daria falsa ideia de estorno.
+     * A regra vive no SERVIDOR, não só na UI.
+     */
+    public static function giftNotRedactable(): self
+    {
+        return new self(
+            self::GIFT_NOT_REDACTABLE,
+            'Presentes não podem ser apagados do chat.',
         );
     }
 }
