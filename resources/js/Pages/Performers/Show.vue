@@ -13,6 +13,7 @@ import TipModal from '@/Components/TipModal.vue'
 import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
+import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import ContentGallery from '@/Components/ContentGallery.vue'
@@ -61,6 +62,17 @@ const showGiftModal = ref(false)
 const showReportModal = ref(false)
 const showVerified = ref(false)
 
+// Foto de perfil em tela cheia (lightbox). Visitante vê só o avatar público — os
+// stories chegam todos `locked`, então o hero não mostra anel nem menu; o toque no
+// avatar cai direto aqui. ("Ver story" do menu nem aparece para visitante.)
+const avatarLightboxIndex = ref(null)
+function openAvatarPhoto() {
+    if (props.performer.avatar_url) avatarLightboxIndex.value = 0
+}
+const avatarPhotos = computed(() => (props.performer.avatar_url
+    ? [{ id: 'avatar', url: props.performer.avatar_url, full_url: props.performer.avatar_url }]
+    : []))
+
 // Acesso ao chat (só quando há conversa aberta — prop `chat`).
 const showChatAccessModal = ref(false)
 const unlockingChat = ref(false)
@@ -89,7 +101,10 @@ async function unlockChat() {
             <ProfileHero
                 :performer="performer"
                 :tips-count="0"
+                :stories="stories"
                 @open-verified="showVerified = true"
+                @open-story="router.visit(route('entrada'))"
+                @open-avatar-photo="openAvatarPhoto"
             />
 
             <div class="mt-6 lg:flex lg:items-start lg:gap-8">
@@ -228,6 +243,9 @@ async function unlockChat() {
             :has-voice="!!performer.voice_intro_url"
             @close="showVerified = false"
         />
+
+        <!-- Foto de perfil em tela cheia (avatar público). -->
+        <Lightbox v-model:index="avatarLightboxIndex" :photos="avatarPhotos" />
 
         <Modal
             v-if="chat && !chat.can_access"

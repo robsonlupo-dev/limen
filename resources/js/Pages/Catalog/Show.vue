@@ -13,6 +13,8 @@ import TipModal from '@/Components/TipModal.vue'
 import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
+import StoryViewer from '@/Components/StoryViewer.vue'
+import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import ContentGallery from '@/Components/ContentGallery.vue'
@@ -87,6 +89,38 @@ const showReportModal = ref(false)
 const showVerified = ref(false)
 const tipsCount = ref(props.performer.tips_count)
 function onTipSent(data) { tipsCount.value = data.tips_count }
+
+// Avatar → story (viewer em tela cheia) / foto (lightbox). O StoryViewer consome o
+// formato de GRUPO (deriva a imagem de route('stories.image', id)); embrulhamos os
+// stories VISÍVEIS deste perfil num grupo único. A foto do avatar abre no Lightbox.
+const storyGroups = computed(() => {
+    const viewable = props.stories.filter((s) => !s.locked)
+    if (!viewable.length) return []
+    return [{
+        performer: {
+            stage_name: props.performer.stage_name,
+            slug: props.performer.slug,
+            avatar_url: props.performer.avatar_url,
+        },
+        stories: viewable.map((s) => ({
+            id: s.id,
+            visibility_level: s.visibility_level,
+            seen: s.seen,
+            is_invite: false,
+        })),
+    }]
+})
+const storyViewerOpen = ref(false)
+function openStoryViewer() {
+    if (storyGroups.value.length) storyViewerOpen.value = true
+}
+const avatarLightboxIndex = ref(null)
+function openAvatarPhoto() {
+    if (props.performer.avatar_url) avatarLightboxIndex.value = 0
+}
+const avatarPhotos = computed(() => (props.performer.avatar_url
+    ? [{ id: 'avatar', url: props.performer.avatar_url, full_url: props.performer.avatar_url }]
+    : []))
 </script>
 
 <template>
@@ -97,7 +131,10 @@ function onTipSent(data) { tipsCount.value = data.tips_count }
                 :performer="performer"
                 :features="features"
                 :tips-count="Number(tipsCount)"
+                :stories="stories"
                 @open-verified="showVerified = true"
+                @open-story="openStoryViewer"
+                @open-avatar-photo="openAvatarPhoto"
             />
 
             <!-- Desktop: conteúdo à esquerda, ações+valores numa coluna que segue a
@@ -267,6 +304,17 @@ function onTipSent(data) { tipsCount.value = data.tips_count }
             :has-voice="!!performer.voice_intro_url"
             @close="showVerified = false"
         />
+
+        <!-- Story em tela cheia a partir do avatar (reusa o viewer do catálogo). -->
+        <StoryViewer
+            v-if="storyViewerOpen"
+            :groups="storyGroups"
+            :start-group-index="0"
+            @close="storyViewerOpen = false"
+        />
+
+        <!-- Foto de perfil em tela cheia. -->
+        <Lightbox v-model:index="avatarLightboxIndex" :photos="avatarPhotos" />
 
         <!-- Sala da chamada 1:1 aceita (PR #140): cobre a tela. -->
         <div v-if="activeCall" class="fixed inset-0 z-50 bg-black">
