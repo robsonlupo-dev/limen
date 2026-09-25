@@ -89,10 +89,17 @@ it('rejects an empty template body', function () {
 
 // ─── 4. Só admin alcança ─────────────────────────────────────────────────────────
 
-it('denies the templates screen to non-admins', function (string $role) {
+it('denies the templates screen AND its write routes to non-admins', function (string $role) {
     $user = User::factory()->create(['role' => $role, 'status' => 'active']);
+    $template = ChatCatalogTemplate::activeOrdered()->first();
 
     $this->actingAs($user)->get(route('admin.catalog-messages'))->assertForbidden();
+    $this->actingAs($user)->post(route('admin.catalog-messages.store'), ['body' => 'x'])->assertForbidden();
+    $this->actingAs($user)->patch(route('admin.catalog-messages.update', $template), ['body' => 'x'])->assertForbidden();
+    $this->actingAs($user)->delete(route('admin.catalog-messages.destroy', $template))->assertForbidden();
+
+    // Nada foi alterado pela tentativa do não-admin.
+    expect(ChatCatalogTemplate::count())->toBe(15);
 })->with(['consumer', 'performer', 'moderator']);
 
 it('requires authentication for the templates screen', function () {
