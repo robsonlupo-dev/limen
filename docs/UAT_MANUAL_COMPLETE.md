@@ -1,8 +1,8 @@
 # LIMEN — UAT_MANUAL_COMPLETE.md
 
 User Acceptance Testing — Roteiro completo passo a passo.
-198 cenários organizados por jornada (102 originais + 68 das features do Sprint 16 + 28 da moderação Fase 1→4c).
-**Atualizado: 2026-09-22** — adicionada a FASE 18 (Moderação / Trust & Safety: ações do moderador, SLA/prioridade, hub de filas, denúncia de apelido e fila de conteúdo auto-sinalizado). Versão anterior: V3 (2026-09-17).
+227 cenários organizados por jornada (102 originais + 68 das features do Sprint 16 + 28 da moderação Fase 1→4c + 29 da janela de chat/perfil 24–25/09).
+**Atualizado: 2026-09-25** — adicionada a PARTE 3 (janela 24–25/09): FASE 19 (chat 1:1 em tempo real, voz, envio otimista, desfazer envio), FASE 20 (mensagens de catálogo pré-cadastradas), FASE 21 (anel do avatar + story/foto no perfil) e FASE 22 (responder ao story → chat). Versão anterior: 2026-09-22 (FASE 18 — Moderação).
 
 ---
 
@@ -366,6 +366,12 @@ Preencha DEPOIS de todos os testes:
 
 ### 11.3 — Mensagem personalizada (15/dia grátis; membro paga para ler)
 
+> **Atualização (24–25/09):** o texto livre grátis desta superfície foi
+> **substituído por modelos pré-cadastrados** (anti-fuga de contato). O envio
+> agora é ESCOLHA de um modelo, não digitação livre — ver a **FASE 20**. Os
+> passos abaixo (#113–#118) seguem valendo para a economia (teaser, desbloqueio,
+> franquia 15/dia, performer não paga); só o "escrever" virou "escolher modelo".
+
 | # | Passo | Ação | Esperado | Crit. | Result. | Notas |
 |---|---|---|---|---|---|---|
 | 113 | Enviar mensagem | ana@ escreve mensagem personalizada a free@ | Enviada; contador cai para 14/15 | 🟡 | | |
@@ -581,6 +587,86 @@ Preencha DEPOIS de todos os testes:
 ---
 
 # ═══════════════════════════════════════════════════════════════
+# PARTE 3 — JANELA DE CHAT/PERFIL (24–25/09/2026)
+# ═══════════════════════════════════════════════════════════════
+
+> Features entregues na janela de 24–25/09 e ainda **sem 1º teste manual**. O
+> chat em tempo real (**Reverb**) está **LIGADO em produção** — o `limen.dev.br`
+> é o mesmo código no ar do `thelimen.com.br`, então testar num vale pelos dois.
+> Para o tempo real, abra o MESMO chat em dois navegadores (membro e performer).
+
+## FASE 19 — CHAT 1:1: TEMPO REAL, VOZ, ENVIO OTIMISTA, DESFAZER ENVIO
+
+> Chat 1:1 pago (a janela já aberta entre free@ e ana@). PRs #267 (envio
+> otimista), #268 (voz), #270 (balão sutil), #271 (desfazer envio).
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 199 | Tempo real (Reverb) | free@ e ana@ com o MESMO chat aberto em 2 navegadores; free@ envia um texto | Aparece **na hora** na tela da ana@, sem recarregar | 🔴 | | |
+| 200 | Envio otimista | free@ envia uma mensagem | A bolha "brota" na hora com um relógio (pendente) e troca para enviada ao confirmar | 🟡 | | |
+| 201 | Balão sutil | Observe a animação de entrada da bolha | Discreta, sem "pulo"/overshoot (estilo Insta) | 🟡 | | |
+| 202 | Mensagem de voz | free@ grava um áudio no chat | Sobe "processando" → vira player; ana@ ouve | 🔴 | | |
+| 203 | Voz não vaza por URL | Copie a URL do áudio e abra deslogado / como outro usuário | Negado (403/404) — áudio é servido por request autorizado | 🔴 | | |
+| 204 | Desfazer envio (5 min) | free@ envia e clica "Apagar" em até 5 min | Some nas DUAS pontas (vira "Mensagem apagada"); após 5 min o botão some | 🔴 | | |
+| 205 | Redação retém a prova | (técnico) A mensagem apagada no banco / na moderação | Corpo/áudio permanecem no servidor para a moderação — só somem da EXIBIÇÃO | 🔴 | | |
+| 206 | Presente não é apagável | Tente "Apagar" uma bolha de presente | Não permitido (presente não é redigível) | 🟡 | | |
+| 207 | Áudio apagado não toca | Após apagar uma voz, tente abrir a URL do áudio dela | Não serve mais (404) | 🔴 | | |
+
+---
+
+## FASE 20 — MENSAGENS DE CATÁLOGO PRÉ-CADASTRADAS (anti-fuga)
+
+> As 15 mensagens grátis diárias da performer (alcance ao catálogo de membros)
+> deixaram de ser **texto livre** e viraram **escolha de modelo**. No chat **JÁ
+> PAGO** o texto segue livre (contato liberado lá). Editáveis pelo admin. PR #274.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 208 | Picker no lugar do texto livre | ana@ abre o alcance a um membro (perfil do membro ou lista) | Ela **escolhe um MODELO** de uma lista — **não** digita texto livre | 🔴 | | |
+| 209 | `{nome}` personaliza | Escolha um modelo com `{nome}` e envie a um membro COM apelido, depois a um SEM apelido | Vira o apelido quando existe; quando não existe, o `{nome}` **some** (nunca "Membro #0000") | 🔴 | | |
+| 210 | Franquia 15/dia | ana@ envia 15 mensagens de catálogo | A 16ª é bloqueada (franquia diária) | 🟡 | | |
+| 211 | Chat pago segue livre | Dentro de uma conversa **já paga**, ana@ digita | Texto livre normal — a trava é só na superfície grátis do catálogo | 🟡 | | |
+| 212 | Admin edita modelos | admin@ em `/admin/mensagens-catalogo` cria/edita/ativa/remove um modelo | A mudança reflete no picker da performer | 🟡 | | |
+| 213 | Só admin | Um NÃO-admin tenta abrir `/admin/mensagens-catalogo` | Negado (403) | 🔴 | | |
+
+---
+
+## FASE 21 — PERFIL: ANEL DO AVATAR + STORY/FOTO (lightbox)
+
+> Tocar no avatar da performer no perfil abre um menu "Ver story / Ver foto de
+> perfil". PR #276.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 214 | Anel quando há story | Veja o perfil de uma performer COM story ativo, depois de uma SEM | Com story: **anel** dourado no avatar. Sem story: sem anel | 🟡 | | |
+| 215 | Menu do avatar | Toque no avatar de quem tem story | Abre "Ver story" e "Ver foto de perfil" | 🟡 | | |
+| 216 | Ver story | Toque em "Ver story" | Abre o viewer em tela cheia (barra de progresso, tap navega) | 🔴 | | |
+| 217 | Ver foto de perfil | Toque em "Ver foto de perfil" | Abre a foto no lightbox; **não** conta como view do story | 🟡 | | |
+| 218 | Sem story = só a foto | Toque no avatar de performer SEM story | Abre a foto direto no lightbox (sem passo de story) | 🟢 | | |
+
+---
+
+## FASE 22 — RESPONDER AO STORY → CHAT (estilo Insta)
+
+> O membro responde a um story e essa resposta vira a **1ª mensagem do chat**,
+> **abrindo/pagando a janela** (mesma economia do chat.start). A miniatura do
+> story só vai para a **dona**. Quem não pode VER o story não responde. PR #277.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 219 | Compositor no story | free@ (que **SEGUE** a ana@) abre o story dela | Vê o campo "Responder para Ana…" + o aviso "Sua resposta abre a conversa no chat" | 🔴 | | |
+| 220 | Responder abre e cobra | free@ escreve e envia a resposta | É levado ao chat; cobra o tier **uma vez** e abre a janela de 30 dias (igual chat.start) | 🔴 | | |
+| 221 | Bolha "Respondeu ao story" | Veja a mensagem na conversa | Mostra o rótulo **"Respondeu ao story"** acima do texto | 🔴 | | |
+| 222 | Miniatura só para a dona | Compare a MESMA bolha na tela da ana@ e na do free@ | ana@ vê a **miniatura** do story; o membro vê **só o rótulo** (sem miniatura) | 🔴 | | |
+| 223 | Não-seguidor não responde | Um membro que NÃO segue a ana@ (e não é Black) tenta responder um story público | Não alcança / tentativa direta dá **404**, **sem cobrança** | 🔴 | | |
+| 224 | Story vencido | Responder um story já expirado (deixe passar as 24h ou force) | **404**, sem cobrança | 🔴 | | |
+| 225 | Saldo insuficiente | Membro com saldo < custo do tier tenta responder | "Saldo insuficiente"; **nenhuma** conversa criada e **nenhum** débito | 🔴 | | |
+| 226 | Filtro de conteúdo vale | Responder com frase de risco (ex.: `faço programa completo`) | **Bloqueado** (422), sem cobrança | 🟡 | | |
+| 227 | Nível de assinantes | Story "assinantes": um membro que só SEGUE (sem Círculo ativo) tenta responder | **404** (não basta seguir; o nível exige Círculo) | 🟡 | | |
+
+---
+
+# ═══════════════════════════════════════════════════════════════
 # RESUMO EXECUTIVO — O QUE JÁ FOI TESTADO
 # ═══════════════════════════════════════════════════════════════
 
@@ -622,6 +708,15 @@ Preencha DEPOIS de todos os testes:
 | #90.3 | Chat height desktop na live |
 | #95.1 | Chat na chamada privada |
 | #95.2 | Mute na chamada privada |
+
+## Cenários NOVOS, aguardando 1º teste (🆕) — janela 24–25/09
+
+| Fase | Cenários |
+|---|---|
+| 19 Chat tempo real/voz/desfazer | #199–#207 |
+| 20 Modelos de catálogo | #208–#213 |
+| 21 Anel do avatar + story/foto | #214–#218 |
+| 22 Responder ao story → chat | #219–#227 |
 
 ---
 
