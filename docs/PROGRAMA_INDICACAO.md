@@ -92,31 +92,54 @@ pending → qualified → hold (14 dias) → rewarded
   (`ReferralService::clawback`, nova entrada no ledger — nunca edição da
   original; ledger append-only; debita até o saldo disponível).
 
-### 4.1 — Limitações conhecidas (follow-ups pós-revisão de segurança)
+### 4.1 — Estorno e linkagem de contas (fechado em 25/09)
 
 A revisão de segurança de 25/09 confirmou o invariante central (não-sacável)
-sólido e a idempotência/atribuição corretas, mas registrou duas lacunas que
-dependem de decisão de plataforma — **documentadas aqui em vez de "resolvidas"
-silenciosamente**:
+sólido e a idempotência/atribuição corretas, e apontou dois pontos, agora
+**resolvidos**:
 
-1. **Detecção automática de estorno.** A proteção PRIMÁRIA contra estorno é o
-   **hold de 14 dias** (atrasa o crédito para além da janela de contestação
-   PIX/MED) mais a **re-verificação da base no momento do crédito**
-   (`baseStillValid`). Porém a plataforma **ainda não tem webhook de
-   refund/chargeback do Asaas** (só trata `PAYMENT_RECEIVED/CONFIRMED/OVERDUE`),
-   então um `PAYMENT_REFUNDED` **não** vira `payments.status = refunded` sozinho
-   hoje — logo a re-verificação do lado do membro só passa a "morder" quando esse
-   webhook existir. `ReferralService::clawback()` já está implementado e testado,
-   pronto para ser acionado por esse webhook (follow-up) ou por ação
-   administrativa. **Impacto limitado pela não-sacabilidade** (§8): um bônus
-   indevido é crédito de plataforma, nunca saída de caixa direta.
-2. **Linkagem membro↔membro por IP.** `registration_ip_hash` só é coletado no
-   cadastro de **performer** hoje; o de membro não. Então a checagem de
-   "contas ligadas" entre dois membros vale por **CPF** (que o membro coleta),
-   mas não por IP — um anel de auto-indicação com CPFs distintos no mesmo
-   dispositivo escapa da trava de IP. Coletar `registration_ip_hash` também no
-   cadastro de membro fecha a lacuna (follow-up). **Impacto limitado** pela
-   não-sacabilidade + o custo real da compra que precisa acontecer.
+1. **Detecção automática de estorno — FEITO.** O `PaymentService::handleWebhook`
+   trata `PAYMENT_REFUNDED` e `PAYMENT_REVERSED` — reversão **TOTAL e definitiva** —,
+   confirmando pelo `payment.status` do payload (REFUNDED/REVERSED) antes de agir:
+   marca `payments.status = refunded` e chama
+   `ReferralService::onMemberPurchaseReversed`. Se, depois do estorno, o membro
+   não tem mais nenhuma compra confirmada, a indicação é **retida** (antes do
+   crédito) ou **estornada** via `clawback()` (depois do crédito, debitando até o
+   saldo disponível). Se sobra outra compra confirmada, a base se sustenta e nada
+   muda. **De propósito, NÃO agimos sobre reembolso PARCIAL**
+   (`PAYMENT_PARTIALLY_REFUNDED`, não assinado) **nem sobre chargeback apenas
+   SOLICITADO** (`PAYMENT_CHARGEBACK_REQUESTED`, provisório): um clawback sobre
+   sinal parcial/incerto seria irreversível e injusto — o **hold de 14 dias** +
+   a **re-verificação no crédito** (`baseStillValid`) cobrem a janela. (O estorno
+   dos TOKENS comprados em si continua fora de escopo — decisão de produto à parte;
+   aqui só o efeito na indicação.)
+2. **Linkagem de contas — IP tratado como SINAL, sem coletar IP de membro.**
+   O uso do IP foi separado do uso do CPF, respeitando a decisão de privacidade
+   já existente no projeto:
+   - **`registration_ip_hash` NÃO é coletado no cadastro de membro** — e continua
+     assim de propósito. A coleta de IP tem **finalidade declarada** (detectar rede
+     de exploração de *performers*); membro está fora desse escopo, então a coluna
+     fica nula por **minimização de dados (LGPD)**, não "guarda por via das
+     dúvidas". Isso é travado pelo `SharedRegistrationIpTest` ("não grava o IP do
+     membro em coluna nenhuma") — uma tentativa de coletar IP de membro foi
+     revertida por causa dessa decisão.
+   - **Atribuição** (criar o vínculo) bloqueia **só por MESMO CPF** (`sharesCpf`) —
+     CPF é um-por-pessoa, então é a mesma pessoa com duas contas. **Mesmo IP NÃO
+     bloqueia a atribuição** (para quem tem IP, ou seja performers): uma casa/Wi-Fi
+     inteira compartilha o IP, e indicar alguém da mesma casa é legítimo. Segue a
+     filosofia do projeto: sinal compartilhado é FLAG, não bloqueio automático
+     (igual ao `blacklist_hit` e ao próprio flag de IP compartilhado de performer).
+   - **Trava do "terceiro pagador"** da performer usa o sinal mais amplo
+     (`areLinkedAccounts` = mesmo CPF **ou** mesmo IP): recusar um pagador suspeito
+     ali é conservador e a performer ainda qualifica por outro pagador genuíno. Só
+     morde quando o pagador é uma performer (que tem IP); para pagador membro, vale
+     o CPF.
+   - **Risco residual ACEITO:** um anel de auto-indicação de *membro* com CPFs
+     distintos no mesmo dispositivo não é pego (não coletamos IP de membro). É
+     aceito porque (a) fechá-lo exigiria coletar PII que decidimos não coletar
+     (LGPD), e (b) é economicamente inviável de qualquer forma: o bônus é
+     **não-sacável** e a conversão exige uma **compra real** — dinheiro que sai do
+     bolso do fraudador para um bônus que não vira caixa.
 
 ## 5. Modelagem contábil
 

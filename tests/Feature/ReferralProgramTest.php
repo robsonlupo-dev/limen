@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AgeVerification;
 use App\Models\Payment;
 use App\Models\PerformerProfile;
 use App\Models\Referral;
@@ -128,14 +129,38 @@ it('não cria vínculo para código inexistente', function () {
         ->and(Referral::count())->toBe(0);
 });
 
-it('bloqueia auto-indicação por contas ligadas (mesmo IP de cadastro)', function () {
-    $referrer = refPerformer(['registration_ip_hash' => 'same-hash']);
-    $referred = refPerformer(['registration_ip_hash' => 'same-hash']);
+it('bloqueia auto-indicação por MESMO CPF (mesma pessoa)', function () {
+    $referrer = refMember();
+    $referred = refMember();
+    // Mesmo digest de CPF nos dois = mesma pessoa com duas contas.
+    $hash = hash('sha256', 'mesma-pessoa');
+    foreach ([$referrer, $referred] as $u) {
+        AgeVerification::create([
+            'user_id' => $u->id,
+            'method' => AgeVerification::METHOD_CPF_DOB,
+            'cpf_hmac' => $hash,
+            'verified_at' => now(),
+        ]);
+    }
 
     refLink($this->svc, $referrer, $referred);
 
     expect($referred->fresh()->referred_by_user_id)->toBeNull()
         ->and(Referral::count())->toBe(0);
+});
+
+it('mesmo IP NÃO bloqueia a atribuição (indicar da mesma casa é legítimo)', function () {
+    // Só performer tem registration_ip_hash coletado (membro não — decisão de LGPD,
+    // ver SharedRegistrationIpTest). Duas performers do mesmo IP: a atribuição é
+    // permitida — o IP é sinal, não bloqueio. (CPF só existe após o KYC, então aqui
+    // o que decide é a política de IP-sinal.)
+    $referrer = refPerformer(['registration_ip_hash' => 'home-wifi']);
+    $referred = refPerformer(['registration_ip_hash' => 'home-wifi']);
+
+    refLink($this->svc, $referrer, $referred);
+
+    expect($referred->fresh()->referred_by_user_id)->toBe($referrer->id)
+        ->and(Referral::where('referred_user_id', $referred->id)->count())->toBe(1);
 });
 
 it('não atribui quando o programa está desligado', function () {
@@ -228,6 +253,98 @@ it('clawback estorna o bônus já creditado e debita até o saldo disponível', 
         ->and(app(TokenService::class)->balance($referred))->toBe(0)
         ->and($referral->fresh()->status)->toBe('clawed_back')
         ->and(ReferralReward::where('referral_id', $referral->id)->where('status', 'reversed')->count())->toBe(2);
+});
+
+it('reembolso pós-crédito estorna a indicação (onMemberPurchaseReversed)', function () {
+    $referrer = refMember();
+    $referred = refMember();
+    refLink($this->svc, $referrer, $referred);
+    $payment = refConfirmedPayment($referred);
+    $this->svc->onReferredMemberPurchase($referred);
+    $this->travel(15)->days();
+    $this->svc->processHolds(); // credita 10 / 5
+
+    // Simula o webhook de reembolso: o pagamento vira refunded e dispara o hook.
+    $payment->update(['status' => 'refunded']);
+    $this->svc->onMemberPurchaseReversed($referred);
+
+    expect(app(TokenService::class)->balance($referrer))->toBe(0)
+        ->and(app(TokenService::class)->balance($referred))->toBe(0)
+        ->and(Referral::where('referred_user_id', $referred->id)->first()->status)->toBe('clawed_back');
+});
+
+it('reembolso durante o hold retém a indicação (sem creditar)', function () {
+    $referrer = refMember();
+    $referred = refMember();
+    refLink($this->svc, $referrer, $referred);
+    $payment = refConfirmedPayment($referred);
+    $this->svc->onReferredMemberPurchase($referred); // qualified, ainda em hold
+
+    $payment->update(['status' => 'refunded']);
+    $this->svc->onMemberPurchaseReversed($referred);
+
+    $referral = Referral::where('referred_user_id', $referred->id)->first();
+    expect($referral->status)->toBe('clawed_back')
+        ->and($referral->rewards()->where('status', 'skipped')->count())->toBe(2)
+        ->and(app(TokenService::class)->balance($referrer))->toBe(0);
+});
+
+it('reembolso não estorna se resta outra compra confirmada', function () {
+    $referrer = refMember();
+    $referred = refMember();
+    refLink($this->svc, $referrer, $referred);
+    $first = refConfirmedPayment($referred);
+    refConfirmedPayment($referred); // segunda compra confirmada
+    $this->svc->onReferredMemberPurchase($referred);
+    $this->travel(15)->days();
+    $this->svc->processHolds();
+
+    $first->update(['status' => 'refunded']);
+    $this->svc->onMemberPurchaseReversed($referred);
+
+    // A base ainda se sustenta (sobrou uma compra confirmada) — nada é estornado.
+    expect(app(TokenService::class)->balance($referrer))->toBe(10)
+        ->and(Referral::where('referred_user_id', $referred->id)->first()->status)->toBe('rewarded');
+});
+
+it('webhook de reembolso TOTAL (payload REFUNDED) estorna a indicação', function () {
+    $referrer = refMember();
+    $referred = refMember();
+    refLink($this->svc, $referrer, $referred);
+    $payment = refConfirmedPayment($referred);
+    $this->svc->onReferredMemberPurchase($referred);
+    $this->travel(15)->days();
+    $this->svc->processHolds();
+
+    app(App\Services\PaymentService::class)->handleWebhook([
+        'event' => 'PAYMENT_REFUNDED',
+        'id' => 'evt_refund_total',
+        'payment' => ['id' => $payment->provider_charge_id, 'status' => 'REFUNDED'],
+    ]);
+
+    expect($payment->fresh()->status)->toBe('refunded')
+        ->and(app(TokenService::class)->balance($referrer))->toBe(0)
+        ->and(Referral::where('referred_user_id', $referred->id)->first()->status)->toBe('clawed_back');
+});
+
+it('webhook de reembolso PARCIAL (payload ainda CONFIRMED) não derruba venda nem bônus', function () {
+    $referrer = refMember();
+    $referred = refMember();
+    refLink($this->svc, $referrer, $referred);
+    $payment = refConfirmedPayment($referred);
+    $this->svc->onReferredMemberPurchase($referred);
+    $this->travel(15)->days();
+    $this->svc->processHolds();
+
+    app(App\Services\PaymentService::class)->handleWebhook([
+        'event' => 'PAYMENT_REFUNDED',
+        'id' => 'evt_refund_partial',
+        'payment' => ['id' => $payment->provider_charge_id, 'status' => 'CONFIRMED'],
+    ]);
+
+    expect($payment->fresh()->status)->toBe('confirmed')
+        ->and(app(TokenService::class)->balance($referrer))->toBe(10)
+        ->and(Referral::where('referred_user_id', $referred->id)->first()->status)->toBe('rewarded');
 });
 
 it('é idempotente: reprocessar a compra não duplica recompensas', function () {

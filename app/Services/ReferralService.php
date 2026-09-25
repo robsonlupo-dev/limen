@@ -111,10 +111,11 @@ class ReferralService
                 return; // código inexistente ou o próprio código (impossível no cadastro, mas defensivo)
             }
 
-            // Auto-indicação por contas ligadas (mesmo CPF / mesmo IP de cadastro):
-            // o vínculo nem é criado. É a 1ª camada; a 2ª é a exigência de terceiro
-            // pagador na conversão da performer.
-            if ($this->areLinkedAccounts($referrer, $newUser)) {
+            // Auto-indicação: bloqueia só por MESMO CPF (mesma pessoa, definitivo).
+            // Mesmo IP NÃO bloqueia — indicar gente da mesma casa é legítimo (o IP é
+            // sinal fraco). A 2ª camada é a exigência de terceiro pagador na conversão
+            // da performer, que aí sim usa o sinal de IP.
+            if ($this->sharesCpf($referrer, $newUser)) {
                 Log::info('referral.attribution_blocked_linked', [
                     'referrer_id' => $referrer->id,
                     'referred_id' => $newUser->id,
@@ -173,7 +174,7 @@ class ReferralService
             }
 
             $referrer = $referral->referrer;
-            if (! $referrer || $this->areLinkedAccounts($referrer, $member)) {
+            if (! $referrer || $this->sharesCpf($referrer, $member)) {
                 $referral->update(['status' => 'clawed_back', 'rejection_reason' => 'linked_accounts']);
 
                 return;
@@ -183,6 +184,49 @@ class ReferralService
         } catch (\Throwable $e) {
             // Confirmação de pagamento nunca pode quebrar por causa da indicação.
             Log::warning('referral.member_purchase_hook_failed', [
+                'member_id' => $member->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * A compra que qualificou uma indicação de membro foi ESTORNADA/CONTESTADA.
+     * Chamado do PaymentService::handleReversal. Se, depois do estorno, o membro
+     * NÃO tem mais nenhuma compra confirmada, retém o bônus (antes do crédito) ou o
+     * estorna (depois). Se ainda resta uma compra confirmada, a base se sustenta e
+     * nada muda. Idempotente e nunca lança.
+     */
+    public function onMemberPurchaseReversed(User $member): void
+    {
+        try {
+            if (! $this->enabled()) {
+                return;
+            }
+
+            $referral = Referral::where('referred_user_id', $member->id)
+                ->where('referred_role_at_signup', 'member')
+                ->whereIn('status', ['qualified', 'rewarded'])
+                ->first();
+
+            if (! $referral) {
+                return;
+            }
+
+            // A base ainda se sustenta se sobrou QUALQUER compra confirmada.
+            if ($member->payments()->where('status', 'confirmed')->exists()) {
+                return;
+            }
+
+            if ($referral->status === 'rewarded') {
+                $this->clawback($referral, 'base_reversed'); // estorna o já creditado
+            } else {
+                // Ainda em hold (não creditado): retém.
+                $referral->update(['status' => 'clawed_back', 'rejection_reason' => 'base_reversed']);
+                $referral->rewards()->where('status', 'pending')->update(['status' => 'skipped']);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('referral.member_reversal_hook_failed', [
                 'member_id' => $member->id,
                 'error' => $e->getMessage(),
             ]);
@@ -447,12 +491,10 @@ class ReferralService
      * até o saldo disponível (o beneficiário pode já ter gastado parte — recupera o
      * que restou; ledger append-only, saldo nunca fica negativo).
      *
-     * ⚠️ Hoje NÃO há gatilho automático: a plataforma ainda não tem webhook de
-     * refund/chargeback do Asaas (só PAYMENT_RECEIVED/CONFIRMED/OVERDUE). Este é o
-     * ponto de entrada para quando esse webhook existir (follow-up) ou para uma ação
-     * administrativa. O hold de 14 dias + a re-verificação da base no crédito
-     * (baseStillValid) são a proteção PRIMÁRIA enquanto isso. Ver
-     * docs/PROGRAMA_INDICACAO.md §4 (Limitações conhecidas).
+     * Acionado por `onMemberPurchaseReversed` (webhook de refund/chargeback do
+     * Asaas → PaymentService::handleReversal) e disponível para ação administrativa.
+     * O hold de 14 dias + a re-verificação da base no crédito (baseStillValid) são a
+     * proteção em camadas. Ver docs/PROGRAMA_INDICACAO.md §4.1.
      */
     public function clawback(Referral $referral, string $reason): void
     {
@@ -492,30 +534,36 @@ class ReferralService
     // ── Anti-fraude: contas ligadas ───────────────────────────────────────────
 
     /**
-     * Dois usuários parecem a mesma pessoa? Mesmo IP de cadastro (performer) OU
-     * mesmo CPF (digest HMAC em age_verifications). Reusa os sinais anti-fraude que
-     * o projeto já coleta — sem inventar fingerprint novo.
+     * Mesma PESSOA por identidade DEFINITIVA: mesmo id, ou mesmo CPF (digest HMAC em
+     * age_verifications). CPF é um-por-pessoa, então isto é bloqueio duro legítimo —
+     * é o que barra a ATRIBUIÇÃO (uma pessoa não indica a si mesma com 2ª conta).
      */
-    public function areLinkedAccounts(User $a, User $b): bool
+    public function sharesCpf(User $a, User $b): bool
     {
         if ($a->id === $b->id) {
             return true;
         }
 
-        if (filled($a->registration_ip_hash)
-            && $a->registration_ip_hash === $b->registration_ip_hash) {
+        $cpfsA = $this->cpfHashesFor($a);
+
+        return $cpfsA !== [] && array_intersect($cpfsA, $this->cpfHashesFor($b)) !== [];
+    }
+
+    /**
+     * Sinal MAIS AMPLO de contas ligadas: mesma pessoa (sharesCpf) OU mesmo IP de
+     * cadastro. O IP é um sinal fraco (uma casa/rede inteira compartilha), então NÃO
+     * bloqueia a atribuição — indicar alguém da mesma casa é legítimo. É usado só na
+     * trava do "terceiro pagador" da performer, onde recusar um pagador suspeito é
+     * conservador e a performer ainda qualifica por outro pagador genuíno.
+     */
+    public function areLinkedAccounts(User $a, User $b): bool
+    {
+        if ($this->sharesCpf($a, $b)) {
             return true;
         }
 
-        $cpfsA = $this->cpfHashesFor($a);
-        if ($cpfsA !== []) {
-            $shared = array_intersect($cpfsA, $this->cpfHashesFor($b));
-            if ($shared !== []) {
-                return true;
-            }
-        }
-
-        return false;
+        return filled($a->registration_ip_hash)
+            && $a->registration_ip_hash === $b->registration_ip_hash;
     }
 
     /** @return array<int, string> digests de CPF conhecidos do usuário (membro). */

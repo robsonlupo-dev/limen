@@ -2687,9 +2687,15 @@ hardcoded) · tabelas `referrals` / `referral_rewards` · colunas
 - **Footprint zero desligado:** todo o caminho fica atrás de `config('referral.enabled')`
   (default false) — a suíte inteira roda com o programa desligado.
 
-**Limitações conhecidas (follow-ups):** detecção automática de estorno depende de
-um webhook de refund/chargeback do Asaas que ainda não existe (o hold de 14 dias +
-`baseStillValid` são a proteção primária; `ReferralService::clawback` está pronto
-para o gatilho); e `registration_ip_hash` só é coletado no cadastro de performer,
-então a linkagem membro↔membro vale por CPF, não por IP. Ver
-`docs/PROGRAMA_INDICACAO.md` §4.1.
+**Estorno e linkagem (fechado 25/09):** o webhook do Asaas trata
+`PAYMENT_REFUNDED`/`PAYMENT_REVERSED` (reversão TOTAL, confirmada pelo
+`payment.status` do payload) → `payments.status = refunded` +
+`ReferralService::onMemberPurchaseReversed` (retém antes do crédito, `clawback()`
+depois; não estorna se sobra outra compra confirmada). Reembolso parcial e
+chargeback só solicitado NÃO acionam clawback (sinal provisório/parcial).
+**Linkagem:** o IP é sinal-só na ATRIBUIÇÃO (bloqueio duro só por `sharesCpf` —
+indicar da mesma casa é legítimo) e entra no sinal amplo (`areLinkedAccounts`,
+CPF ou IP) só na trava do "terceiro pagador". **IP de membro NÃO é coletado** —
+minimização LGPD, travado pelo `SharedRegistrationIpTest`; o anel membro
+mesmo-dispositivo/CPF-distinto é risco residual aceito (bounded pela
+não-sacabilidade + custo real da compra). Ver `docs/PROGRAMA_INDICACAO.md` §4.1.
