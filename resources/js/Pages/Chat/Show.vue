@@ -738,13 +738,16 @@ watch(() => props.messages.data.length, scrollToBottom)
    no lado de quem enviou), como no WhatsApp, em vez de aparecer seca. Uma vez
    só, no mount da bolha otimista. */
 @keyframes msg-pop {
-    0%   { opacity: 0; transform: scale(0.6) translateY(6px); }
-    60%  { opacity: 1; transform: scale(1.03); }
+    /* Sutil, estilo WhatsApp: um fade com crescimento mínimo e uma leve subida,
+       SEM overshoot (o salto além de 1 era o que fazia parecer "abrupto"). Os
+       dois botões de ajuste: a escala inicial (0.97 — quanto menor, mais visível
+       o crescer) e a duração no .msg-pop abaixo. */
+    0%   { opacity: 0; transform: scale(0.97) translateY(4px); }
     100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 .msg-pop {
     transform-origin: bottom right;
-    animation: msg-pop 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: msg-pop 280ms cubic-bezier(0.25, 0.8, 0.3, 1);
 }
 /* Acessibilidade (regra do projeto): quem pede menos movimento não vê a escala —
    a bolha só aparece. */
