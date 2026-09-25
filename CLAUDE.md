@@ -7,7 +7,9 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 
 PHP 8.4.24 + Laravel 13 · MySQL 8.4 (Docker) · Redis (cache/filas) · front **Inertia
 + Vue 3 + Tailwind v4** (+ Ziggy) · pagamento **Asaas/PIX** · realtime **Laravel
-Reverb** (chat; servidor Reverb ainda não roda — dev/staging usam driver `log`) ·
+Reverb** (chat em tempo real **LIGADO em produção** desde 25/09/2026 — processo
+`limen-reverb` no supervisor, driver `reverb`, WSS via nginx `/app`; ver
+`docs/runbooks/REVERB_ATIVACAO.md`. Só o clone de BUILD `~/limen-dev` usa `log`) ·
 vídeo em tempo real **LiveKit** (live/chamada/group, **sobe DESLIGADO** em produção via
 `FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED`) · `ffmpeg` no servidor (sanitização de
 upload de vídeo/áudio). **A descrição detalhada da pilha, dos serviços e de cada tabela
@@ -221,6 +223,15 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   **VM local (`~/teste`) foi descontinuada.** `~/limen-dev` (dev) e
   `/var/www/limen` (staging/prod) são **clones SEPARADOS** — não presuma estado
   comum entre eles.
+- **Topologia dos domínios (confirmada 25/09/2026) — NÃO são dois ambientes.**
+  O `/var/www/limen` serve **OS DOIS domínios**: `limen.dev.br` (apelido de
+  desenvolvimento) **e** `thelimen.com.br` (produção) têm o **mesmo `root
+  /var/www/limen/public`** no nginx. Mesmo checkout, mesmo `.env`, mesmo banco,
+  mesmo Reverb — é UMA instância com dois `server_name`, não duas. Consequência
+  prática: **validar no `limen.dev.br` = validar produção** (é o mesmo código no ar);
+  e uma variável única (ex.: `VITE_REVERB_HOST=limen.dev.br`) vale para os dois
+  domínios. O `~/limen-dev` é só o clone de **BUILD/TESTES** (gera patches, roda a
+  suíte) — **ele NÃO serve nenhum site.**
 - **`git credential store` configurado no servidor:** push/pull não pedem senha.
   **Segue sem `gh` CLI**, mas há **token do GitHub no credential store** e a API REST
   aceita `POST`/`PATCH` — então **abrir/atualizar PR por código FUNCIONA** (ver "Nota
