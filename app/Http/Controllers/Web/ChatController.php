@@ -302,22 +302,36 @@ class ChatController extends Controller
                     'sender_id' => $m->sender_id,
                     'created_at' => $m->created_at,
                     'locked' => $state['locked'],
-                    // Corpo só quando há leitura plena e destravada.
-                    'body' => (! $state['locked']) ? $m->body : null,
+                    // "Desfazer envio" (feat/chat-unsend-message): redigida pelo
+                    // remetente → a tela mostra "Mensagem apagada" nas duas pontas.
+                    // O conteúdo NÃO trafega (nem body, nem áudio, nem presente),
+                    // exatamente como se estivesse travado — só a moderação lê o
+                    // original. `can_redact` liga o botão "apagar" só nas MINHAS
+                    // mensagens ainda dentro da janela e não redigidas.
+                    'redacted' => $m->isRedacted(),
+                    // Presente NÃO é redigível: é uma ação de dinheiro (tokens já
+                    // movidos/creditados); esconder a bolha daria a falsa ideia de
+                    // estorno. Redação vale para texto e voz.
+                    'can_redact' => ! $m->isRedacted()
+                        && $m->gift_id === null
+                        && $m->sender_id === $request->user()->id
+                        && $m->created_at->copy()->addMinutes((int) config('chat.redact_window_minutes'))->isFuture(),
+                    // Corpo só quando há leitura plena e destravada, e não redigido.
+                    'body' => (! $state['locked'] && ! $m->isRedacted()) ? $m->body : null,
                     // Presente (feat/gift-from-profile): sempre exposto, mesmo com a
                     // leitura travada. É a AÇÃO do próprio membro (presente é sempre
                     // membro→performer) e o catálogo é público — nada de PII. A tela
-                    // renderiza o ícone do item pelo slug.
-                    'gift_slug' => $m->gift?->slug,
-                    'gift_name' => $m->gift?->name,
+                    // renderiza o ícone do item pelo slug. (Redigida → escondido.)
+                    'gift_slug' => $m->isRedacted() ? null : $m->gift?->slug,
+                    'gift_name' => $m->isRedacted() ? null : $m->gift?->name,
                     // Voz (feat/chat-voice-message): status/duração sempre (a UI
                     // mostra "processando…"/"falhou" e o comprimento), mas a URL do
                     // áudio SÓ com leitura destravada — segue o paywall do corpo. A
                     // performer nunca fica travada (state.locked é sempre false do
-                    // lado dela).
-                    'audio_status' => $m->audio_status,
-                    'audio_duration' => $m->audio_duration_seconds,
-                    'audio_url' => (! $state['locked'] && $m->audio_status === Message::AUDIO_READY)
+                    // lado dela). Redigida → sem status nem URL (vira "apagada").
+                    'audio_status' => $m->isRedacted() ? null : $m->audio_status,
+                    'audio_duration' => $m->isRedacted() ? null : $m->audio_duration_seconds,
+                    'audio_url' => (! $state['locked'] && ! $m->isRedacted() && $m->audio_status === Message::AUDIO_READY)
                         ? route('chat.audio', [$conversation->id, $m->id])
                         : null,
                     // Confirmação de leitura só nas MINHAS mensagens, e só se
@@ -449,6 +463,11 @@ class ChatController extends Controller
     {
         abort_if($request->user()->cannot('view', $conversation), 404);
         abort_if($message->conversation_id !== $conversation->id, 404);
+        // "Desfazer envio" (feat/chat-unsend-message): áudio redigido fica
+        // indisponível aqui igual ao corpo de texto — senão o destinatário poderia
+        // rebuscar os bytes pela URL direta depois do "apagar". A moderação ouve o
+        // áudio retido por outro endpoint (moderacao.evidence.message-audio).
+        abort_if($message->isRedacted(), 404);
         abort_unless($message->audio_status === Message::AUDIO_READY && $message->audio_path, 404);
 
         // Paywall: com a leitura travada (grace/expired), o áudio fica indisponível
@@ -465,6 +484,26 @@ class ChatController extends Controller
             'Content-Disposition' => 'inline; filename="mensagem-de-voz.mp3"',
             'Cache-Control' => 'private, no-store, max-age=0',
         ]);
+    }
+
+    /**
+     * "Desfazer envio" (feat/chat-unsend-message): o remetente redige a própria
+     * mensagem numa janela curta. Redação de EXIBIÇÃO — o conteúdo some da tela das
+     * duas pontas, mas o original fica retido para a moderação. Sem estorno de
+     * token. A policy `view` confere participação; o resto (é sua? dentro do
+     * prazo?) é do ChatService.
+     */
+    public function destroyMessage(Request $request, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_if($request->user()->cannot('view', $conversation), 404);
+
+        try {
+            $this->chatService->redactMessage($conversation, $request->user(), $message);
+        } catch (ChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['redacted' => true], 200);
     }
 
     /**

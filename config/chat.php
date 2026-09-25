@@ -30,4 +30,10 @@ return [
 
     // Tamanho máximo do corpo de uma mensagem, em caracteres.
     'max_length' => (int) env('CHAT_MESSAGE_MAX_LENGTH', 1000),
+
+    // "Desfazer envio" (feat/chat-unsend-message): janela, em MINUTOS a partir do
+    // envio, em que o remetente pode redigir a própria mensagem. Curta de
+    // propósito — é conveniência de UX, não uma forma de apagar rastro (o
+    // conteúdo original é RETIDO para a moderação de qualquer forma).
+    'redact_window_minutes' => (int) env('CHAT_REDACT_WINDOW_MINUTES', 5),
 ];

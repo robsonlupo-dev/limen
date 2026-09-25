@@ -562,6 +562,15 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->whereNumber('conversation')
         ->name('chat.messages.store');
 
+    // "Desfazer envio" (feat/chat-unsend-message): o remetente redige a própria
+    // mensagem numa janela curta. NÃO apaga do banco — esconde na exibição e
+    // retém o original para a moderação. throttle apertado (é ação de correção,
+    // não de volume).
+    Route::delete('/chat/{conversation}/mensagens/{message}', [ChatController::class, 'destroyMessage'])
+        ->middleware(['throttle:30,1', 'documents.accepted'])
+        ->whereNumber('conversation')->whereNumber('message')
+        ->name('chat.messages.destroy');
+
     // Mensagem de voz (feat/chat-voice-message): upload (multipart) num throttle
     // mais apertado — é mídia, como o upload da intro/foto — e o serving dos bytes.
     Route::post('/chat/{conversation}/audio', [ChatController::class, 'storeAudio'])

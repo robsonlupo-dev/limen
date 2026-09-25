@@ -6,7 +6,7 @@ import Button from '@/Components/Button.vue'
 import SharePhotoModal from '@/Components/SharePhotoModal.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
 import ReportNicknameModal from '@/Components/ReportNicknameModal.vue'
-import { postJson, postForm } from '@/lib/http'
+import { postJson, postForm, deleteJson } from '@/lib/http'
 
 const props = defineProps({
     conversation: { type: Object, required: true },
@@ -365,6 +365,26 @@ function reloadThread() {
     router.reload({ only: ['messages', 'access', 'balance'], onSuccess: scrollToBottom })
 }
 
+// "Desfazer envio" (feat/chat-unsend-message): só nas MINHAS mensagens dentro da
+// janela (o servidor reconfere; `can_redact` só liga o botão). Redige na tela das
+// duas pontas — o conteúdo some, mas o original fica retido para a moderação.
+const redactingKey = ref(null)
+async function redactMessage(m) {
+    if (!m?.id || !m.can_redact || redactingKey.value) return
+    if (!window.confirm('Apagar esta mensagem? Ela deixa de aparecer para vocês dois.')) return
+
+    redactingKey.value = m.id
+    sendError.value = ''
+    try {
+        await deleteJson(route('chat.messages.destroy', [props.conversation.id, m.id]))
+        reloadThread()
+    } catch (e) {
+        sendError.value = sendErrorMessage(e)
+    } finally {
+        redactingKey.value = null
+    }
+}
+
 function loadOlder() {
     // Carrega a página anterior (mais antiga) via visita Inertia preservando o
     // scroll. Simples: navega para ?page=n+1 (id desc → páginas maiores = mais
@@ -390,6 +410,11 @@ onMounted(() => {
         channel.listen('.message.sent', (payload) => {
             // O broadcast traz só metadados (nunca o corpo). Recarrega o thread
             // pelo show(), que aplica o paywall de leitura server-side.
+            if (payload.sender_id !== myId.value) reloadThread()
+        })
+        // "Desfazer envio" (feat/chat-unsend-message): a outra ponta recarrega e a
+        // bolha vira "Mensagem apagada". Quem apagou já atualizou no próprio reload.
+        channel.listen('.message.redacted', (payload) => {
             if (payload.sender_id !== myId.value) reloadThread()
         })
     }
@@ -526,11 +551,29 @@ watch(() => props.messages.data.length, scrollToBottom)
                     </div>
 
                     <div class="flex" :class="isMine(m) ? 'justify-end' : 'justify-start'">
+                        <!-- "Desfazer envio" (feat/chat-unsend-message): o remetente
+                             redigiu a mensagem. Vale para os dois lados e para
+                             qualquer tipo (texto/voz/presente) — o conteúdo não vem
+                             do servidor; só a moderação lê o original. -->
+                        <div
+                            v-if="m.redacted"
+                            class="max-w-[75%] flex flex-col"
+                            :class="isMine(m) ? 'items-end' : 'items-start'"
+                        >
+                            <div
+                                class="flex items-center gap-2 rounded-2xl border border-dashed border-frame bg-surface/60 px-4 py-2.5"
+                                :class="isMine(m) ? 'rounded-br-sm' : 'rounded-bl-sm'"
+                            >
+                                <svg class="h-3.5 w-3.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18" /><path d="M10.5 5.5A2 2 0 0 1 12 5h0a2 2 0 0 1 2 2v.5M5 8h2m10 0h2" /><path d="M6 8l1 11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l.4-4.5" /></svg>
+                                <span class="text-sm italic text-muted">Mensagem apagada</span>
+                            </div>
+                            <span class="pt-1 pr-1 text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
+                        </div>
                         <!-- Presente (feat/gift-from-profile): bolha com o ÍCONE do
                              item, sempre visível (é a ação do próprio membro, nunca
                              atrás do paywall). Presente é sempre membro→performer. -->
                         <div
-                            v-if="m.gift_slug"
+                            v-else-if="m.gift_slug"
                             class="max-w-[75%] flex flex-col"
                             :class="isMine(m) ? 'items-end' : 'items-start'"
                         >
@@ -579,6 +622,13 @@ watch(() => props.messages.data.length, scrollToBottom)
                                 {{ timeLabel(m.created_at) }}
                                 <span v-if="m.audio_status === 'ready' && m.audio_duration">· {{ fmtElapsed(m.audio_duration) }}</span>
                                 <span v-if="isMine(m) && m.read_at">· Lida</span>
+                                <button
+                                    v-if="m.can_redact"
+                                    type="button"
+                                    @click="redactMessage(m)"
+                                    :disabled="redactingKey === m.id"
+                                    class="px-1.5 py-0.5 text-[10px] text-muted underline decoration-dotted underline-offset-2 hover:text-gold disabled:opacity-50"
+                                >Apagar</button>
                             </span>
                         </div>
                         <!-- Mensagem legível -->
@@ -598,6 +648,13 @@ watch(() => props.messages.data.length, scrollToBottom)
                             <span class="flex items-center gap-1.5 pt-1 pr-1 text-[10px] text-muted">
                                 {{ timeLabel(m.created_at) }}
                                 <span v-if="isMine(m) && m.read_at">· Lida</span>
+                                <button
+                                    v-if="m.can_redact"
+                                    type="button"
+                                    @click="redactMessage(m)"
+                                    :disabled="redactingKey === m.id"
+                                    class="px-1.5 py-0.5 text-[10px] text-muted underline decoration-dotted underline-offset-2 hover:text-gold disabled:opacity-50"
+                                >Apagar</button>
                             </span>
                         </div>
                     </div>

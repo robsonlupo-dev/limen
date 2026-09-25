@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\MessageRedacted;
 use App\Events\MessageSent;
 use App\Events\NewMessage;
 use App\Exceptions\ChatException;
@@ -16,6 +17,7 @@ use App\Models\PerformerInterest;
 use App\Models\PerformerMessageQuota;
 use App\Models\PerformerProfile;
 use App\Models\User;
+use App\Support\Audit;
 use App\Support\ChatContentFilter;
 use App\Support\FanAlias;
 use App\Support\MessageTeaser;
@@ -216,6 +218,62 @@ class ChatService
         ProcessChatAudio::dispatch($message->id, $rawPath);
 
         $this->broadcastMessage($conversation, $message);
+
+        return $message;
+    }
+
+    /**
+     * "Desfazer envio" (feat/chat-unsend-message). O remetente REDIGE a própria
+     * mensagem numa janela curta (config chat.redact_window_minutes): o conteúdo
+     * some da tela das duas pontas, mas `body`/áudio ORIGINAL fica no banco — a
+     * moderação segue lendo a prova (princípio nº 1, retenção). NÃO é hard-delete,
+     * NÃO estorna token (a cobrança é por JANELA de acesso, não por mensagem), e
+     * NÃO some da denúncia: a mensagem segue denunciável e a evidência intacta.
+     *
+     * Idempotente: redigir de novo o que já está redigido é no-op silencioso.
+     *
+     * @throws ChatException não-participante, não é sua mensagem, ou prazo vencido
+     */
+    public function redactMessage(Conversation $conversation, User $sender, Message $message): Message
+    {
+        if (! $conversation->hasParticipant($sender)) {
+            throw ChatException::notAParticipant();
+        }
+
+        // A mensagem tem que ser DESTA conversa e DO próprio remetente. As duas
+        // checagens são fail-closed: id de outra conversa ou de mensagem alheia
+        // nunca vira uma janela para redigir o que não é seu.
+        if ($message->conversation_id !== $conversation->id || $message->sender_id !== $sender->id) {
+            throw ChatException::notYourMessage();
+        }
+
+        // Presente NÃO é redigível — a regra é do SERVIDOR, não só do `can_redact`
+        // da UI: um DELETE forjado no id de uma bolha de presente esconderia o
+        // registro do presente (dinheiro movido) das duas pontas. Recusa fechado.
+        if ($message->gift_id !== null) {
+            throw ChatException::giftNotRedactable();
+        }
+
+        // Já redigida: no-op idempotente (duplo-clique / corrida de abas).
+        if ($message->isRedacted()) {
+            return $message;
+        }
+
+        // Dentro da janela? A conta é a partir do ENVIO (created_at). Fora dela,
+        // recusa — o "desfazer" é conveniência de UX, não uma limpeza de rastro.
+        $windowMinutes = (int) config('chat.redact_window_minutes');
+        if ($message->created_at->copy()->addMinutes($windowMinutes)->isPast()) {
+            throw ChatException::redactWindowClosed($windowMinutes);
+        }
+
+        // Só carimba redacted_at — o conteúdo NÃO é apagado. forceFill porque
+        // redacted_at está fora do fillable (não é input de usuário).
+        $message->forceFill(['redacted_at' => now()])->save();
+
+        Audit::log('chat.message_redacted', $message);
+
+        // Tempo real: a outra ponta recarrega e vê "Mensagem apagada".
+        event(new MessageRedacted($message));
 
         return $message;
     }

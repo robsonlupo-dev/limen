@@ -28,6 +28,12 @@ class ChatException extends DomainException
 
     public const DAILY_MESSAGE_LIMIT = 'daily_message_limit';
 
+    public const NOT_YOUR_MESSAGE = 'not_your_message';
+
+    public const REDACT_WINDOW_CLOSED = 'redact_window_closed';
+
+    public const GIFT_NOT_REDACTABLE = 'gift_not_redactable';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -104,6 +110,37 @@ class ChatException extends DomainException
         return new self(
             self::CONDUCT_BLOCKED,
             'Esta mensagem foi bloqueada por violar nossa política de conduta.',
+        );
+    }
+
+    /** Tentativa de desfazer o envio de uma mensagem que não é do remetente. */
+    public static function notYourMessage(): self
+    {
+        return new self(
+            self::NOT_YOUR_MESSAGE,
+            'Você só pode apagar as próprias mensagens.',
+        );
+    }
+
+    /** A janela para desfazer o envio já passou (feat/chat-unsend-message). */
+    public static function redactWindowClosed(int $minutes): self
+    {
+        return new self(
+            self::REDACT_WINDOW_CLOSED,
+            "O prazo para apagar esta mensagem já passou (até {$minutes} min após o envio).",
+        );
+    }
+
+    /**
+     * Presente não é redigível (feat/chat-unsend-message): é ação de dinheiro
+     * (tokens movidos/creditados); esconder a bolha daria falsa ideia de estorno.
+     * A regra vive no SERVIDOR, não só na UI.
+     */
+    public static function giftNotRedactable(): self
+    {
+        return new self(
+            self::GIFT_NOT_REDACTABLE,
+            'Presentes não podem ser apagados do chat.',
         );
     }
 }
