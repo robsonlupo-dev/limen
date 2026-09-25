@@ -157,3 +157,11 @@ Schedule::command('content:purge-orphan-raw')->hourly()->withoutOverlapping(10);
 // GC dos uploads de áudio crus órfãos (feat/voice-intro): mesma natureza do de
 // vídeo — job descartado deixa o cru em tmp/. De hora em hora; só disco privado.
 Schedule::command('voice:purge-orphan-raw')->hourly()->withoutOverlapping(10);
+
+// Programa de indicação (feat/referral-program). De hora em hora: (1) detecta a
+// conversão da performer (KYC + 1º ganho de terceiro) e (2) credita as indicações
+// cujo hold de 14 dias venceu, re-verificando a base. Latência de até 1h é
+// irrelevante diante do hold em DIAS. No-op quando o programa está desligado.
+// withoutOverlapping: uma rodada lenta não pode empilhar e creditar duas vezes
+// (a idempotência real é a UNIQUE(referral_id, role) + guarda de status).
+Schedule::command('referral:process-holds')->hourly()->withoutOverlapping(15);

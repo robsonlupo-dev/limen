@@ -211,6 +211,12 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   desktop), valores acima do conteúdo, selo de verificada clicável (só critérios reais).
   Componentes em `Components/Profile/*`; detalhe no `MASTER_HANDOFF_FINAL.md`.
 - **Landing cinematográfica** (a porta pública `/`), **Anti-CSAM, Som de notificação**.
+- **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
+  **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
+  membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,
+  `referral:process-holds`, `config/referral.php`; `referral_bonus` respeita o
+  teto e fica FORA do payout. Desligado por padrão (`REFERRAL_PROGRAM_ENABLED`).
+  Detalhe e limitações conhecidas em `docs/PROGRAMA_INDICACAO.md` + `docs/ARQUITETURA.md`.
 - **LiveKit:** Agendamento de chamada, Console de live, Chamada privada a partir da live,
   controles de transmissão, navegação do catálogo ao vivo.
 - **PanicButton, Navegação (painel performer e membro)** — mobile-first.

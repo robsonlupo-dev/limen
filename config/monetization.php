@@ -198,6 +198,10 @@ return [
         'purchase',
         'bonus',
         'subscription_grant',
+        // Bônus de indicação (feat/referral-program): é dinheiro novo entrando na
+        // conta, mesma classe de `bonus` — respeita o teto. NÃO entra em
+        // payout.earning_entry_types: é NÃO-SACÁVEL por construção.
+        'referral_bonus',
     ],
 
     /*

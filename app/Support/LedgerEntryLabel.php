@@ -24,6 +24,10 @@ class LedgerEntryLabel
         'refund' => 'Reembolso',
         'adjustment' => 'Ajuste',
         'staging_seed_backfill' => 'Ajuste inicial',
+        // Programa de indicação (feat/referral-program). Bônus não-sacável creditado
+        // aos dois lados de uma indicação que converteu; o estorno é o clawback.
+        'referral_bonus' => 'Bônus de indicação',
+        'referral_bonus_reversal' => 'Estorno de bônus de indicação',
 
         // Gastos do membro
         'spend_tip' => 'Gorjeta enviada',

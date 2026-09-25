@@ -260,6 +260,12 @@ Route::middleware('guest')->group(function () {
 // Logout
 Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')->name('logout');
 
+// Programa de indicação — tela "meu link" (feat/referral-program). Acessível a
+// qualquer usuário logado (membro ou performer): compartilhar o próprio código é
+// inofensivo e não depende de KYC concluído.
+Route::get('/indicacoes', [\App\Http\Controllers\Web\ReferralController::class, 'index'])
+    ->middleware('auth')->name('referral.index');
+
 // Admin back-office (auth + admin-only). `admin.access` (EnsureAdmin → isAdmin):
 // dinheiro, tier, KYC, waitlist, ban, config. O moderador NÃO alcança nada aqui.
 Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () {

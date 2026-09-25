@@ -87,9 +87,36 @@ pending → qualified → hold (14 dias) → rewarded
   (indicador e indicado), sem necessidade de resgate manual (diferente do
   modelo Wise, onde o indicador precisa resgatar o bônus manualmente em até 1
   ano — aqui é automático).
-- **clawed_back:** se a compra/ganho de base for estornado **depois** do
-  crédito, o bônus é revertido via `referral_bonus_reversal` (nova entrada no
-  ledger, nunca edição da entrada original — ledger é append-only).
+- **clawed_back:** se a compra/ganho de base for estornado, o bônus é retido
+  (antes do crédito) ou revertido via `referral_bonus_reversal`
+  (`ReferralService::clawback`, nova entrada no ledger — nunca edição da
+  original; ledger append-only; debita até o saldo disponível).
+
+### 4.1 — Limitações conhecidas (follow-ups pós-revisão de segurança)
+
+A revisão de segurança de 25/09 confirmou o invariante central (não-sacável)
+sólido e a idempotência/atribuição corretas, mas registrou duas lacunas que
+dependem de decisão de plataforma — **documentadas aqui em vez de "resolvidas"
+silenciosamente**:
+
+1. **Detecção automática de estorno.** A proteção PRIMÁRIA contra estorno é o
+   **hold de 14 dias** (atrasa o crédito para além da janela de contestação
+   PIX/MED) mais a **re-verificação da base no momento do crédito**
+   (`baseStillValid`). Porém a plataforma **ainda não tem webhook de
+   refund/chargeback do Asaas** (só trata `PAYMENT_RECEIVED/CONFIRMED/OVERDUE`),
+   então um `PAYMENT_REFUNDED` **não** vira `payments.status = refunded` sozinho
+   hoje — logo a re-verificação do lado do membro só passa a "morder" quando esse
+   webhook existir. `ReferralService::clawback()` já está implementado e testado,
+   pronto para ser acionado por esse webhook (follow-up) ou por ação
+   administrativa. **Impacto limitado pela não-sacabilidade** (§8): um bônus
+   indevido é crédito de plataforma, nunca saída de caixa direta.
+2. **Linkagem membro↔membro por IP.** `registration_ip_hash` só é coletado no
+   cadastro de **performer** hoje; o de membro não. Então a checagem de
+   "contas ligadas" entre dois membros vale por **CPF** (que o membro coleta),
+   mas não por IP — um anel de auto-indicação com CPFs distintos no mesmo
+   dispositivo escapa da trava de IP. Coletar `registration_ip_hash` também no
+   cadastro de membro fecha a lacuna (follow-up). **Impacto limitado** pela
+   não-sacabilidade + o custo real da compra que precisa acontecer.
 
 ## 5. Modelagem contábil
 
@@ -114,7 +141,8 @@ referrals
   referrer_user_id        (quem indicou)
   referred_user_id         UNIQUE  (quem foi indicado — 1 indicador só por pessoa)
   referred_role_at_signup  enum('member','performer')
-  status                   enum('pending','qualified','clawed_back')
+  status                   enum('pending','qualified','rewarded','clawed_back')
+  kyc_approved_at          nullable timestamp  (parte 1 da conversão 3.B)
   qualified_at             nullable timestamp
   hold_until               nullable timestamp
   rejection_reason         nullable string
@@ -128,7 +156,8 @@ referral_rewards
   trigger                   enum('member_purchase','performer_first_earning')
   amount                    int (tokens)
   ledger_id                 FK → token_ledger (a entrada referral_bonus real)
-  status                    enum('pending','rewarded','reversed')
+  status                    enum('pending','rewarded','reversed','skipped')
+  rewarded_at               nullable timestamp
   created_at / updated_at
   UNIQUE(referral_id, role) -- garante que cada lado só é premiado 1x por indicação
 ```
