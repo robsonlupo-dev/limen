@@ -633,6 +633,24 @@ watch(() => props.messages.data.length, scrollToBottom)
                         </div>
                         <!-- Mensagem legível -->
                         <div v-else class="max-w-[75%] flex flex-col" :class="isMine(m) ? 'items-end' : 'items-start'">
+                            <!-- Resposta a um story (feat/story-reply-to-chat): tarja
+                                 "Respondeu ao story" acima do corpo. A MINIATURA só
+                                 vem para a dona (thumb_url servido pela rota dela,
+                                 sem poluir views) e enquanto o story existe; o membro
+                                 e stories expirados veem só o rótulo. -->
+                            <div
+                                v-if="m.reply_to_story"
+                                class="mb-1 flex items-center gap-2 rounded-lg border border-frame/70 bg-surface/60 px-2.5 py-1.5"
+                            >
+                                <img
+                                    v-if="m.reply_to_story.thumb_url"
+                                    :src="m.reply_to_story.thumb_url"
+                                    alt=""
+                                    class="h-9 w-9 shrink-0 rounded object-cover"
+                                />
+                                <svg v-else class="h-4 w-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3" /></svg>
+                                <span class="text-[11px] text-muted">Respondeu ao story</span>
+                            </div>
                             <div
                                 class="rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line break-words"
                                 :class="isMine(m)

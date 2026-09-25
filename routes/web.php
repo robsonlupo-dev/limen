@@ -1504,6 +1504,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->whereNumber('story')
             ->name('stories.image');
 
+        // Responder ao story → chat (feat/story-reply-to-chat). Estilo Insta: a
+        // resposta do membro ao story vira a 1ª mensagem do chat e ABRE/PAGA a
+        // janela (mesma economia do chat.start). `documents.accepted` explícito
+        // como nas rotas de chat — o grupo só traz role:consumer + verificado — e
+        // o mesmo throttle do chat.start (é envio de mensagem, não leitura).
+        Route::post('/stories/{story}/responder', [ChatController::class, 'storyReply'])
+            ->middleware(['throttle:30,1', 'documents.accepted'])
+            ->whereNumber('story')
+            ->name('stories.reply');
+
         // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Lado do MEMBRO, no
         // grupo role:consumer + member.verified sob auth+2fa. Serving AUTENTICADO
         // por sessão, tier resolvido a cada request — sem URL assinada, pela mesma

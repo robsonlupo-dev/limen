@@ -290,7 +290,7 @@ class ChatService
      * @throws ChatException conteúdo barrado (filtro), conversa arquivada
      * @throws \App\Exceptions\InsufficientBalanceException saldo insuficiente
      */
-    public function memberSendToPerformer(PerformerProfile $performerProfile, User $member, string $body): Message
+    public function memberSendToPerformer(PerformerProfile $performerProfile, User $member, string $body, ?int $replyToStoryId = null): Message
     {
         // Filtro ANTES de qualquer transação/criação: mensagem barrada audita e
         // devolve 422 sem criar conversa nem cobrar token (mesma disciplina de
@@ -298,7 +298,7 @@ class ChatService
         // para o audit do bloqueio PERSISTIR (não ser revertido no rollback).
         $this->assertContentAllowed($member, $body);
 
-        return DB::transaction(function () use ($performerProfile, $member, $body) {
+        return DB::transaction(function () use ($performerProfile, $member, $body, $replyToStoryId) {
             // Cria (ou recupera) a conversa do par — o índice único (member,
             // performer) fecha a corrida de dois inícios simultâneos.
             $conversation = Conversation::firstOrCreate(
@@ -310,7 +310,16 @@ class ChatService
             // sendMessage cobra no envio. Se o saldo não cobrir, a exceção sobe e
             // ESTA transação reverte a conversa recém-criada — sem conversa-fantasma
             // que a performer veria como thread vazia, sem cobrança.
-            return $this->sendMessage($conversation, $member, $body);
+            $message = $this->sendMessage($conversation, $member, $body);
+
+            // Responder story (feat/story-reply-to-chat): carimba o ponteiro do
+            // story respondido DEPOIS do envio, na MESMA transação (reverte junto se
+            // o envio falhar). reply_to_story_id está fora do fillable — forceFill.
+            if ($replyToStoryId !== null) {
+                $message->forceFill(['reply_to_story_id' => $replyToStoryId])->save();
+            }
+
+            return $message;
         });
     }
 

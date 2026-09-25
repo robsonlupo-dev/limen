@@ -8,17 +8,20 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\OpenChatAccessRequest;
 use App\Http\Requests\SendMessageRequest;
 use App\Http\Requests\Web\StoreChatAudioRequest;
+use App\Http\Requests\Web\StoreStoryReplyRequest;
 use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
+use App\Models\PerformerStory;
 use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatAudioStore;
 use App\Services\ChatService;
 use App\Services\MemberPhotoService;
 use App\Services\PerformerCatalogService;
+use App\Services\StoryVisibilityService;
 use App\Services\TokenCreditPolicy;
 use App\Services\TokenService;
 use App\Support\FanAlias;
@@ -127,6 +130,55 @@ class ChatController extends Controller
                 $performer,
                 $user,
                 $request->validated('body'),
+            );
+        } catch (ChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        } catch (InsufficientBalanceException) {
+            return response()->json([
+                'reason' => 'insufficient_balance',
+                'message' => 'Saldo de tokens insuficiente para iniciar a conversa.',
+            ], 422);
+        }
+
+        return response()->json([
+            'conversation_id' => $message->conversation_id,
+            'message_id' => $message->id,
+            'created_at' => $message->created_at,
+        ], 201);
+    }
+
+    /**
+     * Responder ao story → chat (feat/story-reply-to-chat). Estilo Insta: o membro
+     * responde em cima do story da performer e essa resposta vira a 1ª mensagem do
+     * chat, ABRINDO/pagando a janela (mesma economia de startWithPerformer). A
+     * mensagem carrega o ponteiro do story respondido → a bolha mostra "Respondeu
+     * ao story" (+ miniatura, para a dona).
+     *
+     * Visibilidade ANTES de tudo: quem não pode VER o story (não-seguidor onde o
+     * story pede seguir, tier insuficiente, exclusivo) não pode respondê-lo — 404
+     * indistinguível de story inexistente (não vaza que o story existe). Story
+     * expirado também é 404 (StoryVisibilityService já trata TTL). A cobrança e a
+     * criação da conversa são atômicas dentro de memberSendToPerformer.
+     */
+    public function storyReply(
+        StoreStoryReplyRequest $request,
+        PerformerStory $story,
+        StoryVisibilityService $storyVisibility,
+    ): JsonResponse {
+        $user = $request->user();
+
+        // O membro precisa poder VER o story para respondê-lo. 404 (não 403) para
+        // não confirmar a existência de um story que ele não deveria alcançar.
+        abort_unless($storyVisibility->canView($story, $user), 404);
+
+        $performer = $story->performerProfile;
+
+        try {
+            $message = $this->chatService->memberSendToPerformer(
+                $performer,
+                $user,
+                $request->validated('body'),
+                $story->id,
             );
         } catch (ChatException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
@@ -294,7 +346,7 @@ class ChatController extends Controller
 
             // Com leitura bloqueada (grace): metadados + locked, sem corpo.
             $messages = $conversation->messages()
-                ->with('gift:id,slug,name')
+                ->with(['gift:id,slug,name', 'replyToStory:id,expires_at'])
                 ->orderByDesc('id')
                 ->paginate(20)
                 ->through(fn (Message $m) => [
@@ -334,6 +386,16 @@ class ChatController extends Controller
                     'audio_url' => (! $state['locked'] && ! $m->isRedacted() && $m->audio_status === Message::AUDIO_READY)
                         ? route('chat.audio', [$conversation->id, $m->id])
                         : null,
+                    // Responder story (feat/story-reply-to-chat): a mensagem é uma
+                    // resposta a um story da performer. A DONA vê a MINIATURA pelo
+                    // próprio serving (`performer.stories.image` — não registra view),
+                    // enquanto o story existir e não vencer; o membro (que respondeu)
+                    // vê só o rótulo. Redigida → escondido, como o resto.
+                    'reply_to_story' => (! $m->isRedacted() && $m->reply_to_story_id) ? [
+                        'thumb_url' => ($viewerIsPerformer && $m->replyToStory && ! $m->replyToStory->isExpired())
+                            ? route('performer.stories.image', $m->reply_to_story_id)
+                            : null,
+                    ] : null,
                     // Confirmação de leitura só nas MINHAS mensagens, e só se
                     // quem lê não desligou o perk. read_at de uma mensagem que
                     // EU recebi diz quando eu a li — não acrescenta nada na

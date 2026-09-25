@@ -284,6 +284,9 @@ return [
         // Não há versão assinada destas rotas de propósito — § 2.3.
         'stories.feed',
         'stories.image',
+        // Responder ao story → chat (feat/story-reply-to-chat): o compositor no
+        // StoryViewer posta aqui; abre/paga a janela como o chat.start.
+        'stories.reply',
 
         // Conteúdo permanente pago (M.4/M.13.13): a galeria do perfil dispara o
         // desbloqueio por aqui. `content.image` NÃO entra: o presenter já devolve

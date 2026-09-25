@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import LoadingBar from '@/Components/LoadingBar.vue'
+import { postJson, errorMessage } from '@/lib/http'
 
 // Visualizador fullscreen dos Stories (Sprint 13), tipo Instagram: barra de
 // progresso por segmento, timer de 5s com pausa ao segurar, tap esquerdo/direito
@@ -176,6 +177,50 @@ function segmentWidth(i) {
     if (i > storyIndex.value) return '0%'
     return Math.min(elapsed.value / DURATION, 1) * 100 + '%'
 }
+
+// ── Responder ao story → chat (feat/story-reply-to-chat) ──────────────────────
+// Estilo Insta: a resposta vira a 1ª mensagem do chat e ABRE/paga a janela (mesma
+// economia do chat.start). O feed já é filtrado por canView, mas o servidor
+// recheca visibilidade e cobra atômico. Sucesso leva o membro à conversa.
+const replyBody = ref('')
+const replySending = ref(false)
+const replyError = ref('')
+
+// Enquanto o compositor está focado, PAUSA o carrossel (senão o story avança e
+// troca o alvo da resposta no meio da digitação).
+function pauseForReply() {
+    paused.value = true
+}
+function resumeAfterReply() {
+    paused.value = false
+}
+
+async function sendReply() {
+    const body = replyBody.value.trim()
+    if (! body || replySending.value || ! currentStory.value) return
+
+    replySending.value = true
+    replyError.value = ''
+    const storyId = currentStory.value.id
+
+    try {
+        const data = await postJson(route('stories.reply', storyId), { body })
+        // A janela abriu e a mensagem entrou: leva o membro para a conversa, onde
+        // ele vê a bolha "Respondeu ao story" e o histórico. Fecha o viewer antes
+        // de navegar para não deixar o overflow-hidden preso no body.
+        replyBody.value = ''
+        close()
+        router.visit(route('chat.show', data.conversation_id))
+    } catch (error) {
+        if (error?.data?.reason === 'insufficient_balance') {
+            replyError.value = 'Saldo insuficiente para abrir a conversa.'
+        } else {
+            replyError.value = errorMessage(error, 'Não foi possível enviar sua resposta.')
+        }
+    } finally {
+        replySending.value = false
+    }
+}
 </script>
 
 <template>
@@ -257,6 +302,41 @@ function segmentWidth(i) {
                         Assine para conversar
                     </Link>
                 </div>
+
+                <!-- Responder ao story (feat/story-reply-to-chat): compositor discreto,
+                     estilo Insta. Fica escondido no story de convite (ali o funil é
+                     assinar). `pointerdown/up.stop` para digitar/tocar não virar tap de
+                     navegação; foco pausa o carrossel. A resposta ABRE a conversa paga
+                     — o aviso deixa isso explícito antes do envio. -->
+                <form
+                    v-else-if="imageLoaded && !imageError"
+                    class="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1.5 p-4"
+                    @pointerdown.stop
+                    @pointerup.stop
+                    @submit.prevent="sendReply"
+                >
+                    <p v-if="replyError" class="px-1 text-xs text-red-300 drop-shadow">{{ replyError }}</p>
+                    <div class="flex items-end gap-2">
+                        <input
+                            v-model="replyBody"
+                            type="text"
+                            maxlength="1000"
+                            :placeholder="`Responder para ${currentGroup.performer.stage_name}…`"
+                            class="min-w-0 flex-1 rounded-full border border-white/40 bg-black/40 px-4 py-2.5 text-sm text-white placeholder-white/50 outline-none backdrop-blur focus:border-white/80"
+                            @focus="pauseForReply"
+                            @blur="resumeAfterReply"
+                        />
+                        <button
+                            type="submit"
+                            :disabled="!replyBody.trim() || replySending"
+                            aria-label="Enviar resposta"
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-background transition-colors hover:bg-white/90 disabled:opacity-40"
+                        >
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" /></svg>
+                        </button>
+                    </div>
+                    <p class="px-1 text-[11px] text-white/60 drop-shadow">Sua resposta abre a conversa no chat.</p>
+                </form>
             </div>
         </div>
     </Teleport>
