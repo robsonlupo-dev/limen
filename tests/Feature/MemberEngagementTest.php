@@ -1,10 +1,13 @@
 <?php
 
+use App\Exceptions\ChatException;
+use App\Models\ChatCatalogTemplate;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerHeart;
 use App\Models\User;
 use App\Services\ChatAccessService;
+use App\Services\ChatService;
 use App\Services\DeletionService;
 use App\Services\PerformerHeartService;
 use App\Support\FanAlias;
@@ -52,6 +55,16 @@ function engMember(array $attrs = []): User
 function heartHandle(User $performer, User $member): string
 {
     return FanAlias::handle($performer->performerProfile->id, $member->id);
+}
+
+/** Um modelo de catálogo ativo (feat/catalog-message-templates). Cria se pedir um corpo. */
+function engTemplate(?string $body = null): ChatCatalogTemplate
+{
+    if ($body !== null) {
+        return ChatCatalogTemplate::create(['body' => $body, 'is_active' => true, 'position' => 999]);
+    }
+
+    return ChatCatalogTemplate::activeOrdered()->firstOrFail(); // as 15 vêm da migration
 }
 
 // ─── CORAÇÃO ─────────────────────────────────────────────────────────────────
@@ -143,11 +156,12 @@ it('o card do catálogo traz o estado hearted', function () {
 it('mensagem nasce visível-mas-bloqueada: cria conversa/mensagem, membro não lê o corpo', function () {
     $performer = engPerformer();
     $member = engMember();
+    $template = engTemplate('Oi, gostei do seu perfil :)');
 
     $this->actingAs($performer)
         ->postJson(route('performer.members.message'), [
             'member_handle' => heartHandle($performer, $member),
-            'body' => 'Oi, gostei do seu perfil :)',
+            'template_id' => $template->id,
         ])
         ->assertStatus(201)
         ->assertJson(['sent' => true]);
@@ -157,6 +171,7 @@ it('mensagem nasce visível-mas-bloqueada: cria conversa/mensagem, membro não l
         ->first();
 
     expect($conversation)->not->toBeNull();
+    // O corpo persistido vem do MODELO (não de texto livre do cliente).
     $this->assertDatabaseHas('messages', [
         'conversation_id' => $conversation->id,
         'sender_id' => $performer->id,
@@ -176,7 +191,7 @@ it('a mensagem consome a franquia diária e devolve o restante', function () {
     $this->actingAs($performer)
         ->postJson(route('performer.members.message'), [
             'member_handle' => heartHandle($performer, $member),
-            'body' => 'ola',
+            'template_id' => engTemplate()->id,
         ])
         ->assertStatus(201)
         ->assertJson(['messages_remaining_today' => 4]);
@@ -193,34 +208,53 @@ it('esgotada a franquia diária, a mensagem é recusada com daily_message_limit'
     $performer = engPerformer();
     $member = engMember();
     $handle = heartHandle($performer, $member);
+    $templateId = engTemplate()->id;
 
     $this->actingAs($performer)
-        ->postJson(route('performer.members.message'), ['member_handle' => $handle, 'body' => 'primeira'])
+        ->postJson(route('performer.members.message'), ['member_handle' => $handle, 'template_id' => $templateId])
         ->assertStatus(201);
 
     $this->actingAs($performer)
-        ->postJson(route('performer.members.message'), ['member_handle' => $handle, 'body' => 'segunda'])
+        ->postJson(route('performer.members.message'), ['member_handle' => $handle, 'template_id' => $templateId])
         ->assertStatus(422)
         ->assertJson(['reason' => 'daily_message_limit', 'messages_remaining_today' => 0]);
 
-    // A segunda não persistiu.
-    expect(Message::where('body', 'segunda')->exists())->toBeFalse();
+    // Só a primeira persistiu.
+    expect(Message::where('sender_id', $performer->id)->count())->toBe(1);
 });
 
-it('mensagem barrada pelo filtro não consome a franquia', function () {
-    config(['member_engagement.free_messages_per_day' => 3]);
+it('o endpoint recusa modelo inexistente/desativado (sem texto livre)', function () {
+    $performer = engPerformer();
+    $member = engMember();
+    $handle = heartHandle($performer, $member);
+
+    // Sem template_id → 422 (não há mais texto livre).
+    $this->actingAs($performer)
+        ->postJson(route('performer.members.message'), ['member_handle' => $handle])
+        ->assertStatus(422);
+
+    // Modelo DESATIVADO → recusado (existe na tabela, mas não é enviável).
+    $inactive = ChatCatalogTemplate::create(['body' => 'oculta', 'is_active' => false, 'position' => 500]);
+    $this->actingAs($performer)
+        ->postJson(route('performer.members.message'), ['member_handle' => $handle, 'template_id' => $inactive->id])
+        ->assertStatus(422)
+        ->assertJson(['reason' => 'template_unavailable']);
+
+    $this->assertDatabaseCount('messages', 0);
+});
+
+it('o filtro de conteúdo ainda protege o envio de catálogo no nível do serviço', function () {
+    // O endpoint não aceita mais texto livre, mas o serviço segue barrando conteúdo
+    // proibido (defesa em profundidade — o filtro vive no ChatService).
     $performer = engPerformer();
     $member = engMember();
 
-    $this->actingAs($performer)
-        ->postJson(route('performer.members.message'), [
-            'member_handle' => heartHandle($performer, $member),
-            'body' => 'faz programa completo',
-        ])
-        ->assertStatus(422)
-        ->assertJson(['reason' => 'content_blocked']);
+    expect(fn () => app(ChatService::class)->sendCatalogMessage(
+        $performer->performerProfile,
+        $member,
+        'faz programa completo',
+    ))->toThrow(ChatException::class);
 
-    // Nada persistido e franquia intacta (linha do dia nem foi criada).
     $this->assertDatabaseCount('messages', 0);
     $this->assertDatabaseCount('performer_message_quotas', 0);
 });
@@ -232,7 +266,7 @@ it('404 ao mandar mensagem para membro fora do catálogo', function () {
     $this->actingAs($performer)
         ->postJson(route('performer.members.message'), [
             'member_handle' => heartHandle($performer, $member),
-            'body' => 'oi',
+            'template_id' => engTemplate()->id,
         ])
         ->assertStatus(404);
 
@@ -260,7 +294,7 @@ it('Hard Delete da performer varre os corações dados e o contador de mensagens
     $member = engMember();
 
     $this->actingAs($performer)->postJson(route('performer.members.heart'), ['member_handle' => heartHandle($performer, $member)]);
-    $this->actingAs($performer)->postJson(route('performer.members.message'), ['member_handle' => heartHandle($performer, $member), 'body' => 'oi']);
+    $this->actingAs($performer)->postJson(route('performer.members.message'), ['member_handle' => heartHandle($performer, $member), 'template_id' => engTemplate()->id]);
 
     app(DeletionService::class)->executeDeletion($performer->fresh());
 

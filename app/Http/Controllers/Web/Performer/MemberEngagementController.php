@@ -8,6 +8,7 @@ use App\Http\Requests\RecordMemberVisitRequest;
 use App\Http\Requests\RequestGalleryAccessRequest;
 use App\Http\Requests\SendCatalogMessageRequest;
 use App\Http\Requests\SendHeartRequest;
+use App\Models\ChatCatalogTemplate;
 use App\Services\ChatService;
 use App\Services\MemberGalleryAccessService;
 use App\Services\PerformerHeartService;
@@ -86,8 +87,25 @@ class MemberEngagementController extends Controller
         $member = $request->resolvedMember();
         $profile = $request->user()->performerProfile;
 
+        // O corpo NUNCA vem do cliente (anti-fuga): é lido de um modelo ATIVO e
+        // personalizado no servidor. Modelo inexistente/desativado entre a tela e o
+        // envio → 422 estável, sem oráculo.
+        $template = ChatCatalogTemplate::activeOrdered()
+            ->whereKey((int) $request->validated('template_id'))
+            ->first();
+
+        if ($template === null) {
+            return response()->json([
+                'reason' => 'template_unavailable',
+                'message' => 'Essa mensagem não está mais disponível.',
+                'messages_remaining_today' => $this->chatService->remainingDailyMessages($profile),
+            ], 422);
+        }
+
+        $body = ChatCatalogTemplate::render($template->body, $member->nickname);
+
         try {
-            $this->chatService->sendCatalogMessage($profile, $member, $request->validated('body'));
+            $this->chatService->sendCatalogMessage($profile, $member, $body);
         } catch (ChatException $e) {
             // Inclui a franquia esgotada (daily_message_limit): a UI mostra
             // "você usou suas N mensagens grátis de hoje".

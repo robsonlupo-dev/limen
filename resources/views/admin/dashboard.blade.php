@@ -491,6 +491,7 @@
                     @endif
                 </a>
                 <a href="{{ route('admin.waitlist') }}" class="nav-item nav-sub">Waitlist</a>
+                <a href="{{ route('admin.catalog-messages') }}" class="nav-item nav-sub">Mensagens de catálogo</a>
             </div>
  
             {{-- Confiança & segurança --}}

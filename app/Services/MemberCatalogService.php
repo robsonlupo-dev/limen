@@ -163,6 +163,11 @@ class MemberCatalogService
             // (feat/member-nickname). A CHAVE de resolução do alvo (member_handle)
             // segue sendo o FanAlias — o apelido é só o rótulo exibido.
             'fan_alias_label' => MemberDisplayName::for($member->nickname, $performerProfile->id, $member->id, 'Membro #'),
+            // Apelido cru (ou null) — só para o preview do {nome} no seletor de
+            // mensagens de catálogo casar com o render do servidor. Não é PII nova:
+            // quando existe, já é o próprio fan_alias_label acima; o envio é sempre
+            // resolvido no servidor, nunca por este campo.
+            'nickname' => $member->nickname,
             'member_handle' => $handle,
             // Foto de perfil do membro (fix/member-photo-and-crop). Decisão do PO
             // (ago/2026): o membro passou a ter avatar, e ELE é exibido à performer

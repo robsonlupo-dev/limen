@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Performer;
 
 use App\Http\Controllers\Controller;
+use App\Models\ChatCatalogTemplate;
 use App\Services\ChatService;
 use App\Services\MemberCatalogService;
 use Illuminate\Http\Request;
@@ -40,6 +41,9 @@ class MemberCatalogController extends Controller
             // quantas restam hoje — a UI trava o botão de mensagem ao esgotar.
             'messagesRemaining' => $this->chatService->remainingDailyMessages($profile),
             'messagesDailyLimit' => (int) config('member_engagement.free_messages_per_day'),
+            // Modelos pré-cadastrados (feat/catalog-message-templates): a performer
+            // ESCOLHE um; não digita texto livre. `{nome}` é resolvido no envio.
+            'catalogTemplates' => ChatCatalogTemplate::activeOrdered()->get(['id', 'body']),
         ]);
     }
 }

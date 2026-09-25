@@ -8,10 +8,13 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * MENSAGEM PERSONALIZADA a partir do catálogo de membros. Alvo resolvido contra
- * os membros visíveis à performer (ResolvesCatalogMember). `body` valida como no
- * chat (mesmo teto de tamanho); a franquia diária e o filtro de conteúdo vivem no
- * ChatService, não aqui.
+ * MENSAGEM de catálogo a partir do catálogo de membros (feat/catalog-message-
+ * templates). A performer NÃO envia texto livre: ela escolhe um MODELO
+ * pré-cadastrado (`template_id`). O corpo é resolvido no servidor a partir do
+ * modelo — fechando o vetor de fuga em que texto livre grátis levava contato para
+ * fora da plataforma. Alvo resolvido contra os membros visíveis à performer
+ * (ResolvesCatalogMember). Franquia diária e filtro de conteúdo vivem no
+ * ChatService.
  */
 class SendCatalogMessageRequest extends FormRequest
 {
@@ -27,15 +30,20 @@ class SendCatalogMessageRequest extends FormRequest
     {
         return [
             'member_handle' => ['required', 'string'],
-            'body' => ['required', 'string', 'max:'.(int) config('chat.max_length')],
+            // Só um modelo ATIVO. O corpo nunca vem do cliente — é lido do modelo
+            // no servidor (anti-fuga: sem texto livre grátis).
+            'template_id' => [
+                'required', 'integer',
+                'exists:chat_catalog_templates,id',
+            ],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'body.required' => 'A mensagem não pode ficar vazia.',
-            'body.max' => 'A mensagem excede o tamanho máximo de :max caracteres.',
+            'template_id.required' => 'Escolha uma mensagem para enviar.',
+            'template_id.exists' => 'Essa mensagem não está mais disponível.',
         ];
     }
 
