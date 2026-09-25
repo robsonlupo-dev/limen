@@ -124,9 +124,65 @@ class PaymentService
             }
         } elseif ($eventType === 'PAYMENT_OVERDUE') {
             $payment->update(['status' => 'expired']);
+        } elseif (in_array($eventType, self::REVERSAL_EVENTS)) {
+            $this->handleReversal($payment, $payload);
         }
 
         PaymentEvent::where('provider_event_id', $eventId)->update(['processed_at' => now()]);
+    }
+
+    /**
+     * Eventos do Asaas de reversão TOTAL do dinheiro. Reembolso PARCIAL tem evento
+     * próprio (PAYMENT_PARTIALLY_REFUNDED, que NÃO tratamos) e chargeback apenas
+     * SOLICITADO é provisório (idem) — nenhum dos dois entra aqui de propósito: um
+     * clawback sobre sinal parcial/incerto seria irreversível e injusto.
+     */
+    private const REVERSAL_EVENTS = [
+        'PAYMENT_REFUNDED',
+        'PAYMENT_REVERSED',
+    ];
+
+    /**
+     * Compra estornada de forma TOTAL e DEFINITIVA. Marca `refunded` (idempotente) e
+     * aciona o programa de indicação: se esta compra foi a base de uma indicação, o
+     * bônus é retido (antes do crédito) ou estornado (depois) — ver ReferralService.
+     *
+     * Defesa extra (skill asaas-pix): só age se o STATUS da cobrança no payload
+     * autenticado confirmar reversão total (REFUNDED/REVERSED). Assim um
+     * PAYMENT_REFUNDED de reembolso PARCIAL (status ainda RECEIVED/CONFIRMED) não
+     * derruba a venda nem estorna o bônus.
+     *
+     * NÃO reverte os tokens já comprados: clawback de compra é decisão de produto à
+     * parte. Aqui só o status do pagamento e o efeito na indicação. Contabilidade:
+     * `refunded` sai da receita real (AdminMetricsService conta só `confirmed`) — o
+     * que é o correto para um estorno total.
+     */
+    private function handleReversal(Payment $payment, array $payload): void
+    {
+        $remoteStatus = strtoupper((string) ($payload['payment']['status'] ?? ''));
+        if (! in_array($remoteStatus, ['REFUNDED', 'REVERSED'], true)) {
+            return; // não é reversão total definitiva — não mexe no pagamento nem na indicação
+        }
+
+        if ($payment->status === 'refunded') {
+            return;
+        }
+
+        $previous = $payment->status;
+        $payment->update(['status' => 'refunded']);
+
+        Audit::log('payment.reversed', $payment, ['previous_status' => $previous]);
+
+        // Erro na indicação NUNCA pode quebrar o processamento do webhook de reversão
+        // (o service já engole os próprios erros; este try/catch é cinto e suspensório).
+        try {
+            app(ReferralService::class)->onMemberPurchaseReversed($payment->user);
+        } catch (\Throwable $e) {
+            Log::warning('referral.reversal_hook_failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function confirmPayment(Payment $payment): void
