@@ -388,6 +388,27 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   `/admin/mensagens-catalogo`; `{nome}` resolvido no servidor; **no chat JÁ PAGO o texto
   segue livre**, contato liberado lá). Detalhe de cada uma em `docs/HISTORICO_SPRINTS.md`.
 
+## Nota operacional — 25/09/2026 (webhook Asaas: sandbox tomava 403)
+
+- **Sintoma:** e-mails do Asaas "sincronização de Webhooks interrompida" para a fila
+  `limen-dev` (`/api/v1/webhooks/asaas`), **status 403**; a fila pausa após 15 falhas.
+- **Causa:** `ASAAS_WEBHOOK_IP_ALLOWLIST=true` no `.env` do **sandbox**. A allowlist de
+  IP é um switch **production-only**; o sandbox envia de **IPs adicionais** fora da lista
+  de produção, então barrava tudo com 403. **Não era Cloudflare** (o domínio NÃO está
+  atrás de CDN — `curl` responde `Server: nginx` direto; por isso não precisa de
+  TrustProxies) **nem bloqueio de User-Agent no nginx**. Regra de leitura: **403 = barrado
+  antes do controller** (allowlist/borda); **401 = token não bate**; **200 = ok**.
+- **Fix:** `ASAAS_WEBHOOK_IP_ALLOWLIST=false` no `.env` + `php artisan config:cache` +
+  `reload php8.4-fpm` (o `curl` passou a dar 401), depois reativar a fila no painel
+  (Menu do usuário → Integrações → Webhooks → ligar "webhook ativo" + "fila de
+  sincronização ativada"). Eventos reenviados → 200. **Runbook completo:
+  `docs/runbooks/ASAAS_WEBHOOKS.md`.**
+- **⚠️ TODO GO-LIVE (não esquecer):** ao virar o Asaas para PRODUÇÃO, ligar a allowlist
+  de novo — `ASAAS_WEBHOOK_IP_ALLOWLIST=true` + `config:cache` + reload. **Não precisa
+  editar os IPs:** os **4 IPs oficiais de produção** já são o default do
+  `config/asaas.php` (os 2 extras do e-mail do sandbox são só do sandbox — NÃO pôr em
+  prod). Conferir a lista oficial no go-live. Ver a seção "Checklist de GO-LIVE" no runbook.
+
 ## Ponteiros — onde está cada coisa
 
 - **Economia (preços, pacotes, splits, tiers, descontos, franquias, teto, payout,
@@ -400,6 +421,8 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
 - **Arquitetura detalhada e features/serviços:** `docs/ARQUITETURA.md`.
 - **Handoff mestre:** `docs/MASTER_HANDOFF_FINAL.md` (ler antes de pegar tarefa nova).
 - **Segurança/achados:** `docs/SECURITY_ISSUES.md`.
+- **Runbooks operacionais:** `docs/runbooks/` — Reverb (`REVERB_ATIVACAO.md`) e
+  webhooks do Asaas (`ASAAS_WEBHOOKS.md`, inclui o **checklist de go-live** da allowlist de IP).
 
 ## Contas de UAT e dados de teste
 
