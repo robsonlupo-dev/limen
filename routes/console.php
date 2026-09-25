@@ -63,6 +63,18 @@ Schedule::command('subscriptions:grant-monthly')->hourly()->withoutOverlapping(1
 // deletando o mesmo lote.
 Schedule::command('chat:purge-expired-access')->dailyAt('03:30')->withoutOverlapping(10);
 
+// Recolhe os BYTES de áudio das mensagens de voz já fora da retenção
+// (feat/chat-audio-retention-gc). Roda LOGO DEPOIS do purge de acesso (que
+// soft-deleta as mensagens), diário — o gate é a mesma janela em dias. Nunca
+// apaga áudio sob denúncia aberta (a prova é retida). withoutOverlapping evita
+// duas varreduras recolhendo o mesmo lote.
+Schedule::command('chat:purge-audio')->dailyAt('03:45')->withoutOverlapping(10);
+
+// GC dos uploads de áudio CRUS órfãos do chat (job descartado sem rodar). De
+// hora em hora, como os outros purges de cru (voice/content). Só higiene de
+// disco — o cru é privado e nunca servido.
+Schedule::command('chat:purge-orphan-raw')->hourly()->withoutOverlapping(10);
+
 // Direito de eliminação (LGPD art. 18, VI): executa as exclusões cuja carência
 // de 30 dias venceu. Diário basta — o prazo é contado em dias, e adiantar não é
 // opção (a carência é justamente o direito de desistir).

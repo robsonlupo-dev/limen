@@ -26,6 +26,14 @@ return [
     // Dias de carência APÓS o vencimento: o histórico fica visível porém
     // bloqueado (sem envio, cada mensagem marcada locked) até este prazo; depois
     // as mensagens são soft-deletadas (retidas no servidor, ocultas na UI).
+    //
+    // RETENÇÃO DO ÁUDIO (feat/chat-audio-retention-gc): os bytes das mensagens de
+    // voz seguem ESTA retenção — `chat:purge-audio` os recolhe quando a mensagem é
+    // soft-deletada (fim da carência) e não há denúncia aberta. Logo a janela
+    // efetiva do áudio = access_days + grace_days (padrão 30 + 15 = 45 dias). Para
+    // encurtar/alongar a retenção do áudio, mexa nesses dois — não há timer
+    // separado de propósito: apagar o áudio de uma conversa AINDA ativa deixaria
+    // uma bolha tocável sem som. (Nº final pendente do jurídico — PENDENCIAS §7.)
     'grace_days' => (int) env('CHAT_GRACE_DAYS', 15),
 
     // Tamanho máximo do corpo de uma mensagem, em caracteres.
