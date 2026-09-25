@@ -11,6 +11,9 @@ import PerformerOnboardingWizard from '@/Components/Onboarding/PerformerOnboardi
 
 const props = defineProps({
     tipo: { type: String, default: 'membro' },
+    // Programa de indicação: código vindo do link (?ref=) ou do cookie, para
+    // preencher o campo. Vazio quando o cadastro não veio de uma indicação.
+    ref: { type: String, default: '' },
 })
 
 // Sprint 7: o cadastro de performer virou o wizard de 5 passos (passos 1–3
@@ -43,6 +46,8 @@ const form = useForm({
     // caminho normal). Com um File, o Inertia manda multipart automaticamente e o
     // register.store roda o mesmo pipeline (sanitização + anti-CSAM) do perfil.
     avatar: null,
+    // Código de indicação OPCIONAL (feat/referral-program). Prefill do ?ref=/cookie.
+    codigo_indicacao: props.ref ?? '',
     captcha_token: '',
 })
 
@@ -267,6 +272,24 @@ function submit() {
                             @crop="onAvatarCropped"
                             @cancel="pendingAvatarFile = null"
                         />
+
+                        <!-- Código de indicação OPCIONAL (feat/referral-program).
+                             Prefill do link ?ref=; um código inválido não bloqueia o
+                             cadastro (o servidor só ignora o vínculo). -->
+                        <div>
+                            <Input
+                                id="codigo_indicacao"
+                                v-model="form.codigo_indicacao"
+                                label="Código de indicação (opcional)"
+                                type="text"
+                                maxlength="32"
+                                placeholder="Ex.: LM-7F3K2"
+                                :error="form.errors.codigo_indicacao"
+                            />
+                            <p class="text-xs text-muted mt-1">
+                                Foi indicado por alguém? Informe o código para vocês dois ganharem tokens.
+                            </p>
+                        </div>
 
                         <!-- Checkboxes -->
                         <div class="space-y-3">

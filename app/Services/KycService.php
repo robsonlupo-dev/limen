@@ -52,6 +52,12 @@ class KycService
             // rápido leria o usuário ainda `pending`, e a carta sairia mesmo se
             // a transação externa (painel admin) desse rollback.
             SendWelcomeEmail::dispatch($user)->afterCommit();
+
+            // Programa de indicação: registra que a performer indicada teve KYC
+            // aprovado (parte 1 da conversão 3.B). NÃO qualifica sozinho — a
+            // conversão só fecha com o 1º ganho de um terceiro, detectado no sweep.
+            // Erro engolido dentro do service; nunca derruba a aprovação de KYC.
+            app(ReferralService::class)->onPerformerKycApproved($user);
         });
     }
 

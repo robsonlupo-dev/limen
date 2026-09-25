@@ -176,6 +176,13 @@ class PaymentService
                 'amount_cents' => $payment->amount_cents,
             ]);
         });
+
+        // Programa de indicação: a 1ª compra confirmada do membro indicado qualifica
+        // a indicação (3.A). FORA da transação de crédito e com erro engolido — uma
+        // falha aqui NUNCA pode desfazer/derrubar a confirmação do pagamento.
+        // Idempotente: só age numa indicação `pending`, então rodar de novo (webhook
+        // reenviado, reconcile) não duplica.
+        app(ReferralService::class)->onReferredMemberPurchase($payment->user);
     }
 
     public function reconcile(): void

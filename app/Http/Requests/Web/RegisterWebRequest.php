@@ -110,6 +110,12 @@ class RegisterWebRequest extends FormRequest
                 }
             }],
 
+            // Programa de indicação (feat/referral-program): código OPCIONAL que o
+            // novo usuário digita (ou que vem preenchido do link ?ref=). Um código
+            // inexistente NÃO é erro de cadastro — só não gera vínculo —, então aqui
+            // é só sanidade de formato/tamanho, sem checar existência.
+            'codigo_indicacao' => ['nullable', 'string', 'max:32'],
+
             // Captcha. Vale para os DOIS caminhos desta rota — o formulário de
             // membro e o wizard da performer, que postam no mesmo
             // register.store. No-op com CAPTCHA_PROVIDER=none.

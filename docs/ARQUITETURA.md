@@ -2650,3 +2650,46 @@ dá loop) e as páginas públicas dos textos.
 
 O texto jurídico ainda é placeholder (aguardando Opice Blum) — **não descrever
 para auditoria como "contrato aceito"** até o texto definitivo entrar.
+
+## Programa de indicação — `feat/referral-program`
+
+"Indique e ganhe": membro/performer indica alguém; quando a indicação CONVERTE,
+os dois lados ganham um bônus **fixo e NÃO-SACÁVEL** em tokens. Desenho canônico
+e decisões travadas: `docs/PROGRAMA_INDICACAO.md`.
+
+**Peças.** `App\Services\ReferralService` (dona da lógica: código, atribuição,
+conversão, hold, crédito, clawback) · `App\Support\EarningPayers` (resolve o
+pagador de cada ganho da performer pelos mesmos elos reversos do
+`PerformerEarningsService` — base do anti-fraude "terceiro pagador") ·
+`referral:process-holds` (sweep de hora em hora: detecta a conversão da performer
+e credita o hold vencido) · `config/referral.php` (interruptor + valores, nada
+hardcoded) · tabelas `referrals` / `referral_rewards` · colunas
+`users.referral_code` / `referred_by_user_id` (imutável) / `referred_via`.
+
+**Invariantes (não afrouxar sem o PO).**
+- **Não-sacável por construção:** `referral_bonus` está em
+  `monetization.cap_respecting_entry_types` (respeita o teto) e **fora** de
+  `monetization.payout.earning_entry_types` (o `PayoutService` só soma o
+  allowlist — o bônus nunca vira R$0,60/token). Creditado via
+  `TokenCreditPolicy::credit`, nunca `TokenService::credit` direto (teste de
+  arquitetura).
+- **Duas conversões, nunca o cadastro:** 1ª compra confirmada do membro (hook em
+  `PaymentService::confirmPayment`, fora da transação de crédito, try/catch) OU
+  KYC aprovado (`KycService::approve`) + 1º ganho de um **terceiro** pagador da
+  performer (não o indicador, não ela, não conta ligada por CPF/IP).
+- **Atribuição imutável:** `referred_by_user_id` fora do `$fillable`, gravado 1×
+  no cadastro sob gate `enabled()`; guarda contra sobrescrita + `UNIQUE(referred_user_id)`.
+- **Idempotência:** `UNIQUE(referral_id, role)` + guarda de status + `lockForUpdate`
+  em `qualify()`; e dedup por linha de ledger (`reference_type='referral_reward'`)
+  antes de creditar em `settle()` (crash entre crédito e update não recredita).
+- **Privacidade (§7.3):** e-mails/jobs passam só escalares (id + rótulo seguro);
+  identificação por `stage_name`/apelido, nunca nome real/e-mail/CPF.
+- **Footprint zero desligado:** todo o caminho fica atrás de `config('referral.enabled')`
+  (default false) — a suíte inteira roda com o programa desligado.
+
+**Limitações conhecidas (follow-ups):** detecção automática de estorno depende de
+um webhook de refund/chargeback do Asaas que ainda não existe (o hold de 14 dias +
+`baseStillValid` são a proteção primária; `ReferralService::clawback` está pronto
+para o gatilho); e `registration_ip_hash` só é coletado no cadastro de performer,
+então a linkagem membro↔membro vale por CPF, não por IP. Ver
+`docs/PROGRAMA_INDICACAO.md` §4.1.

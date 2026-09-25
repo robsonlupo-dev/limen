@@ -66,6 +66,16 @@ class AuthService
 
             TokenWallet::create(['user_id' => $user->id, 'balance' => 0]);
 
+            // Programa de indicação: gera o código do novo membro e, se veio com um
+            // código de indicação válido, grava o vínculo (imutável). Todo o bloco
+            // fica atrás do gate `enabled()` — footprint zero quando o programa está
+            // desligado. Não derruba o cadastro: attributeAtSignup engole os erros.
+            $referrals = app(ReferralService::class);
+            if ($referrals->enabled()) {
+                $referrals->ensureCode($user);
+                $referrals->attributeAtSignup($user, $data['referral_code'] ?? null, $data['referred_via'] ?? 'code');
+            }
+
             event(new Registered($user));
 
             return $user;
@@ -118,6 +128,14 @@ class AuthService
             ]);
 
             TokenWallet::create(['user_id' => $user->id, 'balance' => 0]);
+
+            // Programa de indicação (idem registerConsumer): gate enabled() → código
+            // próprio + vínculo.
+            $referrals = app(ReferralService::class);
+            if ($referrals->enabled()) {
+                $referrals->ensureCode($user);
+                $referrals->attributeAtSignup($user, $data['referral_code'] ?? null, $data['referred_via'] ?? 'code');
+            }
 
             event(new Registered($user));
 
