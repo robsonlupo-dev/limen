@@ -280,3 +280,39 @@ Registrado aqui para o parecer jurídico; a engenharia seguiu com as mesmas defe
 O mecanismo está pronto e é seguro tecnicamente (sanitização + denúncia + retenção). Se o
 jurídico exigir, dá para **desligar o áudio por trás de uma flag/tier** ou **encurtar a
 duração** sem mexer no resto do chat. Até o parecer, fica ligado com as defesas acima.
+
+### Retenção do áudio — implementação e dial (25/09/2026, `feat/chat-audio-retention-gc`)
+Antes, os **bytes** do áudio **nunca eram apagados** (a retenção só soft-deletava a linha da
+mensagem) — o disco cresceria sem limite. Implementado o GC:
+- **`chat:purge-audio`** (diário) recolhe os bytes de mensagens de voz **já soft-deletadas**
+  (fim da carência) **e sem denúncia aberta**. A **linha e o `content_hash` ficam** (o
+  moderador ainda vê "áudio recolhido" + hash); só os bytes saem.
+- **`chat:purge-orphan-raw`** (de hora em hora) recolhe crus de uploads que falharam.
+- **Janela efetiva do áudio = `CHAT_ACCESS_DAYS` + `CHAT_GRACE_DAYS` (padrão 30 + 15 = 45
+  dias)** — o áudio some junto com a mensagem. Não há timer separado de propósito: apagar o
+  áudio de uma conversa **ainda ativa** deixaria uma bolha tocável sem som. Para mudar a
+  retenção do áudio, mexe-se nesses dois env.
+- **Prova sob denúncia é intocável** — nunca recolhida enquanto a denúncia está aberta
+  (mesma regra da foto/story).
+
+**Pendência para o advogado:** confirmar o **número** da retenção do áudio (hoje 45 dias, o
+mesmo do texto). Alongar/encurtar é só o env — sem código.
+
+### Ideia em avaliação: transcrição como prova retida (para o parecer)
+Proposta do PO: **transcrever** a mensagem de voz e, passado o prazo, **apagar o áudio
+mantendo só a transcrição** (texto é ~1 KB vs ~300 KB do MP3 — some o custo de disco e a
+biometria de voz sai do servidor mais cedo). Pontos para o jurídico decidir **antes** de
+construir:
+1. **A transcrição substitui o áudio como prova?** STT (voz→texto) em pt-BR erra com gíria,
+   ruído e sotaque; para efeito legal, um transcrito imperfeito é mais fraco que o original.
+   O jurídico aceita transcrição como registro suficiente, ou o **áudio original** precisa
+   ser guardado por um prazo mínimo (e qual)?
+2. **Privacidade:** a transcrição teria que ser **local** (ex.: whisper.cpp no servidor) —
+   mandar áudio íntimo de adultos para uma **API externa** de transcrição é um risco de PII
+   que provavelmente não queremos. Confirmar.
+3. **Reaplicar o filtro de contato (§7.1):** ter a transcrição permitiria rodar o filtro de
+   troca de contato **também no áudio** — vira um ganho de compliance, não só de storage.
+
+Engenharia: viável, porém é uma **feature à parte** (pipeline de STT no `ProcessChatAudio`,
+dependência do whisper.cpp + modelo, custo de CPU, nova coluna `transcript`). Não bloqueia o
+GC acima — o GC já resolve o storage hoje. Fica registrado aqui aguardando o parecer.
