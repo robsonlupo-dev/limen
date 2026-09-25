@@ -173,13 +173,13 @@ contrato técnico que um dev quebraria sem saber:
   reusa `call_credit` (70/30) — sem tipo novo. Regras de negócio em `docs/ECONOMIA.md` §8.
 ## Estado atual
 
-- **Branch principal:** `main` · **último commit:** `9078a56` (Merge PR #213 —
-  `fix/voice-access-and-chat-avatar`: avatar do membro ao lado do FanAlias no chat +
-  acesso à intro de voz).
-- **Suíte:** ~2184 testes / ~17144 asserts (com `feat/performer-profile-redesign`).
-  **Roda verde local com 1 falha conhecida** — o `GeoBlockTest` da view 451, que só falha
-  **neste clone de dev** (view não compilada; verde no CI). Ver "Ambiente de dev". **135
-  migrations.**
+- **Branch principal:** `main` · **último commit:** `ccc5ad6` (Merge PR #274 —
+  `feat/catalog-message-templates`). Ver "Nota operacional — 25/09/2026" para tudo o
+  que entrou na janela de 24–25/09 (chat de voz, tempo real, desfazer envio, GC de
+  áudio, mensagens de catálogo).
+- **Suíte:** **~2517 testes / ~19000 asserts.** **Roda verde no CI com 1 falha
+  conhecida** — o `GeoBlockTest` da view 451, que só falha **neste clone de dev**
+  (view não compilada; verde no CI). Ver "Ambiente de dev". **155 migrations.**
 - **Como rodar a suíte, deploy e ambiente:** ver "Ambiente de dev" e as "Notas
   operacionais" mais abaixo.
 
@@ -349,6 +349,44 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   que estavam **sem Círculo** (`activeCircle()` = null → cai no preço `none` = 2), porque o
   seed havia abortado no passo de conteúdo antes de assinar os Círculos. Verificação rápida:
   `User::where('email',...)->first()->activeCircle()?->slug`.
+
+## Nota operacional — 25/09/2026 (infra real do servidor + janela do chat)
+
+**Registro para não repetir a dúvida de infra desta sessão.** O servidor de dev/prod
+(`deploy@62.238.46.212`, host `limen-dev-01`) é UMA máquina:
+
+- **É UMA instância, dois domínios.** `limen.dev.br` (dev) e `thelimen.com.br` (prod)
+  têm o **mesmo `root /var/www/limen/public`** no nginx — mesmo checkout, mesmo `.env`,
+  mesmo banco, mesmo Reverb. **Validar no `limen.dev.br` = validar produção.** O
+  `~/limen-dev` é só o clone de **build/testes** (gera patches, roda a suíte); não serve
+  site. (Ver a stack e "Ambiente de dev" — já corrigidos no #272.)
+- **Reverb LIGADO em produção** desde 25/09 (PR #269 + setup manual): programa
+  `limen-reverb` no supervisor (`php artisan reverb:start --host=0.0.0.0 --port=8080`,
+  user `deploy`), WSS via nginx `location /app/` → `127.0.0.1:8080`. `.env`:
+  `BROADCAST_CONNECTION=reverb`; PHP publica em `REVERB_HOST=localhost:8080` (direto),
+  o navegador conecta em `VITE_REVERB_HOST=limen.dev.br:443` (wss). Runbook completo:
+  `docs/runbooks/REVERB_ATIVACAO.md`. O deploy reinicia o `limen-reverb` junto com os
+  workers (`|| true`, tolerante).
+- **Recursos da máquina (25/09):** **2 vCPU (Xeon Skylake), 3,7 GB RAM, disco 38 GB
+  (~25 GB livres).** Antes SEM swap; **agora com swapfile de 4 GB** (`/swapfile`, em
+  `/etc/fstab`, `vm.swappiness=10` em `/etc/sysctl.d/99-swappiness.conf`). Implicação:
+  cargas pesadas de mídia (ex.: transcrição de voz com whisper) **não cabem aqui** —
+  ver a análise em `docs/PENDENCIAS_JURIDICAS.md` (transcrição) e o §7 (retenção de áudio).
+- **Token do GitHub do servidor (`Hetzner deploy`, clássico) tem escopo `workflow`**
+  desde 25/09 — push que toca `.github/workflows/*` funciona (antes era barrado).
+
+**Janela do chat 24–25/09 (tudo mergeado na `main`):**
+- **#267** envio otimista ("brota") · **#268** mensagem de VOZ no chat 1:1 (pipeline
+  ffmpeg da intro de voz; denúncia + evidência de áudio na moderação) · **#270** balão
+  mais sutil · **#271** "desfazer envio" (redação de EXIBIÇÃO — esconde nas duas pontas,
+  RETÉM o original para a moderação; nunca sob denúncia aberta; presente não é redigível;
+  janela `chat.redact_window_minutes`=5) · **#273** GC/retenção do áudio
+  (`chat:purge-audio` + `chat:purge-orphan-raw`; áudio segue a retenção da mensagem =
+  `access_days`+`grace_days`≈45d; nunca apaga sob denúncia aberta) · **#274** mensagens
+  de catálogo **pré-cadastradas** (as 15 grátis diárias deixaram de ser texto livre —
+  a performer ESCOLHE um modelo; fecha a fuga de contato grátis; editáveis em
+  `/admin/mensagens-catalogo`; `{nome}` resolvido no servidor; **no chat JÁ PAGO o texto
+  segue livre**, contato liberado lá). Detalhe de cada uma em `docs/HISTORICO_SPRINTS.md`.
 
 ## Ponteiros — onde está cada coisa
 
