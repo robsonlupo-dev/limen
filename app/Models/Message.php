@@ -78,4 +78,12 @@ class Message extends Model
     {
         return $this->belongsTo(Gift::class);
     }
+
+    // Story respondido (feat/story-reply-to-chat). NULL na mensagem normal; quando
+    // presente, a mensagem é uma RESPOSTA a este story — a bolha mostra "Respondeu
+    // ao story". nullOnDelete: o story efêmero some e a mensagem fica sem o ponteiro.
+    public function replyToStory(): BelongsTo
+    {
+        return $this->belongsTo(PerformerStory::class, 'reply_to_story_id');
+    }
 }
