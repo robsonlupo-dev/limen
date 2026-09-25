@@ -25,6 +25,8 @@ const props = defineProps({
     // Franquia diária de mensagens grátis e quantas restam hoje (por performer).
     messagesRemaining: { type: Number, default: 0 },
     messagesDailyLimit: { type: Number, default: 0 },
+    // Modelos pré-cadastrados [{id, body}] — a performer ESCOLHE um; não digita.
+    catalogTemplates: { type: Array, default: () => [] },
 })
 
 // Estado local do coração por handle: parte de `member.hearted` e reflete o
@@ -51,7 +53,22 @@ onUnmounted(() => {
 })
 
 // Modal de mensagem personalizada.
-const msg = reactive({ open: false, member: null, body: '', sending: false, error: '' })
+const msg = reactive({ open: false, member: null, templateId: null, sending: false, error: '' })
+
+// Preview do modelo com {nome} resolvido — espelha o render do servidor (apelido
+// do membro quando existe; sem apelido, o token some). O servidor é a autoridade
+// no envio; isto é só a prévia do que será mandado.
+function renderTemplate(body) {
+    const name = (msg.member?.nickname ?? '').trim()
+    if (name) return body.replace(/\{nome\}|\{apelido\}/g, name).trim()
+    return body
+        .replace(/\{nome\}|\{apelido\}/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([,.!?…])/g, '$1')
+        .replace(/,\s*([.!?…])/g, '$1')
+        .replace(/(^|[.!?…]\s*),\s*/g, '$1')
+        .trim()
+}
 
 // Modal de "perfil" do membro (visitas bidirecionais). Abrir registra a visita —
 // o membro depois vê "quem visitou seu perfil". O membro não tem mais dado que o
@@ -117,20 +134,20 @@ async function sendHeart(member) {
 
 function openMessage(member) {
     msg.member = member
-    msg.body = ''
+    msg.templateId = null
     msg.error = ''
     msg.open = true
 }
 
 async function sendMessage() {
-    if (msg.sending || remaining.value <= 0 || msg.body.trim() === '') return
+    if (msg.sending || remaining.value <= 0 || !msg.templateId) return
     msg.sending = true
     msg.error = ''
 
     try {
         const data = await postJson(route('performer.members.message'), {
             member_handle: msg.member.member_handle,
-            body: msg.body,
+            template_id: msg.templateId,
         })
         remaining.value = data.messages_remaining_today ?? remaining.value
         msg.open = false
@@ -225,19 +242,25 @@ async function sendMessage() {
             </p>
 
             <template v-if="remaining > 0">
-                <textarea
-                    v-model="msg.body"
-                    rows="4"
-                    maxlength="2000"
-                    placeholder="Escreva algo pessoal…"
-                    class="w-full rounded-lg border border-limen-line bg-limen-surface-2 px-3 py-2 text-sm text-limen-ink placeholder:text-limen-ink-mute focus:border-limen-gold focus:outline-none"
-                ></textarea>
+                <div class="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    <button
+                        v-for="t in catalogTemplates"
+                        :key="t.id"
+                        type="button"
+                        @click="msg.templateId = t.id"
+                        class="block w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors"
+                        :class="msg.templateId === t.id
+                            ? 'border-limen-gold bg-limen-gold/10 text-limen-ink'
+                            : 'border-limen-line bg-limen-surface-2 text-limen-ink-soft hover:border-limen-gold/50'"
+                    >{{ renderTemplate(t.body) }}</button>
+                    <p v-if="!catalogTemplates.length" class="text-sm text-limen-ink-mute">Nenhuma mensagem disponível no momento.</p>
+                </div>
                 <p v-if="msg.error" class="mt-2 text-xs text-danger">{{ msg.error }}</p>
                 <div class="mt-4 flex items-center justify-between">
                     <span class="text-xs text-limen-ink-mute">{{ remaining }}/{{ messagesDailyLimit }} grátis hoje</span>
                     <div class="flex gap-3">
                         <Button variant="ghost" size="sm" @click="msg.open = false">Cancelar</Button>
-                        <Button size="sm" :disabled="msg.sending || msg.body.trim() === ''" @click="sendMessage">
+                        <Button size="sm" :disabled="msg.sending || !msg.templateId" @click="sendMessage">
                             Enviar
                         </Button>
                     </div>

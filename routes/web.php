@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\Account\DeletionController as AccountDeletionController;
 use App\Http\Controllers\Web\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Web\Admin\KycAdminController;
+use App\Http\Controllers\Web\Admin\CatalogMessagesController;
 use App\Http\Controllers\Web\Admin\MembersController;
 use App\Http\Controllers\Web\Admin\PerformersController;
 use App\Http\Controllers\Web\Admin\PerformerTierController;
@@ -293,6 +294,15 @@ Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () 
         ->whereNumber('member')->name('admin.members.reactivate');
     Route::post('/membros/{member}/reveal', [MembersController::class, 'reveal'])
         ->whereNumber('member')->name('admin.members.reveal');
+
+    // Mensagens de catálogo pré-cadastradas (feat/catalog-message-templates): CRUD
+    // da copy que a performer escolhe no alcance grátis. Só admin.
+    Route::get('/mensagens-catalogo', [CatalogMessagesController::class, 'index'])->name('admin.catalog-messages');
+    Route::post('/mensagens-catalogo', [CatalogMessagesController::class, 'store'])->name('admin.catalog-messages.store');
+    Route::patch('/mensagens-catalogo/{template}', [CatalogMessagesController::class, 'update'])
+        ->whereNumber('template')->name('admin.catalog-messages.update');
+    Route::delete('/mensagens-catalogo/{template}', [CatalogMessagesController::class, 'destroy'])
+        ->whereNumber('template')->name('admin.catalog-messages.destroy');
 
     // Grant de tier (verificada/select/maison). tier_granted_by é autoridade
     // do servidor — os campos ficam fora do $fillable, gravação via forceFill.

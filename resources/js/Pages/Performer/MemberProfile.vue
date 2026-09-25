@@ -28,6 +28,8 @@ const props = defineProps({
     member: { type: Object, required: true },
     messagesRemaining: { type: Number, default: 0 },
     messagesDailyLimit: { type: Number, default: 0 },
+    // Modelos pré-cadastrados [{id, body}] — a performer ESCOLHE um; não digita.
+    catalogTemplates: { type: Array, default: () => [] },
 })
 
 const hearted = ref(props.member.hearted)
@@ -35,7 +37,22 @@ const hearting = ref(false)
 const remaining = ref(props.messagesRemaining)
 const toast = ref('')
 
-const msg = reactive({ open: false, body: '', sending: false, error: '' })
+const msg = reactive({ open: false, templateId: null, sending: false, error: '' })
+
+// Preview do modelo com {nome} resolvido — espelha o render do servidor: usa o
+// apelido do membro quando existe; sem apelido, o token some (o servidor é a
+// autoridade no envio, isto é só a prévia).
+function renderTemplate(body) {
+    const name = (props.member.nickname ?? '').trim()
+    if (name) return body.replace(/\{nome\}|\{apelido\}/g, name).trim()
+    return body
+        .replace(/\{nome\}|\{apelido\}/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([,.!?…])/g, '$1')
+        .replace(/,\s*([.!?…])/g, '$1')
+        .replace(/(^|[.!?…]\s*),\s*/g, '$1')
+        .trim()
+}
 
 // Denúncia de apelido (feat/nickname-report, 4b-ui): só quando o rótulo é um
 // apelido escolhido pelo membro (member.nickname), não o FanAlias.
@@ -152,17 +169,17 @@ async function toggleHeart() {
 }
 
 async function sendMessage() {
-    if (msg.sending || !msg.body.trim()) return
+    if (msg.sending || !msg.templateId) return
     msg.sending = true
     msg.error = ''
     try {
         const data = await postJson(route('performer.members.message'), {
             member_handle: props.member.member_handle,
-            body: msg.body,
+            template_id: msg.templateId,
         })
         remaining.value = data.messages_remaining_today ?? remaining.value
         msg.open = false
-        msg.body = ''
+        msg.templateId = null
         flash('Mensagem enviada.')
     } catch (e) {
         msg.error = e?.data?.message ?? 'Não foi possível enviar a mensagem.'
@@ -470,18 +487,24 @@ async function sendMessage() {
         <Modal :show="msg.open" @close="msg.open = false">
             <div class="space-y-4 p-6">
                 <h2 class="font-serif text-xl text-limen-ink">Mensagem para {{ member.fan_alias_label }}</h2>
-                <p class="text-xs text-limen-ink-mute">Restam {{ remaining }} de {{ messagesDailyLimit }} mensagens grátis hoje.</p>
-                <textarea
-                    v-model="msg.body"
-                    rows="4"
-                    maxlength="1000"
-                    placeholder="Escreva uma mensagem pessoal..."
-                    class="w-full rounded-lg border border-limen-line bg-limen-surface-2 px-3 py-2 text-sm text-limen-ink placeholder:text-limen-ink-mute focus:border-limen-gold focus:outline-none"
-                />
+                <p class="text-xs text-limen-ink-mute">Escolha uma mensagem para enviar. Restam {{ remaining }} de {{ messagesDailyLimit }} grátis hoje.</p>
+                <div class="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    <button
+                        v-for="t in catalogTemplates"
+                        :key="t.id"
+                        type="button"
+                        @click="msg.templateId = t.id"
+                        class="block w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors"
+                        :class="msg.templateId === t.id
+                            ? 'border-limen-gold bg-limen-gold/10 text-limen-ink'
+                            : 'border-limen-line bg-limen-surface-2 text-limen-ink-soft hover:border-limen-gold/50'"
+                    >{{ renderTemplate(t.body) }}</button>
+                    <p v-if="!catalogTemplates.length" class="text-sm text-limen-ink-mute">Nenhuma mensagem disponível no momento.</p>
+                </div>
                 <p v-if="msg.error" class="text-sm text-limen-live">{{ msg.error }}</p>
                 <div class="flex justify-end gap-3">
                     <Button variant="ghost" @click="msg.open = false">Cancelar</Button>
-                    <Button :disabled="msg.sending || !msg.body.trim()" @click="sendMessage">
+                    <Button :disabled="msg.sending || !msg.templateId" @click="sendMessage">
                         {{ msg.sending ? 'Enviando...' : 'Enviar' }}
                     </Button>
                 </div>
