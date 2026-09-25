@@ -418,3 +418,50 @@ maison** do front com o design system `limen-*` (PRs #152–#158 — § "Conven�
 
 > **O "Toast notification estilo Seeking" já foi entregue** (PR #144, Sprint 15) —
 > se aparecer em lista antiga de backlog, está feito.
+
+### Janela Chat & Catálogo — 24–25/09/2026 (PRs #262–#274, `main` em `ccc5ad6`)
+
+Melhorias do chat de perfil (a partir de um vídeo de referência) + hardening + infra.
+Fonte operacional consolidada na "Nota operacional — 25/09/2026" do CLAUDE.md.
+
+- **#262** métrica de reversão de moderação (reopen de 1ª classe).
+- **#263** Carta dos Fundadores "elite" (membro = privacidade; performer = ganhos, sem
+  números/%/R$); layout em componente Blade (`x-founders-letter`).
+- **#264** emoji→SVG round 2 · **#265** hardening (fix da corrida do webhook de KYC) ·
+  **#266** hash do `audit_logs.ip` (ip_hash HMAC).
+- **#267** envio otimista ("brota") no chat de perfil — a bolha nasce na hora; funciona
+  com ou sem Reverb.
+- **#268** **mensagem de VOZ no chat 1:1** — espelha o pipeline da intro de voz (Form
+  Request → ChatService → store privado → job ffmpeg → serving por request autorizado).
+  Economia idêntica ao texto (membro paga a janela no 1º envio; performer grátis).
+  Denunciável; o moderador OUVE a prova (`moderacao.evidence.message-audio`). Revisão de
+  segurança corrigiu 1 HIGH (áudio servido à performer travava por usar `accessState` cru
+  → passou a `stateFor`).
+- **#269** restart tolerante do `limen-reverb` no `deploy.yml` · **#272** docs (Reverb no
+  ar + topologia de instância única).
+- **#270** balão do chat mais sutil (sem overshoot).
+- **#271** **"desfazer envio"** — redação de EXIBIÇÃO (`messages.redacted_at`): esconde
+  nas duas pontas, RETÉM o original para a moderação; nunca sob denúncia aberta; presente
+  não é redigível; janela `chat.redact_window_minutes` (5 min). Revisão corrigiu 1 HIGH
+  (bytes de áudio redigido rebuscáveis pela URL direta) + 1 MEDIUM (trava de presente só
+  na UI → movida pro servidor).
+- **#273** **GC/retenção do áudio** — `chat:purge-audio` (diário) recolhe bytes de
+  mensagens fora da retenção e sem denúncia aberta (mantém linha + hash); `chat:purge-
+  orphan-raw` (horário) para crus de jobs falhos. Retenção do áudio = `access_days` +
+  `grace_days` (≈45d). Fecha o crescimento infinito de disco do áudio.
+- **#274** **mensagens de catálogo pré-cadastradas** — as 15 grátis diárias da performer
+  deixaram de ser texto livre (vetor de fuga: mandar Insta/WhatsApp de graça). Agora ela
+  ESCOLHE um modelo (`chat_catalog_templates`, 15 semeadas na migration, editáveis em
+  `/admin/mensagens-catalogo`, só admin). `{nome}` resolvido no servidor. **No chat JÁ
+  PAGO o texto segue livre** (contato liberado lá — o membro já foi monetizado).
+
+**Infra (manual, fora de PR):** Reverb ligado em produção (supervisor `limen-reverb` +
+nginx `/app`); swapfile de 4 GB no servidor (2 vCPU / 3,7 GB RAM); token do GitHub do
+servidor ganhou escopo `workflow`.
+
+**Pendências jurídicas registradas** (`docs/PENDENCIAS_JURIDICAS.md §7`): número da
+retenção do áudio (hoje 45d) e a ideia de transcrição como prova (só numa máquina de
+mídia separada — ver a análise de engenharia da sessão).
+
+**Ainda no radar (do vídeo):** anel + menu no avatar do perfil + lightbox; "responder
+story → chat" (estilo Instagram).
