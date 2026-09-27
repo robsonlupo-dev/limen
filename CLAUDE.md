@@ -211,6 +211,13 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   desktop), valores acima do conteúdo, selo de verificada clicável (só critérios reais).
   Componentes em `Components/Profile/*`; detalhe no `MASTER_HANDOFF_FINAL.md`.
 - **Landing cinematográfica** (a porta pública `/`), **Anti-CSAM, Som de notificação**.
+- **Roadmap social ("estilo Insta")** (`docs/ROADMAP_SOCIAL.md`): 3 ondas —
+  Destaques, Stories VIP por tier, Status do dia, enquetes/reações (Onda 1);
+  canal de transmissão + modo efêmero (Onda 2); fixar conteúdo + insights (Onda 3).
+  **Já no ar:** **Status do dia** da performer (`PerformerStatus`,
+  `PerformerStatusService`, `config/stories.php`) — bolha com contagem regressiva,
+  expira na leitura, texto filtrado por `SafeProfileText`, exposto via
+  `whenLoaded` no `PerformerPublicResource`. Não mexe em token.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

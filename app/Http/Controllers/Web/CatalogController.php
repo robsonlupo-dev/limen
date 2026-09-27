@@ -226,6 +226,10 @@ class CatalogController extends Controller
         // dois casos de propósito (ver ProfileVisitService::record).
         $this->profileVisits->record($request->user(), $profile);
 
+        // Status do dia (roadmap social): eager-load para o resource expor por
+        // whenLoaded, sem N+1. activeStatus já filtra o expirado.
+        $profile->loadMissing('activeStatus');
+
         $performer = array_merge(
             (new PerformerPublicResource($profile))->resolve($request),
             [

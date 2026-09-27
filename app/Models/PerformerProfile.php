@@ -535,6 +535,17 @@ class PerformerProfile extends Model
     }
 
     /**
+     * Status do dia (roadmap social, Onda 1a): UM por performer (UNIQUE), e só o
+     * que ainda não expirou — a expiração vale na LEITURA. Para exibir no card/
+     * perfil, eager-load esta relação (ex.: `->with('activeStatus')`) e o resource
+     * a expõe por `whenLoaded`, sem N+1.
+     */
+    public function activeStatus(): HasOne
+    {
+        return $this->hasOne(PerformerStatus::class)->where('expires_at', '>', now());
+    }
+
+    /**
      * Tem intro de voz APROVADA? BOOLEANO derivado para o card/perfil, nunca o
      * status cru. Barato no catálogo: o scopePublicCatalog carrega o
      * `voice_intro_approved_count` por withCount (uma subquery agregada, sem N+1);

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { Link, useForm } from '@inertiajs/vue3'
+import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
@@ -21,6 +21,8 @@ import {
 
 const props = defineProps({
     profile: { type: Object, required: true },
+    // Status do dia (roadmap social, Onda 1a): prefill do editor. null = sem status.
+    status: { type: Object, default: null },
     // Galeria de fotos (Sprint 10): estado inicial + teto. As mutações vão por
     // endpoints JSON próprios (ver PhotoGalleryManager), não por este form.
     photos: { type: Array, default: () => [] },
@@ -41,6 +43,41 @@ const VOICE_STATUS = {
     failed: { label: 'Falhou', hint: 'Houve um problema ao processar. Tente enviar de novo.' },
 }
 const voiceStatus = computed(() => (props.voiceIntro ? (VOICE_STATUS[props.voiceIntro.status] ?? null) : null))
+
+// ── Status do dia (roadmap social, Onda 1a) ──────────────────────────────────
+function isoToLocalInput(iso) {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    // datetime-local espera hora LOCAL no formato YYYY-MM-DDThh:mm.
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000)
+    return local.toISOString().slice(0, 16)
+}
+
+const statusForm = useForm({
+    body: props.status?.body ?? '',
+    countdown_at: isoToLocalInput(props.status?.countdown_at),
+    countdown_label: props.status?.countdown_label ?? '',
+})
+
+function saveStatus() {
+    statusForm
+        .transform((data) => ({
+            ...data,
+            // datetime-local (hora local) → ISO com offset, para o servidor não
+            // interpretar no fuso errado. Vazio = sem contagem.
+            countdown_at: data.countdown_at ? new Date(data.countdown_at).toISOString() : null,
+            countdown_label: data.countdown_at ? data.countdown_label : null,
+        }))
+        .post(route('performer.status.save'), { preserveScroll: true })
+}
+
+function clearStatus() {
+    router.delete(route('performer.status.clear'), {
+        preserveScroll: true,
+        onSuccess: () => statusForm.reset(),
+    })
+}
 
 const avatarForm = useForm({ file: null })
 const avatarPreview = ref(null)
@@ -329,6 +366,67 @@ function save() {
                 <Link :href="route('performer.dashboard')" class="text-sm text-gold hover:text-gold-light transition-colors shrink-0">
                     Voltar ao painel
                 </Link>
+            </div>
+
+            <!-- ── Status do dia (roadmap social, Onda 1a) ──────────────────── -->
+            <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
+                <div class="space-y-1">
+                    <h2 class="font-serif text-xl text-cream">Status do dia</h2>
+                    <p class="text-muted text-sm">
+                        Uma frase curta que aparece no seu perfil — "aceitando chamadas até 23h",
+                        "live às 22h". Some sozinha depois de um tempo. Sem telefone, link ou contato.
+                    </p>
+                </div>
+
+                <Input
+                    id="status_body"
+                    v-model="statusForm.body"
+                    label="Seu status"
+                    type="text"
+                    maxlength="140"
+                    placeholder="Ex.: Online agora, chamando 🔥"
+                    :error="statusForm.errors.body"
+                />
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-cream" for="status_countdown_at">
+                            Contagem regressiva (opcional)
+                        </label>
+                        <input
+                            id="status_countdown_at"
+                            v-model="statusForm.countdown_at"
+                            type="datetime-local"
+                            class="mt-2 w-full rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream"
+                        />
+                        <p v-if="statusForm.errors.countdown_at" class="mt-1 text-xs text-danger">{{ statusForm.errors.countdown_at }}</p>
+                    </div>
+                    <div>
+                        <Input
+                            id="status_countdown_label"
+                            v-model="statusForm.countdown_label"
+                            label="Rótulo da contagem"
+                            type="text"
+                            maxlength="40"
+                            placeholder="Ex.: Live começa"
+                            :error="statusForm.errors.countdown_label"
+                        />
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <Button variant="primary" :loading="statusForm.processing" :disabled="!statusForm.body" @click="saveStatus">
+                        Salvar status
+                    </Button>
+                    <button
+                        v-if="status"
+                        type="button"
+                        class="min-h-[44px] text-sm text-muted hover:text-danger transition-colors"
+                        @click="clearStatus"
+                    >
+                        Remover status
+                    </button>
+                </div>
             </div>
 
             <!-- Abas: cada uma cabe numa tela de celular. Salvar posta o form todo. -->

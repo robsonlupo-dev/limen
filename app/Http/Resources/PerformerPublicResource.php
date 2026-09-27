@@ -128,6 +128,16 @@ class PerformerPublicResource extends JsonResource
             // o número exato pode aparecer — não é canal lateral como o de
             // seguidores nem privado como o de favoritos.
             'photos_count' => (int) ($this->photos_count ?? 0),
+            // Status do dia (roadmap social, Onda 1a). Texto PÚBLICO auto-declarado
+            // pela performer, com contagem regressiva opcional. Só sai quando a
+            // relação foi eager-loaded (`whenLoaded`) — sem N+1 nas listagens que
+            // não a carregam; as telas de perfil fazem o load. `activeStatus` já
+            // filtra o expirado (expira na leitura), então aqui basta traduzir.
+            'status' => $this->whenLoaded('activeStatus', fn () => $this->activeStatus ? [
+                'body' => $this->activeStatus->body,
+                'countdown_at' => $this->activeStatus->countdown_at?->toIso8601String(),
+                'countdown_label' => $this->activeStatus->countdown_label,
+            ] : null),
         ];
     }
 

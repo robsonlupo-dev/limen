@@ -669,6 +669,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.profile.photo')
             ->can('performer-active');
 
+        // Status do dia (roadmap social, Onda 1a): definir/limpar a bolha do avatar.
+        Route::post('/performer/status', [\App\Http\Controllers\Web\Performer\StatusController::class, 'save'])
+            ->middleware('throttle:30,1')
+            ->name('performer.status.save')
+            ->can('performer-active');
+        Route::delete('/performer/status', [\App\Http\Controllers\Web\Performer\StatusController::class, 'clear'])
+            ->middleware('throttle:30,1')
+            ->name('performer.status.clear')
+            ->can('performer-active');
+
         // Foto de capa (UAT fix): gêmea da foto de perfil pela porta WEB. Sem ela
         // o `cover_path` (coluna + `cover_url` no resource + DeletionService)
         // nunca era preenchido pelo frontend Inertia, e o checklist "Adicionar

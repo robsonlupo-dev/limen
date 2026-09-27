@@ -119,6 +119,9 @@ return [
         'performer.profile.edit',
         'performer.profile.save',
         'performer.profile.photo',
+        // Status do dia (roadmap social)
+        'performer.status.save',
+        'performer.status.clear',
         // Foto de capa pela porta web (UAT fix). Nome distinto do
         // `performer.profile.cover` da API para não colidir no lookup.
         'performer.profile.cover-photo',
