@@ -2699,3 +2699,32 @@ CPF ou IP) só na trava do "terceiro pagador". **IP de membro NÃO é coletado**
 minimização LGPD, travado pelo `SharedRegistrationIpTest`; o anel membro
 mesmo-dispositivo/CPF-distinto é risco residual aceito (bounded pela
 não-sacabilidade + custo real da compra). Ver `docs/PROGRAMA_INDICACAO.md` §4.1.
+
+## Status do dia da performer — roadmap social (Onda 1a)
+
+Bolha curta sobre o avatar ("aceitando chamadas até 23h", "live às 22h"), com
+contagem regressiva opcional. Desenho e ondas: `docs/ROADMAP_SOCIAL.md`.
+
+**Peças.** `App\Models\PerformerStatus` (um por performer, UNIQUE) ·
+`App\Services\PerformerStatusService` (dona única: set/clear/currentFor) ·
+`App\Http\Controllers\Web\Performer\StatusController` (rotas `performer.status.save`
+/ `performer.status.clear`, atrás de `role:performer` + `can('performer-active')`) ·
+`config/stories.php` (`status.max_length`, `status.ttl_hours`).
+
+**Invariantes.**
+- **Expira na LEITURA:** `expires_at` no passado = não aparece (escopo `active()` +
+  relação `PerformerProfile::activeStatus`). Mesma disciplina de story/foto efêmera.
+- **`expires_at`/`performer_profile_id` são autoridade:** fora do `$fillable`,
+  gravados por `forceFill` no serviço; `expires_at` é DERIVADO do config, nunca de
+  payload.
+- **Texto público filtrado:** `body` passa por `SafeProfileText` (mesmo filtro
+  anti-contato da bio) — não vira canal de contato grátis. Contagem regressiva só
+  aceita alvo futuro (`after:now`); rótulo sem alvo é descartado.
+- **Exposição sem N+1:** o `PerformerPublicResource` expõe `status` por
+  `whenLoaded('activeStatus')`; as telas de perfil fazem `loadMissing('activeStatus')`.
+  As listagens que não carregam a relação simplesmente omitem o campo.
+- **Não mexe em token** (recurso social; a Onda 1 inteira não credita/debita).
+
+**Follow-up conhecido:** a bolha aparece hoje nas telas de PERFIL (público +
+autenticado). Mostrar no CARD do catálogo exige eager-load de `activeStatus` na
+query de listagem (para não virar N+1) — fica para quando valer a pena.

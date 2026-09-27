@@ -14,6 +14,7 @@ import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import StoryViewer from '@/Components/StoryViewer.vue'
+import StatusBubble from '@/Components/StatusBubble.vue'
 import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
@@ -136,6 +137,9 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
                 @open-story="openStoryViewer"
                 @open-avatar-photo="openAvatarPhoto"
             />
+
+            <!-- Status do dia (roadmap social, Onda 1a) -->
+            <StatusBubble v-if="performer.status" :status="performer.status" class="mt-4" />
 
             <!-- Desktop: conteúdo à esquerda, ações+valores numa coluna que segue a
                  rolagem à direita. Mobile: tudo empilha; as ações viram barra fixa.

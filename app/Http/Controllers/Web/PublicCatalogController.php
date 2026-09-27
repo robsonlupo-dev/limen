@@ -116,6 +116,10 @@ class PublicCatalogController extends Controller
         // mostrar — e quem tem Ghost Mode também não. Ver ProfileVisitService.
         $this->profileVisits->record($request->user(), $profile);
 
+        // Status do dia (roadmap social): eager-load para o resource expor por
+        // whenLoaded, sem N+1. activeStatus já filtra o expirado.
+        $profile->loadMissing('activeStatus');
+
         $performer = (new PerformerPublicResource($profile))->resolve($request);
 
         // Intro de voz (feat/voice-intro): a URL do serving público SÓ quando há

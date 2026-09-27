@@ -41,7 +41,16 @@ class ProfileController extends Controller
             return redirect()->route('performer.onboarding');
         }
 
+        // Status do dia (roadmap social, Onda 1a) para prefill do editor. activeStatus
+        // já filtra o expirado — null = sem status ativo.
+        $status = $profile->activeStatus;
+
         return Inertia::render('Performer/Profile/Edit', [
+            'status' => $status ? [
+                'body' => $status->body,
+                'countdown_at' => $status->countdown_at?->toIso8601String(),
+                'countdown_label' => $status->countdown_label,
+            ] : null,
             'profile' => [
                 'stage_name' => $profile->stage_name,
                 'bio' => $profile->bio,

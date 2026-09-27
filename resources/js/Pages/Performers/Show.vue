@@ -13,6 +13,7 @@ import TipModal from '@/Components/TipModal.vue'
 import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
+import StatusBubble from '@/Components/StatusBubble.vue'
 import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
@@ -106,6 +107,9 @@ async function unlockChat() {
                 @open-story="router.visit(route('entrada'))"
                 @open-avatar-photo="openAvatarPhoto"
             />
+
+            <!-- Status do dia (roadmap social, Onda 1a) -->
+            <StatusBubble v-if="performer.status" :status="performer.status" class="mt-4" />
 
             <div class="mt-6 lg:flex lg:items-start lg:gap-8">
                 <!-- COLUNA PRINCIPAL -->
