@@ -150,6 +150,15 @@ return [
         'performer.stories.destroy',
         'performer.stories.image',
 
+        // Destaques (Highlights) — gerência pela performer + serving público
+        'performer.highlights.index',
+        'performer.highlights.store',
+        'performer.highlights.rename',
+        'performer.highlights.add-story',
+        'performer.highlights.remove-item',
+        'performer.highlights.destroy',
+        'highlights.image',
+
         // Galeria de fotos do perfil (Sprint 10): gestão pela performer +
         // serving público (usado no carrossel do perfil e no grid de edição)
         'performer.gallery.store',

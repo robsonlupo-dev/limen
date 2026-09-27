@@ -545,6 +545,12 @@ class PerformerProfile extends Model
         return $this->hasOne(PerformerStatus::class)->where('expires_at', '>', now());
     }
 
+    /** Coleções de destaque (Highlights) da performer (roadmap social, Onda 1a). */
+    public function highlights(): HasMany
+    {
+        return $this->hasMany(StoryHighlight::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     /**
      * Tem intro de voz APROVADA? BOOLEANO derivado para o card/perfil, nunca o
      * status cru. Barato no catálogo: o scopePublicCatalog carrega o

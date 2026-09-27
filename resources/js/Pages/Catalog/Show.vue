@@ -15,6 +15,8 @@ import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import StoryViewer from '@/Components/StoryViewer.vue'
 import StatusBubble from '@/Components/StatusBubble.vue'
+import HighlightRow from '@/Components/HighlightRow.vue'
+import HighlightViewer from '@/Components/HighlightViewer.vue'
 import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
@@ -29,6 +31,7 @@ import { postJson } from '@/lib/http'
 const props = defineProps({
     performer: { type: Object, required: true },
     stories: { type: Array, default: () => [] },
+    highlights: { type: Array, default: () => [] },
     photos: { type: Array, default: () => [] },
     contents: { type: Array, default: () => [] },
     report: { type: Object, default: null },
@@ -116,6 +119,8 @@ function openStoryViewer() {
     if (storyGroups.value.length) storyViewerOpen.value = true
 }
 const avatarLightboxIndex = ref(null)
+// Destaques (roadmap social, Onda 1a): coleção aberta no viewer, ou null.
+const openHighlight = ref(null)
 function openAvatarPhoto() {
     if (props.performer.avatar_url) avatarLightboxIndex.value = 0
 }
@@ -140,6 +145,9 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
 
             <!-- Status do dia (roadmap social, Onda 1a) -->
             <StatusBubble v-if="performer.status" :status="performer.status" class="mt-4" />
+
+            <!-- Destaques (roadmap social, Onda 1a) -->
+            <HighlightRow v-if="highlights.length" :highlights="highlights" class="mt-4" @open="openHighlight = $event" />
 
             <!-- Desktop: conteúdo à esquerda, ações+valores numa coluna que segue a
                  rolagem à direita. Mobile: tudo empilha; as ações viram barra fixa.
@@ -319,6 +327,9 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
 
         <!-- Foto de perfil em tela cheia. -->
         <Lightbox v-model:index="avatarLightboxIndex" :photos="avatarPhotos" />
+
+        <!-- Destaques (roadmap social, Onda 1a) -->
+        <HighlightViewer v-if="openHighlight" :collection="openHighlight" @close="openHighlight = null" />
 
         <!-- Sala da chamada 1:1 aceita (PR #140): cobre a tela. -->
         <div v-if="activeCall" class="fixed inset-0 z-50 bg-black">

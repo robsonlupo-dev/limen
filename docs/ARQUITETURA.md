@@ -2728,3 +2728,36 @@ contagem regressiva opcional. Desenho e ondas: `docs/ROADMAP_SOCIAL.md`.
 **Follow-up conhecido:** a bolha aparece hoje nas telas de PERFIL (público +
 autenticado). Mostrar no CARD do catálogo exige eager-load de `activeStatus` na
 query de listagem (para não virar N+1) — fica para quando valer a pena.
+
+## Destaques (Highlights) da performer — roadmap social (Onda 1a)
+
+Coleções permanentes fixadas no perfil, feitas a partir dos stories. O story some
+em 24h e o GC recolhe os bytes, então adicionar ao destaque **copia** a mídia para
+um disco permanente. Desenho: `docs/ROADMAP_SOCIAL.md`.
+
+**Peças.** `StoryHighlight` (coleção) + `StoryHighlightItem` (item, com a própria
+cópia da mídia) · `App\Services\HighlightStore` (disco `performer_highlights`,
+permanente, re-scan CSAM na cópia) · `App\Services\StoryHighlightService` (dona
+única: criar/renomear/adicionar/remover/apagar + visões owner/pública) ·
+`Web\Performer\HighlightController` (gerência, JSON) + `Web\HighlightController`
+(serving público dos bytes, como a galeria) · `config/stories.php`
+(`highlights.max_collections_per_performer`=10, `max_items_per_collection`=30).
+
+**Invariantes.**
+- **MVP só stories PÚBLICOS viram destaque** — vitrine pública, paywall dos stories
+  intacto. VIP em destaque entra junto com o PR de Stories VIP por tier (a coluna
+  `visibility_level` já existe no item para isso).
+- **Cópia autorizada:** os bytes vêm por `PerformerStoryService::readForOwner`
+  (confere propriedade + prazo do story) e são regravados pelo `HighlightStore`,
+  com re-scan CSAM (a base pode ter mudado desde o publish).
+- **Autoridade fora do $fillable:** `performer_profile_id`, `media_path`,
+  `content_hash`, `source_story_id` gravados por `forceFill`; `media_path`/
+  `content_hash` são `$hidden` (layout de disco / prova).
+- **Ordem bytes → banco** com compensação (falha ao gravar linha apaga os bytes);
+  delete apaga bytes antes da linha; `HighlightStore::delete` lança se o disco
+  recusar (lastro da ordem).
+- **Teto de disco:** máx. coleções/itens no config (servidor 2 vCPU / ~25 GB).
+- **Não mexe em token** (recurso social).
+
+**Follow-ups:** VIP em destaque (com o PR de tier); capa customizada (hoje a capa
+é o 1º item); reordenar itens/coleções.

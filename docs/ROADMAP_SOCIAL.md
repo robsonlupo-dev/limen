@@ -269,11 +269,17 @@ ledger inteiro a cada abertura (servidor de 2 vCPU).
 # Checklist antes de construir a Onda 1
 
 - [x] Ordem, gating de VIP, público do canal e efêmero travados com o PO.
-- [ ] **1a:** migrations (`story_highlights`, `story_highlight_items`,
-      `performer_statuses`, coluna `min_tier`), `HighlightStore`,
-      `StoryHighlightService`, `PerformerStatusService`, extensão do
-      `StoryVisibilityService`, `config/stories.php`, UI (gerência + perfil público),
-      testes Pest, revisão de segurança.
+- [x] **1a — Status do dia** (`performer_statuses`, `PerformerStatusService`,
+      bolha + contagem, `config/stories.php`). PR mergeado.
+- [x] **1a — Destaques** (`story_highlights`, `story_highlight_items`,
+      `HighlightStore`, `StoryHighlightService`, gerência + fileira no perfil +
+      viewer, testes Pest). MVP só de stories públicos.
+- [ ] **1a — Stories VIP por tier** (coluna `min_tier`, extensão do
+      `StoryVisibilityService`, seletor na publicação). Re-sequenciado para PR
+      dedicado — mexe no paywall dos stories; revisão de segurança à parte.
+- [ ] **1b:** migrations (`story_interactions`, `story_interaction_responses`,
+      `story_reactions`), serviços, overlay no `StoryViewer`, painel de resultados,
+      privacidade por FanAlias, testes, revisão de segurança.
 - [ ] **1b:** migrations (`story_interactions`, `story_interaction_responses`,
       `story_reactions`), serviços, overlay no `StoryViewer`, painel de resultados,
       privacidade por FanAlias, testes, revisão de segurança.

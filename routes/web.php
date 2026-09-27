@@ -198,6 +198,14 @@ Route::get('/performer/fotos/{photo}/imagem', [PerformerPhotoController::class, 
     ->whereNumber('photo')
     ->name('performer.gallery.image');
 
+// Serving PÚBLICO dos bytes de um item de destaque (roadmap social, Onda 1a).
+// Vitrine pública como a galeria (só stories públicos viram destaque) — sem
+// paywall e sem sessão; os bytes saem pela camada do Store, nunca por URL de disco.
+Route::get('/destaques/{item}/imagem', [\App\Http\Controllers\Web\HighlightController::class, 'image'])
+    ->middleware('throttle:120,1')
+    ->whereNumber('item')
+    ->name('highlights.image');
+
 // Serving PÚBLICO da intro de voz APROVADA (feat/voice-intro). Público como o
 // avatar/galeria: qualquer visitante — logado ou não — ouve a isca no perfil, sem
 // paywall e sem token. Só serve `approved` de performer de pé (o controller
@@ -1023,6 +1031,23 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->whereNumber('story')
                 ->name('performer.stories.image')
                 ->can('performer-active');
+
+            // Destaques (Highlights) — gerência (roadmap social, Onda 1a). JSON;
+            // o front recarrega a lista após cada mutação. O serving dos bytes é
+            // rota pública separada (highlights.image), como a galeria.
+            Route::get('/performer/destaques', [\App\Http\Controllers\Web\Performer\HighlightController::class, 'index'])
+                ->middleware('throttle:60,1')->name('performer.highlights.index')->can('performer-active');
+            Route::post('/performer/destaques', [\App\Http\Controllers\Web\Performer\HighlightController::class, 'store'])
+                ->middleware('throttle:30,1')->name('performer.highlights.store')->can('performer-active');
+            Route::patch('/performer/destaques/{highlight}', [\App\Http\Controllers\Web\Performer\HighlightController::class, 'rename'])
+                ->middleware('throttle:30,1')->whereNumber('highlight')->name('performer.highlights.rename')->can('performer-active');
+            // Copiar a mídia (re-scan CSAM) é caro → throttle menor, como o publish.
+            Route::post('/performer/destaques/{highlight}/stories/{story}', [\App\Http\Controllers\Web\Performer\HighlightController::class, 'addStory'])
+                ->middleware('throttle:20,1')->whereNumber('highlight')->whereNumber('story')->name('performer.highlights.add-story')->can('performer-active');
+            Route::delete('/performer/destaques/itens/{item}', [\App\Http\Controllers\Web\Performer\HighlightController::class, 'removeItem'])
+                ->middleware('throttle:30,1')->whereNumber('item')->name('performer.highlights.remove-item')->can('performer-active');
+            Route::delete('/performer/destaques/{highlight}', [\App\Http\Controllers\Web\Performer\HighlightController::class, 'destroy'])
+                ->middleware('throttle:30,1')->whereNumber('highlight')->name('performer.highlights.destroy')->can('performer-active');
 
             // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Gestão pela
             // performer: já sob auth+2fa+documents.accepted, mais role:performer

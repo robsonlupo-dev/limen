@@ -14,6 +14,8 @@ import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import StatusBubble from '@/Components/StatusBubble.vue'
+import HighlightRow from '@/Components/HighlightRow.vue'
+import HighlightViewer from '@/Components/HighlightViewer.vue'
 import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
@@ -27,6 +29,7 @@ const props = defineProps({
     performer: { type: Object, required: true },
     chat: { type: Object, default: null },
     stories: { type: Array, default: () => [] },
+    highlights: { type: Array, default: () => [] },
     photos: { type: Array, default: () => [] },
     report: { type: Object, default: null },
     favorite: { type: Object, default: null },
@@ -67,6 +70,8 @@ const showVerified = ref(false)
 // stories chegam todos `locked`, então o hero não mostra anel nem menu; o toque no
 // avatar cai direto aqui. ("Ver story" do menu nem aparece para visitante.)
 const avatarLightboxIndex = ref(null)
+// Destaques (roadmap social, Onda 1a): coleção aberta no viewer, ou null.
+const openHighlight = ref(null)
 function openAvatarPhoto() {
     if (props.performer.avatar_url) avatarLightboxIndex.value = 0
 }
@@ -110,6 +115,9 @@ async function unlockChat() {
 
             <!-- Status do dia (roadmap social, Onda 1a) -->
             <StatusBubble v-if="performer.status" :status="performer.status" class="mt-4" />
+
+            <!-- Destaques (roadmap social, Onda 1a) -->
+            <HighlightRow v-if="highlights.length" :highlights="highlights" class="mt-4" @open="openHighlight = $event" />
 
             <div class="mt-6 lg:flex lg:items-start lg:gap-8">
                 <!-- COLUNA PRINCIPAL -->
@@ -250,6 +258,9 @@ async function unlockChat() {
 
         <!-- Foto de perfil em tela cheia (avatar público). -->
         <Lightbox v-model:index="avatarLightboxIndex" :photos="avatarPhotos" />
+
+        <!-- Destaques (roadmap social, Onda 1a) -->
+        <HighlightViewer v-if="openHighlight" :collection="openHighlight" @close="openHighlight = null" />
 
         <Modal
             v-if="chat && !chat.can_access"
