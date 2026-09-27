@@ -43,6 +43,18 @@ use Illuminate\Support\Facades\URL;
  * por isso o filtro que PRECISA ser SQL lê a tabela em vez de repetir a regra:
  * duas implementações do mesmo critério divergem, e divergem no sentido
  * permissivo.
+ *
+ * ── Story VIP: o tier mínimo é uma porta ORTOGONAL ao nível ──────────────────
+ * O `min_tier` (roadmap social, Onda 1) NÃO é um nível novo na tabela — é um
+ * refinamento que se soma ao nível: um story de `subscribers` com
+ * `min_tier = prestige` continua sendo Nível 2 (precisa de Círculo ativo), e por
+ * cima exige que esse Círculo seja Prestige+. Por isso o gate entra como um E
+ * lógico aplicado DEPOIS da tabela, nos dois caminhos: no predicado
+ * (`levelAllows` = nível abre E tier alcança) e no SQL do pontinho (a cláusula de
+ * nível, E `min_tier` nulo OU satisfeito). `min_tier` nulo é o caso de hoje e não
+ * gateia nada. Fail-closed pela mesma `Circle::tierAtLeast`: tier que ninguém
+ * alcança nega. Manter o gate ortogonal — e não um ramo dentro da tabela — é o
+ * que impede que ele precise ser reescrito nas quatro superfícies.
  */
 class StoryVisibilityService
 {
@@ -181,7 +193,62 @@ class StoryVisibilityService
         return $this->levelIsOpenTo(
             $story->visibility_level,
             $this->capabilitiesFor($member, $profile),
-        );
+        )
+            // Story VIP: o tier mínimo é um E lógico por cima do nível. `min_tier`
+            // nulo (o caso de hoje) passa reto — ver o docblock da classe.
+            && $this->tierGateAllows($story->min_tier, $member);
+    }
+
+    /**
+     * O membro satisfaz o tier mínimo deste story? (`min_tier` nulo = sim.)
+     *
+     * Porta ORTOGONAL ao nível (ver o docblock da classe): só morde quando o story
+     * declara `min_tier`, e aí exige Círculo ativo de rank suficiente. A comparação
+     * é de `Circle::tierAtLeast`, a dona dela, fail-closed nas duas pontas — slug
+     * desconhecido de qualquer lado nega, que é o lado certo de errar num paywall.
+     *
+     * `$member` nulo (visitante) com `min_tier` setado → nega; mas na prática o
+     * nível já barrou o visitante antes, porque sem capacidade nenhuma nenhum nível
+     * o admite. A checagem existe para o gate ser correto SOZINHO, sem depender da
+     * ordem em que é chamado.
+     */
+    private function tierGateAllows(?string $minTier, ?User $member): bool
+    {
+        if ($minTier === null) {
+            return true;
+        }
+
+        if ($member === null) {
+            return false;
+        }
+
+        $circle = $member->activeCircle();
+
+        return $circle instanceof Circle && $circle->tierAtLeast($minTier);
+    }
+
+    /**
+     * Os slugs de tier que o Círculo ativo deste membro SATISFAZ, do menor ao
+     * maior — a forma PAGINÁVEL do `tierGateAllows`, para o filtro em SQL do
+     * pontinho não reescrever a regra. Derivado da MESMA `Circle::tierAtLeast`
+     * sobre `Circle::TIER_ORDER`, então o `whereIn('min_tier', …)` nunca diverge do
+     * predicado item a item. Sem Círculo ativo → lista vazia (e aí nenhuma linha
+     * com `min_tier` casa, que é o certo: sem assinatura não há tier a satisfazer).
+     *
+     * @return array<int, string>
+     */
+    private function satisfiedTiers(User $member): array
+    {
+        $circle = $member->activeCircle();
+
+        if (! $circle instanceof Circle) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            Circle::TIER_ORDER,
+            fn (string $slug) => $circle->tierAtLeast($slug),
+        ));
     }
 
     /** Uma linha da tabela contra um conjunto de capacidades. */
@@ -380,6 +447,10 @@ class StoryVisibilityService
         // Capacidades de CONTA, resolvidas uma vez para a página toda.
         $accountCapabilities = $this->capabilitiesFor($member);
 
+        // Tiers que o Círculo dele satisfaz — o operando do gate de Story VIP,
+        // resolvido uma vez (ver `satisfiedTiers`). Vazio = sem Círculo ativo.
+        $satisfiedTiers = $this->satisfiedTiers($member);
+
         $withoutFollow = $this->levelsOpenTo($accountCapabilities);
         $withFollow = $this->levelsOpenTo([...$accountCapabilities, self::CAP_FOLLOW]);
 
@@ -422,6 +493,16 @@ class StoryVisibilityService
                     );
                 }
             })
+            // Gate de Story VIP, ORTOGONAL ao nível (ver o docblock da classe):
+            // aplicado a TODA linha candidata, não só à de `subscribers`. `min_tier`
+            // nulo passa reto — é o caso de hoje, e os níveis `public`/`exclusive`
+            // nunca recebem `min_tier` (o guard de `publish()` garante). Assim o
+            // pontinho nunca ANUNCIA um VIP que o serving negaria: a mesma regra do
+            // predicado, escrita em SQL a partir do mesmo `satisfiedTiers`.
+            ->where(fn ($q) => $q
+                ->whereNull('min_tier')
+                ->when($satisfiedTiers !== [], fn ($w) => $w->orWhereIn('min_tier', $satisfiedTiers))
+            )
             ->whereNotExists(fn ($sub) => $sub
                 ->selectRaw('1')
                 ->from('story_views')
@@ -490,8 +571,12 @@ class StoryVisibilityService
         $capabilities = $isMember ? $this->capabilitiesFor($member, $profile) : [];
         $seenIds = $isMember ? $this->seenStoryIds($member, $stories->pluck('id')->all()) : [];
 
-        return $stories->map(function (PerformerStory $story) use ($capabilities, $seenIds) {
-            $locked = ! $this->levelIsOpenTo($story->visibility_level, $capabilities);
+        return $stories->map(function (PerformerStory $story) use ($capabilities, $seenIds, $member) {
+            // Fechado por NÍVEL ou por TIER (Story VIP). A porta de tier é a mesma
+            // do predicado — `min_tier` nulo não tranca nada. Visitante deslogado
+            // (`$member` nulo) já cai no `! levelIsOpenTo` por não ter capacidade.
+            $locked = ! $this->levelIsOpenTo($story->visibility_level, $capabilities)
+                || ! $this->tierGateAllows($story->min_tier, $member);
 
             return [
                 'id' => $story->id,

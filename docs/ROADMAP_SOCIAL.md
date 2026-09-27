@@ -94,26 +94,41 @@ story_highlight_items
 - **Limites** (`config/stories.php`): máx. coleções por performer, máx. itens por
   coleção — proteger disco (2 vCPU / disco de 38 GB).
 
-## 1a.2 — Stories VIP por tier mínimo
+## 1a.2 — Stories VIP por tier mínimo ✅ (entregue, PR #285)
 
 Hoje `PerformerStory.visibility_level` é `public | subscribers | exclusive`, com
-`subscribers` = qualquer Círculo e `exclusive` = black/FC. Generalizamos para um
-**tier mínimo** configurável, sem perder compatibilidade.
+`subscribers` = qualquer Círculo e `exclusive` = black/FC. O VIP adiciona um
+**tier mínimo** ao nível `subscribers`, sem tocar no `visibility_level`.
 
-- **Migração:** adiciona `performer_stories.min_tier` (nullable, slug de
-  `Circle::TIER_ORDER`). Semântica: `null` = público; um slug = exige
-  `activeCircle()->tierAtLeast(slug)`. Backfill dos dados atuais:
-  `public → null`, `subscribers → 'explorador'` (o tier mais baixo = "qualquer
-  assinante"), `exclusive → 'black'`. Mantém `visibility_level` em sincronia para
-  leituras legadas (ou migra os call sites — decidir no build).
-- **`StoryVisibilityService::canView`** passa a ler `min_tier`: sem tier → público;
-  com tier → `member?->activeCircle()?->tierAtLeast($minTier) === true` (fail-closed
-  para visitante/sem-tier).
-- **UI performer:** ao publicar o story (e no highlight item), seletor
-  **Todos | Assinantes | A partir de <tier>** — os tiers vêm de `Circle::TIER_ORDER`
-  com os nomes de exibição.
-- **Sem custo novo de token:** VIP story é gate de visibilidade, não cobrança. (O
-  incentivo é assinar um tier mais alto para ver mais.)
+**Como ficou (mais conservador que o esboço original, por segurança):** em vez de
+substituir a semântica de `visibility_level` por `min_tier` (com backfill
+`public→null`, `subscribers→explorador`, `exclusive→black`), `min_tier` entrou como
+um refinamento **ORTOGONAL** ao nível. Motivo: o esboço reescreveria a fonte da
+regra de paywall inteira num passo — risco alto num gate crítico —, e um
+`subscribers` com `min_tier=black` teria contador sobre público Black, recriando o
+oráculo de identificabilidade que a decisão nº 3 do PO fechou (por isso o Nível 3
+não tem contador). A forma ortogonal mantém `visibility_level` como está e não
+precisa de backfill.
+
+- **Migração:** `performer_stories.min_tier` (nullable, string). `null` = hoje (o
+  nível decide sozinho); slug = refinamento. Sem backfill (linhas existentes ficam
+  `null`). Sem índice (predicado sempre secundário).
+- **Teto abaixo de Black — `PerformerStory::SUBSCRIBER_MIN_TIERS = ['insider',
+  'prestige']`.** `explorador` é redundante com "qualquer Círculo"; `black`/`FC`
+  ficam no nível `exclusive` (que não tem contador). Validado no Form Request
+  (`Rule::in` + `prohibited_unless:visibility_level,subscribers`) E no service (a 2ª
+  porta não passa pelo Vue). `min_tier` fora do `$fillable` e do `$hidden` do model.
+- **`StoryVisibilityService`** ganhou `tierGateAllows(?minTier, ?member)` (E lógico
+  por cima do nível) e `satisfiedTiers(member)` (a forma paginável, para o SQL do
+  pontinho). Aplicado igual nos QUATRO consumidores: serving (`canView`), feed
+  (`feedFor`), pontinho do catálogo (`profileIdsWithUnseenStories`, a cláusula
+  `min_tier IS NULL OR IN (satisfiedTiers)` ANDada) e faixa do perfil
+  (`profileStripFor`). Fail-closed por `Circle::tierAtLeast`.
+- **UI performer:** no painel, quando o nível é "Assinantes", aparece um segundo
+  seletor **A partir de: Qualquer Círculo | Insider+ | Prestige+**. O card mostra
+  "Assinantes — Prestige+". `min_tier` NUNCA vai para superfície de membro (o
+  strip/feed dele recebe só `locked`).
+- **Sem custo novo de token:** VIP story é gate de visibilidade, não cobrança.
 
 ## 1a.3 — Status do dia + contagem regressiva (Notes)
 
@@ -274,9 +289,10 @@ ledger inteiro a cada abertura (servidor de 2 vCPU).
 - [x] **1a — Destaques** (`story_highlights`, `story_highlight_items`,
       `HighlightStore`, `StoryHighlightService`, gerência + fileira no perfil +
       viewer, testes Pest). MVP só de stories públicos.
-- [ ] **1a — Stories VIP por tier** (coluna `min_tier`, extensão do
-      `StoryVisibilityService`, seletor na publicação). Re-sequenciado para PR
-      dedicado — mexe no paywall dos stories; revisão de segurança à parte.
+- [x] **1a — Stories VIP por tier** (coluna `min_tier` ortogonal ao nível,
+      `tierGateAllows`/`satisfiedTiers` nos 4 consumidores do paywall, teto abaixo
+      de Black, seletor na publicação, testes Pest, revisão de segurança dedicada
+      passou). PR #285.
 - [ ] **1b:** migrations (`story_interactions`, `story_interaction_responses`,
       `story_reactions`), serviços, overlay no `StoryViewer`, painel de resultados,
       privacidade por FanAlias, testes, revisão de segurança.

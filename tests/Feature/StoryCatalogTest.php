@@ -84,9 +84,9 @@ function scMember(?string $circleSlug = null): User
     return $member->fresh();
 }
 
-function scStory(PerformerProfile $profile, string $visibility = 'public'): PerformerStory
+function scStory(PerformerProfile $profile, string $visibility = 'public', ?string $minTier = null): PerformerStory
 {
-    return app(PerformerStoryService::class)->publish($profile, scUpload(), $visibility);
+    return app(PerformerStoryService::class)->publish($profile, scUpload(), $visibility, false, $minTier);
 }
 
 function scFollow(User $member, PerformerProfile $profile): void
@@ -190,6 +190,72 @@ it('respeita o nível: o pontinho não anuncia o que o serving recusa', function
     'exclusivo, Prestige' => ['exclusive', 'prestige', true, false],
     'exclusivo, Black' => ['exclusive', 'black', false, true],
 ]);
+
+it('o pontinho do Story VIP não anuncia o que o serving recusa por tier', function (
+    ?string $tier,
+    bool $expected,
+) {
+    $performer = scPerformer();
+    // Assinantes a partir de Prestige.
+    $story = scStory($performer, 'subscribers', 'prestige');
+    $member = scMember($tier);
+
+    expect(scCard(scCatalogCards($member->fresh()), $performer)['has_unseen_stories'])->toBe($expected);
+
+    // A tela e o serving concordam pela MESMA regra de tier (satisfiedTiers): o
+    // pontinho nunca acende para um VIP que o serving negaria por tier.
+    $this->actingAs($member->fresh())
+        ->get(route('stories.image', $story->id))
+        ->assertStatus($expected ? 200 : 403);
+})->with([
+    'sem Círculo' => [null, false],
+    'Explorador (abaixo do mínimo)' => ['explorador', false],
+    'Insider (abaixo do mínimo)' => ['insider', false],
+    'Prestige (no mínimo)' => ['prestige', true],
+    'Black (acima do mínimo)' => ['black', true],
+]);
+
+it('a faixa do perfil tranca o Story VIP para tier insuficiente e o abre no mínimo', function () {
+    $performer = scPerformer();
+    $vip = scStory($performer, 'subscribers', 'prestige');
+
+    // Insider assina, mas está abaixo do mínimo: o card aparece TRANCADO, sem URL
+    // (blur em CSS não é paywall) — o serving negaria os bytes.
+    $insiderStories = $this->actingAs(scMember('insider')->fresh())
+        ->get(route('catalog.show', $performer->slug))
+        ->assertOk()
+        ->viewData('page')['props']['stories'];
+
+    expect($insiderStories[0]['id'])->toBe($vip->id)
+        ->and($insiderStories[0]['locked'])->toBeTrue()
+        ->and($insiderStories[0]['image_url'])->toBeNull();
+
+    // Prestige alcança: destrancado e com URL, e a URL entrega de fato.
+    $prestige = scMember('prestige')->fresh();
+    $prestigeStories = $this->actingAs($prestige)
+        ->get(route('catalog.show', $performer->slug))
+        ->assertOk()
+        ->viewData('page')['props']['stories'];
+
+    expect($prestigeStories[0]['locked'])->toBeFalse()
+        ->and($prestigeStories[0]['image_url'])->toBe(route('stories.image', $vip->id));
+
+    $this->actingAs($prestige)->get($prestigeStories[0]['image_url'])->assertOk();
+});
+
+it('não expõe o tier exigido do Story VIP nas props do perfil do membro', function () {
+    $performer = scPerformer();
+    scStory($performer, 'subscribers', 'prestige');
+    $member = scMember('insider');
+
+    $content = $this->actingAs($member->fresh())
+        ->get(route('catalog.show', $performer->slug))
+        ->getContent();
+
+    // O membro recebe `locked`, nunca `min_tier`: o tier exigido é dado DELA sobre
+    // a própria publicação (vai só ao painel dela), não sinal para o membro.
+    expect($content)->not->toContain('min_tier');
+});
 
 it('não devolve o pontinho para visitante deslogado', function () {
     $performer = scPerformer();

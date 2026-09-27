@@ -221,6 +221,14 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   `StoryHighlightItem`, `HighlightStore`, `StoryHighlightService`) — coleções
   permanentes a partir de stories PÚBLICOS (copia a mídia para disco próprio,
   re-scan CSAM); serving público como a galeria. Config em `config/stories.php`.
+  (3) **Stories VIP por tier mínimo** — coluna `min_tier` em `performer_stories`
+  refina o nível `subscribers` para "Círculo de tal tier ou acima"
+  (`PerformerStory::SUBSCRIBER_MIN_TIERS` = insider/prestige; Black+ tem o nível
+  `exclusive` próprio). O gate é ORTOGONAL ao nível no `StoryVisibilityService`
+  (tierGateAllows/satisfiedTiers), aplicado igual nos quatro consumidores
+  (serving, feed, pontinho, faixa) e fail-closed por `Circle::tierAtLeast`. O teto
+  abaixo de Black é SEGURANÇA: contador (que o Nível 2 mantém) sobre público Black
+  seria oráculo de identificabilidade (decisão nº 3).
   Nada disso mexe em token.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
