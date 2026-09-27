@@ -45,6 +45,17 @@ class StoreStoryRequest extends FormRequest
         return [
             'imagem' => ['required', 'file', 'mimes:jpeg,png', 'max:5120'],
             'visibility_level' => ['required', 'string', Rule::in(PerformerStory::VISIBILITY_LEVELS)],
+            // Story VIP (roadmap social): tier mínimo, opcional. `prohibited_unless`
+            // recusa min_tier em qualquer nível que não seja `subscribers` — a mesma
+            // regra do guard em `PerformerStoryService::publish()`, aqui como o 422
+            // legível. `Rule::in(SUBSCRIBER_MIN_TIERS)` mantém o teto abaixo de Black
+            // (o porquê de segurança está no docblock da constante). Este Form
+            // Request é a conveniência de UI; o Service é o guard da 2ª porta.
+            'min_tier' => [
+                'nullable',
+                'prohibited_unless:visibility_level,subscribers',
+                Rule::in(PerformerStory::SUBSCRIBER_MIN_TIERS),
+            ],
             // Convite via Stories (Sprint 12): opcional, ausente = Story normal.
             // O TETO de convites ativos NÃO é validado aqui — é regra de negócio
             // que consulta o estado atual da performer, e vive no
@@ -62,6 +73,8 @@ class StoreStoryRequest extends FormRequest
             'imagem.max' => 'A imagem precisa ter no máximo 5 MB.',
             'visibility_level.required' => 'Escolha quem pode ver este story.',
             'visibility_level.in' => 'Nível de visibilidade inválido.',
+            'min_tier.prohibited_unless' => 'Tier mínimo só vale para stories de assinantes.',
+            'min_tier.in' => 'Tier mínimo de story inválido.',
             'is_invite.boolean' => 'Marcação de convite inválida.',
         ];
     }

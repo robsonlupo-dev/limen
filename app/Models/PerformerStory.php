@@ -49,6 +49,30 @@ class PerformerStory extends Model
     public const VISIBILITY_EXCLUSIVE = 'exclusive';
 
     /**
+     * Tiers mínimos oferecidos para o Story VIP (roadmap social, Onda 1).
+     *
+     * `min_tier` refina o nível `subscribers` ("qualquer Círculo") para "Círculo
+     * de `min_tier` ou acima". Só faz sentido — e só é aceito — nesse nível:
+     * `public` é vitrine/seguidores e `exclusive` já é Black+.
+     *
+     * ── Por que o teto é ABAIXO de Black, e é segurança, não produto ─────────
+     * O nível `subscribers` MANTÉM o contador de audiência em faixa
+     * (`PerformerStoryService::viewCount()`), e a decisão nº 3 do PO tira o
+     * contador do Nível 3 justamente porque contador sobre público Black/FC é um
+     * ORÁCULO de identificabilidade: postar um Nível 1 e um Black-only com minutos
+     * de diferença entrega quem é Black. Um `subscribers` com `min_tier = black`
+     * teria contador SOBRE público Black — recriaria exatamente esse oráculo. Por
+     * isso o VIP para de crescer em `prestige`: audiência VIP fica abaixo da faixa
+     * que comprou invisibilidade, e o contador segue seguro. Quem quer Black+ usa o
+     * nível `exclusive`, que não tem contador.
+     *
+     * `explorador` fica fora por ser redundante (`subscribers` já é "qualquer
+     * Círculo", cujo piso é `explorador`). Ordenado do menor para o maior, como
+     * `Circle::TIER_ORDER`.
+     */
+    public const SUBSCRIBER_MIN_TIERS = ['insider', 'prestige'];
+
+    /**
      * Só o nível vem de formulário.
      *
      * `performer_profile_id` (a dona vem sempre do request autenticado),
@@ -90,6 +114,14 @@ class PerformerStory extends Model
         // barata de CONFIRMAR que é exatamente aquele — inclusive para checar se
         // um re-upload evasivo mudou o suficiente para escapar do matching.
         'content_hash',
+        // Story VIP: o tier exigido é dado DELA sobre a própria publicação, nunca
+        // sinal para o membro (o strip/feed dele recebe só `locked`). Hoje toda
+        // superfície de membro monta o payload campo a campo e já o omite; o
+        // `$hidden` é a SEGUNDA barreira (a mesma disciplina de `media_path`), para
+        // um endpoint futuro que serialize o model não vazá-lo por descuido. O
+        // painel dela lê `min_tier` por acesso direto de atributo (StoryPresenter),
+        // que o `$hidden` não afeta.
+        'min_tier',
     ];
 
     protected function casts(): array

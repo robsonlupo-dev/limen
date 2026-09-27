@@ -55,6 +55,11 @@ class StoryPresenter
         return [
             'id' => $story->id,
             'visibility_level' => $story->visibility_level,
+            // Story VIP: o tier mínimo, ou null. É dado DELA sobre a própria
+            // publicação (como o nível) — a tela do painel mostra "Assinantes
+            // Prestige+". Nunca vai para superfície de membro: o strip/feed do
+            // membro só recebe `locked`, nunca o tier exigido.
+            'min_tier' => $story->min_tier,
             // Faixa ou null. A tela renderiza ausência, nunca `0` — ver a decisão
             // nº 3: zero é um valor no mesmo domínio da faixa e afirmaria algo
             // falso sobre a audiência.

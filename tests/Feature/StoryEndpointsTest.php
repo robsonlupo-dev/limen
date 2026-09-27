@@ -106,9 +106,9 @@ function stMember(?string $circleSlug = null): User
 }
 
 /** Publica pelo SERVICE — atalho de setup para os testes que não testam o POST. */
-function stStory(PerformerProfile $profile, string $visibility = 'public'): PerformerStory
+function stStory(PerformerProfile $profile, string $visibility = 'public', ?string $minTier = null): PerformerStory
 {
-    return app(PerformerStoryService::class)->publish($profile, stUpload(), $visibility);
+    return app(PerformerStoryService::class)->publish($profile, stUpload(), $visibility, false, $minTier);
 }
 
 function stFollow(User $member, PerformerProfile $profile): void
@@ -143,8 +143,10 @@ it('publica o story pelo endpoint com prazo de 24h', function () {
     // A resposta é o StoryPresenter, e o que ela NÃO tem é a parte que importa:
     // nem `media_path`, nem qualquer coisa vinda de `story_views` além da faixa.
     expect(array_keys($response->json('story')))
-        ->toBe(['id', 'visibility_level', 'view_count', 'expires_in_hours', 'image_url', 'is_invite'])
+        ->toBe(['id', 'visibility_level', 'min_tier', 'view_count', 'expires_in_hours', 'image_url', 'is_invite'])
         ->and($response->json('story.visibility_level'))->toBe('subscribers')
+        // Assinantes sem tier escolhido: min_tier null (comportamento de hoje).
+        ->and($response->json('story.min_tier'))->toBeNull()
         ->and($response->json('story.view_count'))->toBe('Menos de 5')
         ->and($response->json('story.expires_in_hours'))->toBe(24)
         // Sem a caixinha marcada, é Story normal — o default.
@@ -429,6 +431,98 @@ it('serve o story exclusivo só a Black e Founders Circle', function (string $ti
     ['founders_circle', 200],
 ]);
 
+it('serve o story VIP (assinantes a partir de um tier) só do tier mínimo para cima', function (string $tier, int $status) {
+    $performer = chatPerformer();
+    // Nível 2 refinado: assinante, E de Prestige ou acima.
+    $story = stStory($performer, 'subscribers', 'prestige');
+    $member = stMember($tier === 'nenhum' ? null : $tier);
+
+    $this->actingAs($member->fresh())
+        ->get(route('stories.image', $story->id))
+        ->assertStatus($status);
+})->with([
+    // Sem Círculo não passa nem no nível. Assinante abaixo de Prestige passa no
+    // nível mas o tier mínimo barra — é o refinamento do Story VIP.
+    ['nenhum', 403],
+    ['explorador', 403],
+    ['insider', 403],
+    ['prestige', 200],
+    ['black', 200],
+    ['founders_circle', 200],
+]);
+
+it('o Story VIP reavalia o tier a cada request, como o resto do paywall (§ 2.3)', function () {
+    $performer = chatPerformer();
+    $story = stStory($performer, 'subscribers', 'prestige');
+    $member = stMember('insider');
+
+    // Insider não alcança o VIP de Prestige.
+    $this->actingAs($member->fresh())
+        ->get(route('stories.image', $story->id))
+        ->assertForbidden();
+
+    // Sobe para Prestige: o mesmo request passa a entregar — sem URL assinada de
+    // longa duração no meio, o acesso muda no instante em que o tier muda.
+    Subscription::where('user_id', $member->id)->delete();
+    Subscription::factory()->circle('prestige')->create([
+        'user_id' => $member->id,
+        'status' => 'active',
+        'current_period_end' => now()->addMonth(),
+    ]);
+
+    $this->actingAs($member->fresh())
+        ->get(route('stories.image', $story->id))
+        ->assertOk();
+});
+
+it('recusa min_tier em nível que não seja assinantes (422)', function () {
+    $performer = chatPerformer();
+
+    // O front nunca manda isto (o seletor só aparece em "Assinantes"), mas a 2ª
+    // porta não passa pelo Vue — o Form Request é o guard.
+    $this->actingAs($performer->user)
+        ->post(route('performer.stories.store'), [
+            'imagem' => stUpload(),
+            'visibility_level' => 'public',
+            'min_tier' => 'prestige',
+        ], ['Accept' => 'application/json'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('min_tier');
+});
+
+it('recusa min_tier acima do teto do VIP — Black tem nível próprio (422)', function (string $tier) {
+    $performer = chatPerformer();
+
+    // `black`/`founders_circle` ficam de fora de propósito: contador sobre público
+    // Black seria oráculo de identificabilidade (decisão nº 3). Quem quer Black+
+    // usa o nível `exclusive`, que não tem contador. `explorador` é redundante com
+    // "qualquer Círculo" e também não é oferecido.
+    $this->actingAs($performer->user)
+        ->post(route('performer.stories.store'), [
+            'imagem' => stUpload(),
+            'visibility_level' => 'subscribers',
+            'min_tier' => $tier,
+        ], ['Accept' => 'application/json'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('min_tier');
+})->with(['black', 'founders_circle', 'explorador']);
+
+it('publica o Story VIP e persiste o min_tier', function () {
+    $performer = chatPerformer();
+
+    $response = $this->actingAs($performer->user)
+        ->post(route('performer.stories.store'), [
+            'imagem' => stUpload(),
+            'visibility_level' => 'subscribers',
+            'min_tier' => 'prestige',
+        ], ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    expect($response->json('story.visibility_level'))->toBe('subscribers')
+        ->and($response->json('story.min_tier'))->toBe('prestige')
+        ->and(PerformerStory::latest('id')->first()->min_tier)->toBe('prestige');
+});
+
 it('deixa Black ver story público de performer que ele não segue', function () {
     $performer = chatPerformer();
     $story = stStory($performer, 'public');
@@ -595,6 +689,37 @@ it('mostra ao Black os stories públicos de quem ele não segue', function () {
     expect($groups)->toHaveCount(1)
         ->and($groups[0]['stories'])->toHaveCount(1)
         ->and($groups[0]['stories'][0]['visibility_level'])->toBe('public');
+});
+
+it('o feed VIP respeita o tier mínimo, mesmo de quem o membro segue', function () {
+    $performer = chatPerformer();
+    $vip = stStory($performer, 'subscribers', 'prestige');
+
+    // Insider SEGUE a performer, mas não alcança o VIP de Prestige: o candidato
+    // vem do banco (ele segue), a DECISÃO vem do predicado (canView), que agora
+    // inclui o gate de tier. O feed nunca entrega o que o serving negaria.
+    $insider = stMember('insider');
+    stFollow($insider, $performer);
+
+    $groups = $this->actingAs($insider->fresh())
+        ->getJson(route('stories.feed'))
+        ->assertOk()
+        ->json('performers');
+
+    expect($groups)->toBe([]);
+
+    // Prestige, seguindo, vê o VIP no feed.
+    $prestige = stMember('prestige');
+    stFollow($prestige, $performer);
+
+    $groups = $this->actingAs($prestige->fresh())
+        ->getJson(route('stories.feed'))
+        ->assertOk()
+        ->json('performers');
+
+    expect($groups)->toHaveCount(1)
+        ->and($groups[0]['stories'])->toHaveCount(1)
+        ->and($groups[0]['stories'][0]['id'])->toBe($vip->id);
 });
 
 it('não lista no feed story vencido', function () {

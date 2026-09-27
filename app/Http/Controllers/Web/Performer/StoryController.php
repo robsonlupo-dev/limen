@@ -71,6 +71,9 @@ class StoryController extends Controller
                 $request->file('imagem'),
                 (string) $request->string('visibility_level'),
                 $request->boolean('is_invite'),
+                // Story VIP: null quando ausente. O Service revalida (a 2ª porta não
+                // passa pelo Form Request) e é a dona da regra do tier mínimo.
+                $request->filled('min_tier') ? (string) $request->string('min_tier') : null,
             );
         } catch (ImageProcessingException $e) {
             return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);

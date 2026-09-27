@@ -142,6 +142,11 @@ class DashboardController extends Controller
             // número (§ 2.2, decisão nº 3).
             'stories' => StoryPresenter::forOwner($profile, $this->stories),
             'storyVisibilityLevels' => PerformerStory::VISIBILITY_LEVELS,
+            // Story VIP (roadmap social): tiers mínimos oferecidos para o nível
+            // `subscribers`. Só os slugs — os rótulos vivem no StoryPanel, como já
+            // ocorre com os níveis. Fonte única em PerformerStory (validação +
+            // engine leem a mesma constante).
+            'storySubscriberMinTiers' => PerformerStory::SUBSCRIBER_MIN_TIERS,
             // Teto de convites via Stories (Sprint 12). Só o LIMITE vai como prop;
             // o quanto já foi usado a tela deriva de `stories` (cada card traz
             // `is_invite`), então o contador fica em sincronia depois de cada

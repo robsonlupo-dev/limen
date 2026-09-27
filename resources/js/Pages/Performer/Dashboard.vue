@@ -48,6 +48,7 @@ const props = defineProps({
     // o número cru não trafega nas props, que é o caminho do DevTools.
     stories: { type: Array, default: () => [] },
     storyVisibilityLevels: { type: Array, default: () => [] },
+    storySubscriberMinTiers: { type: Array, default: () => [] },
     storyInviteLimit: { type: Number, default: 2 },
     canPublishStories: { type: Boolean, default: false },
     // Campos do perfil para a barra de completude (Sprint 10). Só presença de
@@ -602,6 +603,7 @@ async function decideAccess(req, approve) {
                 v-if="canPublishStories"
                 :stories="stories"
                 :visibility-levels="storyVisibilityLevels"
+                :subscriber-min-tiers="storySubscriberMinTiers"
                 :invite-limit="storyInviteLimit"
             />
 

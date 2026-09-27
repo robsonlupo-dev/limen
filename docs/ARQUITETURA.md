@@ -2371,6 +2371,18 @@ Imagem só (v1), TTL **fixo** de 24h, três níveis (`public` / `subscribers` /
   o predicado de linha intersecta o mapa e o filtro SQL pergunta ao mapa. **Nível
   não mapeado falha FECHADO dos dois lados.** Regra nova de visibilidade entra
   lá — nunca no controller, nunca no Vue.
+- **Stories VIP por tier (roadmap social, Onda 1) — `min_tier` ORTOGONAL ao nível.**
+  A coluna `performer_stories.min_tier` (nullable) refina o nível `subscribers`
+  para "Círculo de tal tier ou acima". Não é um nível novo na `LEVEL_CAPABILITIES`:
+  é um E lógico aplicado DEPOIS da tabela, nos QUATRO consumidores
+  (`tierGateAllows` no predicado do serving/feed/faixa; `satisfiedTiers` +
+  `min_tier IS NULL OR IN (...)` no SQL do pontinho). `null` = comportamento de
+  hoje. Fail-closed por `Circle::tierAtLeast`. Os tiers oferecidos param ABAIXO de
+  Black (`PerformerStory::SUBSCRIBER_MIN_TIERS`) porque o Nível 2 mantém o contador,
+  e contador sobre público Black seria o mesmo oráculo que o Nível 3 evita — quem
+  quer Black+ usa `exclusive`. `min_tier` é dado da performer: fora do `$fillable`,
+  no `$hidden`, e nunca vai para superfície de membro (o strip/feed dele só recebe
+  `locked`).
 - **Não existe lista de "quem viu meu story" — em superfície nenhuma.** A única
   saída é a **faixa de membros únicos**, reusando `PerformerProfile::followersLabelFor`
   (a mesma dona da faixa de seguidores). Story **exclusivo retorna `null`, nunca

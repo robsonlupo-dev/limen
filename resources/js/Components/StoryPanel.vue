@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
 import { deleteJson, postForm } from '@/lib/http'
@@ -22,9 +22,12 @@ import { deleteJson, postForm } from '@/lib/http'
  * número só diz quando ela mesma publicou.
  */
 const props = defineProps({
-    // [{ id, visibility_level, view_count (faixa|null), expires_in_hours, image_url, is_invite }]
+    // [{ id, visibility_level, min_tier, view_count (faixa|null), expires_in_hours, image_url, is_invite }]
     stories: { type: Array, required: true },
     visibilityLevels: { type: Array, required: true },
+    // Story VIP: slugs de tier mínimo oferecidos no nível `subscribers`. Os
+    // rótulos vivem aqui (TIER_LABELS), como os dos níveis.
+    subscriberMinTiers: { type: Array, default: () => [] },
     // Teto de convites ATIVOS (Sprint 12). O usado é derivado de `stories`, não
     // uma prop separada — assim o contador segue os cards depois de publicar/apagar.
     inviteLimit: { type: Number, default: 2 },
@@ -36,9 +39,19 @@ const LEVEL_LABELS = {
     exclusive: 'Exclusivo — Black e Founders',
 }
 
+// Rótulo do TIER (não do nível). Story VIP só oferece tiers abaixo de Black — o
+// porquê (contador viraria oráculo de identificabilidade) está no servidor.
+const TIER_LABELS = {
+    insider: 'Insider',
+    prestige: 'Prestige',
+}
+
 const file = ref(null)
 const fileInput = ref(null)
 const level = ref(props.visibilityLevels[0] ?? 'public')
+// null = "qualquer Círculo" (comportamento de hoje). Só vai ao servidor quando o
+// nível é `subscribers` e a performer escolhe um tier.
+const minTier = ref(null)
 const sendAsInvite = ref(false)
 const publishing = ref(false)
 const deleting = ref(null)
@@ -48,14 +61,40 @@ const levelOptions = computed(() =>
     props.visibilityLevels.map((value) => ({ value, label: LEVEL_LABELS[value] ?? value })),
 )
 
+// O seletor de tier só aparece no nível `subscribers`. "Qualquer Círculo" é a
+// opção null no topo.
+const showMinTier = computed(() => level.value === 'subscribers' && props.subscriberMinTiers.length > 0)
+
+const minTierOptions = computed(() => [
+    { value: null, label: 'Qualquer Círculo' },
+    ...props.subscriberMinTiers.map((value) => ({ value, label: `${TIER_LABELS[value] ?? value}+` })),
+])
+
 // Convites ativos derivados dos próprios cards — nunca uma segunda fonte para
 // divergir. Cada story traz `is_invite`; a vaga se libera quando o convite
 // expira (o card some da lista, que já é só de stories vivos).
 const invitesUsed = computed(() => props.stories.filter((s) => s.is_invite).length)
 const inviteFull = computed(() => invitesUsed.value >= props.inviteLimit)
 
+// Trocar de nível zera o tier: um min_tier escolhido em "Assinantes" nunca pode
+// vazar para um "Público"/"Exclusivo" — e o servidor recusaria (prohibited_unless).
+watch(level, () => {
+    minTier.value = null
+})
+
 function labelFor(value) {
     return LEVEL_LABELS[value] ?? value
+}
+
+// Rótulo do card: "Assinantes — Prestige+" quando é VIP; senão o rótulo do nível.
+function cardLabel(story) {
+    const base = labelFor(story.visibility_level)
+
+    if (story.visibility_level === 'subscribers' && story.min_tier) {
+        return `Assinantes — ${TIER_LABELS[story.min_tier] ?? story.min_tier}+`
+    }
+
+    return base
 }
 
 function pick(event) {
@@ -72,6 +111,9 @@ async function publish() {
     const form = new FormData()
     form.append('imagem', file.value)
     form.append('visibility_level', level.value)
+    // Story VIP: só manda min_tier no nível `subscribers` e quando escolhido.
+    // Ausência = "qualquer Círculo". O servidor revalida (é o guard de verdade).
+    if (showMinTier.value && minTier.value) form.append('min_tier', minTier.value)
     // Só manda o campo quando marcado — ausência = story normal. O servidor é o
     // guard do teto (o checkbox desabilitado é só conveniência de UI).
     if (sendAsInvite.value) form.append('is_invite', '1')
@@ -80,6 +122,7 @@ async function publish() {
         await postForm(route('performer.stories.store'), form)
         file.value = null
         sendAsInvite.value = false
+        minTier.value = null
         if (fileInput.value) fileInput.value.value = ''
         router.reload({ only: ['stories'] })
     } catch (e) {
@@ -133,7 +176,7 @@ async function remove(story) {
                 />
                 <div class="min-w-0 flex-1">
                     <p class="text-sm text-cream">
-                        {{ labelFor(story.visibility_level) }}
+                        {{ cardLabel(story) }}
                         <!-- Convite (Sprint 12): tag na publicação DELA. Novos
                              seguidores sem chat veem este story com destaque. -->
                         <span
@@ -181,6 +224,19 @@ async function remove(story) {
                         class="ml-2 rounded-lg border border-frame bg-background px-3 py-2 text-xs text-cream focus:border-gold focus:outline-none"
                     >
                         <option v-for="option in levelOptions" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                </label>
+                <!-- Story VIP: tier mínimo, só no nível "Assinantes". "Qualquer
+                     Círculo" mantém o comportamento de hoje. -->
+                <label v-if="showMinTier" class="text-xs text-muted">
+                    A partir de
+                    <select
+                        v-model="minTier"
+                        class="ml-2 rounded-lg border border-frame bg-background px-3 py-2 text-xs text-cream focus:border-gold focus:outline-none"
+                    >
+                        <option v-for="option in minTierOptions" :key="option.value ?? 'any'" :value="option.value">
                             {{ option.label }}
                         </option>
                     </select>

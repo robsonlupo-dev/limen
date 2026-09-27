@@ -302,7 +302,15 @@ class PerformerStoryService
      * de documentos, conta ativa) é gate de rota, e quem pode VER cada nível é o
      * PR 3.
      *
-     * @throws InvalidArgumentException nível fora dos três
+     * ── `min_tier` (Story VIP) é validado aqui, não só no Form Request ───────
+     * Mesma disciplina do `visibility_level`: a segunda porta de entrada que
+     * aparecer não passa pelo Form Request. `min_tier` só é aceito no nível
+     * `subscribers` e só entre `SUBSCRIBER_MIN_TIERS` (o teto abaixo de Black é
+     * segurança — ver o docblock daquela constante). Fora disso é erro de
+     * CHAMADOR, não do usuário: estoura `InvalidArgumentException` (500 em
+     * teste/staging), enquanto o Form Request devolve o 422 legível ao usuário.
+     *
+     * @throws InvalidArgumentException nível fora dos três, ou min_tier inválido
      * @throws StoryException teto de convites ativos atingido (INVITE_LIMIT → 422)
      * @throws ImageProcessingException imagem recusada ou indecodificável
      */
@@ -311,9 +319,26 @@ class PerformerStoryService
         UploadedFile $file,
         string $visibility,
         bool $isInvite = false,
+        ?string $minTier = null,
     ): PerformerStory {
         if (! in_array($visibility, PerformerStory::VISIBILITY_LEVELS, true)) {
             throw new InvalidArgumentException("Nível de visibilidade desconhecido: {$visibility}");
+        }
+
+        // Normaliza '' → null (o front manda ausente ou o slug; um vazio nunca é
+        // um tier), depois valida. O guard fica ANTES de gravar bytes pelo mesmo
+        // motivo do teto de convites: recusar depois desperdiçaria disco e o pico
+        // de memória do re-encode num request já sabido inválido.
+        $minTier = ($minTier === null || $minTier === '') ? null : $minTier;
+
+        if ($minTier !== null) {
+            if ($visibility !== 'subscribers') {
+                throw new InvalidArgumentException('min_tier só se aplica ao nível subscribers.');
+            }
+
+            if (! in_array($minTier, PerformerStory::SUBSCRIBER_MIN_TIERS, true)) {
+                throw new InvalidArgumentException("Tier mínimo de story inválido: {$minTier}");
+            }
         }
 
         // Teto de convites ANTES de gravar bytes — ver o docblock. Só quando o
@@ -339,6 +364,10 @@ class PerformerStoryService
             // Também fora do fillable: um bool já validado que GATEIA comportamento
             // (rate limit + destaque no feed), nunca vindo de array de request.
             $story->is_invite = $isInvite;
+            // Story VIP (roadmap social): tier mínimo já validado acima. Fora do
+            // fillable pela mesma razão — é um gate de paywall, não pode nascer de
+            // array de request. null = sem refinamento (o nível decide sozinho).
+            $story->min_tier = $minTier;
             $story->save();
 
             // Trilha de publicação: id, nível e se é convite — nada mais. Sem
@@ -351,6 +380,10 @@ class PerformerStoryService
             Audit::log('story.published', $story, [
                 'performer_story_id' => $story->id,
                 'visibility_level' => $story->visibility_level,
+                // null quando não é VIP. Distingue "assinantes" de "assinantes a
+                // partir de tal tier" — dado dela sobre a própria publicação, como
+                // o nível; nada de membro atravessa aqui.
+                'min_tier' => $story->min_tier,
                 'is_invite' => $story->is_invite,
             ]);
 
