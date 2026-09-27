@@ -2383,6 +2383,17 @@ Imagem só (v1), TTL **fixo** de 24h, três níveis (`public` / `subscribers` /
   quer Black+ usa `exclusive`. `min_tier` é dado da performer: fora do `$fillable`,
   no `$hidden`, e nunca vai para superfície de membro (o strip/feed dele só recebe
   `locked`).
+- **Reações rápidas (Onda 1b) — sinal leve, agregado, com a MESMA porta do paywall.**
+  `StoryReaction` (par único membro↔story) + `StoryReactionService` (a dona).
+  `react()` pergunta ao `StoryVisibilityService::denialFor` ANTES de gravar — reagir
+  a um story fora de alcance é 403, como a imagem; não há escrita no conteúdo pago
+  por fora. O nível `exclusive` NÃO tem reação (sem superfície de audiência —
+  decisão nº 3). O que a performer vê é AGREGADO (`summaryForOwner`: faixa de
+  membros únicos via `followersLabelFor` + conjunto de emojis), **nunca "quem
+  reagiu"**. Ghost Mode/Modo Discreto NÃO entram no agregado: a reação não é gravada
+  para quem tem o perk (write-time guard, § 2.7 — não gravar em vez de gravar-e-
+  filtrar). Símbolo é SVG (`ReactionIcon.vue`), conjunto fixo em `config/stories.php`.
+  As reações morrem com o story, junto das views, no `destroy()`.
 - **Não existe lista de "quem viu meu story" — em superfície nenhuma.** A única
   saída é a **faixa de membros únicos**, reusando `PerformerProfile::followersLabelFor`
   (a mesma dona da faixa de seguidores). Story **exclusivo retorna `null`, nunca

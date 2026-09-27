@@ -7,6 +7,7 @@ use App\Models\Circle;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
 use App\Models\PerformerStory;
+use App\Models\StoryReaction;
 use App\Models\StoryView;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -338,10 +339,14 @@ class StoryVisibilityService
         $visible = $candidates->filter(fn (PerformerStory $story) => $this->canView($story, $member));
 
         $seenIds = $this->seenStoryIds($member, $visible->pluck('id')->all());
+        // Reação do PRÓPRIO membro em cada story (Onda 1b) — batch, como `seenIds`,
+        // para não disparar uma query por card. É dado dele sobre si (o botão ativo
+        // no viewer); nada de outros membros atravessa aqui.
+        $myReactions = $this->myReactionsFor($member, $visible->pluck('id')->all());
 
         return $visible
             ->groupBy('performer_profile_id')
-            ->map(function (Collection $stories) use ($seenIds, $member) {
+            ->map(function (Collection $stories) use ($seenIds, $myReactions, $member) {
                 $profile = $stories->first()->performerProfile;
 
                 // Selo de convite (Sprint 12): dado da performer (`is_invite` no
@@ -366,6 +371,8 @@ class StoryVisibilityService
                         'visibility_level' => $story->visibility_level,
                         'seen' => in_array($story->id, $seenIds, true),
                         'is_invite' => $story->is_invite && ! $alreadyChatting,
+                        // A reação do próprio membro, ou null. Onda 1b.
+                        'my_reaction' => $myReactions[$story->id] ?? null,
                     ])
                     ->values()
                     ->all();
@@ -570,8 +577,11 @@ class StoryVisibilityService
 
         $capabilities = $isMember ? $this->capabilitiesFor($member, $profile) : [];
         $seenIds = $isMember ? $this->seenStoryIds($member, $stories->pluck('id')->all()) : [];
+        // Reação do próprio membro por story (Onda 1b), batch. Visitante deslogado
+        // não tem reação; e o viewer só mostra a botoeira em story destrancado.
+        $myReactions = $isMember ? $this->myReactionsFor($member, $stories->pluck('id')->all()) : [];
 
-        return $stories->map(function (PerformerStory $story) use ($capabilities, $seenIds, $member) {
+        return $stories->map(function (PerformerStory $story) use ($capabilities, $seenIds, $myReactions, $member) {
             // Fechado por NÍVEL ou por TIER (Story VIP). A porta de tier é a mesma
             // do predicado — `min_tier` nulo não tranca nada. Visitante deslogado
             // (`$member` nulo) já cai no `! levelIsOpenTo` por não ter capacidade.
@@ -585,6 +595,9 @@ class StoryVisibilityService
                 'seen' => in_array($story->id, $seenIds, true),
                 // Ver o docblock: fechado não recebe URL.
                 'image_url' => $locked ? null : route('stories.image', $story->id),
+                // Reação do próprio membro, ou null. Story fechado nunca reage (o
+                // viewer não abre), mas mandamos o valor de todo modo — é dado dele.
+                'my_reaction' => $myReactions[$story->id] ?? null,
             ];
         })->all();
     }
@@ -643,6 +656,32 @@ class StoryVisibilityService
             ->whereIn('performer_story_id', $storyIds)
             ->pluck('performer_story_id')
             ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * A reação do PRÓPRIO membro em cada um destes stories: `[story_id => slug]`.
+     *
+     * Uma query para o lote inteiro, como `seenStoryIds` — o feed não pode disparar
+     * um SELECT por card. Consulta `story_reactions` direto (não o
+     * `StoryReactionService`, que depende DESTA classe para o `canView`): a
+     * dependência inversa fecharia um ciclo, e aqui só se lê o dado do membro.
+     * Nada de outros membros atravessa: o filtro é pelo id DELE.
+     *
+     * @param  array<int, int>  $storyIds
+     * @return array<int, string>
+     */
+    private function myReactionsFor(User $member, array $storyIds): array
+    {
+        if ($storyIds === []) {
+            return [];
+        }
+
+        return StoryReaction::query()
+            ->where('member_id', $member->getKey())
+            ->whereIn('performer_story_id', $storyIds)
+            ->pluck('reaction', 'performer_story_id')
+            ->map(fn ($slug) => (string) $slug)
             ->all();
     }
 

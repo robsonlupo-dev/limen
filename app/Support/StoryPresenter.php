@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\PerformerProfile;
 use App\Models\PerformerStory;
 use App\Services\PerformerStoryService;
+use App\Services\StoryReactionService;
 
 /**
  * O payload que a PERFORMER recebe sobre os próprios Stories.
@@ -71,6 +72,12 @@ class StoryPresenter
             // disto, sem prop extra. Nada de membro atravessa aqui: o convite não
             // guarda "quem recebeu".
             'is_invite' => $story->is_invite,
+            // Reações (Onda 1b): AGREGADO e nada mais — faixa de membros únicos +
+            // conjunto de emojis usados, ou `null` (nível exclusivo ou zero). Vem do
+            // StoryReactionService, a dona da regra; aqui não há `if` de nível, senão
+            // a decisão de "exclusivo não mostra audiência" ganharia um 2º lugar. É a
+            // mesma disciplina do `view_count`. Nunca "quem reagiu".
+            'reactions' => app(StoryReactionService::class)->summaryForOwner($story),
         ];
     }
 

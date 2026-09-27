@@ -27,4 +27,14 @@ return [
         'max_items_per_collection' => (int) env('HIGHLIGHTS_MAX_ITEMS', 30),
         'title_max_length' => 30,
     ],
+
+    /*
+    | Reações rápidas a stories (Onda 1b). Conjunto FIXO de slugs — fonte única
+    | da validação (o service e o Form Request leem daqui) e do que a UI oferece.
+    | O símbolo é SVG no front (regra de ícone do PO: emoji renderiza diferente
+    | entre aparelhos), mapeado por slug. Não mexe em token.
+    */
+    'reactions' => [
+        'set' => ['love', 'fire', 'wow', 'celebrate'],
+    ],
 ];

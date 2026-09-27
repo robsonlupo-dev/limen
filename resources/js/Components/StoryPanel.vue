@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
+import ReactionIcon from '@/Components/ReactionIcon.vue'
 import { deleteJson, postForm } from '@/lib/http'
 
 /**
@@ -194,6 +195,19 @@ async function remove(story) {
                         <!-- Ausência, não zero: no nível exclusivo a pergunta
                              simplesmente não é respondida. -->
                         <span v-else title="Stories exclusivos não exibem contador">—</span>
+                    </p>
+                    <!-- Reações (Onda 1b): AGREGADO — quais emojis (SVG) + a faixa de
+                         quem reagiu. Nunca "quem reagiu". Ausente (null) no exclusivo
+                         ou quando ninguém reagiu ainda. -->
+                    <p v-if="story.reactions" class="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                        <ReactionIcon
+                            v-for="kind in story.reactions.kinds"
+                            :key="kind"
+                            :slug="kind"
+                            filled
+                            class="!h-3.5 !w-3.5 text-gold"
+                        />
+                        <span class="ml-0.5">{{ story.reactions.label }} reagiram</span>
                     </p>
                 </div>
                 <button

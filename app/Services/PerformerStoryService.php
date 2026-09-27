@@ -599,6 +599,11 @@ class PerformerStoryService
 
         DB::transaction(function () use ($story) {
             $story->views()->delete();
+            // Reações morrem com o story, como as views (Onda 1b). O
+            // `cascadeOnDelete` da FK não cobre: a linha do story sai por SOFT
+            // delete, e FK não dispara em UPDATE de `deleted_at` (item 11 do
+            // CLAUDE.md). Quem apaga é este código, ao lado das views.
+            $story->reactions()->delete();
             $story->delete();
         });
     }
