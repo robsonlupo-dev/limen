@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Input from '@/Components/Input.vue'
 import Button from '@/Components/Button.vue'
 import PhotoGalleryManager from '@/Components/PhotoGalleryManager.vue'
+import HighlightsManager from '@/Components/HighlightsManager.vue'
 import ImageCropper from '@/Components/ImageCropper.vue'
 import CityAutocomplete from '@/Components/Catalog/CityAutocomplete.vue'
 import { patchJson } from '@/lib/http'
@@ -23,6 +24,9 @@ const props = defineProps({
     profile: { type: Object, required: true },
     // Status do dia (roadmap social, Onda 1a): prefill do editor. null = sem status.
     status: { type: Object, default: null },
+    // Destaques (roadmap social, Onda 1a): coleções + stories públicos ativos.
+    highlights: { type: Array, default: () => [] },
+    highlightStories: { type: Array, default: () => [] },
     // Galeria de fotos (Sprint 10): estado inicial + teto. As mutações vão por
     // endpoints JSON próprios (ver PhotoGalleryManager), não por este form.
     photos: { type: Array, default: () => [] },
@@ -428,6 +432,9 @@ function save() {
                     </button>
                 </div>
             </div>
+
+            <!-- ── Destaques (roadmap social, Onda 1a) ──────────────────────── -->
+            <HighlightsManager :initial-highlights="highlights" :stories="highlightStories" />
 
             <!-- Abas: cada uma cabe numa tela de celular. Salvar posta o form todo. -->
             <div

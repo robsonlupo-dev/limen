@@ -169,6 +169,19 @@ return [
             'report' => false,
         ],
 
+        // Destaques (Highlights) da performer (roadmap social, Onda 1a). Mídia
+        // COPIADA de um story ao fixá-lo (o story some em 24h; o destaque é
+        // permanente). Mesma disciplina do performer_photos: imagem EM CLARO (1:N
+        // como o Story), bytes só pelo HighlightStore com re-sniff no servidor,
+        // PERMANENTE (entra no backup, sob storage/app/private). serve/throw false.
+        'performer_highlights' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/performer-highlights'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         // Conteúdo permanente pago da performer (M.4/M.13.13). Mesma disciplina do
         // performer_photos: imagem EM CLARO (sem Crypt — 1:N como o Story), bytes
         // só pelo ContentStore com re-sniff de Content-Type no servidor, nunca URL

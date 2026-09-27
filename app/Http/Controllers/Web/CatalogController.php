@@ -266,6 +266,8 @@ class CatalogController extends Controller
             // aberto, a URL do serving autenticado — story fechado NÃO recebe URL
             // (ver profileStripFor: blur em CSS não é paywall).
             'stories' => $this->storyVisibility->profileStripFor($profile, $request->user()),
+            // Destaques (roadmap social, Onda 1a): coleções públicas do perfil.
+            'highlights' => app(\App\Services\StoryHighlightService::class)->publicView($profile),
             // Galeria de fotos (Sprint 10) para o carrossel. Conteúdo público,
             // então cada item traz a URL do serving público direto — sem paywall,
             // ao contrário dos stories. Avatar/cover NÃO entram aqui: são

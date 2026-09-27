@@ -45,12 +45,21 @@ class ProfileController extends Controller
         // já filtra o expirado — null = sem status ativo.
         $status = $profile->activeStatus;
 
+        // Destaques (roadmap social, Onda 1a): coleções da performer + os stories
+        // PÚBLICOS ativos que ela pode fixar (só público vira destaque no MVP).
+        $highlightStories = app(\App\Services\PerformerStoryService::class)->activeFor($profile)
+            ->where('visibility_level', 'public')
+            ->map(fn ($s) => ['id' => $s->id, 'url' => route('performer.stories.image', $s->id)])
+            ->values()->all();
+
         return Inertia::render('Performer/Profile/Edit', [
             'status' => $status ? [
                 'body' => $status->body,
                 'countdown_at' => $status->countdown_at?->toIso8601String(),
                 'countdown_label' => $status->countdown_label,
             ] : null,
+            'highlights' => app(\App\Services\StoryHighlightService::class)->ownerView($profile),
+            'highlightStories' => $highlightStories,
             'profile' => [
                 'stage_name' => $profile->stage_name,
                 'bio' => $profile->bio,
