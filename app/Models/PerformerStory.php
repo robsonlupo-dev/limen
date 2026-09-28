@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -154,6 +155,15 @@ class PerformerStory extends Model
     public function reactions(): HasMany
     {
         return $this->hasMany(StoryReaction::class, 'performer_story_id');
+    }
+
+    /**
+     * A interação (enquete) presa a este story (Onda 1b). Uma por story
+     * (índice único). Os votos pendem da interação, não do story.
+     */
+    public function interaction(): HasOne
+    {
+        return $this->hasOne(StoryInteraction::class);
     }
 
     /**

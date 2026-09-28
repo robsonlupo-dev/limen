@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\PerformerProfile;
 use App\Models\PerformerStory;
 use App\Services\PerformerStoryService;
+use App\Services\StoryInteractionService;
 use App\Services\StoryReactionService;
 
 /**
@@ -78,6 +79,10 @@ class StoryPresenter
             // a decisão de "exclusivo não mostra audiência" ganharia um 2º lugar. É a
             // mesma disciplina do `view_count`. Nunca "quem reagiu".
             'reactions' => app(StoryReactionService::class)->summaryForOwner($story),
+            // Enquete (Onda 1b): pergunta + opções + distribuição (agregado), ou
+            // null se o story não tem enquete. Da StoryInteractionService, a dona.
+            // Nunca "quem votou" — só a contagem por opção.
+            'poll' => app(StoryInteractionService::class)->ownerView($story),
         ];
     }
 

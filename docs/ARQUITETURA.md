@@ -2394,6 +2394,19 @@ Imagem só (v1), TTL **fixo** de 24h, três níveis (`public` / `subscribers` /
   para quem tem o perk (write-time guard, § 2.7 — não gravar em vez de gravar-e-
   filtrar). Símbolo é SVG (`ReactionIcon.vue`), conjunto fixo em `config/stories.php`.
   As reações morrem com o story, junto das views, no `destroy()`.
+- **Enquete no story (Onda 1b) — mesma disciplina, agregado e paywall.**
+  `StoryInteraction` (uma por story, hoje `type='poll'`) + `StoryPollVote` (par único,
+  voto IMUTÁVEL) + `StoryInteractionService` (a dona). `vote()` passa pelo
+  `StoryVisibilityService::denialFor` — votar num story fora de alcance é 403.
+  Exclusivo não tem enquete (`attach`/`vote` recusam — oráculo da decisão nº 3). O
+  que a performer vê é a DISTRIBUIÇÃO por opção (`ownerView`), **nunca "quem votou"**;
+  o membro só vê os resultados depois de votar (`batchMemberView` devolve `results`
+  null até `my_vote`). Ghost/Discreto não entram no agregado (write-time guard, § 2.7).
+  Pergunta e opções são texto da performer, filtrados por `SafeProfileText`; editar a
+  enquete recria (zera os votos). Enquete + votos morrem com o story no `destroy()`
+  (hard delete da interação → votos por cascade). **"Pergunte-me" de texto livre foi
+  descartado por decisão de produto** (seria contato grátis membro→performer, furando
+  o chat pago); "membro pergunta" reusa o story-reply pago (`ChatService::sendMessage`).
 - **Não existe lista de "quem viu meu story" — em superfície nenhuma.** A única
   saída é a **faixa de membros únicos**, reusando `PerformerProfile::followersLabelFor`
   (a mesma dona da faixa de seguidores). Story **exclusivo retorna `null`, nunca

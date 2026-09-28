@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
 import ReactionIcon from '@/Components/ReactionIcon.vue'
+import StoryPollEditor from '@/Components/StoryPollEditor.vue'
 import { deleteJson, postForm } from '@/lib/http'
 
 /**
@@ -166,8 +167,9 @@ async function remove(story) {
             <li
                 v-for="story in stories"
                 :key="story.id"
-                class="flex items-center gap-4 rounded-xl border border-frame/60 bg-background/40 p-3"
+                class="flex flex-col gap-2 rounded-xl border border-frame/60 bg-background/40 p-3"
             >
+              <div class="flex items-center gap-4">
                 <!-- Thumbnail pela rota autenticada por sessão. Nunca URL
                      assinada (§ 2.3) — nem aqui, onde o viewer é ela mesma. -->
                 <img
@@ -217,6 +219,15 @@ async function remove(story) {
                 >
                     {{ deleting === story.id ? 'Apagando…' : 'Apagar' }}
                 </button>
+              </div>
+
+              <!-- Enquete (Onda 1b): criar/remover + ver a distribuição (agregado).
+                   Exclusivo não tem enquete (o servidor recusa; a UI nem oferece). -->
+              <StoryPollEditor
+                  :story-id="story.id"
+                  :poll="story.poll ?? null"
+                  :can-poll="story.visibility_level !== 'exclusive'"
+              />
             </li>
         </ul>
         <p v-else class="mt-5 text-sm text-muted">Você não tem stories ativos.</p>

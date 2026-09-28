@@ -113,6 +113,8 @@ const storyGroups = computed(() => {
             is_invite: false,
             // Reação do próprio membro (Onda 1b): o viewer destaca o botão ativo.
             my_reaction: s.my_reaction ?? null,
+            // Enquete do story (Onda 1b): pergunta/opções/voto do membro.
+            interaction: s.interaction ?? null,
         })),
     }]
 })

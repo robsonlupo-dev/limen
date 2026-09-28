@@ -343,10 +343,14 @@ class StoryVisibilityService
         // para não disparar uma query por card. É dado dele sobre si (o botão ativo
         // no viewer); nada de outros membros atravessa aqui.
         $myReactions = $this->myReactionsFor($member, $visible->pluck('id')->all());
+        // Enquete por story (Onda 1b), em lote. Resolvido pelo StoryInteractionService
+        // (a dona) — via app() para não injetá-lo no construtor e fechar um ciclo (ele
+        // depende DESTA classe para o paywall do voto).
+        $polls = app(StoryInteractionService::class)->batchMemberView($visible->pluck('id')->all(), $member);
 
         return $visible
             ->groupBy('performer_profile_id')
-            ->map(function (Collection $stories) use ($seenIds, $myReactions, $member) {
+            ->map(function (Collection $stories) use ($seenIds, $myReactions, $polls, $member) {
                 $profile = $stories->first()->performerProfile;
 
                 // Selo de convite (Sprint 12): dado da performer (`is_invite` no
@@ -373,6 +377,9 @@ class StoryVisibilityService
                         'is_invite' => $story->is_invite && ! $alreadyChatting,
                         // A reação do próprio membro, ou null. Onda 1b.
                         'my_reaction' => $myReactions[$story->id] ?? null,
+                        // Enquete do story (Onda 1b): pergunta + opções + o voto do
+                        // próprio membro; resultados só depois de votar. Null se não há.
+                        'interaction' => $polls[$story->id] ?? null,
                     ])
                     ->values()
                     ->all();
@@ -580,8 +587,10 @@ class StoryVisibilityService
         // Reação do próprio membro por story (Onda 1b), batch. Visitante deslogado
         // não tem reação; e o viewer só mostra a botoeira em story destrancado.
         $myReactions = $isMember ? $this->myReactionsFor($member, $stories->pluck('id')->all()) : [];
+        // Enquete por story (Onda 1b), em lote — só para membro (visitante não vota).
+        $polls = $isMember ? app(StoryInteractionService::class)->batchMemberView($stories->pluck('id')->all(), $member) : [];
 
-        return $stories->map(function (PerformerStory $story) use ($capabilities, $seenIds, $myReactions, $member) {
+        return $stories->map(function (PerformerStory $story) use ($capabilities, $seenIds, $myReactions, $polls, $member) {
             // Fechado por NÍVEL ou por TIER (Story VIP). A porta de tier é a mesma
             // do predicado — `min_tier` nulo não tranca nada. Visitante deslogado
             // (`$member` nulo) já cai no `! levelIsOpenTo` por não ter capacidade.
@@ -598,6 +607,9 @@ class StoryVisibilityService
                 // Reação do próprio membro, ou null. Story fechado nunca reage (o
                 // viewer não abre), mas mandamos o valor de todo modo — é dado dele.
                 'my_reaction' => $myReactions[$story->id] ?? null,
+                // Enquete (Onda 1b): só faz sentido em story destrancado (o viewer só
+                // abre esse); fechado vem sem interação para não anunciar conteúdo.
+                'interaction' => $locked ? null : ($polls[$story->id] ?? null),
             ];
         })->all();
     }

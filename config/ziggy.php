@@ -149,6 +149,9 @@ return [
         'performer.stories.store',
         'performer.stories.destroy',
         'performer.stories.image',
+        // Enquete no story (Onda 1b): prender/remover pelo painel.
+        'performer.stories.poll.store',
+        'performer.stories.poll.destroy',
 
         // Destaques (Highlights) — gerência pela performer + serving público
         'performer.highlights.index',
@@ -305,6 +308,9 @@ return [
         // Reação rápida ao story (roadmap social, Onda 1b): a botoeira no
         // StoryViewer posta aqui; sinal leve, não abre chat.
         'stories.react',
+        // Voto na enquete do story (roadmap social, Onda 1b): o overlay de enquete
+        // no StoryViewer posta aqui.
+        'stories.poll.vote',
 
         // Conteúdo permanente pago (M.4/M.13.13): a galeria do perfil dispara o
         // desbloqueio por aqui. `content.image` NÃO entra: o presenter já devolve

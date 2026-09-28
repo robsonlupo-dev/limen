@@ -234,8 +234,14 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   chat. Conjunto fixo em `config/stories.php` (símbolo é SVG, não emoji). Reusa a
   porta do paywall (`canView`); sem reação no `exclusive`; a performer vê AGREGADO
   (faixa + emojis, `summaryForOwner`), **nunca "quem reagiu"**; Ghost Mode/Discreto
-  não entram no agregado (write-time guard, § 2.7). Falta da Onda 1b só
-  enquetes/"pergunte-me".
+  não entram no agregado (write-time guard, § 2.7).
+  (5) **Enquete no story** (`StoryInteraction`, `StoryPollVote`,
+  `StoryInteractionService`, `StoryPollEditor.vue`) — a performer prende pergunta +
+  opções; o membro toca e vê o % (anônimo). Mesma porta do paywall (`denialFor`);
+  sem enquete no `exclusive`; voto IMUTÁVEL; agregado (distribuição), **nunca "quem
+  votou"**; Ghost/Discreto fora do agregado; texto por `SafeProfileText`. O
+  **"pergunte-me" de texto livre foi CORTADO** (vira contato grátis — fura o chat
+  pago); "membro pergunta" usa o story-reply pago existente. **Onda 1 completa.**
   Nada disso mexe em token.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
