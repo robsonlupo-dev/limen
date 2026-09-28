@@ -250,7 +250,20 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   teto diário em `config/broadcast.php`; entrega derivada de `follows` na leitura
   (a performer não sabe quem leu); badge de não-visto (`users.broadcasts_seen_at`).
   v1 é persistência + HTTP (push via Reverb é follow-up — servidor 2 vCPU). Não mexe
-  em token. Falta da Onda 2: modo efêmero no chat.
+  em token.
+  (2) **Modo efêmero (vanish) no chat** (`conversations.ephemeral`,
+  `messages.ephemeral`, `ChatService::setEphemeral`, `ChatController::ephemeralVanished`)
+  — qualquer um dos dois participantes liga na conversa; a mensagem carimba o flag NO
+  ENVIO (imutável por mensagem; presente nunca é efêmero). v1 é **"ver-uma-vez"**
+  derivado de `read_at`, SEM job: some da EXIBIÇÃO nas duas pontas depois de vista, mas
+  o corpo/áudio FICAM no banco para a moderação (mesma disciplina do "desfazer envio").
+  Sumiço tem que ser fechado em TODAS as portas de leitura, não só no balão: a URL
+  direta do áudio (`chat.audio`), o preview da LISTA (`index`) e a marcação de lida
+  paginada (efêmera só marca quando renderizada) — os três eram vazamento e foram
+  fechados na revisão de segurança (`ephemeralVanished`/`previewHidden`).
+  ⚠️ **O PO QUER o modelo "timer após vista" (X seg, estilo Snapchat)** — adiado até
+  o servidor crescer (exige job/relógio); trocar quando melhorar. Registrado em
+  `docs/ROADMAP_SOCIAL.md` §2.2. Não mexe em token. **Onda 2 completa.**
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

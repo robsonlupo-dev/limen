@@ -41,8 +41,18 @@ class Message extends Model
         return [
             'read_at' => 'datetime',
             'redacted_at' => 'datetime',
+            'ephemeral' => 'boolean',
             'audio_duration_seconds' => 'integer',
         ];
+    }
+
+    /**
+     * Mensagem EFÊMERA (modo vanish, Onda 2)? Carimbada no envio com o estado do
+     * modo efêmero da conversa. Presente nunca é efêmero (é dinheiro).
+     */
+    public function isEphemeral(): bool
+    {
+        return (bool) $this->ephemeral;
     }
 
     /** Mensagem de voz? (marca pela presença do status de áudio.) */

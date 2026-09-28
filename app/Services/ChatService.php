@@ -131,6 +131,9 @@ class ChatService
                 'conversation_id' => $conversation->id,
                 'sender_id' => $sender->id,
                 'body' => $body,
+                // Modo efêmero (Onda 2): carimba o estado da conversa NO ENVIO —
+                // imutável depois. Vale nas duas direções; presente nunca é efêmero.
+                'ephemeral' => (bool) $conversation->ephemeral,
             ]);
 
             $conversation->forceFill(['last_message_at' => $message->created_at])->save();
@@ -197,6 +200,8 @@ class ChatService
                     'sender_id' => $sender->id,
                     'body' => 'Mensagem de voz',
                     'audio_status' => Message::AUDIO_PROCESSING,
+                    // Modo efêmero (Onda 2): voz também some depois de vista.
+                    'ephemeral' => (bool) $conversation->ephemeral,
                 ]);
 
                 $conversation->forceFill(['last_message_at' => $message->created_at])->save();
@@ -234,6 +239,28 @@ class ChatService
      *
      * @throws ChatException não-participante, não é sua mensagem, ou prazo vencido
      */
+    /**
+     * Liga/desliga o MODO EFÊMERO da conversa (roadmap social, Onda 2). Qualquer um
+     * dos dois participantes controla. Vale para as mensagens enviadas ENQUANTO
+     * ligado (cada uma carimba `ephemeral` no envio) — desligar não ressuscita o que
+     * já sumiu, nem torna efêmero o que já foi mandado. `forceFill` porque o flag é
+     * autoridade do servidor, nunca payload de criação de conversa.
+     *
+     * @throws ChatException não-participante
+     */
+    public function setEphemeral(Conversation $conversation, User $user, bool $on): Conversation
+    {
+        if (! $conversation->hasParticipant($user)) {
+            throw ChatException::notAParticipant();
+        }
+
+        $conversation->forceFill(['ephemeral' => $on])->save();
+
+        Audit::log('chat.ephemeral_set', $conversation, ['ephemeral' => $on]);
+
+        return $conversation;
+    }
+
     public function redactMessage(Conversation $conversation, User $sender, Message $message): Message
     {
         if (! $conversation->hasParticipant($sender)) {

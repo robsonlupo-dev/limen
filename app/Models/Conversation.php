@@ -23,6 +23,9 @@ class Conversation extends Model
     {
         return [
             'last_message_at' => 'datetime',
+            // Modo efêmero (Onda 2): togglado pelo ChatService (forceFill), fora do
+            // fillable para não vir de payload de criação de conversa.
+            'ephemeral' => 'boolean',
         ];
     }
 
