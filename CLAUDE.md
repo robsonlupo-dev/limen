@@ -273,8 +273,18 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   aberta o "fixar" é congelado** (409, como a remoção; desafixar segue liberado).
   **Fixar NÃO muda paywall** — só reordena; `canView` nunca olha `pinned_at`. Fixado
   que o espectador não alcança fica no topo BLOQUEADO (decisão do PO); `ContentPresenter`
-  expõe `pinned` (metadado público) p/ o selo "Destaque". Não mexe em token. Falta da
-  Onda 3: coleções privadas do membro + insights da performer.
+  expõe `pinned` (metadado público) p/ o selo "Destaque". Não mexe em token.
+  (2) **"Salvos" do membro** (`content_saves`, `ContentSave`, `ContentSaveService`) —
+  o membro salva PEÇAS de conteúdo numa lista privada (v1 = uma lista única, sem
+  coleções nomeadas). **Irmão de `Favorite`, mesma disciplina de anonimato:** a
+  performer NUNCA sabe — sem relação inversa em `PerformerContent`/`PerformerProfile`
+  (tombstone nos dois; seria vetor `withCount`), sem contador, nada em `audit_logs`.
+  **Salvar exige poder VER a peça** (`canView` → 403 se bloqueada; não vira lista de
+  desejos). `galleryFor` só marca `saved` p/ o consumidor dono das linhas (1 query);
+  aba "Salvos" em Descobrir (`saved.index`), item reresolvido por espectador (paywall
+  intacto). Hard Delete: `DeletionService::purgeContentSaves` apaga o mapa do titular
+  (FK não cascateia — user anonimizado); lado da performer cascateia pelo DELETE das
+  peças. Não mexe em token. Falta da Onda 3: insights da performer.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

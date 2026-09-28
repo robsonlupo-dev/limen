@@ -31,6 +31,7 @@ use App\Http\Controllers\Web\Consumer\FeedController;
 use App\Http\Controllers\Web\Consumer\GalleryController as ConsumerGalleryController;
 use App\Http\Controllers\Web\Consumer\GiftController;
 use App\Http\Controllers\Web\Consumer\ChannelController as ConsumerChannelController;
+use App\Http\Controllers\Web\Consumer\ContentSaveController;
 use App\Http\Controllers\Web\Consumer\HeartsController as ConsumerHeartsController;
 use App\Http\Controllers\Web\Consumer\ProfileVisitorsController as ConsumerProfileVisitorsController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
@@ -1636,6 +1637,18 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:20,1')
             ->whereNumber('content')
             ->name('content.unlock');
+
+        // "Salvos" do membro (roadmap social, Onda 3 §3.1): bookmark privado de
+        // conteúdo. Salvar exige poder VER a peça (ContentSaveService confere);
+        // a performer não tem lado nenhum nisto. Toggle de escrita → throttle.
+        Route::post('/conteudo/{content}/salvar', [ContentSaveController::class, 'toggle'])
+            ->middleware('throttle:30,1')
+            ->whereNumber('content')
+            ->name('content.save.toggle');
+
+        Route::get('/salvos', [ContentSaveController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('saved.index');
 
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');

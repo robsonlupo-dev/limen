@@ -321,6 +321,10 @@ return [
         // a URL pronta como string (o front não a monta com route()).
         'content.unlock',
 
+        // "Salvos" do membro (roadmap social, Onda 3 §3.1): bookmark na vitrine + aba.
+        'content.save.toggle',
+        'saved.index',
+
         // Consumer wallet
         'wallet.index',
         'wallet.history',
