@@ -2382,6 +2382,52 @@ retenção.
   real via Reverb é follow-up (servidor 2 vCPU não comporta fan-out largo). Imagem
   no broadcast também é follow-up (exigiria CSAM+storage).
 
+## Modo efêmero (vanish) no chat — roadmap social, Onda 2 (entregue, v1 "ver-uma-vez")
+
+Mensagens somem da EXIBIÇÃO depois de vistas; o corpo/áudio **ficam no banco para a
+moderação** — a MESMA disciplina do "desfazer envio" (esconde nas duas pontas, retém
+o original, nunca some sob denúncia aberta). Não mexe em token.
+
+- **Estado na CONVERSA, carimbo na MENSAGEM.** `conversations.ephemeral` (bool) é o
+  interruptor; qualquer um dos dois participantes liga/desliga
+  (`ChatService::setEphemeral` → confere participação, `Audit chat.ephemeral_set`).
+  A mensagem grava `messages.ephemeral` NO ENVIO (`sendMessage`/`sendVoiceMessage`),
+  então é **imutável por mensagem**: desligar o modo depois não ressuscita nem apaga o
+  que já foi enviado. **Presente nunca é efêmero** (`deliverGift` não carimba — é
+  dinheiro, esconder daria falsa ideia de estorno, como na redação).
+- **Sumiço = DERIVADO de `read_at`, sem job** (v1 escolhida pelo servidor 2 vCPU;
+  ver a decisão do PO abaixo). `ChatController::ephemeralVanished(message, viewerId,
+  justReadIds)` é a dona única da regra: para o REMETENTE some quando o outro leu
+  (`read_at != null`); para o DESTINATÁRIO some depois de vista — lida num request
+  ANTERIOR, porque a que ele está lendo AGORA está em `$justReadIds` e ainda aparece
+  desta vez (senão o corpo sumiria na mesma resposta e ele nunca leria).
+- **⚠️ O PO QUER "timer após vista" (X seg, estilo Snapchat)** — ele acha que faz
+  mais sentido. Adiado até o servidor crescer (o timer exige job/relógio e mais
+  carga). Registrado para NÃO ESQUECER em `docs/ROADMAP_SOCIAL.md` §2.2; ao melhorar
+  o servidor, trocar o "ver-uma-vez" pelo timer.
+- **O sumiço tem que valer em TODA porta de leitura, não só no balão** (achados da
+  revisão de segurança dedicada, fechados antes do ship — o mesmo tipo de porta dos
+  fundos que a redação já tinha fechado no áudio):
+  - **`chat.audio` (bytes do áudio):** `audio()` barra por `ephemeralVanished` com
+    `justReadIds` vazio — um fetch direto de bytes NUNCA é a primeira leitura (quem
+    marca lida é o `show()`), então já-vista aqui = 404. Sem isso, o destinatário
+    rebuscaria o áudio pela URL depois dele sumir da tela (era **CRÍTICO**).
+  - **`index()` (preview da LISTA):** `previewHidden()` zera o `last_message_preview`
+    de 60 chars quando a última mensagem é redigida OU efêmera-já-lida — senão a
+    listagem reexibia o corpo que já sumiu do fio (era **ALTO**).
+  - **Marcação de lida paginada:** a tela renderiza 20/página, mas a marcação varria
+    TODAS as não-lidas. Uma efêmera de página seguinte ganhava `read_at` sem ter sido
+    vista e sumia na abertura seguinte (era **MÉDIO**). Agora a efêmera só é marcada
+    quando REALMENTE renderizada na página (`ephemeral=false OR id IN <renderizadas>`);
+    o texto normal segue marcando tudo, porque o `unread_count` do `index` depende de
+    abrir a conversa limpar o badge.
+- **Toggle HTTP:** `POST /chat/{conversation}/efemero` (`chat.ephemeral.toggle`,
+  `throttle:30,1`, `whereNumber`), 404 para não-participante (máscara do resto do
+  chat). Front: `Chat/Show.vue` — botão no cabeçalho (ícone olho-cortado SVG, dourado
+  quando ligado) e balão "Mensagem efêmera" para `m.vanished`, antes do balão
+  "apagada". Sem flag de config: é comportamento do chat, ligável por conversa pelos
+  próprios participantes. **Fecha a Onda 2.**
+
 ## Stories da Performer — Sprint 9C (entregue, tag `v1.0-sprint9`)
 
 **É a primeira publicação de conteúdo do projeto** — 1:N, com paywall por nível.

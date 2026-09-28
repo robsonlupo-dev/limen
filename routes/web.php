@@ -598,6 +598,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->whereNumber('conversation')->whereNumber('message')
         ->name('chat.messages.destroy');
 
+    // Modo efêmero (roadmap social, Onda 2): liga/desliga o vanish da conversa.
+    // Qualquer um dos dois participantes; a regra e o participante-check vivem no
+    // ChatService/policy.
+    Route::post('/chat/{conversation}/efemero', [ChatController::class, 'toggleEphemeral'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('conversation')
+        ->name('chat.ephemeral.toggle');
+
     // Mensagem de voz (feat/chat-voice-message): upload (multipart) num throttle
     // mais apertado — é mídia, como o upload da intro/foto — e o serving dos bytes.
     Route::post('/chat/{conversation}/audio', [ChatController::class, 'storeAudio'])

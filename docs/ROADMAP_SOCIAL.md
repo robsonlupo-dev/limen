@@ -267,17 +267,58 @@ Mensagem 1-para-muitos para os **seguidores** (`Follow`), sem resposta no canal.
   aprende quem seguiu nem quem leu. Revisão de segurança dedicada passou (7
   invariantes; 3 LOW de polimento corrigidos/aceitos).
 
-## 2.2 — Modo efêmero (vanish) no chat
+## 2.2 — Modo efêmero (vanish) no chat ✅ (entregue, PR #289 — v1 "ver-uma-vez")
 
 Mensagens somem da tela depois de vistas; o original é **retido para moderação**
 (mesma disciplina do "desfazer envio", `redacted_at`).
 
-- **Ligar:** qualquer um dos dois liga para a conversa; o outro vê o aviso (um flag
-  em `conversations` ou um par de flags por participante — decidir no build).
-- **Sumiço:** de EXIBIÇÃO — a mensagem é redigida nas duas pontas após vista
-  (reusa `Message.redacted_at` / `MessageRedacted`), nunca apagada de fato (prova
-  para moderação; nunca some sob denúncia aberta).
-- **Encaixa** no posicionamento de privacidade do Limen.
+- **Ligar:** flag `ephemeral` na CONVERSA; qualquer um dos dois liga/desliga. Vale
+  para as mensagens enviadas ENQUANTO ligado (cada mensagem carimba o próprio flag
+  `messages.ephemeral` no envio); desligar não ressuscita o que já sumiu.
+- **Sumiço:** de EXIBIÇÃO — some nas duas pontas depois de vista, nunca apagada de
+  fato (prova para moderação; nunca some sob denúncia aberta). Presente nunca é
+  efêmero (é dinheiro).
+
+> ⚠️ **DECISÃO DO PO — NÃO ESQUECER (28/09/2026).** O modelo QUE O PO QUER é
+> **"visível por X segundos após aberta"** (timer/visualização única, estilo
+> Snapchat) — ele acha que faz mais sentido. **Fica para quando o servidor for
+> maior** (o timer exige job/relógio e mais carga, e o servidor atual é 2 vCPU).
+> **v1 entregue = "ver-uma-vez"** (some ao sair/reabrir, sem timer): o destinatário
+> vê ao abrir a conversa; ao sair e reabrir, some das duas pontas (o remetente vê
+> sumir assim que o outro leu). Derivado de `read_at`, sem job. **Quando melhorar o
+> servidor, trocar o "ver-uma-vez" pelo timer após vista.**
+
+**Como ficou (v1):**
+- **Schema:** `conversations.ephemeral` (bool) e `messages.ephemeral` (bool). A
+  mensagem carimba o flag da conversa NO ENVIO (`ChatService::sendMessage`/
+  `sendVoiceMessage`); presente (`deliverGift`) nunca carimba (dinheiro não some).
+  Desligar o modo depois não altera mensagem já enviada (`ephemeral` é imutável por
+  mensagem).
+- **Toggle:** `POST /chat/{conversation}/efemero` (`chat.ephemeral.toggle`,
+  throttle 30/min), `ChatService::setEphemeral` — confere participação, `Audit`
+  `chat.ephemeral_set`. Botão no cabeçalho do chat (ícone olho-cortado, SVG), os
+  dois participantes controlam.
+- **Sumiço = derivado de `read_at`, sem job** (`ChatController::ephemeralVanished`):
+  para o REMETENTE some quando o outro leu; para o DESTINATÁRIO some depois de vista
+  (lida num request ANTERIOR — a de "agora" ainda aparece via `$justReadIds`). Só de
+  EXIBIÇÃO: `body`/áudio ficam no banco; a moderação lê pelos endpoints de evidência.
+- **Revisão de segurança dedicada (fechada antes do ship) — 3 vazamentos corrigidos:**
+  - **CRÍTICO:** a URL direta do áudio (`chat.audio`) reexibia os bytes de uma
+    efêmera já sumida. Fechado: `audio()` também barra por `ephemeralVanished`
+    (`justReadIds` vazio — fetch de bytes nunca é a primeira leitura). Regressão em
+    `EphemeralChatTest`.
+  - **ALTO:** o preview de 60 chars da LISTA de conversas (`index()`) vazava o corpo
+    de uma efêmera já vista (e de uma redigida). Fechado: `previewHidden()` zera o
+    preview quando a última mensagem é redigida ou efêmera-já-lida.
+  - **MÉDIO:** a marcação de lida varria TODAS as não-lidas, mas a tela só renderiza
+    20 — uma efêmera de página seguinte ganhava `read_at` e sumia sem ser vista.
+    Fechado: efêmera só é marcada quando REALMENTE renderizada na página
+    (`ephemeral=false OR id IN <renderizadas>`); texto normal segue marcando tudo
+    (o badge do index depende disso). Regressão em `EphemeralChatTest`.
+- **Front:** `Chat/Show.vue` — balão "Mensagem efêmera" (ícone olho-cortado) para
+  `m.vanished`, antes do balão "apagada"; toggle no cabeçalho.
+- Não mexe em token. Feature sem flag própria (é comportamento do chat, ligável por
+  conversa pelos próprios participantes). **Fecha a Onda 2.**
 
 ---
 

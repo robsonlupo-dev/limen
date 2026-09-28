@@ -37,6 +37,25 @@ const headerAvatar = computed(() => (viewerIsPerformer.value
     ? (props.conversation.member?.avatar_url ?? null)
     : (props.conversation.performer.avatar_url ?? null)))
 
+// Modo efêmero (Onda 2): qualquer um dos dois liga/desliga. Ao ligar, as mensagens
+// enviadas A PARTIR de agora somem depois de vistas (ver-uma-vez); não afeta as já
+// enviadas. Estado local espelha a conversa; o servidor é a fonte de verdade.
+const ephemeralOn = ref(props.conversation.ephemeral === true)
+const togglingEphemeral = ref(false)
+async function toggleEphemeral() {
+    if (togglingEphemeral.value) return
+    togglingEphemeral.value = true
+    const next = !ephemeralOn.value
+    try {
+        const data = await postJson(route('chat.ephemeral.toggle', props.conversation.id), { on: next })
+        ephemeralOn.value = data.ephemeral === true
+    } catch {
+        // Mantém o estado atual em caso de falha; é um toggle leve.
+    } finally {
+        togglingEphemeral.value = false
+    }
+}
+
 // Denunciar apelido (feat/nickname-report, 4b-ui): só do lado da performer e só
 // quando o membro tem um apelido escolhido (o alias de par não é denunciável).
 const memberNickname = computed(() => (viewerIsPerformer.value
@@ -479,6 +498,20 @@ watch(() => props.messages.data.length, scrollToBottom)
                             <path d="M4 22V4a1 1 0 0 1 1-1h11l-1.5 4L16 11H5" />
                         </svg>
                     </button>
+                    <!-- Modo efêmero (Onda 2): liga/desliga o "some depois de vista".
+                         Qualquer um dos dois participantes. Ícone ativo em dourado. -->
+                    <button
+                        type="button"
+                        class="grid h-11 w-11 shrink-0 place-items-center rounded-full transition-colors disabled:opacity-50"
+                        :class="ephemeralOn ? 'text-gold' : 'text-muted hover:text-cream'"
+                        :disabled="togglingEphemeral"
+                        :aria-pressed="ephemeralOn"
+                        :aria-label="ephemeralOn ? 'Desligar modo efêmero' : 'Ligar modo efêmero'"
+                        :title="ephemeralOn ? 'Modo efêmero ligado: novas mensagens somem depois de vistas' : 'Ligar modo efêmero (novas mensagens somem depois de vistas)'"
+                        @click="toggleEphemeral"
+                    >
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 8 10 8a9.12 9.12 0 0 0 5.39-1.61" /><path d="M3 3l18 18" /></svg>
+                    </button>
                 </div>
                 <span
                     v-if="showTimer"
@@ -551,12 +584,29 @@ watch(() => props.messages.data.length, scrollToBottom)
                     </div>
 
                     <div class="flex" :class="isMine(m) ? 'justify-end' : 'justify-start'">
+                        <!-- Modo efêmero (Onda 2): mensagem efêmera JÁ VISTA some das
+                             duas pontas (ver-uma-vez). Distinta de "apagada"; o
+                             conteúdo não vem do servidor (só a moderação lê). -->
+                        <div
+                            v-if="m.vanished"
+                            class="max-w-[75%] flex flex-col"
+                            :class="isMine(m) ? 'items-end' : 'items-start'"
+                        >
+                            <div
+                                class="flex items-center gap-2 rounded-2xl border border-dashed border-frame bg-surface/60 px-4 py-2.5"
+                                :class="isMine(m) ? 'rounded-br-sm' : 'rounded-bl-sm'"
+                            >
+                                <svg class="h-3.5 w-3.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 8 10 8a9.12 9.12 0 0 0 5.39-1.61" /><path d="M3 3l18 18" /></svg>
+                                <span class="text-sm italic text-muted">Mensagem efêmera</span>
+                            </div>
+                            <span class="pt-1 pr-1 text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
+                        </div>
                         <!-- "Desfazer envio" (feat/chat-unsend-message): o remetente
                              redigiu a mensagem. Vale para os dois lados e para
                              qualquer tipo (texto/voz/presente) — o conteúdo não vem
                              do servidor; só a moderação lê o original. -->
                         <div
-                            v-if="m.redacted"
+                            v-else-if="m.redacted"
                             class="max-w-[75%] flex flex-col"
                             :class="isMine(m) ? 'items-end' : 'items-start'"
                         >
