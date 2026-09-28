@@ -327,123 +327,85 @@ class ChatController extends Controller
         // remetente E alimentar o `unread_count` do index(). Deixar de marcar
         // desligaria os dois — o membro Black ficaria com a própria caixa
         // eternamente marcada como não-lida. O perk é aplicado na ENTREGA
-        // (readReceiptVisible), não na escrita: quem tem o perk lê sem que o
-        // remetente veja, e continua com o próprio contador funcionando.
+        // (readReceiptVisible), não na escrita.
         //
-        // Modo efêmero (Onda 2): a marcação é feita DEPOIS de paginar, porque uma
-        // efêmera "ver-uma-vez" só pode ser marcada como lida quando REALMENTE
-        // renderizada nesta página. Marcar todas as não-lidas (como o texto normal)
-        // faria uma efêmera de página seguinte ganhar `read_at` sem nunca ter sido
-        // vista — e ela sumiria na abertura seguinte (achado MÉDIO da revisão).
-        // Ver o bloco de marcação logo abaixo da paginação.
+        // Timer efêmero (Onda 3): a EFÊMERA NÃO é marcada como lida ao abrir — ela
+        // só é lida (e consumida) quando o destinatário TOCA para revelar (reveal).
+        // Marcar aqui a consumiria sem nunca ter sido vista. Por isso a marcação
+        // automática cobre só `ephemeral = false`.
         $viewerId = $request->user()->id;
 
-        // Sem leitura (nunca comprou ou já passou a carência): não expõe nem os
-        // metadados NEM A CONTAGEM — paginador vazio de fato (total 0). Blanquear
-        // só a collection deixaria total() revelar quantas mensagens existem
-        // atrás do paywall.
         if (! $state['can_read']) {
             $messages = new LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url()]);
-            $justReadIds = [];
         } else {
-            // O OUTRO participante desligou a confirmação de leitura? Então
-            // nenhuma mensagem minha volta com read_at — resolvido uma vez, e
-            // não por mensagem: numa conversa de duas pessoas, quem lê o que eu
-            // mandei é sempre a mesma pessoa.
             $showReadReceipt = $this->readReceiptVisible($conversation, $request->user());
 
-            // Página PRIMEIRO: precisamos saber quais mensagens estão de fato
-            // renderizadas antes de carimbar leitura (modo efêmero, acima).
-            // Com leitura bloqueada (grace): metadados + locked, sem corpo.
-            $messages = $conversation->messages()
-                ->with(['gift:id,slug,name', 'replyToStory:id,expires_at'])
-                ->orderByDesc('id')
-                ->paginate(20);
-
-            // "Just read" = mensagens do OUTRO, ainda não lidas, QUE ESTÃO NESTA
-            // PÁGINA (o que o leitor vê agora). Lido dos itens JÁ buscados, cujo
-            // `read_at` ainda está null em memória — por isso a efêmera recém-lida
-            // ainda aparece NESTA resposta e some só na próxima abertura.
-            $justReadIds = [];
             if (! $state['locked']) {
-                $justReadIds = collect($messages->items())
-                    ->filter(fn (Message $m) => $m->read_at === null && $m->sender_id !== $viewerId)
-                    ->pluck('id')
-                    ->all();
-
-                // Texto NORMAL: marca TODAS as não-lidas do outro (abrir a conversa
-                // limpa o badge — o unread_count do index depende disso). EFÊMERA:
-                // marca só as renderizadas nesta página (`id IN justReadIds`), para
-                // não fazer sumir uma efêmera que o leitor ainda nem viu.
                 $conversation->messages()
                     ->whereNull('read_at')
                     ->where('sender_id', '!=', $viewerId)
-                    ->where(fn ($q) => $q->where('ephemeral', false)->orWhereIn('id', $justReadIds))
+                    ->where('ephemeral', false)
                     ->update(['read_at' => now()]);
             }
 
-            $messages->through(fn (Message $m) => [
-                    'id' => $m->id,
-                    'sender_id' => $m->sender_id,
-                    'created_at' => $m->created_at,
-                    'locked' => $state['locked'],
-                    // "Desfazer envio" (feat/chat-unsend-message): redigida pelo
-                    // remetente → a tela mostra "Mensagem apagada" nas duas pontas.
-                    // O conteúdo NÃO trafega (nem body, nem áudio, nem presente),
-                    // exatamente como se estivesse travado — só a moderação lê o
-                    // original. `can_redact` liga o botão "apagar" só nas MINHAS
-                    // mensagens ainda dentro da janela e não redigidas.
-                    'redacted' => $m->isRedacted(),
-                    // Modo efêmero (Onda 2): mensagem efêmera JÁ VISTA some da
-                    // exibição nas duas pontas (ver-uma-vez). Distinta de "apagada":
-                    // a UI mostra "mensagem efêmera". O corpo é retido no banco (só
-                    // moderação lê). Ver ephemeralVanished().
-                    'vanished' => $this->ephemeralVanished($m, $viewerId, $justReadIds),
-                    // Presente NÃO é redigível: é uma ação de dinheiro (tokens já
-                    // movidos/creditados); esconder a bolha daria a falsa ideia de
-                    // estorno. Redação vale para texto e voz.
-                    'can_redact' => ! $m->isRedacted()
-                        && ! $this->ephemeralVanished($m, $viewerId, $justReadIds)
-                        && $m->gift_id === null
-                        && $m->sender_id === $request->user()->id
-                        && $m->created_at->copy()->addMinutes((int) config('chat.redact_window_minutes'))->isFuture(),
-                    // Corpo só quando há leitura plena e destravada, não redigido e
-                    // não sumido pelo modo efêmero.
-                    'body' => (! $state['locked'] && ! $m->isRedacted() && ! $this->ephemeralVanished($m, $viewerId, $justReadIds)) ? $m->body : null,
-                    // Presente (feat/gift-from-profile): sempre exposto, mesmo com a
-                    // leitura travada. É a AÇÃO do próprio membro (presente é sempre
-                    // membro→performer) e o catálogo é público — nada de PII. A tela
-                    // renderiza o ícone do item pelo slug. (Redigida → escondido.)
-                    'gift_slug' => $m->isRedacted() ? null : $m->gift?->slug,
-                    'gift_name' => $m->isRedacted() ? null : $m->gift?->name,
-                    // Voz (feat/chat-voice-message): status/duração sempre (a UI
-                    // mostra "processando…"/"falhou" e o comprimento), mas a URL do
-                    // áudio SÓ com leitura destravada — segue o paywall do corpo. A
-                    // performer nunca fica travada (state.locked é sempre false do
-                    // lado dela). Redigida → sem status nem URL (vira "apagada").
-                    'audio_status' => ($m->isRedacted() || $this->ephemeralVanished($m, $viewerId, $justReadIds)) ? null : $m->audio_status,
-                    'audio_duration' => ($m->isRedacted() || $this->ephemeralVanished($m, $viewerId, $justReadIds)) ? null : $m->audio_duration_seconds,
-                    'audio_url' => (! $state['locked'] && ! $m->isRedacted() && ! $this->ephemeralVanished($m, $viewerId, $justReadIds) && $m->audio_status === Message::AUDIO_READY)
-                        ? route('chat.audio', [$conversation->id, $m->id])
-                        : null,
-                    // Responder story (feat/story-reply-to-chat): a mensagem é uma
-                    // resposta a um story da performer. A DONA vê a MINIATURA pelo
-                    // próprio serving (`performer.stories.image` — não registra view),
-                    // enquanto o story existir e não vencer; o membro (que respondeu)
-                    // vê só o rótulo. Redigida → escondido, como o resto.
-                    'reply_to_story' => (! $m->isRedacted() && ! $this->ephemeralVanished($m, $viewerId, $justReadIds) && $m->reply_to_story_id) ? [
-                        'thumb_url' => ($viewerIsPerformer && $m->replyToStory && ! $m->replyToStory->isExpired())
-                            ? route('performer.stories.image', $m->reply_to_story_id)
+            $messages = $conversation->messages()
+                ->with(['gift:id,slug,name', 'replyToStory:id,expires_at'])
+                ->orderByDesc('id')
+                ->paginate(20)
+                ->through(function (Message $m) use ($state, $viewerId, $viewerIsPerformer, $conversation, $showReadReceipt) {
+                    // Timer efêmero (Onda 3), dois estados distintos:
+                    //  - SELADA: efêmera não revelada, do lado do DESTINATÁRIO →
+                    //    "toque para ver". O corpo NÃO trafega até o reveal (mais
+                    //    seguro que o v1 antigo, que mandava o corpo na 1ª abertura).
+                    //  - CONSUMIDA (vanished): efêmera já revelada → some das duas
+                    //    pontas ("expirada"). Ver ephemeralVanished/ephemeralSealed.
+                    // O REMETENTE vê o próprio corpo até ser consumido (sealed=false
+                    // do lado dele). Corpo/áudio ficam no banco para a moderação.
+                    $vanished = $this->ephemeralVanished($m);
+                    $sealed = $this->ephemeralSealed($m, $viewerId);
+                    // Conteúdo não trafega quando redigido, consumido ou selado.
+                    $hidden = $m->isRedacted() || $vanished || $sealed;
+
+                    return [
+                        'id' => $m->id,
+                        'sender_id' => $m->sender_id,
+                        'created_at' => $m->created_at,
+                        'locked' => $state['locked'],
+                        // "Desfazer envio": redigida → "Mensagem apagada" nas duas pontas.
+                        'redacted' => $m->isRedacted(),
+                        // Efêmera (qualquer estado) — a UI decide selada/contando/expirada.
+                        'ephemeral' => $m->isEphemeral(),
+                        'sealed' => $sealed,
+                        'vanished' => $vanished,
+                        // Presente NÃO é redigível (ação de dinheiro). Redação vale texto e voz.
+                        'can_redact' => ! $m->isRedacted()
+                            && ! $vanished
+                            && $m->gift_id === null
+                            && $m->sender_id === $viewerId
+                            && $m->created_at->copy()->addMinutes((int) config('chat.redact_window_minutes'))->isFuture(),
+                        // Corpo só com leitura destravada e conteúdo não escondido.
+                        'body' => (! $state['locked'] && ! $hidden) ? $m->body : null,
+                        // Presente: sempre exposto (ação do membro, catálogo público); redigido → escondido.
+                        'gift_slug' => $m->isRedacted() ? null : $m->gift?->slug,
+                        'gift_name' => $m->isRedacted() ? null : $m->gift?->name,
+                        // Voz: status/duração seguem o gate do corpo; selado/consumido → nada.
+                        'audio_status' => $hidden ? null : $m->audio_status,
+                        'audio_duration' => $hidden ? null : $m->audio_duration_seconds,
+                        'audio_url' => (! $state['locked'] && ! $hidden && $m->audio_status === Message::AUDIO_READY)
+                            ? route('chat.audio', [$conversation->id, $m->id])
                             : null,
-                    ] : null,
-                    // Confirmação de leitura só nas MINHAS mensagens, e só se
-                    // quem lê não desligou o perk. read_at de uma mensagem que
-                    // EU recebi diz quando eu a li — não acrescenta nada na
-                    // minha tela e não precisa trafegar.
-                    'read_at' => ($showReadReceipt && $m->sender_id === $request->user()->id)
-                        ? $m->read_at
-                        : null,
-                ]);
+                        // Responder story: miniatura só para a DONA, enquanto o story vive; escondido junto.
+                        'reply_to_story' => (! $hidden && $m->reply_to_story_id) ? [
+                            'thumb_url' => ($viewerIsPerformer && $m->replyToStory && ! $m->replyToStory->isExpired())
+                                ? route('performer.stories.image', $m->reply_to_story_id)
+                                : null,
+                        ] : null,
+                        // Confirmação de leitura só nas MINHAS mensagens e se o outro não desligou o perk.
+                        'read_at' => ($showReadReceipt && $m->sender_id === $viewerId)
+                            ? $m->read_at
+                            : null,
+                    ];
+                });
         }
 
         // Gancho do paywall: quando a leitura está travada (grace/expired/none), o
@@ -497,6 +459,9 @@ class ChatController extends Controller
             'photoSharing' => $this->photoSharingProps($request, $conversation, $state),
             'accessCost' => $this->creditPolicy->chatCost($request->user()),
             'balance' => $this->tokenService->balance($request->user()),
+            // Timer efêmero (Onda 3): segundos que o conteúdo revelado fica visível
+            // antes de sumir (contagem client-side). O servidor consome no reveal.
+            'ephemeralSeconds' => (int) config('chat.ephemeral_reveal_seconds'),
         ]);
     }
 
@@ -573,14 +538,12 @@ class ChatController extends Controller
         // rebuscar os bytes pela URL direta depois do "apagar". A moderação ouve o
         // áudio retido por outro endpoint (moderacao.evidence.message-audio).
         abort_if($message->isRedacted(), 404);
-        // Efêmera já vista some AQUI também (roadmap social, Onda 2): sem este gate
-        // um áudio efêmero "ver-uma-vez" continuaria rebuscável pela URL direta
-        // depois de sumir da tela — a mesma porta dos fundos que o `isRedacted`
-        // fecha para o "desfazer envio". `justReadIds` vazio de propósito: um fetch
-        // direto de bytes NUNCA é o render da primeira leitura (a marcação de lida
-        // acontece no show()); logo, já-vista aqui = sumiu. A moderação ouve o
-        // áudio retido por outro endpoint.
-        abort_if($this->ephemeralVanished($message, $request->user()->id, []), 404);
+        // Timer efêmero (Onda 3): áudio efêmero só é servível na JANELA certa —
+        // senão os bytes seriam rebuscáveis pela URL direta antes do reveal (selado)
+        // ou depois de consumido. Antes de revelar: 404. Depois: só enquanto durar a
+        // janela de exibição (contagem + duração do áudio + folga). Ver
+        // ephemeralAudioServable(). A moderação ouve o áudio retido por outro endpoint.
+        abort_unless($this->ephemeralAudioServable($message, $request->user()->id), 404);
         abort_unless($message->audio_status === Message::AUDIO_READY && $message->audio_path, 404);
 
         // Paywall: com a leitura travada (grace/expired), o áudio fica indisponível
@@ -640,46 +603,112 @@ class ChatController extends Controller
     }
 
     /**
-     * Uma mensagem EFÊMERA já vista some da exibição (ver-uma-vez, Onda 2)?
-     *
-     * - Remetente: some assim que o destinatário leu (`read_at` != null).
-     * - Destinatário: some depois de ter visto — ou seja, lida num request ANTERIOR.
-     *   Se acabou de ler AGORA (está em `$justReadIds`), ainda aparece esta vez.
-     *
-     * Só de EXIBIÇÃO — `body`/áudio ficam no banco para a moderação, como o
-     * "desfazer envio". Mensagem não-efêmera nunca some por aqui.
-     *
-     * @param  array<int, int>  $justReadIds
+     * Revela uma mensagem efêmera para o DESTINATÁRIO (timer, Onda 3): grava
+     * `revealed_at` (consumo imutável) e devolve o corpo/áudio UMA vez, para o cliente
+     * mostrar por X seg antes de sumir. A partir daí a mensagem some das duas pontas
+     * em qualquer load. Paywall conferido aqui (leitura destravada), como no áudio.
      */
-    private function ephemeralVanished(Message $message, int $viewerId, array $justReadIds): bool
+    public function revealEphemeral(Request $request, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_if($request->user()->cannot('view', $conversation), 404);
+
+        // Paywall: com a leitura travada (grace/expired), não revela — igual ao corpo.
+        // A performer nunca fica travada (stateFor curto-circuita a dona).
+        $state = $this->stateFor($request, $conversation);
+        abort_if($state['locked'], 404);
+
+        try {
+            $revealed = $this->chatService->revealEphemeral($conversation, $request->user(), $message);
+        } catch (ChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], match ($e->reason) {
+                ChatException::EPHEMERAL_GONE => 410, // já consumida → "expirada"
+                default => 404,                       // não-revelável / não-participante (máscara)
+            });
+        }
+
+        return response()->json([
+            'body' => $revealed->body,
+            'audio_status' => $revealed->audio_status,
+            'audio_duration' => $revealed->audio_duration_seconds,
+            'audio_url' => $revealed->audio_status === Message::AUDIO_READY
+                ? route('chat.audio', [$conversation->id, $revealed->id])
+                : null,
+            'reply_to_story' => $revealed->reply_to_story_id ? ['label' => true] : null,
+            // Segundos que o cliente mostra o conteúdo antes de esconder.
+            'seconds' => (int) config('chat.ephemeral_reveal_seconds'),
+        ], 200);
+    }
+
+    /**
+     * Efêmera JÁ CONSUMIDA (timer, Onda 3) — some da exibição nas DUAS pontas?
+     *
+     * Revelar = consumir: uma vez `revealed_at` gravado (o destinatário tocou para
+     * ver), a mensagem está gasta e some para todos em qualquer load seguinte. Só de
+     * EXIBIÇÃO — `body`/áudio ficam no banco para a moderação. A contagem de X seg é
+     * client-side; aqui o servidor só olha "foi revelada?".
+     */
+    private function ephemeralVanished(Message $message): bool
+    {
+        return $message->isEphemeral() && $message->isRevealed();
+    }
+
+    /**
+     * Efêmera SELADA (timer, Onda 3) — "toque para ver", do lado do DESTINATÁRIO?
+     *
+     * É a efêmera ainda não revelada, vista por quem NÃO a enviou: o corpo/áudio não
+     * trafega até o reveal (o remetente vê o próprio corpo até ser consumido, então
+     * do lado dele nunca é selada).
+     */
+    private function ephemeralSealed(Message $message, int $viewerId): bool
+    {
+        return $message->isEphemeral()
+            && ! $message->isRevealed()
+            && (int) $message->sender_id !== $viewerId;
+    }
+
+    /**
+     * Os BYTES do áudio efêmero podem ser servidos a este viewer AGORA (timer, Onda 3)?
+     *
+     * - Não-efêmera: sem janela aqui (o resto do gate do audio() decide).
+     * - Remetente: ouve o próprio áudio até ser consumido (revelado pelo outro).
+     * - Destinatário: só DEPOIS de revelar e só dentro da janela de exibição —
+     *   max(contagem, duração do áudio) + folga de rede. Antes de revelar (selada) o
+     *   byte não sai; depois da janela, consumida.
+     */
+    private function ephemeralAudioServable(Message $message, int $viewerId): bool
     {
         if (! $message->isEphemeral()) {
+            return true;
+        }
+
+        if ((int) $message->sender_id === $viewerId) {
+            return ! $message->isRevealed();
+        }
+
+        if (! $message->isRevealed()) {
             return false;
         }
 
-        if ($message->sender_id === $viewerId) {
-            return $message->read_at !== null;
-        }
+        $window = max(
+            (int) config('chat.ephemeral_reveal_seconds'),
+            (int) $message->audio_duration_seconds,
+        ) + 10; // folga de rede/playback
 
-        return $message->read_at !== null && ! in_array($message->id, $justReadIds, true);
+        return $message->revealed_at->copy()->addSeconds($window)->isFuture();
     }
 
     /**
      * O corpo desta mensagem deve ficar FORA do preview da listagem (index)?
      *
-     * Vale para as duas formas de "sumir da exibição": a redigida ("desfazer
-     * envio") e a efêmera JÁ LIDA (ver-uma-vez). Sem esse gate o preview de 60
-     * chars da lista de conversas seria a porta dos fundos que reexibe um corpo
-     * que já sumiu do fio. Aqui não há `justReadIds` (a listagem não marca leitura),
-     * então "efêmera com `read_at`" = já vista para ambos os lados = escondida.
+     * Redigida ("desfazer envio") e QUALQUER efêmera ficam fora: o preview de 60
+     * chars da lista seria a porta dos fundos que vaza um corpo que não deve aparecer
+     * no fio (efêmera selada nunca mostra corpo; consumida já sumiu; e o próprio corpo
+     * efêmero do remetente não deve persistir na listagem). A lista mostra um rótulo
+     * neutro no lugar.
      */
     private function previewHidden(Message $message): bool
     {
-        if ($message->isRedacted()) {
-            return true;
-        }
-
-        return $message->isEphemeral() && $message->read_at !== null;
+        return $message->isRedacted() || $message->isEphemeral();
     }
 
     /**

@@ -388,6 +388,7 @@ return [
         'chat.messages.destroy',
         // Modo efêmero (Onda 2): toggle do vanish da conversa.
         'chat.ephemeral.toggle',
+        'chat.ephemeral.reveal',
         // Mensagem de voz (feat/chat-voice-message): a tela dá POST no upload e
         // monta a URL do player via route('chat.audio').
         'chat.messages.audio',

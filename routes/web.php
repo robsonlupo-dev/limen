@@ -607,6 +607,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->whereNumber('conversation')
         ->name('chat.ephemeral.toggle');
 
+    // Revelar uma mensagem efêmera (timer, Onda 3): o destinatário toca para ver;
+    // grava revealed_at (consumo imutável) e devolve o corpo/áudio uma vez. Throttle
+    // de escrita; {message} numérico (o resto da regra vive no ChatService).
+    Route::post('/chat/{conversation}/mensagem/{message}/revelar', [ChatController::class, 'revealEphemeral'])
+        ->middleware(['throttle:60,1', 'documents.accepted'])
+        ->whereNumber('conversation')->whereNumber('message')
+        ->name('chat.ephemeral.reveal');
+
     // Mensagem de voz (feat/chat-voice-message): upload (multipart) num throttle
     // mais apertado — é mídia, como o upload da intro/foto — e o serving dos bytes.
     Route::post('/chat/{conversation}/audio', [ChatController::class, 'storeAudio'])

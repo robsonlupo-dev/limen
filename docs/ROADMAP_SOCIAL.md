@@ -267,10 +267,15 @@ Mensagem 1-para-muitos para os **seguidores** (`Follow`), sem resposta no canal.
   aprende quem seguiu nem quem leu. Revisão de segurança dedicada passou (7
   invariantes; 3 LOW de polimento corrigidos/aceitos).
 
-## 2.2 — Modo efêmero (vanish) no chat ✅ (entregue, PR #289 — v1 "ver-uma-vez")
+## 2.2 — Modo efêmero (vanish) no chat ✅ (v1 "ver-uma-vez" #289 → TIMER "tocar para ver" #292)
 
 Mensagens somem da tela depois de vistas; o original é **retido para moderação**
 (mesma disciplina do "desfazer envio", `redacted_at`).
+
+> ✅ **DECISÃO DO PO ATENDIDA (28/09/2026).** O modelo que o PO queria —
+> **"visível por X segundos após aberta"** (timer, estilo Snapchat) — foi ENTREGUE
+> no PR #292, depois do upgrade do servidor (CX23→CX33, 4 vCPU / 8 GB). O "ver-uma-vez"
+> do #289 foi substituído. Detalhe na subseção **"Timer (Onda 3)"** no fim desta §.
 
 - **Ligar:** flag `ephemeral` na CONVERSA; qualquer um dos dois liga/desliga. Vale
   para as mensagens enviadas ENQUANTO ligado (cada mensagem carimba o próprio flag
@@ -279,16 +284,7 @@ Mensagens somem da tela depois de vistas; o original é **retido para moderaçã
   fato (prova para moderação; nunca some sob denúncia aberta). Presente nunca é
   efêmero (é dinheiro).
 
-> ⚠️ **DECISÃO DO PO — NÃO ESQUECER (28/09/2026).** O modelo QUE O PO QUER é
-> **"visível por X segundos após aberta"** (timer/visualização única, estilo
-> Snapchat) — ele acha que faz mais sentido. **Fica para quando o servidor for
-> maior** (o timer exige job/relógio e mais carga, e o servidor atual é 2 vCPU).
-> **v1 entregue = "ver-uma-vez"** (some ao sair/reabrir, sem timer): o destinatário
-> vê ao abrir a conversa; ao sair e reabrir, some das duas pontas (o remetente vê
-> sumir assim que o outro leu). Derivado de `read_at`, sem job. **Quando melhorar o
-> servidor, trocar o "ver-uma-vez" pelo timer após vista.**
-
-**Como ficou (v1):**
+**Como ficou (v1 "ver-uma-vez", #289 — SUPERSEDIDO pelo timer abaixo):**
 - **Schema:** `conversations.ephemeral` (bool) e `messages.ephemeral` (bool). A
   mensagem carimba o flag da conversa NO ENVIO (`ChatService::sendMessage`/
   `sendVoiceMessage`); presente (`deliverGift`) nunca carimba (dinheiro não some).
@@ -319,6 +315,32 @@ Mensagens somem da tela depois de vistas; o original é **retido para moderaçã
   `m.vanished`, antes do balão "apagada"; toggle no cabeçalho.
 - Não mexe em token. Feature sem flag própria (é comportamento do chat, ligável por
   conversa pelos próprios participantes). **Fecha a Onda 2.**
+
+**Timer (Onda 3, #292 — "tocar para ver + X seg", substitui o "ver-uma-vez"):**
+- **Modelo:** a efêmera chega **SELADA** para o destinatário ("Mensagem efêmera —
+  toque para ver"); o **corpo/áudio NÃO trafega** até o toque (mais seguro que o v1,
+  que mandava o corpo na 1ª abertura). Ao tocar, o servidor **consome** e devolve o
+  conteúdo UMA vez; o cliente mostra por **X seg** (`config/chat.php`
+  `ephemeral_reveal_seconds`, padrão 10) com contagem, e some. O **remetente** vê o
+  próprio corpo até ser consumido; depois "expirada" nas duas pontas.
+- **Revelar = consumir, sem job:** coluna `messages.revealed_at` (imutável) é a fonte
+  única. Uma vez revelada, some da exibição nas duas pontas em qualquer load — a
+  contagem de X seg é **client-side**; o servidor não precisa de relógio/reaper. Um
+  cliente adulterado que pule a contagem ainda pega `vanished` no reload.
+- **Endpoints/regra:** `POST /chat/{c}/mensagem/{m}/revelar` (`chat.ephemeral.reveal`)
+  → `ChatService::revealEphemeral` (só o DESTINATÁRIO; não-revelável=404, já
+  consumida=410; paywall no controller como no áudio). `show()` não marca efêmera como
+  lida ao abrir (só o reveal marca); helpers `ephemeralSealed`/`ephemeralVanished`/
+  `ephemeralAudioServable` (janela do áudio = max(seg, duração)+folga).
+- **Revisão de segurança dedicada — 1 ALTO fechado:** o broadcast em tempo real de
+  nova mensagem (`broadcastListUpdate`) mandava o preview de 60 chars do corpo efêmero
+  ao destinatário, que leria no toast/lista **sem tocar para revelar** (nunca
+  consumia). Fechado: efêmera → `preview=null` no broadcast (espelha o `previewHidden`
+  do index). Regressão em `EphemeralChatTest`. Demais invariantes OK (corpo só via
+  reveal; só o destinatário revela; imutável; paywall; retenção p/ moderação).
+- **Front:** `Chat/Show.vue` — bolha selada com botão "toque para ver" → conteúdo +
+  contagem "some em Ns" → "expirada"; remetente vê "· efêmera" na própria mensagem.
+- Não mexe em token.
 
 ---
 

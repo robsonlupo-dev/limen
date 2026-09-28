@@ -42,6 +42,7 @@ class Message extends Model
             'read_at' => 'datetime',
             'redacted_at' => 'datetime',
             'ephemeral' => 'boolean',
+            'revealed_at' => 'datetime',
             'audio_duration_seconds' => 'integer',
         ];
     }
@@ -53,6 +54,16 @@ class Message extends Model
     public function isEphemeral(): bool
     {
         return (bool) $this->ephemeral;
+    }
+
+    /**
+     * Efêmera JÁ REVELADA pelo destinatário (timer, Onda 3)? `revealed_at` é a fonte
+     * única do consumo: revelar = consumir. Uma vez revelada, some da exibição nas
+     * duas pontas em qualquer load seguinte (a contagem de X seg é só client-side).
+     */
+    public function isRevealed(): bool
+    {
+        return $this->revealed_at !== null;
     }
 
     /** Mensagem de voz? (marca pela presença do status de áudio.) */
