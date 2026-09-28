@@ -303,6 +303,7 @@ class DeletionService
             $summary['follows'] = $this->purgeFollows($user);
             $summary['favorites'] = $this->purgeFavorites($user);
             $summary['favorites_received'] = $this->purgeFavoritesToOwnProfile($user);
+            $summary['content_saves'] = $this->purgeContentSaves($user);
             $summary['saved_searches'] = $this->purgeSavedSearches($user);
             $summary['member_notes'] = $this->purgeMemberNotes($user);
             $summary['member_notes_written'] = $this->purgeMemberNotesByPerformer($user);
@@ -643,6 +644,23 @@ class DeletionService
     private function purgeFavorites(User $user): int
     {
         return DB::table('favorites')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * "Salvos" do titular (roadmap social, Onda 3 §3.1): quais PEÇAS de conteúdo ele
+     * salvou. Mesma família de `favorites` — mapa de interesse do titular, sem valor
+     * fiscal nem trilha legal, e sem contrapartida a acertar (não existe contador de
+     * salvos em superfície nenhuma; ver ContentSave/Favorite).
+     *
+     * A FK `cascadeOnDelete` de `content_saves` (por `user_id`) NÃO dispara:
+     * `users` usa SoftDeletes e anonymizeUser() não apaga a linha, então o banco não
+     * tem o que cascatear (item 11 do CLAUDE.md). Sem "recebidos a apagar" no lado
+     * da performer: `content_saves` aponta para `performer_content`, e o DELETE real
+     * das peças em `purgePerformerContent` já cascateia os salvos pendurados nelas.
+     */
+    private function purgeContentSaves(User $user): int
+    {
+        return DB::table('content_saves')->where('user_id', $user->id)->delete();
     }
 
     /**

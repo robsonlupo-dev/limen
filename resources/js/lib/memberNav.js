@@ -30,10 +30,14 @@ export const MEMBER_SECTIONS = [
         key: 'descobrir',
         label: 'Descobrir',
         route: 'catalog',
-        match: ['catalog', 'catalog.show', 'feed'],
+        match: ['catalog', 'catalog.show', 'feed', 'saved.index'],
         children: [
             { label: 'Catálogo', route: 'catalog' },
             { label: 'Feed', route: 'feed' },
+            // Salvos (Onda 3 §3.1): peças de conteúdo guardadas pelo membro. Fica em
+            // Descobrir, ao lado do Feed, porque é conteúdo — o "Favoritos" abaixo é
+            // de PERFIS (rota favorites.index), coisa diferente.
+            { label: 'Salvos', route: 'saved.index' },
         ],
     },
     {
@@ -48,7 +52,9 @@ export const MEMBER_SECTIONS = [
             // Canais (Onda 2): broadcasts das performers que o membro segue.
             { label: 'Canais', route: 'consumer.channels.index', badge: 'channels' },
             { label: 'Quem me visitou', route: 'consumer.visitors.index' },
-            { label: 'Salvos', route: 'favorites.index' },
+            // Perfis favoritados (rota favorites.index) — renomeado de "Salvos" para
+            // "Favoritos" para não colidir com "Salvos" de CONTEÚDO (Descobrir, §3.1).
+            { label: 'Favoritos', route: 'favorites.index' },
         ],
     },
     {

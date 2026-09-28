@@ -106,4 +106,16 @@ class PerformerContent extends Model
     {
         return $this->hasMany(ContentUnlock::class);
     }
+
+    /*
+     * NÃO EXISTE `contentSaves()` AQUI, E NÃO É ESQUECIMENTO (roadmap social §3.1).
+     *
+     * "Salvos" é privado do membro: a performer nunca sabe que a peça dela foi
+     * salva, nem por quem, nem quantas vezes (ver App\Models\ContentSave e a mesma
+     * disciplina de Favorite/PerformerProfile). Uma relação inversa aqui seria a
+     * porta pela qual um `withCount('contentSaves')` entraria num resource/painel
+     * dela sem ninguém notar — exatamente o vazamento que a ausência evita. Quem
+     * precisar dos salvos pergunta ao ContentSaveService (lado do membro), nunca a
+     * partir da peça.
+     */
 }

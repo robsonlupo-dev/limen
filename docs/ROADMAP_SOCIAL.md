@@ -348,9 +348,28 @@ Mensagens somem da tela depois de vistas; o original é **retido para moderaçã
     (decisão do PO) — vira gancho de conversão, sem regra de visibilidade nova.
     `ContentPresenter` expõe `pinned` (metadado público) para o selo "Destaque".
   - Não mexe em token.
-- **Membro:** salvar CONTEÚDO em coleções privadas (hoje ele favorita performer e
-  salva buscas, mas não salva conteúdo). Tabela `content_collections` +
-  `content_collection_items`. Privado; a performer não sabe. **(Próximo PR da Onda 3.)**
+- **Membro — Salvos ✅ (entregue, PR #291).** O membro salva PEÇAS de conteúdo numa
+  lista privada. **v1 = uma lista "Salvos" única** (sem coleções nomeadas — fica para
+  depois se houver demanda). A performer **nunca sabe**.
+  - **Tabela `content_saves`** (`user_id` + `performer_content_id`, UNIQUE, só
+    `created_at`) — irmã de `favorites`, MESMA disciplina de anonimato: **sem relação
+    inversa** em `PerformerContent`/`PerformerProfile` (evita o vetor `withCount`),
+    **sem contador** em superfície nenhuma, **nada em `audit_logs`** (aquela tabela
+    sobrevive ao Hard Delete com o IP em claro). `ContentSave` + `ContentSaveService`
+    (dona única).
+  - **Salvar exige PODER VER a peça** (decisão do PO): `setSaved(on:true)` passa por
+    `ContentVisibilityService::canView` → 403 se bloqueada. Não vira lista de desejos
+    que revelaria intenção. Desalvar é sempre permitido; toggle idempotente (lock +
+    UNIQUE, como o favorito).
+  - **A performer não tem superfície nenhuma:** `galleryFor` só marca `saved` para o
+    CONSUMIDOR dono das linhas (nunca para a performer/guest); o bookmark na vitrine
+    só aparece em tile visível. Aba **"Salvos"** em Descobrir (`saved.index`), item do
+    feed reresolvido por espectador (paywall intacto). Performer fora do ar some da
+    lista; o salvo continua guardado.
+  - **Hard Delete (LGPD):** `DeletionService::purgeContentSaves` apaga o mapa do
+    titular (a FK não cascateia — `users` é anonimizado, não deletado); o lado da
+    performer cascateia pelo DELETE real das peças. Não mexe em token.
+  - **(Coleções NOMEADAS múltiplas ficam para um PR futuro, se houver demanda.)**
 
 ## 3.2 — Insights da performer
 

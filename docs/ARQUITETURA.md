@@ -703,6 +703,37 @@ A performer prende peças no TOPO da vitrine (estilo Insta). Não mexe em token.
   idempotência, só-pronta, freeze por denúncia, ordem nas duas superfícies e
   fixado-porém-bloqueado-no-topo.
 
+### "Salvos" do membro — roadmap social, Onda 3 (§ 3.1, entregue)
+
+O membro salva PEÇAS de conteúdo numa lista PRIVADA ("ver depois"). v1 é uma lista
+"Salvos" única (sem coleções nomeadas). **É o irmão de `Favorite` para conteúdo** e
+herda a mesma assimetria — que é o produto, não detalhe de UI. Não mexe em token.
+
+- **`content_saves`** (`user_id` + `performer_content_id`, UNIQUE, só `created_at`) +
+  `ContentSave` + `ContentSaveService` (dona única). **A performer NUNCA sabe:** NÃO
+  há relação inversa em `PerformerContent`/`PerformerProfile` (tombstone explícito nos
+  dois — seria o vetor `withCount`), **nenhum contador** em superfície nenhuma, e
+  **nada em `audit_logs`** (aquela tabela sobrevive ao Hard Delete com o IP em claro;
+  uma trilha `content.saved` seria a cópia permanente do mapa que o Delete apaga).
+- **Salvar exige poder VER a peça** (decisão do PO): `setSaved(on:true)` passa por
+  `ContentVisibilityService::canView` ANTES de gravar → 403 `forbidden` se bloqueada.
+  Não vira lista de desejos que revelaria intenção. Desalvar é sempre permitido.
+  Toggle idempotente sob `lockForUpdate` + catch do UNIQUE (mesma disciplina do
+  FavoriteService) — duplo-submit não duplica nem 500.
+- **Sem superfície para a performer:** `galleryFor` só marca `saved` para o
+  CONSUMIDOR dono das linhas (uma query, sem N+1; nunca para performer/guest). O
+  bookmark na vitrine só aparece em tile visível. Aba "Salvos" em Descobrir
+  (`saved.index`); cada item reresolvido por espectador via `ContentPresenter::feedItem`
+  (paywall intacto — um salvo cujo acesso expirou volta bloqueado). `paginateFor`
+  filtra por `user_id` do membro, peças `ready` e performer no ar — performer suspensa
+  some da lista, mas o salvo continua guardado.
+- **Hard Delete (LGPD):** `DeletionService::purgeContentSaves` apaga o mapa do titular
+  por `user_id` (a FK `cascadeOnDelete` não dispara — `users` é anonimizado, não
+  deletado). O lado da performer cascateia pelo DELETE real das peças em
+  `purgePerformerContent`. `ContentSaveTest` cobre 403-sem-ver, idempotência,
+  só-consumidor, sem-vazamento-para-a-performer, lista + performer fora do ar, cascade
+  e purga no Hard Delete.
+
 ## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
 
 Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a

@@ -63,6 +63,25 @@ const selected = ref(null)
 const unlocking = ref(false)
 const error = ref('')
 
+// "Salvos" (§ 3.1): bookmark privado. Só em tile que o membro JÁ pode ver — o
+// servidor recusa salvar o que está bloqueado (403). Estado local otimista; erro
+// silencioso (bookmark é discreto). Só para membro logado (signupHref null).
+const savingId = ref(null)
+async function toggleSave(item) {
+    if (savingId.value) return
+    savingId.value = item.id
+    const next = !item.saved
+    try {
+        const data = await postJson(route('content.save.toggle', item.id), { on: next })
+        const idx = items.value.findIndex((c) => c.id === item.id)
+        if (idx !== -1) items.value[idx] = { ...items.value[idx], saved: data.saved }
+    } catch {
+        // Sem ruído: mantém o estado anterior.
+    } finally {
+        savingId.value = null
+    }
+}
+
 function openConfirm(item) {
     selected.value = item
     error.value = ''
@@ -144,6 +163,22 @@ async function confirmUnlock() {
                         <span class="absolute top-3 left-3 rounded-full bg-background/70 px-2.5 py-1 text-[11px] text-gold backdrop-blur">
                             {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
                         </span>
+                        <!-- Salvar (§ 3.1): só membro logado (signupHref null), só em peça
+                             visível — o servidor recusa salvar cadeado. -->
+                        <button
+                            v-if="!signupHref"
+                            type="button"
+                            :disabled="savingId === item.id"
+                            :aria-pressed="item.saved === true"
+                            :aria-label="item.saved ? 'Remover dos salvos' : 'Salvar'"
+                            :class="[
+                                'absolute bottom-3 right-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-background/70 backdrop-blur transition-colors disabled:opacity-50',
+                                item.saved ? 'text-gold' : 'text-cream hover:text-gold',
+                            ]"
+                            @click="toggleSave(item)"
+                        >
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" :fill="item.saved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z" /></svg>
+                        </button>
                     </template>
 
                     <!-- Comprável: prévia BORRADA (servidor) + preço em destaque + comprar. -->

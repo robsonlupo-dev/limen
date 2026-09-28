@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ContentException;
+use App\Models\ContentSave;
 use App\Models\ContentUnlock;
 use App\Models\PerformerContent;
 use App\Models\PerformerProfile;
@@ -241,12 +242,37 @@ class ContentVisibilityService
             return [];
         }
 
-        return PerformerContent::query()
+        $pieces = PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
             ->ready() // vídeo em processing/failed não aparece na vitrine
             ->orderedForShowcase() // fixadas primeiro (§ 3.1) — mesma ordem do painel
-            ->get()
-            ->map(fn (PerformerContent $content) => ContentPresenter::one($content, $viewer))
+            ->get();
+
+        // "Salvos" do membro (§ 3.1): quais destas peças ele já salvou, em UMA query
+        // (por card seria N+1 na vitrine). Consulta o MODEL direto — não o
+        // ContentSaveService, que depende DESTA classe (canView); injetá-lo aqui
+        // fecharia um ciclo. Só faz sentido para consumidor logado; guest/performer
+        // não têm "salvos". `saved` é dado do PRÓPRIO membro, nunca da performer.
+        $savedIds = [];
+        if ($viewer !== null && $viewer->role === 'consumer') {
+            $savedIds = array_flip(
+                ContentSave::query()
+                    ->where('user_id', $viewer->id)
+                    ->whereIn('performer_content_id', $pieces->pluck('id'))
+                    ->pluck('performer_content_id')
+                    ->all()
+            );
+        }
+
+        return $pieces
+            ->map(function (PerformerContent $content) use ($viewer, $savedIds) {
+                $row = ContentPresenter::one($content, $viewer);
+                // Só faz sentido salvar o que se pode ver; o front só mostra o
+                // bookmark em tile destravado, mas o flag vai sempre coerente.
+                $row['saved'] = isset($savedIds[$content->id]);
+
+                return $row;
+            })
             ->values()
             ->all();
     }
