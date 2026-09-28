@@ -30,6 +30,7 @@ use App\Http\Controllers\Web\Consumer\FavoriteController;
 use App\Http\Controllers\Web\Consumer\FeedController;
 use App\Http\Controllers\Web\Consumer\GalleryController as ConsumerGalleryController;
 use App\Http\Controllers\Web\Consumer\GiftController;
+use App\Http\Controllers\Web\Consumer\ChannelController as ConsumerChannelController;
 use App\Http\Controllers\Web\Consumer\HeartsController as ConsumerHeartsController;
 use App\Http\Controllers\Web\Consumer\ProfileVisitorsController as ConsumerProfileVisitorsController;
 use App\Http\Controllers\Web\Consumer\InterestController as ConsumerInterestController;
@@ -1042,6 +1043,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::delete('/performer/stories/{story}/enquete', [\App\Http\Controllers\Web\Performer\StoryInteractionController::class, 'destroy'])
                 ->middleware('throttle:30,1')->whereNumber('story')->name('performer.stories.poll.destroy')->can('performer-active');
 
+            // Canal de transmissão (roadmap social, Onda 2): a performer publica um
+            // broadcast para os seguidores. throttle de burst + teto diário no
+            // service; anti-contato no Form Request.
+            Route::post('/performer/transmissoes', [\App\Http\Controllers\Web\Performer\BroadcastController::class, 'store'])
+                ->middleware('throttle:10,1')->name('performer.broadcasts.store')->can('performer-active');
+
             // Destaques (Highlights) — gerência (roadmap social, Onda 1a). JSON;
             // o front recarrega a lista após cada mutação. O serving dos bytes é
             // rota pública separada (highlights.image), como a galeria.
@@ -1307,6 +1314,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/interessadas', [ConsumerHeartsController::class, 'index'])
             ->middleware('throttle:60,1')
             ->name('consumer.hearts.index');
+
+        // Aba "Canais" — os broadcasts das performers que o membro segue (roadmap
+        // social, Onda 2). Grátis; abrir zera o badge de não-vistos. Sem resposta no
+        // canal (o CTA leva ao chat pago). Ver BroadcastService.
+        Route::get('/canais', [ConsumerChannelController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('consumer.channels.index');
 
         // "Quem visitou seu perfil" — as performers que visitaram o membro
         // (visitas bidirecionais, A.0.4). Performer é pública: a identidade dela

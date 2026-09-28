@@ -152,6 +152,9 @@ return [
         // Enquete no story (Onda 1b): prender/remover pelo painel.
         'performer.stories.poll.store',
         'performer.stories.poll.destroy',
+        // Canal de transmissão (Onda 2): a performer publica; o membro lê em /canais.
+        'performer.broadcasts.store',
+        'consumer.channels.index',
 
         // Destaques (Highlights) — gerência pela performer + serving público
         'performer.highlights.index',

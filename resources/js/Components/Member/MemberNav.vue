@@ -16,7 +16,7 @@ import { MEMBER_SECTIONS, MEMBER_MENU, isSectionActive, isRouteActive } from '@/
 
 const props = defineProps({
     // { messages, hearts } — bolinhas de não-vistos (NavBadgeService). Só desenha.
-    navCounts: { type: Object, default: () => ({ messages: 0, hearts: 0 }) },
+    navCounts: { type: Object, default: () => ({ messages: 0, hearts: 0, channels: 0 }) },
     // Flags Inertia (features.*): gateiam itens de subnav sob dark launch (call).
     features: { type: Object, default: () => ({}) },
     // Nome do membro, para o cabeçalho do menu do avatar.

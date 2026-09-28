@@ -2356,6 +2356,32 @@ mesma disciplina do painel de visitantes e do geobloqueio.
 > retenção**. Os três caminhos de destruição de prova (revoke, GC e encerramento
 > de conta) estão fechados.
 
+## Canal de transmissão — roadmap social, Onda 2 (entregue, v1 texto)
+
+Mensagem 1-para-muitos da performer para os **seguidores** (`follows`), sem
+resposta no canal. `BroadcastMessage` + `BroadcastService` (a dona) + aba "Canais"
+do membro (`consumer.channels.index`). Grátis, não mexe em token — motor de
+retenção.
+
+- **Anti-contato é o ponto:** o `body` passa por `SafeProfileText` (filtro público)
+  no `SendBroadcastRequest`. Um broadcast é o vetor perfeito de fuga de contato
+  grátis (mandar o zap a todos os seguidores de uma vez), então o filtro é
+  obrigatório e o service não é chamável sem ele (uma porta só: o controller sobre o
+  Form Request). **Sem resposta no canal:** o CTA leva ao chat pago
+  (`ChatService::sendMessage`) — o modelo do Limen (falar custa) fica intacto.
+- **Entrega derivada de `follows` na leitura, não uma lista de destinatários:**
+  `feedForMember`/`unseenCountForMember` usam `whereExists` correlacionado em
+  `follows` + performer de pé (verificada, ativa) — a MESMA base (`followedReachable`)
+  para feed e badge, então não divergem. A performer **não aprende quem seguiu nem
+  quem leu** (anonimato do membro; nada de membro atravessa o payload).
+- **Badge de não-visto:** `users.broadcasts_seen_at` (watermark único, como o
+  `hearts_seen_at`); abrir a aba assenta `now()` e zera. Contagem alinhada ao
+  `feed_limit`.
+- **Teto diário** (`config/broadcast.php` `max_per_day`) + `throttle:10,1` de burst
+  (soft-cap, como o convite/Boost). **v1 é persistência + HTTP**; o push em tempo
+  real via Reverb é follow-up (servidor 2 vCPU não comporta fan-out largo). Imagem
+  no broadcast também é follow-up (exigiria CSAM+storage).
+
 ## Stories da Performer — Sprint 9C (entregue, tag `v1.0-sprint9`)
 
 **É a primeira publicação de conteúdo do projeto** — 1:N, com paywall por nível.

@@ -243,6 +243,14 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   **"pergunte-me" de texto livre foi CORTADO** (vira contato grátis — fura o chat
   pago); "membro pergunta" usa o story-reply pago existente. **Onda 1 completa.**
   Nada disso mexe em token.
+  **Onda 2 (em andamento):** (1) **Canal de transmissão** (`BroadcastMessage`,
+  `BroadcastService`, aba "Canais" do membro) — a performer transmite TEXTO aos
+  seguidores; grátis, sem resposta no canal (CTA leva ao chat pago). `body` por
+  `SafeProfileText` (anti-contato — broadcast é o vetor de fuga de contato grátis);
+  teto diário em `config/broadcast.php`; entrega derivada de `follows` na leitura
+  (a performer não sabe quem leu); badge de não-visto (`users.broadcasts_seen_at`).
+  v1 é persistência + HTTP (push via Reverb é follow-up — servidor 2 vCPU). Não mexe
+  em token. Falta da Onda 2: modo efêmero no chat.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

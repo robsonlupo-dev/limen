@@ -92,6 +92,11 @@ class User extends Authenticatable implements MustVerifyEmail
         // tela de corações. Escondê-lo aqui impede o instante de pegar carona num
         // prop de Inertia genérico, como o last_active_at acima.
         'hearts_seen_at',
+        // Watermark de "canais vistos" (Onda 2): mesma disciplina do hearts_seen_at
+        // — só o CONTADOR derivado (nav_counts.channels) sai; o instante fica
+        // escondido para não pegar carona num prop genérico do Inertia. Quem escreve
+        // é só o BroadcastService ao abrir a aba "Canais".
+        'broadcasts_seen_at',
         // Foto de perfil do membro (fix/member-photo-and-crop). O caminho no disco
         // e o token de serving NUNCA saem em serialização — a URL vem por
         // avatarUrl() (rota assinada), montada explicitamente onde é permitida. O
@@ -131,6 +136,7 @@ class User extends Authenticatable implements MustVerifyEmail
             // Watermark de "corações vistos" (feat/activity-badges). Datetime para
             // comparar com o created_at do coração; nunca serializado (é $hidden).
             'hearts_seen_at' => 'datetime',
+            'broadcasts_seen_at' => 'datetime',
             // Apelido do membro (feat/member-nickname): relógio do cooldown de troca.
             'nickname_set_at' => 'datetime',
             'password' => 'hashed',

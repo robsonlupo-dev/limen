@@ -28,10 +28,11 @@ class NavBadgeService
     public function __construct(
         private ChatService $chat,
         private PerformerHeartService $hearts,
+        private BroadcastService $broadcasts,
     ) {}
 
     /**
-     * @return array{messages: int, hearts: int}
+     * @return array{messages: int, hearts: int, channels: int}
      */
     public function for(User $user): array
     {
@@ -41,6 +42,11 @@ class NavBadgeService
             // (e admin/moderador) sempre 0 aqui.
             'hearts' => $user->role === 'consumer'
                 ? $this->hearts->unseenCountForMember($user)
+                : 0,
+            // Canais (Onda 2): broadcasts não vistos das performers que o membro
+            // segue. Só o membro tem canais; performer/admin sempre 0.
+            'channels' => $user->role === 'consumer'
+                ? $this->broadcasts->unseenCountForMember($user)
                 : 0,
         ];
     }
