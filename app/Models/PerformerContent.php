@@ -55,6 +55,7 @@ class PerformerContent extends Model
         return [
             'price_tokens' => 'integer',
             'duration_seconds' => 'integer',
+            'pinned_at' => 'datetime',
         ];
     }
 
@@ -68,10 +69,32 @@ class PerformerContent extends Model
         return $this->status === self::STATUS_READY;
     }
 
+    /** Fixada no topo da vitrine (roadmap social, Onda 3 — § 3.1)? */
+    public function isPinned(): bool
+    {
+        return $this->pinned_at !== null;
+    }
+
     /** Só peças prontas para servir (foto sempre; vídeo só após o job). */
     public function scopeReady(Builder $query): Builder
     {
         return $query->where('status', self::STATUS_READY);
+    }
+
+    /**
+     * Ordem ÚNICA da vitrine (§ 3.1): fixadas primeiro (a última fixada no topo),
+     * depois o resto por id desc (mais nova primeiro). Dona única da ordenação —
+     * a MESMA para a vitrine pública (`galleryFor`) e para o painel da performer
+     * (`forOwner`); se as duas divergissem, "fixar" mostraria uma ordem para a
+     * performer e outra para o público. Fixada que o espectador não alcança segue
+     * no topo, bloqueada (decisão do PO — a ordenação não olha paywall).
+     */
+    public function scopeOrderedForShowcase(Builder $query): Builder
+    {
+        return $query
+            ->orderByRaw('pinned_at IS NULL') // 0 (fixada) antes de 1 (não fixada)
+            ->orderByDesc('pinned_at')
+            ->orderByDesc('id');
     }
 
     public function performerProfile(): BelongsTo

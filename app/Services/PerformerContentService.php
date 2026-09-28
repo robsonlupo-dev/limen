@@ -160,13 +160,78 @@ class PerformerContentService
         Audit::log('content.removed', $content, ['id' => $content->id]);
     }
 
+    /**
+     * Fixa/desafixa uma peça no topo da vitrine (roadmap social, Onda 3 — § 3.1).
+     * `pinned_at` é a fonte única (fixado = não-null; a ordem entre fixados é o
+     * próprio timestamp). Regras:
+     *  - só a DONA fixa a própria peça (senão OFFLINE, a mesma máscara do resto);
+     *  - só peça PRONTA vai ao topo (vídeo em processing/failed não é servível);
+     *  - teto `config('content.max_pinned')` — atingido, recusa PIN_CAP.
+     * Ações idempotentes: fixar o que já está fixado não renova a ordem nem conta
+     * de novo no teto; desafixar o que não está é no-op. Denúncia aberta NÃO trava
+     * o pin (é ordenação de exibição, não remoção nem conteúdo novo).
+     *
+     * Nota de concorrência: o teto é SOFT (conta-e-grava sem lock), como o teto
+     * diário do canal de transmissão. É ação da própria performer sobre a própria
+     * vitrine (uso sequencial), e estourar por 1 numa corrida rara não é invariante
+     * de segurança — só cosmético do topo da vitrine.
+     */
+    public function setPinned(PerformerProfile $profile, PerformerContent $content, bool $on): PerformerContent
+    {
+        if ((int) $content->performer_profile_id !== (int) $profile->id) {
+            throw ContentException::offline();
+        }
+
+        // Desafixar: sempre permitido, idempotente.
+        if (! $on) {
+            if ($content->isPinned()) {
+                $content->forceFill(['pinned_at' => null])->save();
+                Audit::log('content.unpinned', $content, ['id' => $content->id]);
+            }
+
+            return $content;
+        }
+
+        // Fixar. Já fixada → no-op (não renova a ordem nem reconta no teto).
+        if ($content->isPinned()) {
+            return $content;
+        }
+
+        // Sob denúncia aberta não se DÁ destaque a uma peça (moderação primeiro):
+        // fixar no topo maximizaria a exposição de conteúdo em análise. Desafixar
+        // segue liberado (reduzir prominência é sempre permitido) — o guard é só
+        // no "ligar", como o congelamento de remoção do remove().
+        if ($this->hasOpenReport($content)) {
+            throw ContentException::underReview();
+        }
+
+        if (! $content->isReady()) {
+            throw ContentException::pinNotReady();
+        }
+
+        $max = (int) config('content.max_pinned', 3);
+        $pinnedCount = PerformerContent::query()
+            ->where('performer_profile_id', $profile->id)
+            ->whereNotNull('pinned_at')
+            ->count();
+
+        if ($pinnedCount >= $max) {
+            throw ContentException::pinCapReached($max);
+        }
+
+        $content->forceFill(['pinned_at' => now()])->save();
+        Audit::log('content.pinned', $content, ['id' => $content->id]);
+
+        return $content;
+    }
+
     /** Peças da performer + contagem de desbloqueios (receita). Sem membro. */
     public function forOwner(PerformerProfile $profile): Collection
     {
         return PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
             ->withCount('unlocks')
-            ->orderByDesc('id')
+            ->orderedForShowcase() // mesma ordem da vitrine pública (§ 3.1)
             ->get()
             ->map(fn (PerformerContent $c) => [
                 'id' => $c->id,
@@ -176,6 +241,9 @@ class PerformerContentService
                 'price_tokens' => $c->price_tokens,
                 'unlock_count' => (int) $c->unlocks_count,
                 'duration_seconds' => $c->duration_seconds,
+                // Estado do destaque (§ 3.1): a UI mostra o selo e alterna fixar/desafixar.
+                'pinned' => $c->isPinned(),
+                'pinned_at' => optional($c->pinned_at)->toIso8601String(),
                 // Vídeo em processamento/falha não tem bytes servíveis → sem URL.
                 // A tela mostra o status; o poster/preview só quando READY.
                 'image_url' => $c->isReady() ? route('performer.content.image', $c->id) : null,

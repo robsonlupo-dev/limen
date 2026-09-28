@@ -1115,6 +1115,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->name('performer.content.destroy')
                 ->can('performer-active');
 
+            // Fixar/desafixar no topo da vitrine (roadmap social, Onda 3 — § 3.1).
+            Route::post('/performer/conteudo/{content}/fixar', [PerformerContentController::class, 'pin'])
+                ->middleware('throttle:30,1')
+                ->whereNumber('content')
+                ->name('performer.content.pin')
+                ->can('performer-active');
+
             // Intro de voz (feat/voice-intro). Só performer ATIVA grava/envia; o
             // áudio é higienizado por ffmpeg num job e DEPOIS moderado por humano
             // (fila /moderacao/*). A performer vê o status aqui, nunca publica

@@ -326,11 +326,31 @@ Mensagens somem da tela depois de vistas; o original é **retido para moderaçã
 
 ## 3.1 — Fixar conteúdo + coleções do membro
 
-- **Performer:** fixar itens no topo da vitrine (`is_pinned` + `pinned_at` no item
-  de conteúdo, com teto de fixados).
+- **Performer — fixar conteúdo ✅ (entregue, PR #290).** A performer prende peças no
+  topo da vitrine.
+  - **Fonte única:** coluna `performer_content.pinned_at` (nullable). Fixado =
+    `pinned_at IS NOT NULL`; a ordem entre fixados é o próprio `pinned_at` desc (a
+    última fixada sobe). Sem `is_pinned` separado — um bool derivado poderia divergir
+    do timestamp.
+  - **Ordenação ÚNICA** (`PerformerContent::scopeOrderedForShowcase`): fixadas
+    primeiro, depois por id desc. A MESMA para a vitrine pública
+    (`ContentVisibilityService::galleryFor`) e o painel da performer
+    (`PerformerContentService::forOwner`) — se divergissem, "fixar" mostraria uma
+    ordem para a dona e outra para o público.
+  - **Teto** `config/content.php` `max_pinned` (3, estilo Insta). Soft-cap (conta-e-
+    grava, como o teto do canal): é ação da própria performer sobre a própria vitrine,
+    sem impacto de token nem de acesso.
+  - **Só a DONA** fixa a própria peça (senão 404, máscara `offline`); **só peça
+    PRONTA** (vídeo em processing/failed não vai ao topo); **sob denúncia aberta o
+    "fixar" é congelado** (409, como a remoção) — desafixar segue liberado.
+  - **Não muda paywall:** `setPinned` só escreve `pinned_at`; `canView` nunca olha
+    `pinned_at`. Fixada que o espectador não alcança **fica no topo, BLOQUEADA**
+    (decisão do PO) — vira gancho de conversão, sem regra de visibilidade nova.
+    `ContentPresenter` expõe `pinned` (metadado público) para o selo "Destaque".
+  - Não mexe em token.
 - **Membro:** salvar CONTEÚDO em coleções privadas (hoje ele favorita performer e
   salva buscas, mas não salva conteúdo). Tabela `content_collections` +
-  `content_collection_items`. Privado; a performer não sabe.
+  `content_collection_items`. Privado; a performer não sabe. **(Próximo PR da Onda 3.)**
 
 ## 3.2 — Insights da performer
 

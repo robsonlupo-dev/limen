@@ -112,6 +112,30 @@ class PerformerContentController extends Controller
         return response()->json(['message' => 'Conteúdo removido.']);
     }
 
+    /**
+     * Fixa/desafixa a peça no topo da vitrine (roadmap social, Onda 3 — § 3.1).
+     * `on` (bool) no corpo. Só a DONA (a service confere; não-dela → 404, a mesma
+     * máscara do destroy). Teto e "só peça pronta" viram 422 com `reason` estável.
+     */
+    public function pin(Request $request, PerformerContent $content): JsonResponse
+    {
+        Gate::authorize('performer-active');
+
+        $on = $request->boolean('on');
+
+        try {
+            $piece = $this->content->setPinned($request->user()->performerProfile, $content, $on);
+        } catch (ContentException $e) {
+            return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], match ($e->reason) {
+                ContentException::PIN_CAP, ContentException::PIN_NOT_READY => 422,
+                ContentException::UNDER_REVIEW => 409, // sob denúncia não se dá destaque
+                default => 404, // OFFLINE (não é dela)
+            });
+        }
+
+        return response()->json(['pinned' => $piece->isPinned()]);
+    }
+
     /** Quem desbloqueou — só por FanAlias (M.13.10); fc_only revela FC. */
     public function unlockers(Request $request, PerformerContent $content): JsonResponse
     {

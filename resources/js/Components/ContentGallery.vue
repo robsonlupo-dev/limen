@@ -123,6 +123,12 @@ async function confirmUnlock() {
                     :key="item.id"
                     class="relative aspect-[4/3] overflow-hidden rounded-2xl border border-frame bg-surface-2"
                 >
+                    <!-- Destaque (§ 3.1): selo do item fixado pela performer. -->
+                    <span v-if="item.pinned" class="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-gold/90 px-2.5 py-1 text-[11px] font-medium text-background backdrop-blur">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /><path d="M12 15v5" /></svg>
+                        Destaque
+                    </span>
+
                     <!-- Acessível: mídia real. -->
                     <template v-if="!item.locked && item.image_url">
                         <video
@@ -178,6 +184,9 @@ async function confirmUnlock() {
                     :key="item.id"
                     class="relative aspect-square overflow-hidden rounded-lg border border-frame bg-surface-2"
                 >
+                    <span v-if="item.pinned" class="absolute top-1.5 right-1.5 z-10 inline-flex items-center rounded-full bg-gold/90 p-1 text-background" aria-label="Destaque">
+                        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /><path d="M12 15v5" /></svg>
+                    </span>
                     <img v-if="item.blur_url && !item.blurFailed" :src="item.blur_url" alt="" class="h-full w-full object-cover" @error="item.blurFailed = true" />
                     <div v-else class="h-full w-full bg-gradient-to-br from-surface-2 to-background" />
                     <div class="absolute inset-0 flex items-center justify-center bg-background/40">

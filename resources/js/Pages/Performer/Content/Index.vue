@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { getJson, postForm, deleteJson } from '@/lib/http'
+import { getJson, postForm, postJson, deleteJson } from '@/lib/http'
 
 const props = defineProps({
     // Estado inicial (o controller já entrega a primeira lista); as mutações
@@ -84,6 +84,20 @@ async function publish() {
         error.value = e.data?.message ?? 'Não foi possível publicar. Tente novamente.'
     } finally {
         publishing.value = false
+    }
+}
+
+async function togglePin(piece) {
+    error.value = ''
+    loading.value = true
+
+    try {
+        await postJson(route('performer.content.pin', piece.id), { on: !piece.pinned })
+        await refresh()
+    } catch (e) {
+        error.value = e.data?.message ?? 'Não foi possível alterar o destaque.'
+    } finally {
+        loading.value = false
     }
 }
 
@@ -205,6 +219,7 @@ async function remove(piece) {
                                 <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-gold">{{ levelLabel(piece.access_level) }}</span>
                                 <span class="ml-2 text-muted">{{ piece.price_tokens }} tokens</span>
                                 <span v-if="piece.kind === 'video'" class="ml-2 inline-flex items-center gap-1 text-xs text-muted"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4" /></svg> vídeo</span>
+                                <span v-if="piece.pinned" class="ml-2 inline-flex items-center gap-1 rounded bg-gold/15 px-2 py-0.5 text-xs text-gold"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /><path d="M12 15v5" /></svg> Destaque</span>
                             </p>
                             <p v-if="piece.status === 'processing'" class="mt-1 text-xs text-gold">
                                 Processando o vídeo… ficará disponível em breve.
@@ -214,14 +229,32 @@ async function remove(piece) {
                             </p>
                             <p v-else class="mt-1 text-xs text-muted">{{ piece.unlock_count }} desbloqueio(s)</p>
                         </div>
-                        <button
-                            type="button"
-                            :disabled="loading"
-                            class="shrink-0 rounded-lg border border-danger/40 px-3 py-1.5 text-xs text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
-                            @click="remove(piece)"
-                        >
-                            Remover
-                        </button>
+                        <div class="flex shrink-0 flex-col items-stretch gap-2">
+                            <button
+                                v-if="piece.status === 'ready'"
+                                type="button"
+                                :disabled="loading"
+                                :aria-pressed="piece.pinned"
+                                :class="[
+                                    'inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-50',
+                                    piece.pinned
+                                        ? 'border-gold/50 bg-gold/10 text-gold hover:bg-gold/20'
+                                        : 'border-frame text-muted hover:text-cream hover:bg-surface-2',
+                                ]"
+                                @click="togglePin(piece)"
+                            >
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /><path d="M12 15v5" /></svg>
+                                {{ piece.pinned ? 'Fixado' : 'Fixar' }}
+                            </button>
+                            <button
+                                type="button"
+                                :disabled="loading"
+                                class="rounded-lg border border-danger/40 px-3 py-1.5 text-xs text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+                                @click="remove(piece)"
+                            >
+                                Remover
+                            </button>
+                        </div>
                     </li>
                 </ul>
             </div>

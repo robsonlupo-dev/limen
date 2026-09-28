@@ -676,6 +676,33 @@ leitura, apresentação e uma prévia de imagem derivada. Suíte MySQL 2092/2093
   blocos ("Hoje"/"Ontem"/data) + hora em cada mensagem, no **fuso do usuário** (o
   navegador formata em local). Sem lib nova.
 
+### Fixar conteúdo na vitrine — roadmap social, Onda 3 (§ 3.1, entregue)
+
+A performer prende peças no TOPO da vitrine (estilo Insta). Não mexe em token.
+
+- **`performer_content.pinned_at`** (nullable) é a fonte ÚNICA: fixado =
+  `pinned_at IS NOT NULL`; a ordem entre fixados é o próprio `pinned_at` desc. Sem
+  `is_pinned` separado (um bool derivado poderia divergir do timestamp).
+- **Ordenação é dona única** em `PerformerContent::scopeOrderedForShowcase`
+  (fixadas primeiro, depois id desc) e a MESMA nos dois consumidores —
+  `ContentVisibilityService::galleryFor` (público) e `PerformerContentService::forOwner`
+  (painel). Se divergissem, "fixar" mostraria uma ordem para a dona e outra para o
+  público (o mesmo cuidado do gate de tier VIP dos stories).
+- **`setPinned` é a dona da regra:** só a performer DONA (senão `offline` → 404, a
+  máscara do resto); só peça PRONTA (vídeo em processing/failed não vai ao topo de uma
+  vitrine pública sem bytes servíveis); teto `config('content.max_pinned')` (soft-cap,
+  como o teto do canal); **sob denúncia aberta o "fixar" é congelado** (`under_review`
+  → 409, reusando o freeze do `remove()`) — desafixar segue liberado (reduzir
+  prominência é sempre permitido). `pinned_at` só entra por `forceFill` (`$fillable`
+  vazio); nada de mass-assignment pelo publish/store.
+- **NÃO muda paywall.** `canView` nunca olha `pinned_at`; fixar só reordena. Uma peça
+  fixada que o espectador não alcança **fica no topo, BLOQUEADA** (decisão do PO) —
+  gancho de conversão, sem regra de visibilidade nova. `ContentPresenter::one` expõe
+  `pinned` (metadado PÚBLICO da curadoria da performer, sem dado de membro) para o
+  selo "Destaque" na vitrine e no painel. `PinContentTest` cobre dono/404, teto+
+  idempotência, só-pronta, freeze por denúncia, ordem nas duas superfícies e
+  fixado-porém-bloqueado-no-topo.
+
 ## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
 
 Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a
