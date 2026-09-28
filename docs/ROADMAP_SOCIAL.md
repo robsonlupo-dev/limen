@@ -244,20 +244,28 @@ story_reactions
 
 # ONDA 2 — Chat e retenção (esboço)
 
-## 2.1 — Canal de transmissão da performer
+## 2.1 — Canal de transmissão da performer ✅ (entregue, PR #288 — v1 texto)
 
 Mensagem 1-para-muitos para os **seguidores** (`Follow`), sem resposta no canal.
 
-- **Dados:** `broadcast_messages` (performer_profile_id, body/media, timestamps) +
-  entrega via **Reverb** (fan-out para os seguidores online) + persistência para
-  quem estava offline ver depois (uma aba "Canais" no lado do membro).
-- **Sem resposta:** o membro que quiser falar abre o **chat pago** normal (o CTA do
-  canal leva ao chat). Fecha a fuga de contato grátis.
-- **Custo:** grátis para o seguidor; é motor de retenção que puxa para ações pagas.
-  Rate-limit de broadcasts por performer (`config/broadcast.php`) — proteger o
-  Reverb do servidor atual.
-- **Privacidade:** o canal é da performer para muitos; o membro nunca é exposto a
-  outros membros.
+**Como ficou (v1):**
+- **Só texto** (decisão do PO): `broadcast_messages` (performer_profile_id, body,
+  timestamps). Imagem fica para uma PR seguinte (exigiria CSAM+storage; servidor 2 vCPU).
+- **Persistência + leitura por HTTP + badge de não-visto.** O push em tempo real
+  via **Reverb ficou para follow-up**: o servidor atual não comporta fan-out largo,
+  e a retenção vem do persistido + o badge (`users.broadcasts_seen_at`, watermark
+  único como o `hearts_seen_at`). A aba "Canais" (`consumer.channels.index`) lista
+  os broadcasts das performers seguidas e de pé; abrir zera o badge.
+- **Anti-contato é o ponto crítico:** o `body` passa por `SafeProfileText` (o
+  filtro público) — um broadcast é o vetor de fuga de contato grátis (mandar o zap
+  a todos os seguidores). **Sem resposta no canal:** o CTA "Conversar" leva ao chat
+  pago. Fecha a fuga de contato grátis nas duas pontas.
+- **Custo:** grátis para o seguidor; motor de retenção. Teto diário
+  (`config/broadcast.php`, `max_per_day`) + `throttle:10,1` de burst.
+- **Privacidade:** direção performer→seguidor; nada de membro atravessa (a entrega é
+  derivada de `follows` na leitura, não uma lista de destinatários). A performer não
+  aprende quem seguiu nem quem leu. Revisão de segurança dedicada passou (7
+  invariantes; 3 LOW de polimento corrigidos/aceitos).
 
 ## 2.2 — Modo efêmero (vanish) no chat
 

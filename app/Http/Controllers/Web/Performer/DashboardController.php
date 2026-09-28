@@ -152,6 +152,9 @@ class DashboardController extends Controller
             // `is_invite`), então o contador fica em sincronia depois de cada
             // publicar/apagar sem uma segunda fonte para divergir.
             'storyInviteLimit' => PerformerStoryService::MAX_ACTIVE_INVITES,
+            // Canal de transmissão (Onda 2): teto de caracteres do composer (o
+            // servidor é a fonte de verdade; isto é só a conveniência da UI).
+            'broadcastMaxLength' => (int) config('broadcast.max_length', 1000),
             // A performer PENDENTE alcança este painel de propósito (Sprint 7),
             // mas as rotas de story exigem `can('performer-active')`. A tela não é
             // o guard — ela só evita oferecer um botão que responderia 403.

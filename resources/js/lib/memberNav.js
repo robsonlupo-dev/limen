@@ -40,11 +40,13 @@ export const MEMBER_SECTIONS = [
         key: 'conexoes',
         label: 'Conexões',
         route: 'interests.index',
-        match: ['interests.index', 'consumer.hearts.index', 'consumer.visitors.index', 'favorites.index'],
+        match: ['interests.index', 'consumer.hearts.index', 'consumer.visitors.index', 'favorites.index', 'consumer.channels.index'],
         badge: 'hearts',
         children: [
             { label: 'Interesses', route: 'interests.index' },
             { label: 'Interessadas', route: 'consumer.hearts.index', badge: 'hearts' },
+            // Canais (Onda 2): broadcasts das performers que o membro segue.
+            { label: 'Canais', route: 'consumer.channels.index', badge: 'channels' },
             { label: 'Quem me visitou', route: 'consumer.visitors.index' },
             { label: 'Salvos', route: 'favorites.index' },
         ],

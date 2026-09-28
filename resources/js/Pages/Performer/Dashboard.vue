@@ -10,6 +10,7 @@ import NotificationSoundSettings from '@/Components/NotificationSoundSettings.vu
 import ProfileProgress from '@/Components/ProfileProgress.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryPanel from '@/Components/StoryPanel.vue'
+import BroadcastPanel from '@/Components/BroadcastPanel.vue'
 import { deleteJson, patchJson, postJson } from '@/lib/http'
 
 const props = defineProps({
@@ -50,6 +51,7 @@ const props = defineProps({
     storyVisibilityLevels: { type: Array, default: () => [] },
     storySubscriberMinTiers: { type: Array, default: () => [] },
     storyInviteLimit: { type: Number, default: 2 },
+    broadcastMaxLength: { type: Number, default: 1000 },
     canPublishStories: { type: Boolean, default: false },
     // Campos do perfil para a barra de completude (Sprint 10). Só presença de
     // foto + os campos de "Sobre mim" — nada é persistido, a % é derivada no
@@ -606,6 +608,10 @@ async function decideAccess(req, approve) {
                 :subscriber-min-tiers="storySubscriberMinTiers"
                 :invite-limit="storyInviteLimit"
             />
+
+            <!-- Canal de transmissão (Onda 2): mesmo gate do StoryPanel — a rota
+                 exige `can('performer-active')`. -->
+            <BroadcastPanel v-if="canPublishStories" :max-length="broadcastMaxLength" />
 
             <!-- Fotos recebidas (Sprint 9B) -->
             <div class="space-y-4">
