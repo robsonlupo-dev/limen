@@ -229,6 +229,13 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   (serving, feed, pontinho, faixa) e fail-closed por `Circle::tierAtLeast`. O teto
   abaixo de Black é SEGURANÇA: contador (que o Nível 2 mantém) sobre público Black
   seria oráculo de identificabilidade (decisão nº 3).
+  (4) **Reações rápidas a stories** (`StoryReaction`, `StoryReactionService`,
+  `ReactionIcon.vue`) — sinal leve membro→performer no `StoryViewer`, sem abrir
+  chat. Conjunto fixo em `config/stories.php` (símbolo é SVG, não emoji). Reusa a
+  porta do paywall (`canView`); sem reação no `exclusive`; a performer vê AGREGADO
+  (faixa + emojis, `summaryForOwner`), **nunca "quem reagiu"**; Ghost Mode/Discreto
+  não entram no agregado (write-time guard, § 2.7). Falta da Onda 1b só
+  enquetes/"pergunte-me".
   Nada disso mexe em token.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do

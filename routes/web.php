@@ -41,6 +41,7 @@ use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileContro
 use App\Http\Controllers\Web\Consumer\ReportController;
 use App\Http\Controllers\Web\Consumer\SavedSearchController;
 use App\Http\Controllers\Web\Consumer\StoryController as ConsumerStoryController;
+use App\Http\Controllers\Web\Consumer\StoryReactionController as ConsumerStoryReactionController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
 use App\Http\Controllers\Web\Consumer\WalletController;
@@ -1554,6 +1555,15 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware(['throttle:30,1', 'documents.accepted'])
             ->whereNumber('story')
             ->name('stories.reply');
+
+        // Reação rápida ao story (roadmap social, Onda 1b): sinal leve
+        // membro→performer, sem abrir chat. A autorização é a MESMA do serving
+        // (StoryReactionService pergunta ao StoryVisibilityService), então reagir a
+        // um story fora de alcance é 403 como a imagem. Throttle de escrita.
+        Route::post('/stories/{story}/reacao', [ConsumerStoryReactionController::class, 'store'])
+            ->middleware('throttle:60,1')
+            ->whereNumber('story')
+            ->name('stories.react');
 
         // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Lado do MEMBRO, no
         // grupo role:consumer + member.verified sob auth+2fa. Serving AUTENTICADO

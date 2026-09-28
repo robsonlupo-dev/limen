@@ -111,6 +111,8 @@ const storyGroups = computed(() => {
             visibility_level: s.visibility_level,
             seen: s.seen,
             is_invite: false,
+            // Reação do próprio membro (Onda 1b): o viewer destaca o botão ativo.
+            my_reaction: s.my_reaction ?? null,
         })),
     }]
 })

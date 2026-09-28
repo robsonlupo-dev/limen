@@ -147,6 +147,16 @@ class PerformerStory extends Model
     }
 
     /**
+     * As reações rápidas deste story (Onda 1b). Existe para o contador agregado e
+     * para o expurgo — como `views()`, **nunca** para virar lista de "quem reagiu"
+     * na tela (o anonimato do membro é piso, princípio 1 do CLAUDE.md).
+     */
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(StoryReaction::class, 'performer_story_id');
+    }
+
+    /**
      * Vencido pelo relógio. É a checagem que corta o acesso (§ 2.8) — ver o
      * docblock da classe. `>=` e não `>`: no instante exato do vencimento o
      * story já morreu.

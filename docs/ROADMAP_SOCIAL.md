@@ -188,10 +188,28 @@ story_interaction_responses
 - **UI:** overlay no `StoryViewer` (opção tocável / campo de texto). A performer vê
   resultados num painel do story (contagem + lista mascarada).
 
-## 1b.2 — Reações rápidas a stories
+## 1b.2 — Reações rápidas a stories ✅ (entregue, PR #286)
 
-Reação leve (❤️🔥😍👏) que chega à performer como sinal, sem abrir chat —
-complementa o "responder ao story".
+Reação leve que chega à performer como sinal, sem abrir chat — complementa o
+"responder ao story".
+
+**Como ficou (decisões do PO nesta entrega):**
+- **Agregado, nunca "quem reagiu".** A performer vê, por story, uma FAIXA de
+  membros únicos + o conjunto de emojis usados (`StoryReactionService::
+  summaryForOwner`), reusando `PerformerProfile::followersLabelFor`. Sem lista por
+  FanAlias — o anonimato do membro é piso; a lista fica como decisão de produto
+  adiada, não o default.
+- **Símbolo é SVG** (`ReactionIcon.vue`), não emoji — a regra do PO (emoji vira
+  quadrado/renderiza diferente). Conjunto fixo em `config/stories.php`
+  (`love/fire/wow/celebrate`), fonte única da validação e da UI.
+- **Mesma porta do paywall:** reagir passa pelo `StoryVisibilityService::
+  denialFor` — reagir a um story fora de alcance é 403, como a imagem. **Exclusivo
+  não tem reação** (sem superfície de audiência — decisão nº 3; seria oráculo de
+  "quem é Black").
+- **Ghost Mode / Modo Discreto não entram no agregado:** a reação NÃO é gravada
+  para quem tem o perk (write-time guard, § 2.7 — não gravar > gravar-e-filtrar).
+- **Toggle:** uma reação por par (índice único); tocar a mesma remove, outra troca.
+  Morre com o story (junto das views, no `destroy`).
 
 **Dados**
 ```
@@ -293,11 +311,13 @@ ledger inteiro a cada abertura (servidor de 2 vCPU).
       `tierGateAllows`/`satisfiedTiers` nos 4 consumidores do paywall, teto abaixo
       de Black, seletor na publicação, testes Pest, revisão de segurança dedicada
       passou). PR #285.
-- [ ] **1b:** migrations (`story_interactions`, `story_interaction_responses`,
-      `story_reactions`), serviços, overlay no `StoryViewer`, painel de resultados,
-      privacidade por FanAlias, testes, revisão de segurança.
-- [ ] **1b:** migrations (`story_interactions`, `story_interaction_responses`,
-      `story_reactions`), serviços, overlay no `StoryViewer`, painel de resultados,
-      privacidade por FanAlias, testes, revisão de segurança.
+- [x] **1b — Reações rápidas** (`story_reactions`, `StoryReactionService`,
+      botoeira SVG no `StoryViewer`, agregado por faixa no painel). Reusa a porta do
+      paywall (`canView`); sem reação no exclusivo; **agregado, nunca "quem reagiu"**;
+      Ghost Mode/Discreto não entram no agregado (write-time guard, § 2.7). Testes
+      Pest + revisão de segurança dedicada passaram. PR #286.
+- [ ] **1b — Enquetes e "pergunte-me"** (`story_interactions`,
+      `story_interaction_responses`), overlay no `StoryViewer`, painel de resultados,
+      privacidade por FanAlias, testes, revisão de segurança. **Próxima PR.**
 - [ ] Registrar cada recurso em `docs/ARQUITETURA.md` e no mapa de features do
       `CLAUDE.md`.

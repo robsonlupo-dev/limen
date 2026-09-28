@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import LoadingBar from '@/Components/LoadingBar.vue'
+import ReactionIcon from '@/Components/ReactionIcon.vue'
 import { postJson, errorMessage } from '@/lib/http'
 
 // Visualizador fullscreen dos Stories (Sprint 13), tipo Instagram: barra de
@@ -195,6 +196,44 @@ function resumeAfterReply() {
     paused.value = false
 }
 
+// ── Reação rápida ao story (Onda 1b) ──────────────────────────────────────────
+// Sinal leve membro→performer, sem abrir chat. O símbolo é SVG (regra do PO:
+// emoji renderiza diferente/quadrado entre aparelhos). NÃO aparece no story
+// exclusivo — ali não há superfície de audiência (§ 2.2/decisão nº 3) e o servidor
+// recusa a reação de todo modo. `my_reaction` vem do feed/strip (dado do membro);
+// `localReactions` guarda a troca otimista para o botão ativo refletir na hora.
+const REACTIONS = [
+    { slug: 'love', label: 'Amei' },
+    { slug: 'fire', label: 'Curti muito' },
+    { slug: 'wow', label: 'Uau' },
+    { slug: 'celebrate', label: 'Aplausos' },
+]
+const reacting = ref(false)
+const localReactions = ref({})
+const canReact = computed(() => !!currentStory.value && currentStory.value.visibility_level !== 'exclusive')
+const currentReaction = computed(() => {
+    const s = currentStory.value
+    if (! s) return null
+    return s.id in localReactions.value ? localReactions.value[s.id] : (s.my_reaction ?? null)
+})
+
+async function react(slug) {
+    if (! currentStory.value || reacting.value) return
+
+    reacting.value = true
+    const storyId = currentStory.value.id
+
+    try {
+        // Toggle é do servidor: tocar a mesma reação remove (devolve null).
+        const data = await postJson(route('stories.react', storyId), { reaction: slug })
+        localReactions.value = { ...localReactions.value, [storyId]: data.reaction }
+    } catch {
+        // Reação é sinal leve: uma falha não trava o carrossel nem merece alarme.
+    } finally {
+        reacting.value = false
+    }
+}
+
 async function sendReply() {
     const body = replyBody.value.trim()
     if (! body || replySending.value || ! currentStory.value) return
@@ -282,61 +321,82 @@ async function sendReply() {
                     </div>
                 </div>
 
-                <!-- Convite (Sprint 12): quando o story é convite para este membro,
-                     um CTA discreto para o funil pago. `pointerdown.stop` para o
-                     link não virar navegação. -->
+                <!-- Controles de baixo: reação rápida (Onda 1b) EMPILHADA sobre o
+                     convite/compositor, num só container posicionado. `stop` nos
+                     ponteiros para tocar/digitar não virar navegação do carrossel. -->
                 <div
-                    v-if="currentStory.is_invite"
-                    class="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 p-6"
+                    v-if="imageLoaded && !imageError"
+                    class="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-2 p-4"
                     @pointerdown.stop
                     @pointerup.stop
                 >
-                    <span class="inline-flex items-center gap-1 rounded-full bg-gold/90 px-3 py-1 text-xs font-medium text-background">
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
-                        Convite
-                    </span>
-                    <Link
-                        :href="route('subscribe.index')"
-                        class="rounded-lg bg-white px-5 py-2 text-sm font-medium text-background no-underline transition-colors hover:bg-white/90"
-                    >
-                        Assine para conversar
-                    </Link>
-                </div>
-
-                <!-- Responder ao story (feat/story-reply-to-chat): compositor discreto,
-                     estilo Insta. Fica escondido no story de convite (ali o funil é
-                     assinar). `pointerdown/up.stop` para digitar/tocar não virar tap de
-                     navegação; foco pausa o carrossel. A resposta ABRE a conversa paga
-                     — o aviso deixa isso explícito antes do envio. -->
-                <form
-                    v-else-if="imageLoaded && !imageError"
-                    class="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1.5 p-4"
-                    @pointerdown.stop
-                    @pointerup.stop
-                    @submit.prevent="sendReply"
-                >
-                    <p v-if="replyError" class="px-1 text-xs text-red-300 drop-shadow">{{ replyError }}</p>
-                    <div class="flex items-end gap-2">
-                        <input
-                            v-model="replyBody"
-                            type="text"
-                            maxlength="1000"
-                            :placeholder="`Responder para ${currentGroup.performer.stage_name}…`"
-                            class="min-w-0 flex-1 rounded-full border border-white/40 bg-black/40 px-4 py-2.5 text-sm text-white placeholder-white/50 outline-none backdrop-blur focus:border-white/80"
-                            @focus="pauseForReply"
-                            @blur="resumeAfterReply"
-                        />
+                    <!-- Reação rápida: SVG (nunca emoji — regra do PO). Some no
+                         story exclusivo (sem superfície de audiência); o servidor
+                         recusa de todo modo. Botão ativo = reação atual do membro;
+                         tocá-lo de novo remove (toggle no servidor). -->
+                    <div v-if="canReact" class="flex items-center justify-center gap-2">
                         <button
-                            type="submit"
-                            :disabled="!replyBody.trim() || replySending"
-                            aria-label="Enviar resposta"
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-background transition-colors hover:bg-white/90 disabled:opacity-40"
+                            v-for="r in REACTIONS"
+                            :key="r.slug"
+                            type="button"
+                            :aria-label="r.label"
+                            :aria-pressed="currentReaction === r.slug"
+                            :disabled="reacting"
+                            class="flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur transition-colors disabled:opacity-50"
+                            :class="currentReaction === r.slug
+                                ? 'border-white bg-white text-background'
+                                : 'border-white/40 bg-black/40 text-white hover:border-white/80'"
+                            @click="react(r.slug)"
                         >
-                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" /></svg>
+                            <ReactionIcon :slug="r.slug" :filled="currentReaction === r.slug" />
                         </button>
                     </div>
-                    <p class="px-1 text-[11px] text-white/60 drop-shadow">Sua resposta abre a conversa no chat.</p>
-                </form>
+
+                    <!-- Convite (Sprint 12): CTA discreto para o funil pago. -->
+                    <div v-if="currentStory.is_invite" class="flex flex-col items-center gap-2">
+                        <span class="inline-flex items-center gap-1 rounded-full bg-gold/90 px-3 py-1 text-xs font-medium text-background">
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+                            Convite
+                        </span>
+                        <Link
+                            :href="route('subscribe.index')"
+                            class="rounded-lg bg-white px-5 py-2 text-sm font-medium text-background no-underline transition-colors hover:bg-white/90"
+                        >
+                            Assine para conversar
+                        </Link>
+                    </div>
+
+                    <!-- Responder ao story (feat/story-reply-to-chat): compositor
+                         discreto. Escondido no convite (ali o funil é assinar). Foco
+                         pausa o carrossel. A resposta ABRE a conversa paga. -->
+                    <form
+                        v-else
+                        class="flex flex-col gap-1.5"
+                        @submit.prevent="sendReply"
+                    >
+                        <p v-if="replyError" class="px-1 text-xs text-red-300 drop-shadow">{{ replyError }}</p>
+                        <div class="flex items-end gap-2">
+                            <input
+                                v-model="replyBody"
+                                type="text"
+                                maxlength="1000"
+                                :placeholder="`Responder para ${currentGroup.performer.stage_name}…`"
+                                class="min-w-0 flex-1 rounded-full border border-white/40 bg-black/40 px-4 py-2.5 text-sm text-white placeholder-white/50 outline-none backdrop-blur focus:border-white/80"
+                                @focus="pauseForReply"
+                                @blur="resumeAfterReply"
+                            />
+                            <button
+                                type="submit"
+                                :disabled="!replyBody.trim() || replySending"
+                                aria-label="Enviar resposta"
+                                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-background transition-colors hover:bg-white/90 disabled:opacity-40"
+                            >
+                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" /></svg>
+                            </button>
+                        </div>
+                        <p class="px-1 text-[11px] text-white/60 drop-shadow">Sua resposta abre a conversa no chat.</p>
+                    </form>
+                </div>
             </div>
         </div>
     </Teleport>
