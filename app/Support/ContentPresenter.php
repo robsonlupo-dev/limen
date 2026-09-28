@@ -35,6 +35,11 @@ class ContentPresenter
             'kind' => $content->kind,
             'access_level' => $content->access_level,
             'price_tokens' => (int) $content->price_tokens,
+            // Destaque (§ 3.1): a vitrine desenha um selo "Destaque" no tile fixado.
+            // É metadado PÚBLICO da publicação (a performer escolheu fixar), não
+            // presença de membro; vale para o tile bloqueado também (fica no topo
+            // com cadeado — decisão do PO).
+            'pinned' => $content->isPinned(),
             'locked' => ! $canView,
             'state' => $state, // owner | unlocked | free | locked (dado do próprio membro)
             'can_unlock' => $canUnlock,

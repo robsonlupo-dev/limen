@@ -131,6 +131,7 @@ return [
         'performer.content.index',
         'performer.content.store',
         'performer.content.destroy',
+        'performer.content.pin',
         // Intro de voz (feat/voice-intro): a tela de gestão envia/remove por fetch
         // e o link do painel usa route(). O serving (performer.voice-intro.audio,
         // voice-intro.audio público, moderacao.voice-intros.audio) NÃO entra: são

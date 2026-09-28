@@ -16,6 +16,8 @@ use DomainException;
  *  - SELF        → 422 (a própria performer não desbloqueia a própria peça)
  *  - UNDER_REVIEW→ 409 (remoção congelada por denúncia em aberto)
  *  - INVALID_PRICE → 422 (preço fora do piso/passo, no publish)
+ *  - PIN_CAP      → 422 (teto de fixados atingido — § 3.1)
+ *  - PIN_NOT_READY→ 422 (só peça pronta pode ser fixada — vídeo em processamento não)
  */
 class ContentException extends DomainException
 {
@@ -30,6 +32,10 @@ class ContentException extends DomainException
     public const UNDER_REVIEW = 'under_review';
 
     public const INVALID_PRICE = 'invalid_price';
+
+    public const PIN_CAP = 'pin_cap';
+
+    public const PIN_NOT_READY = 'pin_not_ready';
 
     public function __construct(public readonly string $reason, string $message)
     {
@@ -64,5 +70,15 @@ class ContentException extends DomainException
     public static function invalidPrice(): self
     {
         return new self(self::INVALID_PRICE, 'Preço inválido: mínimo 5 tokens, em múltiplos de 5.');
+    }
+
+    public static function pinCapReached(int $max): self
+    {
+        return new self(self::PIN_CAP, "Você já tem {$max} destaques. Desafixe um para fixar outro.");
+    }
+
+    public static function pinNotReady(): self
+    {
+        return new self(self::PIN_NOT_READY, 'Só conteúdo pronto pode ser fixado.');
     }
 }

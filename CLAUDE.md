@@ -264,6 +264,17 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   ⚠️ **O PO QUER o modelo "timer após vista" (X seg, estilo Snapchat)** — adiado até
   o servidor crescer (exige job/relógio); trocar quando melhorar. Registrado em
   `docs/ROADMAP_SOCIAL.md` §2.2. Não mexe em token. **Onda 2 completa.**
+  **Onda 3 (em andamento):** (1) **Fixar conteúdo** (`performer_content.pinned_at`,
+  `PerformerContent::scopeOrderedForShowcase`, `PerformerContentService::setPinned`) —
+  a performer prende peças no TOPO da vitrine. `pinned_at` é fonte única (fixado =
+  não-null; ordem entre fixados = o timestamp). A ORDENAÇÃO é dona única e a MESMA na
+  vitrine pública (`galleryFor`) e no painel (`forOwner`). Só a dona fixa (senão 404),
+  só peça PRONTA, teto `config/content.php max_pinned` (3, soft-cap), **sob denúncia
+  aberta o "fixar" é congelado** (409, como a remoção; desafixar segue liberado).
+  **Fixar NÃO muda paywall** — só reordena; `canView` nunca olha `pinned_at`. Fixado
+  que o espectador não alcança fica no topo BLOQUEADO (decisão do PO); `ContentPresenter`
+  expõe `pinned` (metadado público) p/ o selo "Destaque". Não mexe em token. Falta da
+  Onda 3: coleções privadas do membro + insights da performer.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

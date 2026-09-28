@@ -244,7 +244,7 @@ class ContentVisibilityService
         return PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
             ->ready() // vídeo em processing/failed não aparece na vitrine
-            ->orderByDesc('id')
+            ->orderedForShowcase() // fixadas primeiro (§ 3.1) — mesma ordem do painel
             ->get()
             ->map(fn (PerformerContent $content) => ContentPresenter::one($content, $viewer))
             ->values()
