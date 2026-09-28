@@ -234,6 +234,55 @@ async function react(slug) {
     }
 }
 
+// ── Enquete no story (Onda 1b) ────────────────────────────────────────────────
+// A performer prende UMA enquete no story; o membro toca uma opção e vê o %
+// (anônimo). Voto IMUTÁVEL (servidor garante). Resultados só aparecem depois de
+// votar. Não mexe em token. `interaction` vem do feed/faixa; `localVotes` guarda a
+// resposta do voto para revelar o resultado na hora.
+const voting = ref(false)
+const localVotes = ref({})
+
+const pollState = computed(() => {
+    const s = currentStory.value
+    const it = s?.interaction
+    if (! it || it.type !== 'poll') return null
+
+    const local = localVotes.value[s.id]
+    const myVote = local ? local.my_vote : (it.my_vote ?? null)
+    const results = local ? local.results : (it.results ?? null)
+    const total = local ? local.total : (it.total ?? null)
+
+    return {
+        prompt: it.prompt,
+        options: it.options ?? [],
+        myVote,
+        results,
+        total,
+        voted: myVote !== null && myVote !== undefined,
+    }
+})
+
+function pollPct(i) {
+    const st = pollState.value
+    if (! st || ! st.results || ! st.total) return 0
+    return Math.round(((st.results[i] ?? 0) / st.total) * 100)
+}
+
+async function votePoll(index) {
+    const s = currentStory.value
+    if (! s || voting.value || pollState.value?.voted) return
+
+    voting.value = true
+    try {
+        const data = await postJson(route('stories.poll.vote', s.id), { option_index: index })
+        localVotes.value = { ...localVotes.value, [s.id]: data }
+    } catch {
+        // Enquete é leve: falha não trava o carrossel nem merece alarme.
+    } finally {
+        voting.value = false
+    }
+}
+
 async function sendReply() {
     const body = replyBody.value.trim()
     if (! body || replySending.value || ! currentStory.value) return
@@ -330,6 +379,41 @@ async function sendReply() {
                     @pointerdown.stop
                     @pointerup.stop
                 >
+                    <!-- Enquete (Onda 1b): pergunta + opções. Antes de votar, botões
+                         tocáveis; depois, barra de % com a escolha do membro em
+                         destaque. Voto imutável. Anônimo — só o membro vê a própria
+                         escolha; a performer vê a distribuição, nunca quem votou. -->
+                    <div v-if="pollState" class="rounded-2xl bg-black/50 p-3 backdrop-blur">
+                        <p class="mb-2 px-1 text-sm font-medium text-white drop-shadow">{{ pollState.prompt }}</p>
+                        <div class="flex flex-col gap-1.5">
+                            <button
+                                v-for="(opt, i) in pollState.options"
+                                :key="i"
+                                type="button"
+                                :disabled="voting || pollState.voted"
+                                class="relative overflow-hidden rounded-lg border border-white/40 px-3 py-2 text-left text-sm text-white transition-colors disabled:cursor-default"
+                                :class="pollState.voted ? '' : 'hover:border-white/80'"
+                                @click="votePoll(i)"
+                            >
+                                <!-- Barra de % (só depois de votar). -->
+                                <span
+                                    v-if="pollState.voted"
+                                    class="absolute inset-y-0 left-0 bg-white/25"
+                                    :style="{ width: pollPct(i) + '%' }"
+                                    aria-hidden="true"
+                                />
+                                <span class="relative flex items-center justify-between gap-2">
+                                    <span class="flex items-center gap-1.5 truncate">
+                                        <!-- Marca a escolha do próprio membro. -->
+                                        <svg v-if="pollState.voted && pollState.myVote === i" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                                        <span class="truncate">{{ opt }}</span>
+                                    </span>
+                                    <span v-if="pollState.voted" class="shrink-0 text-xs tabular-nums text-white/90">{{ pollPct(i) }}%</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Reação rápida: SVG (nunca emoji — regra do PO). Some no
                          story exclusivo (sem superfície de audiência); o servidor
                          recusa de todo modo. Botão ativo = reação atual do membro;

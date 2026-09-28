@@ -41,6 +41,7 @@ use App\Http\Controllers\Web\Consumer\ProfileController as ConsumerProfileContro
 use App\Http\Controllers\Web\Consumer\ReportController;
 use App\Http\Controllers\Web\Consumer\SavedSearchController;
 use App\Http\Controllers\Web\Consumer\StoryController as ConsumerStoryController;
+use App\Http\Controllers\Web\Consumer\StoryPollController as ConsumerStoryPollController;
 use App\Http\Controllers\Web\Consumer\StoryReactionController as ConsumerStoryReactionController;
 use App\Http\Controllers\Web\Consumer\SubscriptionController;
 use App\Http\Controllers\Web\Consumer\TipController;
@@ -1033,6 +1034,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->name('performer.stories.image')
                 ->can('performer-active');
 
+            // Enquete no story (roadmap social, Onda 1b): prender/remover a enquete
+            // de um story dela. JSON; o painel recarrega depois. Ownership e
+            // não-exclusivo no service.
+            Route::post('/performer/stories/{story}/enquete', [\App\Http\Controllers\Web\Performer\StoryInteractionController::class, 'store'])
+                ->middleware('throttle:30,1')->whereNumber('story')->name('performer.stories.poll.store')->can('performer-active');
+            Route::delete('/performer/stories/{story}/enquete', [\App\Http\Controllers\Web\Performer\StoryInteractionController::class, 'destroy'])
+                ->middleware('throttle:30,1')->whereNumber('story')->name('performer.stories.poll.destroy')->can('performer-active');
+
             // Destaques (Highlights) — gerência (roadmap social, Onda 1a). JSON;
             // o front recarrega a lista após cada mutação. O serving dos bytes é
             // rota pública separada (highlights.image), como a galeria.
@@ -1564,6 +1573,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:60,1')
             ->whereNumber('story')
             ->name('stories.react');
+
+        // Voto na enquete do story (roadmap social, Onda 1b): mesma porta do
+        // serving (StoryInteractionService pergunta ao StoryVisibilityService).
+        // Voto imutável; agregado anônimo. Throttle de escrita.
+        Route::post('/stories/{story}/enquete/votar', [ConsumerStoryPollController::class, 'vote'])
+            ->middleware('throttle:60,1')
+            ->whereNumber('story')
+            ->name('stories.poll.vote');
 
         // Conteúdo permanente pago (Sprint 14, M.4/M.13.13). Lado do MEMBRO, no
         // grupo role:consumer + member.verified sob auth+2fa. Serving AUTENTICADO

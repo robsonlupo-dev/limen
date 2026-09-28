@@ -143,12 +143,14 @@ it('publica o story pelo endpoint com prazo de 24h', function () {
     // A resposta é o StoryPresenter, e o que ela NÃO tem é a parte que importa:
     // nem `media_path`, nem qualquer coisa vinda de `story_views` além da faixa.
     expect(array_keys($response->json('story')))
-        ->toBe(['id', 'visibility_level', 'min_tier', 'view_count', 'expires_in_hours', 'image_url', 'is_invite', 'reactions'])
+        ->toBe(['id', 'visibility_level', 'min_tier', 'view_count', 'expires_in_hours', 'image_url', 'is_invite', 'reactions', 'poll'])
         ->and($response->json('story.visibility_level'))->toBe('subscribers')
         // Assinantes sem tier escolhido: min_tier null (comportamento de hoje).
         ->and($response->json('story.min_tier'))->toBeNull()
         // Recém-publicado: ninguém reagiu ainda → agregado null (nunca zero).
         ->and($response->json('story.reactions'))->toBeNull()
+        // Sem enquete presa ainda → null.
+        ->and($response->json('story.poll'))->toBeNull()
         ->and($response->json('story.view_count'))->toBe('Menos de 5')
         ->and($response->json('story.expires_in_hours'))->toBe(24)
         // Sem a caixinha marcada, é Story normal — o default.

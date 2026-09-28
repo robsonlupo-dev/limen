@@ -604,6 +604,9 @@ class PerformerStoryService
             // delete, e FK não dispara em UPDATE de `deleted_at` (item 11 do
             // CLAUDE.md). Quem apaga é este código, ao lado das views.
             $story->reactions()->delete();
+            // Interação (enquete) idem — hard delete da interação leva os votos
+            // junto por cascade da FK (story_poll_votes → story_interactions).
+            $story->interaction()->delete();
             $story->delete();
         });
     }

@@ -156,37 +156,50 @@ performer_statuses
   chegar. Sem realtime (vai junto na carga do catálogo).
 - **Ícone é SVG** (regra do PO); o texto do status é conteúdo.
 
-## 1b.1 — Enquetes e "pergunte-me" no story
+## 1b.1 — Enquete no story ✅ (entregue, PR #287) + "pergunte-me" (decisão do PO)
 
-Elemento interativo preso a um story. Enquete = tocar uma opção (vê % depois);
-pergunta = texto livre que **só a performer** lê.
+Elemento interativo preso a um story. **Enquete** = a performer escreve pergunta +
+opções fixas; o membro **toca** uma e vê o % (anônimo). Zero texto livre.
 
-**Dados**
+**Decisão do PO sobre "pergunte-me" (texto livre): CORTADO como canal próprio.**
+Um campo de texto livre membro→performer seria contato grátis (o membro começaria
+conversa ou passaria o contato sem pagar) — fura o modelo (chat é pago; mensagem de
+catálogo é modelo pré-pronto justamente por isso). Se algum dia entrar "membro
+pergunta à performer", o caminho é o **story-reply que já existe**
+(`ChatService::sendMessage`, chat economy v2): grátis se já há janela de chat
+aberta, **paga para abrir** se não há. Não se constrói um inbox de texto grátis.
+
+**Dados (entregue — só a enquete)**
 ```
 story_interactions
   id
-  performer_story_id     FK cascade
-  type                   enum('poll','question')
+  performer_story_id     FK cascade, UNIQUE (uma interação por story)
+  type                   string ('poll' hoje; genérico p/ o futuro)
   prompt                 string
-  options                JSON (poll: 2–N opções; question: null)
+  options                JSON (as alternativas do poll)
   timestamps
 
-story_interaction_responses
+story_poll_votes
   id
   story_interaction_id   FK cascade
   member_id              FK cascade
-  option_index           nullable int (poll)
-  answer_text            nullable string (question; filtros anti-contato)
-  created_at
-  UNIQUE(story_interaction_id, member_id)   -- 1 resposta por membro
+  option_index           unsignedTinyInteger
+  timestamps
+  UNIQUE(story_interaction_id, member_id)   -- 1 voto por membro, IMUTÁVEL
 ```
 
-- **Privacidade:** a performer vê as respostas por **FanAlias/apelido**
-  (`MemberDisplayName`), nunca dado real. O agregado da enquete é anônimo (só %).
-- **Anti-abuso:** UNIQUE por (interação, membro); `answer_text` passa pelos filtros
-  de conteúdo; rate-limit por membro.
-- **UI:** overlay no `StoryViewer` (opção tocável / campo de texto). A performer vê
-  resultados num painel do story (contagem + lista mascarada).
+- **Mesma porta do paywall:** votar passa pelo `StoryVisibilityService::denialFor`
+  (`StoryInteractionService`) — votar num story fora de alcance é 403, como a
+  imagem. **Exclusivo não tem enquete** (superfície de audiência → oráculo da
+  decisão nº 3): recusado no `attach` e no `vote`.
+- **Agregado, nunca "quem votou":** `ownerView`/`batchMemberView` devolvem só a
+  contagem por opção. Resultados só aparecem para o membro **depois** de votar.
+  Ghost Mode/Modo Discreto NÃO entram no agregado (write-time guard, § 2.7).
+- **Texto da performer filtrado:** pergunta e cada opção passam por `SafeProfileText`
+  (anti-contato), como a bio/destaque. Editar a enquete zera os votos (recria).
+- **UI:** overlay no `StoryViewer` (opção tocável → barra de % após votar), editor
+  no painel (`StoryPollEditor`). Voto imutável; sem token. Revisão de segurança
+  dedicada passou (10 invariantes + 1 MEDIUM e 2 LOW corrigidos).
 
 ## 1b.2 — Reações rápidas a stories ✅ (entregue, PR #286)
 
@@ -316,8 +329,15 @@ ledger inteiro a cada abertura (servidor de 2 vCPU).
       paywall (`canView`); sem reação no exclusivo; **agregado, nunca "quem reagiu"**;
       Ghost Mode/Discreto não entram no agregado (write-time guard, § 2.7). Testes
       Pest + revisão de segurança dedicada passaram. PR #286.
-- [ ] **1b — Enquetes e "pergunte-me"** (`story_interactions`,
-      `story_interaction_responses`), overlay no `StoryViewer`, painel de resultados,
-      privacidade por FanAlias, testes, revisão de segurança. **Próxima PR.**
-- [ ] Registrar cada recurso em `docs/ARQUITETURA.md` e no mapa de features do
+- [x] **1b — Enquete** (`story_interactions` + `story_poll_votes`,
+      `StoryInteractionService`, overlay no `StoryViewer`, editor no painel).
+      Mesma porta do paywall; sem enquete no exclusivo; agregado anônimo (nunca
+      "quem votou"); voto imutável; Ghost/Discreto fora do agregado; texto por
+      SafeProfileText. Testes Pest + revisão de segurança dedicada passaram. PR #287.
+      **"Pergunte-me" (texto livre) CORTADO por decisão do PO** — vira contato grátis;
+      o caminho de "membro pergunta" é o story-reply pago que já existe.
+- [x] Registrar cada recurso em `docs/ARQUITETURA.md` e no mapa de features do
       `CLAUDE.md`.
+
+**Onda 1 completa.** Próximas frentes: Onda 2 (canal de transmissão + modo efêmero)
+e Onda 3 (fixar conteúdo + insights), ambas em esboço acima.

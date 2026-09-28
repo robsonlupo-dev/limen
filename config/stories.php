@@ -37,4 +37,17 @@ return [
     'reactions' => [
         'set' => ['love', 'fire', 'wow', 'celebrate'],
     ],
+
+    /*
+    | Enquete no story (Onda 1b). A performer prende UMA interação por story;
+    | o membro toca uma opção e vê o % (anônimo). Texto (pergunta + opções) é da
+    | performer e passa pelo filtro anti-contato (SafeProfileText). Não mexe em
+    | token. Limites aqui são a fonte única (service + Form Request leem daqui).
+    */
+    'polls' => [
+        'min_options' => 2,
+        'max_options' => (int) env('POLL_MAX_OPTIONS', 4),
+        'prompt_max_length' => 80,
+        'option_max_length' => 30,
+    ],
 ];
