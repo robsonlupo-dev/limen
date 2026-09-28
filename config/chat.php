@@ -44,4 +44,11 @@ return [
     // propósito — é conveniência de UX, não uma forma de apagar rastro (o
     // conteúdo original é RETIDO para a moderação de qualquer forma).
     'redact_window_minutes' => (int) env('CHAT_REDACT_WINDOW_MINUTES', 5),
+
+    // Timer da mensagem efêmera (roadmap social, Onda 3): SEGUNDOS que o conteúdo
+    // revelado fica visível ao destinatário antes de sumir ("visível por X seg após
+    // aberta", estilo Snapchat). A contagem é client-side; o servidor consome a
+    // mensagem no REVELAR (revealed_at). Vale como janela mínima também para servir
+    // os bytes do áudio revelado.
+    'ephemeral_reveal_seconds' => (int) env('CHAT_EPHEMERAL_REVEAL_SECONDS', 10),
 ];

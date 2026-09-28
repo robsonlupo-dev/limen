@@ -257,13 +257,19 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   ENVIO (imutável por mensagem; presente nunca é efêmero). v1 é **"ver-uma-vez"**
   derivado de `read_at`, SEM job: some da EXIBIÇÃO nas duas pontas depois de vista, mas
   o corpo/áudio FICAM no banco para a moderação (mesma disciplina do "desfazer envio").
-  Sumiço tem que ser fechado em TODAS as portas de leitura, não só no balão: a URL
-  direta do áudio (`chat.audio`), o preview da LISTA (`index`) e a marcação de lida
-  paginada (efêmera só marca quando renderizada) — os três eram vazamento e foram
-  fechados na revisão de segurança (`ephemeralVanished`/`previewHidden`).
-  ⚠️ **O PO QUER o modelo "timer após vista" (X seg, estilo Snapchat)** — adiado até
-  o servidor crescer (exige job/relógio); trocar quando melhorar. Registrado em
-  `docs/ROADMAP_SOCIAL.md` §2.2. Não mexe em token. **Onda 2 completa.**
+  Sumiço tem que ser fechado em TODAS as portas de leitura, não só no balão: URL do
+  áudio, preview da LISTA (`index`), broadcast em tempo real e a marcação de lida.
+  ✅ **TIMER "tocar para ver" ENTREGUE (#292, Onda 3)** — substitui o "ver-uma-vez",
+  depois do upgrade do servidor (CX33). A efêmera chega SELADA (corpo NÃO trafega até
+  o toque); o destinatário toca → `POST chat.ephemeral.reveal` → `revealEphemeral`
+  grava `messages.revealed_at` (imutável, **revelar = consumir**, sem job) e devolve o
+  corpo UMA vez; o cliente mostra por `config/chat.php ephemeral_reveal_seconds` (10) e
+  some das duas pontas. Só o DESTINATÁRIO revela; o remetente vê o próprio corpo até
+  consumido. Helpers `ephemeralSealed`/`ephemeralVanished`/`ephemeralAudioServable`
+  (janela do áudio). ⚠️ **Ao mexer em efêmera, feche o corpo em TODA porta de saída** —
+  `show`, `audio`, `index` E o broadcast `broadcastListUpdate` (este último foi um ALTO
+  da revisão: mandava o preview do corpo efêmero no toast, lido sem revelar). Corpo
+  retido p/ moderação. Não mexe em token. Detalhe em `docs/ROADMAP_SOCIAL.md` §2.2.
   **Onda 3 (em andamento):** (1) **Fixar conteúdo** (`performer_content.pinned_at`,
   `PerformerContent::scopeOrderedForShowcase`, `PerformerContentService::setPinned`) —
   a performer prende peças no TOPO da vitrine. `pinned_at` é fonte única (fixado =

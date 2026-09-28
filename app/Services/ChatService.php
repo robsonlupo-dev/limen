@@ -261,6 +261,48 @@ class ChatService
         return $conversation;
     }
 
+    /**
+     * Revela uma mensagem efêmera para o DESTINATÁRIO (timer, Onda 3). **Revelar =
+     * consumir:** grava `revealed_at` (imutável) — a partir daí a mensagem some da
+     * exibição nas duas pontas em qualquer load seguinte, sem job (a contagem de X
+     * seg é só client-side). Devolve o corpo/áudio UMA vez, na resposta do reveal.
+     *
+     * Só o DESTINATÁRIO revela: o remetente vê o próprio corpo até ser consumido, não
+     * "revela". Corpo/áudio FICAM no banco para a moderação (como o resto do efêmero).
+     * O paywall (leitura destravada) é conferido no controller (stateFor), como no
+     * serving de áudio.
+     *
+     * @throws ChatException não-participante / não-revelável / já consumida
+     */
+    public function revealEphemeral(Conversation $conversation, User $viewer, Message $message): Message
+    {
+        if (! $conversation->hasParticipant($viewer)) {
+            throw ChatException::notAParticipant();
+        }
+
+        if ((int) $message->conversation_id !== (int) $conversation->id) {
+            throw ChatException::notAParticipant(); // máscara: não confirma a mensagem
+        }
+
+        // Só efêmera, não redigida, e só o DESTINATÁRIO (remetente não revela o próprio).
+        if (! $message->isEphemeral() || $message->isRedacted() || (int) $message->sender_id === (int) $viewer->id) {
+            throw ChatException::ephemeralNotRevealable();
+        }
+
+        // Revelar = consumir, imutável. Já revelada → expirada.
+        if ($message->isRevealed()) {
+            throw ChatException::ephemeralGone();
+        }
+
+        $message->forceFill([
+            'revealed_at' => now(),
+            // Revelar conta como leitura: zera não-lidas e confirma ao remetente.
+            'read_at' => $message->read_at ?? now(),
+        ])->save();
+
+        return $message;
+    }
+
     public function redactMessage(Conversation $conversation, User $sender, Message $message): Message
     {
         if (! $conversation->hasParticipant($sender)) {
@@ -712,6 +754,13 @@ class ChatService
         $profile = $conversation->performerProfile;
         $performerUserId = $profile->user_id;
 
+        // Timer efêmero (Onda 3): o corpo de uma efêmera NÃO trafega no broadcast de
+        // lista — senão o destinatário leria a mensagem no toast/lista em tempo real
+        // sem NUNCA tocar para revelar, e ela jamais seria consumida (fura o modelo).
+        // Espelha o previewHidden() do index(): efêmera → preview neutro (null), e
+        // sem teaser. O `incrementsUnread` segue valendo (fica não-lida até revelar).
+        $isEphemeral = $message->isEphemeral();
+
         // Remetente pela perspectiva de CADA destinatário (toast, PR #144):
         //  - à performer, a OUTRA parte é o membro → FanAlias LABEL + a FOTO do
         //    membro (fix/voice-access-and-chat-avatar). O nome exibido continua o
@@ -729,7 +778,7 @@ class ChatService
             conversationId: $conversation->id,
             occurredAt: $occurredAt,
             incrementsUnread: $message->sender_id !== $performerUserId,
-            preview: $preview,
+            preview: $isEphemeral ? null : $preview,
             senderName: $memberAlias,
             senderAvatarUrl: $member?->avatarUrl(),
         ));
@@ -752,7 +801,7 @@ class ChatService
                 conversationId: $conversation->id,
                 occurredAt: $occurredAt,
                 incrementsUnread: $message->sender_id !== $member->id,
-                preview: $memberLocked ? MessageTeaser::for($message->body) : $preview,
+                preview: $isEphemeral ? null : ($memberLocked ? MessageTeaser::for($message->body) : $preview),
                 senderName: $profile->stage_name,
                 senderAvatarUrl: $this->performerAvatarUrl($profile),
                 locked: $memberLocked,

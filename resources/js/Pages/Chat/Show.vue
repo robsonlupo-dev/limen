@@ -21,6 +21,9 @@ const props = defineProps({
     // performer vem sempre vazio — a tela dela não insinua nada sobre as fotos
     // do outro lado.
     photoSharing: { type: Object, default: () => ({ can_share: false, photos: [] }) },
+    // Timer efêmero (Onda 3): segundos que o conteúdo revelado fica visível antes
+    // de sumir (contagem client-side; o servidor consome no reveal).
+    ephemeralSeconds: { type: Number, default: 10 },
 })
 
 const page = usePage()
@@ -54,6 +57,66 @@ async function toggleEphemeral() {
     } finally {
         togglingEphemeral.value = false
     }
+}
+
+// Timer efêmero (Onda 3): o destinatário TOCA uma bolha selada → o servidor grava
+// revealed_at (consumo) e devolve o corpo/áudio; mostramos por X seg com contagem e
+// depois some ("expirada"). `revealed` guarda o conteúdo revelado por id enquanto a
+// contagem roda; `revealRemaining` é o relógio de cada um. Ao zerar, o conteúdo é
+// descartado da memória e a mensagem vira vanished localmente (o servidor já a marcou
+// consumida, então recarregar mostraria "expirada" de qualquer forma).
+const revealed = ref({})
+const revealRemaining = ref({})
+const revealingKey = ref(null)
+const revealTimers = {}
+
+async function revealEphemeral(m) {
+    if (!m?.id || revealingKey.value || revealed.value[m.id]) return
+    revealingKey.value = m.id
+    try {
+        const data = await postJson(route('chat.ephemeral.reveal', [props.conversation.id, m.id]))
+        revealed.value = {
+            ...revealed.value,
+            [m.id]: {
+                body: data.body ?? null,
+                audio_status: data.audio_status ?? null,
+                audio_url: data.audio_url ?? null,
+                audio_duration: data.audio_duration ?? null,
+                reply_to_story: data.reply_to_story ?? null,
+            },
+        }
+        startRevealCountdown(m.id, data.seconds || props.ephemeralSeconds)
+    } catch (e) {
+        // 410 = já consumida (expirada): reflete localmente. Outros erros: silêncio.
+        if (e?.status === 410) finalizeReveal(m)
+    } finally {
+        revealingKey.value = null
+    }
+}
+
+function startRevealCountdown(id, seconds) {
+    revealRemaining.value = { ...revealRemaining.value, [id]: seconds }
+    revealTimers[id] = setInterval(() => {
+        const left = (revealRemaining.value[id] ?? 0) - 1
+        if (left <= 0) {
+            clearInterval(revealTimers[id])
+            delete revealTimers[id]
+            finalizeReveal({ id })
+        } else {
+            revealRemaining.value = { ...revealRemaining.value, [id]: left }
+        }
+    }, 1000)
+}
+
+// Esconde o conteúdo revelado e marca a mensagem como sumida (nas duas pontas, no
+// próximo load, o servidor já devolve vanished — aqui só antecipamos a UI).
+function finalizeReveal(m) {
+    const id = m.id
+    if (revealTimers[id]) { clearInterval(revealTimers[id]); delete revealTimers[id] }
+    const r = { ...revealed.value }; delete r[id]; revealed.value = r
+    const rem = { ...revealRemaining.value }; delete rem[id]; revealRemaining.value = rem
+    const msg = props.messages.data.find((x) => x.id === id)
+    if (msg) { msg.vanished = true; msg.sealed = false }
 }
 
 // Denunciar apelido (feat/nickname-report, 4b-ui): só do lado da performer e só
@@ -448,6 +511,8 @@ onBeforeUnmount(() => {
     // Encerra gravação/stream e timers pendentes ao sair da tela.
     cancelRecording()
     if (audioPollTimer) { clearTimeout(audioPollTimer); audioPollTimer = null }
+    // Timers de contagem do efêmero (Onda 3).
+    Object.values(revealTimers).forEach((t) => clearInterval(t))
 })
 
 // Nova mensagem própria/recarga → cola no fim.
@@ -507,7 +572,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                         :disabled="togglingEphemeral"
                         :aria-pressed="ephemeralOn"
                         :aria-label="ephemeralOn ? 'Desligar modo efêmero' : 'Ligar modo efêmero'"
-                        :title="ephemeralOn ? 'Modo efêmero ligado: novas mensagens somem depois de vistas' : 'Ligar modo efêmero (novas mensagens somem depois de vistas)'"
+                        :title="ephemeralOn ? 'Modo efêmero ligado: novas mensagens somem alguns segundos após abertas' : 'Ligar modo efêmero (novas mensagens somem alguns segundos após abertas)'"
                         @click="toggleEphemeral"
                     >
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 8 10 8a9.12 9.12 0 0 0 5.39-1.61" /><path d="M3 3l18 18" /></svg>
@@ -584,9 +649,9 @@ watch(() => props.messages.data.length, scrollToBottom)
                     </div>
 
                     <div class="flex" :class="isMine(m) ? 'justify-end' : 'justify-start'">
-                        <!-- Modo efêmero (Onda 2): mensagem efêmera JÁ VISTA some das
-                             duas pontas (ver-uma-vez). Distinta de "apagada"; o
-                             conteúdo não vem do servidor (só a moderação lê). -->
+                        <!-- Timer efêmero (Onda 3): mensagem efêmera JÁ CONSUMIDA some
+                             das duas pontas. Distinta de "apagada"; o conteúdo não vem
+                             do servidor (só a moderação lê). -->
                         <div
                             v-if="m.vanished"
                             class="max-w-[75%] flex flex-col"
@@ -597,9 +662,51 @@ watch(() => props.messages.data.length, scrollToBottom)
                                 :class="isMine(m) ? 'rounded-br-sm' : 'rounded-bl-sm'"
                             >
                                 <svg class="h-3.5 w-3.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 8 10 8a9.12 9.12 0 0 0 5.39-1.61" /><path d="M3 3l18 18" /></svg>
-                                <span class="text-sm italic text-muted">Mensagem efêmera</span>
+                                <span class="text-sm italic text-muted">Mensagem efêmera expirada</span>
                             </div>
                             <span class="pt-1 pr-1 text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
+                        </div>
+                        <!-- Timer efêmero (Onda 3): efêmera SELADA do lado do
+                             destinatário — "toque para ver". Ao tocar, o servidor
+                             consome e devolve o conteúdo, mostrado por X seg com
+                             contagem; depois vira "expirada". O corpo NÃO trafega até
+                             o toque. -->
+                        <div
+                            v-else-if="m.sealed"
+                            class="max-w-[80%] flex flex-col"
+                            :class="isMine(m) ? 'items-end' : 'items-start'"
+                        >
+                            <!-- Revelada: mostra o conteúdo + contagem. -->
+                            <template v-if="revealed[m.id]">
+                                <div
+                                    class="flex items-center gap-2 rounded-2xl px-4 py-2.5"
+                                    :class="isMine(m) ? 'bg-gold/15 border border-gold/40 rounded-br-sm' : 'bg-surface border border-frame rounded-bl-sm'"
+                                >
+                                    <template v-if="revealed[m.id].audio_status === 'ready' && revealed[m.id].audio_url">
+                                        <svg class="h-4 w-4 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+                                        <audio :src="revealed[m.id].audio_url" controls autoplay preload="auto" class="h-9 w-56 max-w-full"></audio>
+                                    </template>
+                                    <span v-else class="text-sm text-cream whitespace-pre-line break-words">{{ revealed[m.id].body }}</span>
+                                </div>
+                                <span class="flex items-center gap-1.5 pt-1 pr-1 text-[10px] text-gold">
+                                    <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                                    some em {{ revealRemaining[m.id] }}s
+                                </span>
+                            </template>
+                            <!-- Selada: botão "toque para ver". -->
+                            <template v-else>
+                                <button
+                                    type="button"
+                                    :disabled="revealingKey === m.id"
+                                    class="flex items-center gap-2 rounded-2xl border border-dashed border-gold/50 bg-gold/5 px-4 py-2.5 transition-colors hover:bg-gold/10 disabled:opacity-50"
+                                    :class="isMine(m) ? 'rounded-br-sm' : 'rounded-bl-sm'"
+                                    @click="revealEphemeral(m)"
+                                >
+                                    <svg class="h-4 w-4 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    <span class="text-sm text-gold">{{ revealingKey === m.id ? 'Abrindo…' : 'Mensagem efêmera — toque para ver' }}</span>
+                                </button>
+                                <span class="pt-1 pr-1 text-[10px] text-muted">{{ timeLabel(m.created_at) }} · some após aberta</span>
+                            </template>
                         </div>
                         <!-- "Desfazer envio" (feat/chat-unsend-message): o remetente
                              redigiu a mensagem. Vale para os dois lados e para
@@ -672,6 +779,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                                 {{ timeLabel(m.created_at) }}
                                 <span v-if="m.audio_status === 'ready' && m.audio_duration">· {{ fmtElapsed(m.audio_duration) }}</span>
                                 <span v-if="isMine(m) && m.read_at">· Lida</span>
+                                <span v-if="m.ephemeral" class="text-gold">· efêmera</span>
                                 <button
                                     v-if="m.can_redact"
                                     type="button"
@@ -716,6 +824,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                             <span class="flex items-center gap-1.5 pt-1 pr-1 text-[10px] text-muted">
                                 {{ timeLabel(m.created_at) }}
                                 <span v-if="isMine(m) && m.read_at">· Lida</span>
+                                <span v-if="m.ephemeral" class="text-gold">· efêmera</span>
                                 <button
                                     v-if="m.can_redact"
                                     type="button"

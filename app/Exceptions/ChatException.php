@@ -34,6 +34,10 @@ class ChatException extends DomainException
 
     public const GIFT_NOT_REDACTABLE = 'gift_not_redactable';
 
+    public const EPHEMERAL_NOT_REVEALABLE = 'ephemeral_not_revealable';
+
+    public const EPHEMERAL_GONE = 'ephemeral_gone';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -141,6 +145,31 @@ class ChatException extends DomainException
         return new self(
             self::GIFT_NOT_REDACTABLE,
             'Presentes não podem ser apagados do chat.',
+        );
+    }
+
+    /**
+     * Timer efêmero (Onda 3): a mensagem não pode ser revelada por este viewer —
+     * não é efêmera, foi redigida, ou é o PRÓPRIO remetente (só o destinatário
+     * revela; o remetente vê o próprio corpo até ser consumido). Máscara 404.
+     */
+    public static function ephemeralNotRevealable(): self
+    {
+        return new self(
+            self::EPHEMERAL_NOT_REVEALABLE,
+            'Esta mensagem não pode ser revelada.',
+        );
+    }
+
+    /**
+     * Timer efêmero (Onda 3): a mensagem efêmera já foi revelada/consumida — some
+     * das duas pontas (revelar = consumir, imutável). O front mostra "expirada".
+     */
+    public static function ephemeralGone(): self
+    {
+        return new self(
+            self::EPHEMERAL_GONE,
+            'Mensagem efêmera expirada.',
         );
     }
 }
