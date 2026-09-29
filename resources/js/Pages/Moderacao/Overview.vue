@@ -51,6 +51,13 @@ const cards = computed(() => [
         href: route('moderacao.flagged.index'),
     },
     {
+        key: 'custom_order_disputes',
+        title: 'Disputas de encomenda',
+        blurb: 'Entregas sob medida contestadas — decidir liberar à performer ou estornar ao membro.',
+        count: props.queues.custom_order_disputes ?? 0,
+        href: route('moderacao.custom-orders.index'),
+    },
+    {
         key: 'my_actions',
         title: 'Minhas ações',
         blurb: 'O histórico das suas ações de moderação.',

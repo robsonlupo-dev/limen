@@ -399,6 +399,23 @@ class TokenCreditPolicy
             && $price % $step === 0;
     }
 
+    /**
+     * Preço de encomenda sob medida válido (Onda 4 §4.3): o valor que o membro OFERECE,
+     * livre com piso/passo/teto (config `monetization.custom_order`). Mesma disciplina do
+     * PPV; o teto protege o cap do ledger.
+     */
+    public function isValidCustomOrderPrice(int $price): bool
+    {
+        $min = (int) config('monetization.custom_order.min_price');
+        $step = (int) config('monetization.custom_order.price_step');
+        $max = (int) config('monetization.custom_order.max_price');
+
+        return $price >= $min
+            && $price <= $max
+            && $step > 0
+            && $price % $step === 0;
+    }
+
     // ── Chat / economia de mensagem (M.13.1 SUPERADO 19/08/2026) ─────────────
 
     /** Custo em tokens do membro para abrir chat, por tier (2, ou 1 em Black/FC). */

@@ -22,6 +22,8 @@ use App\Http\Controllers\Web\MemberMediaController;
 use App\Http\Controllers\Web\MemberGalleryMediaController;
 use App\Http\Controllers\Web\Consumer\CallReservationController as ConsumerCallReservationController;
 use App\Http\Controllers\Web\Performer\CallReservationController as PerformerCallReservationController;
+use App\Http\Controllers\Web\Consumer\CustomOrderController as ConsumerCustomOrderController;
+use App\Http\Controllers\Web\Performer\CustomOrderController as PerformerCustomOrderController;
 use App\Http\Controllers\Web\GroupShowController;
 use App\Http\Controllers\Web\ChatController;
 use App\Http\Controllers\Web\Consumer\ConsumerKycController;
@@ -57,6 +59,7 @@ use App\Http\Controllers\Web\LandingController;
 use App\Http\Controllers\Web\LegalDocumentsController;
 use App\Http\Controllers\Web\LinksController;
 use App\Http\Controllers\Web\Moderation\EvidenceController;
+use App\Http\Controllers\Web\Moderation\CustomOrderDisputeController;
 use App\Http\Controllers\Web\Moderation\ModerationController;
 use App\Http\Controllers\Web\Moderation\VoiceIntroModerationController;
 use App\Http\Controllers\Web\Moderation\MemberPhotoModerationController;
@@ -415,6 +418,16 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
     Route::post('/apelido/remover', [ModerationController::class, 'removeNickname'])
         ->middleware('throttle:30,1')
         ->name('moderacao.nickname.remove');
+
+    // Disputas de encomenda sob medida (Onda 4 §4.3). Uma entrega contestada fica
+    // RETIDA (fora da varredura automática) até um humano decidir release/refund. O
+    // dinheiro e a idempotência (escrow_settled + locks) vivem no CustomOrderService;
+    // a rota é só a porta + o audit da decisão. Membro pseudonimizado por FanAlias.
+    Route::get('/encomendas', [CustomOrderDisputeController::class, 'index'])
+        ->name('moderacao.custom-orders.index');
+    Route::post('/encomendas/{order}/resolver', [CustomOrderDisputeController::class, 'resolve'])
+        ->middleware('throttle:30,1')
+        ->whereNumber('order')->name('moderacao.custom-orders.resolve');
 
     // Visualizador da PROVA RETIDA (Sprint 13). Serve o conteúdo denunciado —
     // foto efêmera, story, corpo da mensagem — SÓ quando há denúncia apontando
@@ -1876,5 +1889,46 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->name('performer.reservations.enter')
                 ->can('performer-active');
         });
+    });
+});
+
+// ── Encomenda sob medida com escrow (roadmap social, Onda 4 §4.3) ─────────────
+// Mesma disciplina anti-oráculo das reservas: a AUTORIZAÇÃO DE DONO de `{order}`
+// (resolvido por id) é do CustomOrderService (404 uniforme), não do route-binding.
+// O dinheiro só se move no aceite (escrow) e na liberação/estorno — nunca aqui.
+Route::middleware(['auth', '2fa'])->group(function () {
+    // Membro: pede, cancela (antes do aceite), aprova/contesta a entrega, lista.
+    Route::middleware(['role:consumer', 'member.verified', 'documents.accepted'])->group(function () {
+        Route::get('/minhas-encomendas', [ConsumerCustomOrderController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('custom-orders.index');
+
+        // Binding por SLUG: é o identificador público que a vitrine já expõe (o
+        // PerformerPublicResource não devolve o id numérico do perfil). A autorização
+        // de "membro pode pedir" (alcançável, limites) fica no CustomOrderService.
+        Route::post('/performer/{profile:slug}/encomenda', [ConsumerCustomOrderController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('custom-orders.store');
+
+        Route::post('/encomendas/{order}/cancelar', [ConsumerCustomOrderController::class, 'cancel'])
+            ->middleware('throttle:20,1')->whereNumber('order')->name('custom-orders.cancel');
+        Route::post('/encomendas/{order}/aprovar', [ConsumerCustomOrderController::class, 'approve'])
+            ->middleware('throttle:20,1')->whereNumber('order')->name('custom-orders.approve');
+        Route::post('/encomendas/{order}/contestar', [ConsumerCustomOrderController::class, 'dispute'])
+            ->middleware('throttle:20,1')->whereNumber('order')->name('custom-orders.dispute');
+    });
+
+    // Performer: fila de pedidos, aceita (escrow), recusa, entrega (peça do cofre).
+    Route::middleware(['role:performer', 'documents.accepted'])->group(function () {
+        Route::get('/painel/encomendas', [PerformerCustomOrderController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('performer.custom-orders.index')->can('performer-active');
+
+        Route::post('/performer/encomendas/{order}/aceitar', [PerformerCustomOrderController::class, 'accept'])
+            ->middleware('throttle:20,1')->whereNumber('order')->name('performer.custom-orders.accept')->can('performer-active');
+        Route::post('/performer/encomendas/{order}/recusar', [PerformerCustomOrderController::class, 'decline'])
+            ->middleware('throttle:20,1')->whereNumber('order')->name('performer.custom-orders.decline')->can('performer-active');
+        Route::post('/performer/encomendas/{order}/entregar', [PerformerCustomOrderController::class, 'deliver'])
+            ->middleware('throttle:10,1')->whereNumber('order')->name('performer.custom-orders.deliver')->can('performer-active');
     });
 });

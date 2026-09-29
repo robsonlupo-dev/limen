@@ -125,6 +125,13 @@ return [
         // Meta de gorjeta (Onda 4 §4.2): editor no painel da performer.
         'performer.tip-goal.save',
         'performer.tip-goal.end',
+        // Encomenda sob medida (Onda 4 §4.3): fila da performer + aceitar/recusar/
+        // entregar. A tela navega e dá POST por route(); a mídia entregue vem como
+        // URL pronta do servidor (serving re-checa acesso), não montada aqui.
+        'performer.custom-orders.index',
+        'performer.custom-orders.accept',
+        'performer.custom-orders.decline',
+        'performer.custom-orders.deliver',
         // Foto de capa pela porta web (UAT fix). Nome distinto do
         // `performer.profile.cover` da API para não colidir no lookup.
         'performer.profile.cover-photo',
@@ -329,6 +336,14 @@ return [
         'content.save.toggle',
         'saved.index',
 
+        // Encomenda sob medida (Onda 4 §4.3) — lado do membro: pedir na página da
+        // performer, listar as próprias, cancelar/aprovar/contestar por route().
+        'custom-orders.index',
+        'custom-orders.store',
+        'custom-orders.cancel',
+        'custom-orders.approve',
+        'custom-orders.dispute',
+
         // Consumer wallet
         'wallet.index',
         'wallet.history',
@@ -367,6 +382,10 @@ return [
         // Reversão de primeira classe (feat/moderation-reversal-action): a tela de
         // detalhe dá POST em reabrir via route().
         'moderacao.reports.reopen',
+        // Disputas de encomenda sob medida (Onda 4 §4.3): a fila lista e resolve
+        // (release/refund) por route(). O dinheiro vive no CustomOrderService.
+        'moderacao.custom-orders.index',
+        'moderacao.custom-orders.resolve',
         // Fila de moderação das intros de voz (feat/voice-intro). A tela lista e
         // aprova/recusa; o serving do áudio é URL injetada pelo servidor.
         'moderacao.voice-intros.index',

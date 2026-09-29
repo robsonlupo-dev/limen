@@ -61,7 +61,7 @@ export const MEMBER_SECTIONS = [
         key: 'mensagens',
         label: 'Mensagens',
         route: 'chat.index',
-        match: ['chat.index', 'chat.show', 'reservations.index'],
+        match: ['chat.index', 'chat.show', 'reservations.index', 'custom-orders.index'],
         badge: 'messages',
         children: [
             { label: 'Mensagens', route: 'chat.index', badge: 'messages' },
@@ -69,6 +69,8 @@ export const MEMBER_SECTIONS = [
             // some quando a chamada está desligada — o link levaria a uma tela
             // que o middleware recusaria.
             { label: 'Chamadas', route: 'reservations.index', feature: 'call_enabled' },
+            // Encomendas sob medida (Onda 4 §4.3): pedidos de conteúdo personalizado.
+            { label: 'Encomendas', route: 'custom-orders.index' },
         ],
     },
     {

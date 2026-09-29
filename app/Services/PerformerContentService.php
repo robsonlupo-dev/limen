@@ -131,6 +131,75 @@ class PerformerContentService
     }
 
     /**
+     * ENTREGA de uma encomenda sob medida (Onda 4 §4.3). Publica a peça (mesma
+     * higienização/moderação de publish/publishVideo) mas marcada como PRIVADA da
+     * encomenda (`custom_order_id`): fica FORA da vitrine pública e do painel de conteúdo
+     * (galleryFor/forOwner filtram), e não é desbloqueável pela porta normal
+     * (ContentVisibilityService::denialForUnlock nega). O acesso do membro que encomendou
+     * vem de um content_unlocks criado na entrega (CustomOrderService). `access_level`
+     * exclusivo (nunca "aberto"/grátis) e `price_tokens=0` (não é vendida na vitrine — o
+     * preço é o do pedido). Foto nasce READY; vídeo nasce PROCESSING (job de ffmpeg).
+     *
+     * @throws ContentException|VideoProcessingException
+     */
+    public function deliverCustomPiece(PerformerProfile $profile, UploadedFile $file, int $customOrderId): PerformerContent
+    {
+        $isVideo = str_starts_with((string) $file->getMimeType(), 'video/');
+
+        if ($isVideo) {
+            $duration = $this->video->probeDurationSeconds($file->getRealPath());
+            if ($duration > (int) config('video.max_duration_seconds')) {
+                throw VideoProcessingException::tooLong((int) config('video.max_duration_seconds'));
+            }
+
+            $rawPath = $this->store->storeRawVideo($file, $profile->id);
+
+            $content = new PerformerContent;
+            $content->performer_profile_id = $profile->id;
+            $content->custom_order_id = $customOrderId;
+            $content->kind = PerformerContent::KIND_VIDEO;
+            $content->status = PerformerContent::STATUS_PROCESSING;
+            $content->access_level = PerformerContent::LEVEL_EXCLUSIVE;
+            $content->price_tokens = 0;
+            $content->path = '';
+            $content->save();
+
+            Audit::log('content.custom_delivered', $content, ['custom_order_id' => $customOrderId, 'kind' => PerformerContent::KIND_VIDEO]);
+
+            ProcessVideoContent::dispatch($content->id, $rawPath);
+
+            return $content;
+        }
+
+        // Foto: higieniza + grava (CSAM antes de escrever), pronta na hora.
+        $stored = $this->store->store($file, $profile->id, $profile->user);
+
+        try {
+            $content = new PerformerContent;
+            $content->performer_profile_id = $profile->id;
+            $content->custom_order_id = $customOrderId;
+            $content->kind = PerformerContent::KIND_PHOTO;
+            $content->status = PerformerContent::STATUS_READY;
+            $content->access_level = PerformerContent::LEVEL_EXCLUSIVE;
+            $content->price_tokens = 0;
+            $content->path = $stored['path'];
+            $content->content_hash = $stored['hash'];
+            $content->save();
+        } catch (\Throwable $e) {
+            try {
+                $this->store->delete($stored['path']);
+            } catch (\Throwable) {
+            }
+
+            throw $e;
+        }
+
+        Audit::log('content.custom_delivered', $content, ['custom_order_id' => $customOrderId, 'kind' => PerformerContent::KIND_PHOTO]);
+
+        return $content;
+    }
+
+    /**
      * Remove uma peça (dona só). Bytes PRIMEIRO, depois a linha (hard delete). Uma
      * denúncia em aberto CONGELA a remoção (anti-destruição de prova) — mesma regra
      * do Story. O ledger dos desbloqueios PERMANECE (append-only).
@@ -230,6 +299,7 @@ class PerformerContentService
     {
         return PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
+            ->whereNull('custom_order_id') // entregas de encomenda não entram no painel de conteúdo
             ->withCount('unlocks')
             ->orderedForShowcase() // mesma ordem da vitrine pública (§ 3.1)
             ->get()

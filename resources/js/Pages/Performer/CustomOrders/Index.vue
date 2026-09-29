@@ -1,0 +1,182 @@
+<script setup>
+import { ref, onBeforeUnmount } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
+import { postJson, postForm, errorMessage } from '@/lib/http'
+
+/**
+ * Fila de encomendas sob medida (Onda 4 §4.3) — lado da PERFORMER. Lista os pedidos
+ * recebidos (CustomOrderPresenter::forPerformer) por FanAlias (M.13.10 — nunca id/nome
+ * do membro), com aceitar (escrow: debita o membro e retém), recusar, e entregar (envia
+ * uma peça — foto ou vídeo — que passa pela MESMA moderação/CSAM do cofre). O crédito
+ * 80/20 só cai quando o membro aprova (ou o prazo de contestação passa).
+ */
+const props = defineProps({
+    orders: { type: Array, default: () => [] },
+})
+
+const page = usePage()
+const myUserId = page.props.auth?.user?.id
+
+const busyId = ref(null)
+const error = ref('')
+
+// Estado do upload de entrega, por encomenda.
+const deliverFor = ref(null) // id da encomenda com o seletor de arquivo aberto
+const file = ref(null)
+
+const STATUS = {
+    requested: 'Novo pedido',
+    accepted: 'Aceita — produza e entregue',
+    delivered: 'Entregue — aguardando o membro',
+    released: 'Concluída (crédito liberado)',
+    refunded: 'Estornada ao membro',
+    declined: 'Recusada',
+    disputed: 'Em disputa (moderação)',
+    cancelled: 'Cancelada pelo membro',
+    expired: 'Expirada (sem resposta a tempo)',
+}
+
+async function act(order, routeName, confirmMsg) {
+    if (busyId.value) return
+    if (confirmMsg && !window.confirm(confirmMsg)) return
+    busyId.value = order.id
+    error.value = ''
+    try {
+        await postJson(route(routeName, order.id))
+        router.reload({ only: ['orders'] })
+    } catch (e) {
+        error.value = errorMessage(e, 'Não foi possível concluir a ação.')
+    } finally {
+        busyId.value = null
+    }
+}
+
+const accept = (o) => act(o, 'performer.custom-orders.accept', 'Aceitar este pedido? O valor é debitado do membro e fica retido até a entrega ser aprovada.')
+const decline = (o) => act(o, 'performer.custom-orders.decline', 'Recusar este pedido?')
+
+function openDeliver(order) {
+    deliverFor.value = order.id
+    file.value = null
+    error.value = ''
+}
+
+function onFile(e) {
+    file.value = e.target.files?.[0] ?? null
+}
+
+async function submitDelivery(order) {
+    if (busyId.value || !file.value) return
+    busyId.value = order.id
+    error.value = ''
+    const form = new FormData()
+    form.append('arquivo', file.value)
+    try {
+        await postForm(route('performer.custom-orders.deliver', order.id), form)
+        deliverFor.value = null
+        file.value = null
+        router.reload({ only: ['orders'] })
+    } catch (e) {
+        error.value = errorMessage(e, 'Não foi possível entregar. Verifique o arquivo e tente de novo.')
+    } finally {
+        busyId.value = null
+    }
+}
+
+// Reverb: o membro pediu/cancelou/aprovou/contestou → recarrega a fila.
+let channel = null
+if (window.Echo && myUserId) {
+    channel = window.Echo.private(`user.${myUserId}`)
+    channel.listen('.custom_order.changed', () => router.reload({ only: ['orders'] }))
+}
+onBeforeUnmount(() => {
+    if (channel && myUserId) { window.Echo?.leave(`user.${myUserId}`); channel = null }
+})
+</script>
+
+<template>
+    <AppLayout title="Encomendas">
+        <div class="mx-auto max-w-3xl px-6 py-10">
+            <h1 class="font-serif text-2xl text-limen-ink">Encomendas recebidas</h1>
+            <p class="mt-1 text-sm text-limen-ink-soft">
+                Ao aceitar, o valor é debitado do membro e fica retido até ele aprovar a entrega —
+                então seu crédito (80%) é liberado.
+            </p>
+
+            <p v-if="error" class="mt-4 rounded-lg bg-limen-live/10 px-4 py-2 text-sm text-limen-live">{{ error }}</p>
+
+            <div v-if="orders.length === 0" class="mt-10 rounded-2xl border border-limen-line bg-limen-surface p-8 text-center text-limen-ink-soft">
+                Nenhuma encomenda por enquanto.
+            </div>
+
+            <ul v-else class="mt-6 space-y-3">
+                <li
+                    v-for="order in orders"
+                    :key="order.id"
+                    class="rounded-2xl border border-limen-line bg-limen-surface p-4"
+                >
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="font-medium text-limen-ink">{{ order.fan }}</p>
+                            <p class="mt-1 text-sm text-limen-ink-soft">{{ order.description }}</p>
+                            <p class="mt-1 text-xs text-limen-ink-mute">{{ STATUS[order.status] ?? order.status }}</p>
+                        </div>
+                        <span class="shrink-0 text-sm text-limen-gold">{{ order.price }} tk</span>
+                    </div>
+
+                    <div v-if="order.can_accept || order.can_decline || order.can_deliver" class="mt-3">
+                        <div v-if="order.can_accept || order.can_decline" class="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                :disabled="busyId === order.id"
+                                class="rounded-lg bg-limen-gold px-3 py-1.5 text-sm font-medium text-limen-bg hover:opacity-90 disabled:opacity-60"
+                                @click="accept(order)"
+                            >Aceitar</button>
+                            <button
+                                type="button"
+                                :disabled="busyId === order.id"
+                                class="rounded-lg border border-limen-line px-3 py-1.5 text-sm text-limen-ink-soft hover:bg-limen-surface-2 disabled:opacity-60"
+                                @click="decline(order)"
+                            >Recusar</button>
+                        </div>
+
+                        <div v-if="order.can_deliver">
+                            <button
+                                v-if="deliverFor !== order.id"
+                                type="button"
+                                class="rounded-lg bg-limen-gold px-3 py-1.5 text-sm font-medium text-limen-bg hover:opacity-90"
+                                @click="openDeliver(order)"
+                            >Entregar</button>
+
+                            <div v-else class="space-y-2">
+                                <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm"
+                                    class="block w-full text-sm text-limen-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-limen-surface-2 file:px-3 file:py-1.5 file:text-sm file:text-limen-ink"
+                                    @change="onFile"
+                                />
+                                <div class="flex gap-2">
+                                    <button
+                                        type="button"
+                                        :disabled="busyId === order.id || !file"
+                                        class="rounded-lg bg-limen-gold px-3 py-1.5 text-sm font-medium text-limen-bg hover:opacity-90 disabled:opacity-60"
+                                        @click="submitDelivery(order)"
+                                    >Enviar entrega</button>
+                                    <button
+                                        type="button"
+                                        :disabled="busyId === order.id"
+                                        class="rounded-lg border border-limen-line px-3 py-1.5 text-sm text-limen-ink-soft hover:bg-limen-surface-2"
+                                        @click="deliverFor = null"
+                                    >Cancelar</button>
+                                </div>
+                                <p class="text-xs text-limen-ink-mute">
+                                    Foto (JPG/PNG) ou vídeo (MP4/MOV/WebM). O conteúdo passa pela moderação antes de ficar disponível.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </AppLayout>
+</template>

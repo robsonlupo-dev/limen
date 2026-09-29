@@ -173,6 +173,14 @@ class ContentVisibilityService
             return ContentException::SELF;
         }
 
+        // Entrega de encomenda sob medida (Onda 4 §4.3): peça PRIVADA — não é
+        // desbloqueável pela porta normal do catálogo. O acesso do membro que encomendou
+        // vem de um content_unlocks criado pelo CustomOrderService na entrega, não daqui.
+        // Trata como fora do ar (a mesma máscara do resto).
+        if ($content->custom_order_id !== null) {
+            return ContentException::OFFLINE;
+        }
+
         // Peça não pronta (vídeo em processing/failed) não é desbloqueável —
         // trata como fora do ar (defesa; o membro nem a vê na galeria/feed).
         if (! $content->isReady()
@@ -244,6 +252,7 @@ class ContentVisibilityService
 
         $pieces = PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
+            ->whereNull('custom_order_id') // entregas de encomenda são privadas, nunca na vitrine
             ->ready() // vídeo em processing/failed não aparece na vitrine
             ->orderedForShowcase() // fixadas primeiro (§ 3.1) — mesma ordem do painel
             ->get();

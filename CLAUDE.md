@@ -171,6 +171,12 @@ contrato técnico que um dev quebraria sem saber:
   fora do payout: é devolução, não ganho), `call_noshow_credit` (no-show do MEMBRO →
   100% à performer, `applied_rate=100`, ganho sacável). O minuto 1 da chamada agendada
   reusa `call_credit` (70/30) — sem tipo novo. Regras de negócio em `docs/ECONOMIA.md` §8.
+- **`entry_type` da encomenda sob medida (§4.3):** `spend_custom_order` (débito do escrow no
+  aceite — é gasto, fora do payout), `custom_order_credit` (liberação 80/20 à performer,
+  rate `content`, ganho sacável — entra no `payout.earning_entry_types` e ignora o teto),
+  `custom_order_refund` (estorno 100% ao membro — devolução, NÃO entra no payout e nunca
+  respeita o teto, como o `call_reservation_refund`). O crédito/estorno só se move sob
+  `escrow_settled` re-lido em `lockForUpdate` (idempotente por linha).
 ## Estado atual
 
 - **Branch principal:** `main` · **último commit:** `ccc5ad6` (Merge PR #274 —
@@ -332,6 +338,25 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   mesmo canal da `LiveReaction`) que o `LiveOverlayService` dispara a cada gorjeta.
   Editor em `Performer/Profile/Edit` (rotas `performer.tip-goal.save/end`). Limites em
   `monetization.tip_goal`.
+  **Encomenda sob medida com escrow** (§4.3, entregue, PR #299): o membro encomenda
+  conteúdo personalizado por um preço que OFERECE; a performer aceita/recusa. O token só
+  sai no ACEITE (`spend_custom_order`) e fica RETIDO — a própria LINHA de `custom_orders`
+  é o escrow (espelha `CallReservationService`, SEM saldo de hold genérico). Ciclo:
+  `requested→accepted→delivered→released|refunded` (+ `declined/cancelled/expired/disputed`).
+  Liquidação one-time guardada por `escrow_settled` re-lido sob `lockForUpdate`: release →
+  `custom_order_credit` 80/20 (rate `content`, no payout, fora do teto); refund →
+  `custom_order_refund` 100% ao membro (NÃO no payout — é devolução) + revoga o
+  `content_unlock`. ⚠️ Cada carteira é travada ISOLADA (aceite→membro, release→performer,
+  refund→membro) — nunca as duas juntas (sem deadlock). A entrega é uma peça do cofre com
+  `custom_order_id` (moderação/CSAM iguais); ela **nunca vaza na vitrine** — `galleryFor`/
+  `forOwner` filtram `whereNull('custom_order_id')` e `denialForUnlock` recusa a peça de
+  encomenda; o membro recebe `content_unlock` na entrega (precisa ver p/ aprovar/contestar).
+  ⚠️ `approve` (e `can_approve`) exigem a mídia PRONTA — não libera escrow por vídeo em
+  processamento/falho; o cron (`custom-orders:process`) estorna a mídia não-pronta. Disputa
+  → moderação (`/moderacao/encomendas`, `CustomOrderService::resolveDispute`). Anonimato:
+  performer vê o membro só por FanAlias; broadcast `CustomOrderChanged` (`user.{id}`) sem
+  member_id. Preço/janelas em `monetization.custom_order` + `config/custom_order.php`.
+  Decisões e limitações em `docs/ROADMAP_SOCIAL.md` §4.3.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,
