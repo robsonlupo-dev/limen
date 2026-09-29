@@ -667,6 +667,149 @@ Preencha DEPOIS de todos os testes:
 ---
 
 # ═══════════════════════════════════════════════════════════════
+# PARTE 4 — ROADMAP SOCIAL "ESTILO INSTA" (Ondas 1→3, set/2026)
+# ═══════════════════════════════════════════════════════════════
+
+> Recursos sociais construídos na leva de 27–28/09. **Nenhum mexe em token** (são
+> sociais). Regras transversais que valem em TODAS as fases abaixo:
+> - **Anonimato do membro é piso:** a performer vê AGREGADO (contagens/faixas), nunca
+>   "quem" reagiu/votou/salvou/leu. Se algum passo mostrar identidade de membro onde
+>   deveria ser agregado, é 🔴 bug.
+> - **Anti-contato:** texto público da performer (status, canal) passa pelo filtro —
+>   telefone/rede/contato é bloqueado.
+> - **Contas:** `ana@`/`bella@` (performers), `free@` (membro free), e uma **conta
+>   assinante** (ver `docs/qa/TEST_ACCOUNTS.md`): use **Prestige** para VIP
+>   insider/prestige e **Black** para `exclusive`.
+
+## FASE 23 — DESTAQUES (Highlights) da performer
+
+> Coleções PERMANENTES a partir de stories **públicos** (a mídia é copiada para disco
+> próprio + re-scan CSAM). PR #284.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 228 | Criar destaque | ana@ (com story público ativo) cria um Destaque e adiciona o story | Coleção aparece no perfil dela, permanente (não some em 24h) | 🔴 | | |
+| 229 | Só story público | Tente adicionar a um destaque um story de nível `assinantes`/`exclusive` | Não permitido — só stories públicos entram no destaque | 🟡 | | |
+| 230 | Membro vê o destaque | free@ abre o perfil da ana@ | Vê a faixa de Destaques e consegue abrir a coleção | 🔴 | | |
+| 231 | Sobrevive à expiração | Deixe o story original expirar (24h) ou force | O destaque continua exibindo a mídia (é cópia própria, não o story) | 🟡 | | |
+
+---
+
+## FASE 24 — STORIES VIP POR TIER MÍNIMO
+
+> Story `assinantes` refinado por **tier mínimo** (insider/prestige). É um E lógico
+> ORTOGONAL ao nível, igual nos 4 consumidores (serving, feed, pontinho, faixa).
+> Fail-closed. PR #285.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 232 | Publicar com tier mínimo | ana@ publica um story `assinantes` com **tier mínimo = Prestige** | Story criado | 🔴 | | |
+| 233 | Tier abaixo NÃO vê | Um assinante **Insider** (abaixo de Prestige) tenta ver | Não aparece no feed/faixa e a imagem direta dá **403/404** | 🔴 | | |
+| 234 | Tier alcança vê | Um assinante **Prestige+** abre | Vê normalmente | 🔴 | | |
+| 235 | Sem vazamento pelo par | (técnico) Confirme que o pontinho/feed não "acende" para quem não alcança | Nenhum sinal de que existe um story fora de alcance (não vira oráculo) | 🟡 | | |
+
+---
+
+## FASE 25 — REAÇÕES RÁPIDAS A STORIES
+
+> Sinal leve membro→performer no viewer, sem abrir chat. Conjunto fixo (SVG). Agregado
+> para a dona, **nunca "quem reagiu"**. Ghost/Discreto fora do agregado. PR #286.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 236 | Reagir | free@ abre um story em alcance e toca numa reação | Registra (feedback visual); não abre chat | 🔴 | | |
+| 237 | Agregado, nunca "quem" | ana@ vê o resumo de reações do story | Vê **faixa/contagem + emojis**, NUNCA a lista de quem reagiu | 🔴 | | |
+| 238 | Sem reação no exclusive | Abra um story `exclusive` | Não há botão de reação (sem superfície de audiência) | 🟡 | | |
+| 239 | Ghost fora do agregado | Um membro com **Modo Discreto** reage | A reação **não entra** no agregado da performer | 🔴 | | |
+| 240 | Fora de alcance = 403 | Tente reagir (via request direto) a um story fora de alcance | **403**, sem gravar | 🟡 | | |
+
+---
+
+## FASE 26 — ENQUETE NO STORY
+
+> A performer prende pergunta + opções; o membro toca e vê o %. Voto **imutável**,
+> agregado (distribuição), **nunca "quem votou"**. Sem enquete no `exclusive`. O
+> "pergunte-me de texto livre" foi CORTADO (vira contato grátis). PR #287.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 241 | Criar enquete | ana@ anexa uma enquete (pergunta + 2–4 opções) a um story | Aparece no story | 🔴 | | |
+| 242 | Votar e ver % | free@ vota | Vê a distribuição em % (anônima) | 🔴 | | |
+| 243 | Voto imutável | free@ tenta trocar o voto | Não permitido (voto único e imutável) | 🔴 | | |
+| 244 | Agregado, nunca "quem" | ana@ vê o resultado | Só a **distribuição**, nunca a lista de quem votou | 🔴 | | |
+| 245 | Sem enquete no exclusive | Tente anexar enquete a um story `exclusive` | Recusado | 🟡 | | |
+| 246 | Ghost fora do agregado | Membro Discreto vota | Voto não entra no agregado | 🟡 | | |
+
+---
+
+## FASE 27 — CANAL DE TRANSMISSÃO (performer → seguidores)
+
+> A performer transmite **texto** aos seguidores; grátis; **sem resposta no canal**
+> (CTA leva ao chat pago). `body` por filtro anti-contato. Teto diário. A performer
+> **não sabe quem seguiu nem quem leu**. PR #288.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 247 | Transmitir | ana@ envia uma transmissão de texto | free@ (que **segue** a ana@) vê na aba **"Canais"** (Conexões) | 🔴 | | |
+| 248 | Anti-contato | ana@ tenta transmitir com telefone/@rede/"me chama no zap" | **Bloqueado** (422) — é o vetor de fuga de contato grátis | 🔴 | | |
+| 249 | Sem resposta no canal | free@ tenta responder no canal | Não há resposta no canal; o CTA leva ao **chat pago** | 🔴 | | |
+| 250 | Badge de não-visto | Nova transmissão com a aba fechada | Aparece badge; abrir a aba zera | 🟡 | | |
+| 251 | Só seguidores | Um membro que **não segue** a ana@ | Não recebe a transmissão | 🟡 | | |
+| 252 | Teto diário | ana@ estoura o teto de transmissões do dia | Bloqueado ao passar do limite | 🟢 | | |
+| 253 | Performer não sabe quem leu | (técnico) Não há tela/contador de "quem leu" no lado da performer | Nenhuma identidade de membro exposta | 🔴 | | |
+
+---
+
+## FASE 28 — MODO EFÊMERO NO CHAT — TIMER "tocar para ver"
+
+> Mensagens que somem: chegam **seladas**, o destinatário **toca**, o conteúdo aparece
+> por **X seg** (config, 10) com contagem e some das DUAS pontas. Corpo/áudio ficam no
+> banco para a **moderação**. PRs #289/#292/#293. **Abra o mesmo chat em 2 navegadores.**
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 254 | Ligar o modo | Qualquer um dos dois liga o modo efêmero (ícone olho-cortado no cabeçalho) | Novas mensagens passam a ser efêmeras (não afeta as já enviadas) | 🔴 | | |
+| 255 | Chega selada | free@ manda texto com o modo ligado | Do lado da ana@ chega **"Mensagem efêmera — toque para ver"** (sem o texto) | 🔴 | | |
+| 256 | Revelar + contagem | ana@ toca | Aparece o texto com **"some em Ns"**; ao fim, vira **"expirada"** | 🔴 | | |
+| 257 | Some para o remetente em tempo real | Observe a tela do free@ quando a ana@ consome | A bolha do free@ vira "expirada" **na hora**, sem recarregar | 🔴 | | |
+| 258 | Não reabre | ana@ recarrega a conversa após consumir | Continua "expirada" (revelar = consumir; não reabre) | 🔴 | | |
+| 259 | Áudio efêmero | Repita com uma mensagem de voz | Selada → toca → toca o áudio → some; player em largura cheia, **play clicável** | 🔴 | | |
+| 260 | Não vaza por URL/lista/tempo real | (técnico) Corpo/áudio de uma selada não aparecem no preview da lista nem no toast; a URL do áudio selado dá **404** | Nenhum vazamento antes do toque | 🔴 | | |
+| 261 | Moderação retém | (técnico) A mensagem efêmera consumida no banco / evidência | Corpo/áudio permanecem para a moderação; só a EXIBIÇÃO some | 🔴 | | |
+
+---
+
+## FASE 29 — FIXAR CONTEÚDO NA VITRINE (performer)
+
+> A performer prende peças no **topo** da vitrine (estilo Insta). Teto **3**. Fixar
+> **não muda paywall** — só reordena. PR #290.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 262 | Fixar | ana@ no painel de conteúdo clica **Fixar** numa peça pronta | Sobe ao **topo** da vitrine (perfil) e do painel; selo **"Destaque"** | 🔴 | | |
+| 263 | Teto de 3 | Tente fixar uma 4ª peça | Bloqueado (422) — "desafixe uma para fixar outra" | 🟡 | | |
+| 264 | Só peça pronta | Tente fixar um vídeo em **processamento** | Bloqueado (422) | 🟢 | | |
+| 265 | Fixado bloqueado no topo | Fixe uma peça **exclusiva**; veja como **não-assinante** | Fica no topo **bloqueada** (cadeado/upsell) — fixar não abre acesso | 🔴 | | |
+| 266 | Sob denúncia congela | Fixe uma peça que esteja **sob denúncia aberta** | Bloqueado (409); desafixar segue permitido | 🟡 | | |
+
+---
+
+## FASE 30 — "SALVOS" DO MEMBRO (bookmark privado de conteúdo)
+
+> O membro salva PEÇAS numa lista **privada**; a performer **nunca sabe**. Só salva o
+> que já pode ver. PR #291.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 267 | Salvar | free@ toca no **marcador (bookmark)** de uma peça que ele já pode ver | Salva; aparece na aba **"Salvos"** (Descobrir) | 🔴 | | |
+| 268 | Não salva bloqueada | Tente salvar (request direto) uma peça **bloqueada** | **403** — não se salva o que não se pode ver | 🔴 | | |
+| 269 | Performer não vê nada | ana@ procura qualquer sinal de "quem salvou / quantos salvaram" | **Não existe** — zero superfície, zero contador | 🔴 | | |
+| 270 | Lista respeita paywall | Um salvo cujo acesso **expirou** | Aparece **bloqueado** na aba Salvos (reresolvido por espectador) | 🟡 | | |
+| 271 | Performer fora do ar some | Salvo de uma performer **suspensa** | Some da lista; o salvo em si continua guardado (se ela voltar, volta) | 🟢 | | |
+
+---
+
+# ═══════════════════════════════════════════════════════════════
 # RESUMO EXECUTIVO — O QUE JÁ FOI TESTADO
 # ═══════════════════════════════════════════════════════════════
 
@@ -717,6 +860,17 @@ Preencha DEPOIS de todos os testes:
 | 20 Modelos de catálogo | #208–#213 |
 | 21 Anel do avatar + story/foto | #214–#218 |
 | 22 Responder ao story → chat | #219–#227 |
+| 23 Destaques (Highlights) | #228–#231 |
+| 24 Stories VIP por tier | #232–#235 |
+| 25 Reações a stories | #236–#240 |
+| 26 Enquete no story | #241–#246 |
+| 27 Canal de transmissão | #247–#253 |
+| 28 Modo efêmero (timer) | #254–#261 |
+| 29 Fixar conteúdo | #262–#266 |
+| 30 Salvos do membro | #267–#271 |
+
+> **Onda 3 fecha com a §3.2 insights da performer** (ainda a construir — não há fase de
+> UAT dela aqui). Follow-up opcional pendente: **push do canal via Reverb**.
 
 ---
 
