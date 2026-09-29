@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
+import Lightbox from '@/Components/Lightbox.vue'
 import { postJson } from '@/lib/http'
 
 // Galeria de conteúdo permanente (M.4/M.13.13). Cada item chega JÁ resolvido pelo
@@ -38,6 +39,20 @@ const items = ref(props.contents.map((c) => ({ ...c, imageFailed: false, blurFai
 //  - "Disponível para você": acessível (não bloqueado) OU comprável avulso.
 //  - blocos bloqueados por tier: agrupados pelo Círculo que os destrava.
 const available = computed(() => items.value.filter((i) => ! i.locked || i.can_unlock))
+
+// Lightbox (clicar pra ampliar): só FOTOS que o espectador PODE ver (vídeo toca inline
+// no <video>, não entra). As URLs já vêm assinadas do servidor; o Lightbox só recebe a
+// mesma image_url. `lightboxIndex` é null quando fechado (contrato do componente).
+const lightboxPhotos = computed(() =>
+    items.value
+        .filter((i) => ! i.locked && i.image_url && i.kind !== 'video' && ! i.imageFailed)
+        .map((i) => ({ id: i.id, url: i.image_url })),
+)
+const lightboxIndex = ref(null)
+function openLightbox(item) {
+    const idx = lightboxPhotos.value.findIndex((p) => p.id === item.id)
+    if (idx !== -1) lightboxIndex.value = idx
+}
 
 const TIER_ORDER = { Black: 1, 'Círculo de Fundadores': 2 }
 const tierGroups = computed(() => {
@@ -158,7 +173,18 @@ async function confirmUnlock() {
                             playsinline
                             class="h-full w-full object-contain bg-black"
                         />
-                        <img v-else-if="!item.imageFailed" :src="item.image_url" alt="" class="h-full w-full object-contain bg-background" @error="item.imageFailed = true" />
+                        <img
+                            v-else-if="!item.imageFailed"
+                            :src="item.image_url"
+                            alt=""
+                            role="button"
+                            tabindex="0"
+                            aria-label="Ampliar foto"
+                            class="h-full w-full cursor-zoom-in object-contain bg-background"
+                            @error="item.imageFailed = true"
+                            @click="openLightbox(item)"
+                            @keydown.enter="openLightbox(item)"
+                        />
                         <div v-else class="absolute inset-0 flex items-center justify-center text-sm text-muted">Imagem indisponível</div>
                         <span class="absolute top-3 left-3 rounded-full bg-background/70 px-2.5 py-1 text-[11px] text-gold backdrop-blur">
                             {{ LEVEL_LABELS[item.access_level] ?? item.access_level }}
@@ -250,5 +276,8 @@ async function confirmUnlock() {
                 </Button>
             </div>
         </Modal>
+
+        <!-- Ampliar foto (clique) — tela cheia, navega entre as fotos visíveis. -->
+        <Lightbox :photos="lightboxPhotos" v-model:index="lightboxIndex" />
     </div>
 </template>
