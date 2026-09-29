@@ -11,6 +11,7 @@ import VerificationPanel from '@/Components/Profile/VerificationPanel.vue'
 import VoiceIntroPlayer from '@/Components/VoiceIntroPlayer.vue'
 import TipModal from '@/Components/TipModal.vue'
 import GiftModal from '@/Components/GiftModal.vue'
+import CustomOrderRequestModal from '@/Components/CustomOrderRequestModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import StoryViewer from '@/Components/StoryViewer.vue'
@@ -89,6 +90,9 @@ function onCallEnded() { activeCall.value = null }
 
 const showTipModal = ref(false)
 const showGiftModal = ref(false)
+// Encomenda sob medida (Onda 4 §4.3): membro pede conteúdo personalizado. Mesma porta
+// do canFavorite (role:consumer); o backend re-verifica alcance/limites/preço.
+const showOrderModal = ref(false)
 const showReportModal = ref(false)
 const showVerified = ref(false)
 const tipsCount = ref(props.performer.tips_count)
@@ -287,6 +291,15 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
                         @gift="showGiftModal = true"
                     />
                     <ProfileRates :performer="performer" class="mt-4 hidden lg:block" />
+
+                    <!-- Encomenda sob medida (Onda 4 §4.3): pedir conteúdo personalizado. -->
+                    <button
+                        type="button"
+                        class="mt-4 block w-full rounded-xl border border-limen-line bg-limen-surface px-4 py-2.5 text-sm text-limen-ink hover:border-limen-gold/40"
+                        @click="showOrderModal = true"
+                    >
+                        Encomendar conteúdo
+                    </button>
                 </aside>
             </div>
         </div>
@@ -312,6 +325,14 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
             :performer-slug="performer.slug"
             :performer-name="performer.stage_name"
             @close="showGiftModal = false"
+        />
+
+        <CustomOrderRequestModal
+            v-if="canFavorite"
+            :show="showOrderModal"
+            :performer-slug="performer.slug"
+            :performer-name="performer.stage_name"
+            @close="showOrderModal = false"
         />
 
         <VerificationPanel
