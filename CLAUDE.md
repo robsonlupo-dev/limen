@@ -321,6 +321,17 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   payout) e conta nos insights. Preço livre com piso/passo/teto
   (`monetization.ppv`, `isValidPpvPrice`). Decisões e limitações em
   `docs/ROADMAP_SOCIAL.md` §4.1.
+  **Metas de gorjeta** (§4.2, entregue, PR #298): a performer define UMA meta ativa
+  (`tip_goals`: title + target + started_at + ended_at; uma ativa garantida no
+  `TipGoalService`, não por UNIQUE) e uma barra (`TipGoalBar.vue`) enche no perfil e no
+  overlay da live. Progresso = `SUM(tips.amount)` desde `started_at` — leitura AGREGADA,
+  **não cria entry_type, não mexe em token** (a gorjeta segue 80/20 pelo `TipService`).
+  ⚠️ **É só soma + alvo, NUNCA "quem" nem contagem de apoiadores** (canal lateral); ao
+  evoluir, jamais expor tipper id/count. Exposto por `PerformerPublicResource.tip_goal`
+  (whenLoaded `activeTipGoal`) e, na live, pelo evento `LiveTipGoalProgress` (`live.goal`,
+  mesmo canal da `LiveReaction`) que o `LiveOverlayService` dispara a cada gorjeta.
+  Editor em `Performer/Profile/Edit` (rotas `performer.tip-goal.save/end`). Limites em
+  `monetization.tip_goal`.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

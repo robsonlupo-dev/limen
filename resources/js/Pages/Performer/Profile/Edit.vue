@@ -24,6 +24,10 @@ const props = defineProps({
     profile: { type: Object, required: true },
     // Status do dia (roadmap social, Onda 1a): prefill do editor. null = sem status.
     status: { type: Object, default: null },
+    // Meta de gorjeta (Onda 4 §4.2): prefill { title, target, raised, pct } ou null,
+    // + limites do alvo/título.
+    tipGoal: { type: Object, default: null },
+    tipGoalLimits: { type: Object, default: () => ({ min_target: 10, max_target: 1000000, title_max_length: 80 }) },
     // Destaques (roadmap social, Onda 1a): coleções + stories públicos ativos.
     highlights: { type: Array, default: () => [] },
     highlightStories: { type: Array, default: () => [] },
@@ -80,6 +84,23 @@ function clearStatus() {
     router.delete(route('performer.status.clear'), {
         preserveScroll: true,
         onSuccess: () => statusForm.reset(),
+    })
+}
+
+// ── Meta de gorjeta (roadmap social, Onda 4 §4.2) ─────────────────────────────
+const tipGoalForm = useForm({
+    title: props.tipGoal?.title ?? '',
+    target: props.tipGoal?.target ?? props.tipGoalLimits.min_target,
+})
+
+function saveTipGoal() {
+    tipGoalForm.post(route('performer.tip-goal.save'), { preserveScroll: true })
+}
+
+function endTipGoal() {
+    router.delete(route('performer.tip-goal.end'), {
+        preserveScroll: true,
+        onSuccess: () => tipGoalForm.reset(),
     })
 }
 
@@ -431,6 +452,63 @@ function save() {
                         Remover status
                     </button>
                 </div>
+            </div>
+
+            <!-- ── Meta de gorjeta (roadmap social, Onda 4 §4.2) ────────────── -->
+            <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
+                <div class="space-y-1">
+                    <h2 class="font-serif text-xl text-cream">Meta de gorjeta</h2>
+                    <p class="text-muted text-sm">
+                        Uma meta com barra de progresso no seu perfil e na live — "Novo setup 📸".
+                        Enche com as gorjetas que você recebe. Só mostra o total arrecadado, nunca quem deu.
+                    </p>
+                </div>
+
+                <div v-if="tipGoal" class="rounded-lg border border-gold/40 bg-surface-2 px-4 py-3">
+                    <div class="flex items-baseline justify-between gap-2 text-sm">
+                        <span class="truncate text-gold">{{ tipGoal.title }}</span>
+                        <span class="shrink-0 tabular-nums text-cream">{{ tipGoal.raised }} / {{ tipGoal.target }} tokens</span>
+                    </div>
+                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-surface">
+                        <div class="h-full rounded-full bg-gold/70" :style="{ width: Math.min(100, tipGoal.pct) + '%' }" />
+                    </div>
+                </div>
+
+                <Input
+                    id="tip_goal_title"
+                    v-model="tipGoalForm.title"
+                    label="Título da meta"
+                    type="text"
+                    :maxlength="tipGoalLimits.title_max_length"
+                    placeholder="Ex.: Novo setup 📸"
+                    :error="tipGoalForm.errors.title"
+                />
+                <Input
+                    id="tip_goal_target"
+                    v-model.number="tipGoalForm.target"
+                    label="Alvo (tokens)"
+                    type="number"
+                    :min="tipGoalLimits.min_target"
+                    :max="tipGoalLimits.max_target"
+                    :error="tipGoalForm.errors.target"
+                />
+
+                <div class="flex items-center gap-3">
+                    <Button variant="primary" :loading="tipGoalForm.processing" :disabled="!tipGoalForm.title || !tipGoalForm.target" @click="saveTipGoal">
+                        {{ tipGoal ? 'Atualizar meta' : 'Criar meta' }}
+                    </Button>
+                    <button
+                        v-if="tipGoal"
+                        type="button"
+                        class="min-h-[44px] text-sm text-muted hover:text-danger transition-colors"
+                        @click="endTipGoal"
+                    >
+                        Encerrar meta
+                    </button>
+                </div>
+                <p class="text-[11px] text-muted">
+                    Trocar a meta zera a barra (o progresso conta as gorjetas a partir do início da meta atual).
+                </p>
             </div>
 
             <!-- ── Destaques (roadmap social, Onda 1a) ──────────────────────── -->

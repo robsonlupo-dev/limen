@@ -122,6 +122,9 @@ return [
         // Status do dia (roadmap social)
         'performer.status.save',
         'performer.status.clear',
+        // Meta de gorjeta (Onda 4 §4.2): editor no painel da performer.
+        'performer.tip-goal.save',
+        'performer.tip-goal.end',
         // Foto de capa pela porta web (UAT fix). Nome distinto do
         // `performer.profile.cover` da API para não colidir no lookup.
         'performer.profile.cover-photo',

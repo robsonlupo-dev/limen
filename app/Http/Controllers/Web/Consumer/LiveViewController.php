@@ -46,6 +46,10 @@ class LiveViewController extends Controller
 
         $bundle = $this->live->memberToken($session, $request->user());
 
+        // Meta de gorjeta (Onda 4 §4.2): eager-load para o resource expor `tip_goal`
+        // inicial no overlay da live (depois o progresso atualiza por broadcast).
+        $performer->loadMissing('activeTipGoal');
+
         return Inertia::render('Live/Viewer', [
             // `->resolve()` para o prop chegar ao Vue como o OBJETO da performer
             // (slug, stage_name, …), NÃO embrulhado em `{ data: … }` — a mesma

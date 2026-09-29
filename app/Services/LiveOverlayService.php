@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\LiveReaction;
+use App\Events\LiveTipGoalProgress;
 use App\Models\Gift;
 use App\Models\LiveSession;
 use App\Models\PerformerProfile;
@@ -24,6 +25,8 @@ use App\Support\MemberDisplayName;
  */
 class LiveOverlayService
 {
+    public function __construct(private TipGoalService $tipGoals) {}
+
     public function tip(PerformerProfile $profile, User $member, int $amount): void
     {
         if (! $this->liveActive($profile->id)) {
@@ -37,6 +40,10 @@ class LiveOverlayService
             $amount,
             MemberDisplayName::for($member->nickname, $profile->id, $member->id),
         );
+
+        // Meta de gorjeta (Onda 4 §4.2): a gorjeta acabou de somar → empurra o progresso
+        // atualizado (agregado, sem "quem") para a barra no overlay subir em tempo real.
+        $this->broadcastGoalProgress($profile);
     }
 
     public function gift(PerformerProfile $profile, User $member, Gift $gift): void
@@ -51,6 +58,23 @@ class LiveOverlayService
             $gift->slug,
             (int) $gift->price_tokens,
             MemberDisplayName::for($member->nickname, $profile->id, $member->id),
+        );
+    }
+
+    /** Empurra o progresso da meta ativa (se houver) para a barra do overlay. */
+    private function broadcastGoalProgress(PerformerProfile $profile): void
+    {
+        $payload = $this->tipGoals->publicPayload($profile);
+        if ($payload === null) {
+            return;
+        }
+
+        LiveTipGoalProgress::dispatch(
+            $profile->slug,
+            $payload['title'],
+            $payload['target'],
+            $payload['raised'],
+            $payload['pct'],
         );
     }
 

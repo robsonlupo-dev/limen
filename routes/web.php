@@ -722,6 +722,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('performer.status.clear')
             ->can('performer-active');
 
+        // Meta de gorjeta (roadmap social, Onda 4 §4.2): definir/encerrar a meta ativa.
+        Route::post('/performer/meta-gorjeta', [\App\Http\Controllers\Web\Performer\TipGoalController::class, 'save'])
+            ->middleware('throttle:30,1')
+            ->name('performer.tip-goal.save')
+            ->can('performer-active');
+        Route::delete('/performer/meta-gorjeta', [\App\Http\Controllers\Web\Performer\TipGoalController::class, 'end'])
+            ->middleware('throttle:30,1')
+            ->name('performer.tip-goal.end')
+            ->can('performer-active');
+
         // Foto de capa (UAT fix): gêmea da foto de perfil pela porta WEB. Sem ela
         // o `cover_path` (coluna + `cover_url` no resource + DeletionService)
         // nunca era preenchido pelo frontend Inertia, e o checklist "Adicionar
