@@ -144,6 +144,11 @@ Schedule::command('calls:reap-stale')->everyFiveMinutes()->withoutOverlapping(5)
 // A janela do membro é 2min, então a granularidade de 1min é o teto de atraso.
 Schedule::command('reservations:process')->everyMinute()->withoutOverlapping(2);
 
+// Encomenda sob medida (Onda 4 §4.3): expira pedidos não aceitos, estorna não-entregues,
+// libera entregas passado o prazo de contestação. Janelas em HORAS/DIAS, então de 10 em
+// 10 min basta. Idempotente por encomenda (escrow_settled).
+Schedule::command('custom-orders:process')->everyTenMinutes()->withoutOverlapping(5);
+
 // Frames de preview de live ÓRFÃOS (Sprint 15, PR #143). O frame morre no fim da
 // live (stop/ban/reconciliação na leitura); isto varre o que escapou — um quadro
 // sem atualização há mais de 1h é de uma live encerrada. De hora em hora basta: a

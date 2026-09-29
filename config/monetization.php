@@ -165,6 +165,10 @@ return [
             // PPV no chat (Onda 4): a fatia da performer (80%) pela venda de conteúdo
             // travado na DM é ganho sacável, mesma disciplina do content_credit.
             'ppv_message_credit',
+            // Encomenda sob medida (Onda 4): a fatia da performer (80%) na liberação do
+            // escrow é ganho sacável. `custom_order_refund` NÃO entra (é devolução ao
+            // membro, não ganho — como o call_reservation_refund).
+            'custom_order_credit',
         ],
     ],
 
@@ -206,6 +210,17 @@ return [
         'min_target' => 10,
         'max_target' => 1000000,
         'title_max_length' => 80,
+    ],
+
+    /*
+    | Encomenda sob medida com escrow (Onda 4, §4.3): o membro OFERECE um valor no
+    | pedido, com piso/passo/teto. A liberação usa a taxa 'content' (80/20). O membro
+    | paga com saldo INTEIRO. Janelas/limites em config/custom_order.php.
+    */
+    'custom_order' => [
+        'min_price' => 20,
+        'price_step' => 5,
+        'max_price' => 20000,
     ],
 
     /*

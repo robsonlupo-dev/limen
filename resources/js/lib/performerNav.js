@@ -35,8 +35,14 @@ export const PERFORMER_SECTIONS = [
         key: 'mensagens',
         label: 'Mensagens',
         route: 'chat.index',
-        match: ['chat.*'],
+        match: ['chat.*', 'performer.custom-orders.index'],
         badge: 'messages',
+        children: [
+            { label: 'Mensagens', route: 'chat.index', badge: 'messages' },
+            // Encomendas sob medida (Onda 4 §4.3): fila de pedidos de conteúdo
+            // personalizado recebidos dos membros.
+            { label: 'Encomendas', route: 'performer.custom-orders.index' },
+        ],
     },
     {
         key: 'pessoas',

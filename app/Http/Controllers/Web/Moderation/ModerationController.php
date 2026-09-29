@@ -111,6 +111,8 @@ class ModerationController extends Controller
                 // content-queue). Conta USUÁRIOS distintos, não flags — a fila
                 // agrega por usuário (reincidência).
                 'flagged' => $this->flaggedUserCount(),
+                // Disputas de encomenda sob medida aguardando decisão (Onda 4 §4.3).
+                'custom_order_disputes' => \App\Models\CustomOrder::where('status', \App\Models\CustomOrder::STATUS_DISPUTED)->count(),
                 // Ações do próprio moderador hoje (fuso de exibição).
                 'my_actions_today' => AuditLog::where('user_id', $request->user()->id)
                     ->whereIn('action', self::MODERATOR_ACTIONS)

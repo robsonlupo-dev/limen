@@ -15,6 +15,7 @@ import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import StatusBubble from '@/Components/StatusBubble.vue'
 import TipGoalBar from '@/Components/TipGoalBar.vue'
+import CustomOrderRequestModal from '@/Components/CustomOrderRequestModal.vue'
 import HighlightRow from '@/Components/HighlightRow.vue'
 import HighlightViewer from '@/Components/HighlightViewer.vue'
 import Lightbox from '@/Components/Lightbox.vue'
@@ -64,6 +65,9 @@ const hasAbout = computed(() =>
 
 const showTipModal = ref(false)
 const showGiftModal = ref(false)
+// Encomenda sob medida (Onda 4 §4.3): membro logado pede conteúdo personalizado.
+const showOrderModal = ref(false)
+const canOrder = canTip // mesma porta: role:consumer (o backend re-verifica tudo).
 const showReportModal = ref(false)
 const showVerified = ref(false)
 
@@ -225,6 +229,16 @@ async function unlockChat() {
                         @unlock-chat="showChatAccessModal = true"
                     />
                     <ProfileRates :performer="performer" class="mt-4 hidden lg:block" />
+
+                    <!-- Encomenda sob medida (Onda 4 §4.3): pedir conteúdo personalizado. -->
+                    <button
+                        v-if="canOrder"
+                        type="button"
+                        class="mt-4 block w-full rounded-xl border border-limen-line bg-limen-surface px-4 py-2.5 text-sm text-limen-ink hover:border-limen-gold/40"
+                        @click="showOrderModal = true"
+                    >
+                        Encomendar conteúdo
+                    </button>
                 </aside>
             </div>
         </div>
@@ -243,6 +257,14 @@ async function unlockChat() {
             :performer-slug="performer.slug"
             :performer-name="performer.stage_name"
             @close="showGiftModal = false"
+        />
+
+        <CustomOrderRequestModal
+            v-if="canOrder"
+            :show="showOrderModal"
+            :performer-slug="performer.slug"
+            :performer-name="performer.stage_name"
+            @close="showOrderModal = false"
         />
 
         <ReportModal

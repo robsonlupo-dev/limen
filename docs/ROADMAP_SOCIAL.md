@@ -561,6 +561,75 @@ Anonimato (revisão dedicada — nada acima de LOW): o progresso é só **soma +
 nunca "quem" nem contagem de apoiadores (`raisedFor` é `SUM`, sem COUNT/DISTINCT);
 `LiveTipGoalProgress` não leva nem o FanAlias. Testes Pest (`TipGoalTest`, prefixo `tg`).
 
-**Próximos tijolos da Onda 4 (esboço):** encomenda/conteúdo sob medida (escrow) ·
-extrato financeiro + previsão de saque · voz-PPV e upload novo no chat. O **fork da
-assinatura** (global × fan-club × híbrido) é decisão à parte, no doc de estratégia.
+## 4.3 — Encomenda sob medida com escrow ✅ (entregue, PR #299)
+
+O membro **encomenda** conteúdo personalizado a uma performer por um preço que ele
+**oferece**; a performer aceita ou recusa. O valor só sai da carteira do membro quando ela
+**aceita** — e fica **retido (escrow)** até a entrega ser aprovada. É a primeira feature da
+Onda 4 que movimenta um **fluxo de token em custódia**, então segue a mesma disciplina do
+depósito da chamada agendada (`CallReservationService`): **sem saldo de "hold" genérico** —
+a própria LINHA da encomenda é o registro do escrow.
+
+Decisões travadas com o PO (29/09/2026):
+- **Membro oferece, performer aceita/recusa** (não é a performer que publica um "cardápio").
+- **Escrow no aceite da performer** (o débito do membro acontece aí; antes disso, zero token).
+- **Liberação na entrega, com prazo de contestação** (o membro aprova, ou a janela vence e o
+  cron libera; dentro da janela ele pode contestar → moderação).
+- **A entrega é uma peça do cofre vinculada ao pedido** (`performer_content` com
+  `custom_order_id`), moderada pelo MESMO pipeline (CSAM/ffmpeg) do resto do cofre.
+
+Ciclo de vida (status em `custom_orders`):
+`requested` → `accepted` (escrow) → `delivered` → `released` **ou** `refunded`;
+ramos: `declined` (performer recusa), `cancelled` (membro cancela antes do aceite),
+`expired` (ninguém aceitou a tempo), `disputed` (membro contesta → decisão humana).
+
+Contabilidade do escrow (dona única: `CustomOrderService`):
+- **HOLD** no aceite: débito `spend_custom_order` do membro (re-checa saldo sob lock do
+  wallet; saldo < 0 é impossível). O `spend_ledger_id` fica na linha.
+- **SETTLE** (uma vez só, guardado por `escrow_settled` re-lido sob `lockForUpdate`):
+  - **release** → `custom_order_credit` 80/20 à performer (rate `content`);
+  - **refund** → `custom_order_refund` 100% ao membro (fora do teto e fora do payout: é
+    devolução, não ganho) + **revoga o `content_unlock`** do membro (reembolsado não fica
+    com o conteúdo).
+- Cada transição relê a linha sob lock e re-checa o estado; os broadcasts
+  (`CustomOrderChanged`, canal `user.{id}` do destinatário, payload só `order_id`+`outcome`)
+  saem **pós-commit**. Cada carteira é travada isoladamente (aceite trava a do membro;
+  release trava a da performer; refund trava a do membro) — nunca as duas juntas, então não
+  há deadlock cruzado.
+
+Entrega e escopo da peça:
+- `PerformerContentService::deliverCustomPiece` publica a peça como `EXCLUSIVE`, `price 0`,
+  `custom_order_id` setado; foto fica pronta na hora (CSAM antes de gravar), vídeo vai para
+  o job de sanitização.
+- A peça personalizada **nunca vaza na vitrine**: `galleryFor` e `forOwner` filtram
+  `whereNull('custom_order_id')`, e `denialForUnlock` recusa (OFFLINE) uma peça de encomenda
+  — ninguém a desbloqueia pela porta normal. O membro recebe um `content_unlock` na entrega
+  (precisa ver para aprovar/contestar); só ele a enxerga.
+
+Cron (`custom-orders:process`, de 10 em 10 min, idempotente por `escrow_settled`):
+expira pedidos não aceitos, estorna aceitos não entregues, e libera entregas passada a
+janela de contestação — **estornando** (em vez de liberar) quando a mídia não ficou pronta,
+para o membro nunca pagar por conteúdo que não pôde ver.
+
+Disputa: o membro contesta dentro da janela → `disputed` (sai da varredura automática); um
+**moderador** decide em `/moderacao/encomendas` (release à performer ou refund ao membro).
+v1 é a fila + a decisão; UI rica de prova embutida é follow-up (a mídia é servida pelos
+endpoints de conteúdo, que re-checam acesso).
+
+Anonimato (M.13.10): a performer vê o membro **só por FanAlias** (`forPerformer`/
+`forModeration`), nunca id/nome; o broadcast não leva member_id.
+
+Revisão de segurança dedicada (escrow): **nada acima de MEDIUM**. O MEDIUM (membro podia
+liberar escrow por vídeo ainda em processamento/falho) foi fechado — `approve` e
+`can_approve` exigem mídia **pronta**, espelhando o estorno-se-não-pronta do cron. LOW
+fechado: performer sumida entre aceite e liberação passa a **estornar o membro** em vez de
+reter os tokens. Testes Pest (`CustomOrderTest`, prefixo `co`) cobrem dinheiro exato,
+idempotência, estornos, cron, autorização de dono, anonimato e escopo da peça.
+
+Preço: livre com piso/passo/teto (`monetization.custom_order`: 20 / passo 5 / 20000);
+janelas e tetos anti-flood em `config/custom_order.php` (aceite 48h, entrega 168h,
+contestação 72h; máx. 10 ativas/membro, 3 ativas/par).
+
+**Próximos tijolos da Onda 4 (esboço):** extrato financeiro + previsão de saque · voz-PPV e
+upload novo no chat. O **fork da assinatura** (global × fan-club × híbrido) é decisão à
+parte, no doc de estratégia.
