@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\MessageRedacted;
+use App\Events\MessageRevealed;
 use App\Events\MessageSent;
 use App\Events\NewMessage;
 use App\Exceptions\ChatException;
@@ -299,6 +300,11 @@ class ChatService
             // Revelar conta como leitura: zera não-lidas e confirma ao remetente.
             'read_at' => $message->read_at ?? now(),
         ])->save();
+
+        // Empurra em tempo real para a outra ponta (o REMETENTE) esconder a própria
+        // bolha na hora — sem isso, a cópia dele só virava "expirada" no próximo
+        // reload. Payload só metadado (nunca o corpo).
+        event(new MessageRevealed($message));
 
         return $message;
     }

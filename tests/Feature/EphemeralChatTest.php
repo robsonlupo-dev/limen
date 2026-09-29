@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\MessageRevealed;
 use App\Events\NewMessage;
 use App\Exceptions\ChatException;
 use App\Models\Message;
@@ -130,6 +131,22 @@ it('revelar devolve o corpo, grava revealed_at e some nas duas pontas depois', f
 
     // O corpo permanece no banco — só a exibição some (moderação lê a prova).
     expect($msg->fresh()->body)->toBe('segredo');
+});
+
+it('avisa o remetente em tempo real (MessageRevealed) ao revelar', function () {
+    Event::fake([MessageRevealed::class]);
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 5);
+    grantChatAccess($member, $conversation);
+    app(ChatService::class)->setEphemeral($conversation, $member, true);
+    $msg = app(ChatService::class)->sendMessage($conversation->fresh(), $member, 'segredo');
+
+    $this->actingAs($performer->user)
+        ->postJson(route('chat.ephemeral.reveal', [$conversation->id, $msg->id]))->assertOk();
+
+    // O broadcast leva só metadado (id/sender), nunca o corpo — a outra ponta
+    // esconde a própria bolha na hora.
+    Event::assertDispatched(MessageRevealed::class, fn (MessageRevealed $e) => $e->message->id === $msg->id);
 });
 
 it('o REMETENTE não revela a própria mensagem (404 not_revealable)', function () {
