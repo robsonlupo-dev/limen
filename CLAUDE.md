@@ -290,7 +290,19 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   aba "Salvos" em Descobrir (`saved.index`), item reresolvido por espectador (paywall
   intacto). Hard Delete: `DeletionService::purgeContentSaves` apaga o mapa do titular
   (FK não cascateia — user anonimizado); lado da performer cascateia pelo DELETE das
-  peças. Não mexe em token. Falta da Onda 3: insights da performer.
+  peças. Não mexe em token.
+  (3) **Insights da performer** (`PerformerInsightsService`, `Performer/Insights/Index.vue`,
+  aba Insights no Painel) — painel só-leitura e AGREGADO: visão geral, funil
+  visita→chat→compra, melhores horários, evolução de ganhos; deriva do que já existe
+  (profile_visits/follows/story_views/token_ledger/chat_access/content_unlocks), sem
+  tabela nova; cacheado por (performer, janela 7/30). ⚠️ **Toda métrica de PRESENÇA sai
+  em FAIXA** (`PerformerProfile::followersLabelFor`), NUNCA número exato — contagem
+  exata de perfil pequeno é canal lateral de deanonimização (o mesmo motivo do piso de
+  seguidores/visitantes). Story views excluem `exclusive`; horários em 4 faixas de 6h só
+  com volume; taxas do funil só com base ≥ piso. Ações pagas/ganhos são exatos (receita
+  dela). **Ao evoluir insights, jamais devolver contagem exata de presença.** Não mexe
+  em token. **Onda 3 completa — roadmap social (estilo Insta) fechado.** Follow-up
+  opcional: push do canal via Reverb.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

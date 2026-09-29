@@ -77,6 +77,7 @@ use App\Http\Controllers\Web\Performer\MemberProfileController;
 use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
+use App\Http\Controllers\Web\Performer\InsightsController;
 use App\Http\Controllers\Web\Performer\PerformerContentController;
 use App\Http\Controllers\Web\Performer\PerformerLiveController;
 use App\Http\Controllers\Web\Performer\VoiceIntroController;
@@ -1094,6 +1095,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::get('/performer/conteudo/gerenciar', [PerformerContentController::class, 'page'])
                 ->middleware('throttle:60,1')
                 ->name('performer.content')
+                ->can('performer-active');
+
+            // Insights da performer (roadmap social, Onda 3 — § 3.2): painel só-leitura
+            // e agregado. Tudo cacheado no service; nenhum id de membro trafega.
+            Route::get('/performer/insights', [InsightsController::class, 'page'])
+                ->middleware('throttle:60,1')
+                ->name('performer.insights')
                 ->can('performer-active');
 
             Route::get('/performer/conteudo', [PerformerContentController::class, 'index'])
