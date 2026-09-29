@@ -8,10 +8,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\OpenChatAccessRequest;
 use App\Http\Requests\SendMessageRequest;
 use App\Http\Requests\Web\StoreChatAudioRequest;
+use App\Http\Requests\Web\StorePpvMessageRequest;
 use App\Http\Requests\Web\StoreStoryReplyRequest;
 use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\PerformerContent;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
 use App\Models\PerformerStory;
@@ -19,6 +21,7 @@ use App\Models\User;
 use App\Services\ChatAccessService;
 use App\Services\ChatAudioStore;
 use App\Services\ChatService;
+use App\Services\ContentVisibilityService;
 use App\Services\MemberPhotoService;
 use App\Services\PerformerCatalogService;
 use App\Services\StoryVisibilityService;
@@ -55,6 +58,7 @@ class ChatController extends Controller
         private TokenCreditPolicy $creditPolicy,
         private PerformerCatalogService $catalog,
         private ChatAudioStore $audioStore,
+        private ContentVisibilityService $contentVisibility,
     ) {}
 
     /**
@@ -333,7 +337,8 @@ class ChatController extends Controller
         // só é lida (e consumida) quando o destinatário TOCA para revelar (reveal).
         // Marcar aqui a consumiria sem nunca ter sido vista. Por isso a marcação
         // automática cobre só `ephemeral = false`.
-        $viewerId = $request->user()->id;
+        $viewer = $request->user();
+        $viewerId = $viewer->id;
 
         if (! $state['can_read']) {
             $messages = new LengthAwarePaginator([], 0, 20, 1, ['path' => $request->url()]);
@@ -349,10 +354,10 @@ class ChatController extends Controller
             }
 
             $messages = $conversation->messages()
-                ->with(['gift:id,slug,name', 'replyToStory:id,expires_at'])
+                ->with(['gift:id,slug,name', 'replyToStory:id,expires_at', 'ppvContent.performerProfile.user'])
                 ->orderByDesc('id')
                 ->paginate(20)
-                ->through(function (Message $m) use ($state, $viewerId, $viewerIsPerformer, $conversation, $showReadReceipt) {
+                ->through(function (Message $m) use ($state, $viewer, $viewerId, $viewerIsPerformer, $conversation, $showReadReceipt) {
                     // Timer efêmero (Onda 3), dois estados distintos:
                     //  - SELADA: efêmera não revelada, do lado do DESTINATÁRIO →
                     //    "toque para ver". O corpo NÃO trafega até o reveal (mais
@@ -383,8 +388,14 @@ class ChatController extends Controller
                             && $m->gift_id === null
                             && $m->sender_id === $viewerId
                             && $m->created_at->copy()->addMinutes((int) config('chat.redact_window_minutes'))->isFuture(),
-                        // Corpo só com leitura destravada e conteúdo não escondido.
-                        'body' => (! $state['locked'] && ! $hidden) ? $m->body : null,
+                        // Corpo só com leitura destravada e conteúdo não escondido. PPV
+                        // não tem corpo de texto (o rótulo de sistema não vai à tela); a
+                        // bolha é desenhada do bloco `ppv`.
+                        'body' => (! $state['locked'] && ! $hidden && ! $m->isPpv()) ? $m->body : null,
+                        // PPV (Onda 4): conteúdo travado do cofre. O bloco leva o preço, o
+                        // estado (locked/unlocked/owner) e as URLs de preview borrado e da
+                        // mídia (só quando o viewer pode ver). Escondido se redigido.
+                        'ppv' => $this->ppvBlock($m, $viewer),
                         // Presente: sempre exposto (ação do membro, catálogo público); redigido → escondido.
                         'gift_slug' => $m->isRedacted() ? null : $m->gift?->slug,
                         'gift_name' => $m->isRedacted() ? null : $m->gift?->name,
@@ -462,7 +473,101 @@ class ChatController extends Controller
             // Timer efêmero (Onda 3): segundos que o conteúdo revelado fica visível
             // antes de sumir (contagem client-side). O servidor consome no reveal.
             'ephemeralSeconds' => (int) config('chat.ephemeral_reveal_seconds'),
+            // PPV no chat (Onda 4): o cofre da performer para o seletor "mandar
+            // conteúdo travado" (só quando quem olha é a performer dona). Limites de
+            // preço para o front validar antes de enviar.
+            'ppv' => [
+                'can_send' => $viewerIsPerformer,
+                'min_price' => (int) config('monetization.ppv.min_price'),
+                'max_price' => (int) config('monetization.ppv.max_price'),
+                'price_step' => (int) config('monetization.ppv.price_step'),
+                'vault' => $viewerIsPerformer
+                    ? $this->ppvVault($conversation->performerProfile)
+                    : [],
+            ],
         ]);
+    }
+
+    /**
+     * PPV no chat (Onda 4): o bloco da bolha de conteúdo travado. `null` quando não é
+     * PPV ou está redigido (a bolha vira "apagada"). A REGRA de acesso é do
+     * ContentVisibilityService (dona única) — o controller só monta as URLs. A URL da
+     * mídia SÓ sai quando o viewer pode ver (dona, grátis ou desbloqueado E performer
+     * de pé); senão vai o preview BORRADO (irreversível), nunca os bytes reais.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function ppvBlock(Message $m, User $viewer): ?array
+    {
+        if (! $m->isPpv() || $m->isRedacted()) {
+            return null;
+        }
+
+        $content = $m->ppvContent;
+
+        // Peça apagada (nullOnDelete) → bolha "indisponível", sem preço acionável.
+        if ($content === null) {
+            return ['available' => false];
+        }
+
+        $state = $this->contentVisibility->stateFor($viewer, $content);
+        $canView = $this->contentVisibility->canView($viewer, $content);
+        $isVideo = $content->isVideo();
+        $isOwner = $state === 'owner';
+
+        // URL da mídia real só quando o viewer PODE ver. A DONA serve pela rota DELA
+        // (performer.content.image → pôster do vídeo / a foto): as rotas content.* são
+        // `role:consumer` e barrariam a performer, deixando a própria bolha dela com a
+        // imagem quebrada. O MEMBRO destravado serve pela rota de consumidor
+        // (content.image/video), que já checa canView (404 se não pode).
+        $mediaUrl = null;
+        if ($canView) {
+            $mediaUrl = $isOwner
+                ? route('performer.content.image', $content->id)
+                : ($isVideo ? route('content.video', $content->id) : route('content.image', $content->id));
+        }
+
+        return [
+            'available' => true,
+            'price' => (int) $m->ppv_price_tokens,
+            'kind' => $isVideo ? 'video' : 'photo',
+            // owner / unlocked / free / locked — do PRÓPRIO viewer (nunca superfície da
+            // performer sobre o membro).
+            'state' => $state,
+            // Do lado da DONA a mídia é o pôster/foto (rota dela), não o player — o front
+            // renderiza <img> quando is_owner, mesmo em vídeo.
+            'is_owner' => $isOwner,
+            // Prévia borrada irreversível (baixa resolução) — servível mesmo travado.
+            'preview_url' => route('content.blur', $content->id),
+            // Bytes reais só quando pode ver; senão null e a UI mostra o borrado.
+            'media_url' => $mediaUrl,
+        ];
+    }
+
+    /**
+     * PPV no chat (Onda 4): o cofre da performer para o seletor de "mandar conteúdo
+     * travado" — só peças PRONTAS dela, na ordem da vitrine. Miniatura pela porta da
+     * própria performer (performer.content.image), nunca a URL de disco.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function ppvVault(PerformerProfile $profile): array
+    {
+        return PerformerContent::query()
+            ->where('performer_profile_id', $profile->id)
+            ->ready()
+            ->orderedForShowcase()
+            ->limit(60)
+            ->get()
+            ->map(fn (PerformerContent $c) => [
+                'id' => $c->id,
+                'kind' => $c->isVideo() ? 'video' : 'photo',
+                'access_level' => $c->access_level,
+                'price_tokens' => (int) $c->price_tokens,
+                'thumb_url' => route('performer.content.image', $c->id),
+            ])
+            ->values()
+            ->all();
     }
 
     public function storeMessage(SendMessageRequest $request, Conversation $conversation): JsonResponse
@@ -490,6 +595,73 @@ class ChatController extends Controller
             'message_id' => $message->id,
             'created_at' => $message->created_at,
         ], 201);
+    }
+
+    /**
+     * PPV no chat (Onda 4): a PERFORMER manda uma peça do cofre TRAVADA, com preço. A
+     * policy `view` garante participante; o ChatService recusa quem não é a dona da
+     * conversa, peça que não é dela/pronta, e preço inválido (422 com reason).
+     */
+    public function storePpv(StorePpvMessageRequest $request, Conversation $conversation): JsonResponse
+    {
+        abort_if($request->user()->cannot('view', $conversation), 404);
+
+        $content = PerformerContent::find((int) $request->validated('content_id'));
+        if ($content === null) {
+            return response()->json([
+                'reason' => ChatException::PPV_INVALID,
+                'message' => 'Conteúdo não encontrado.',
+            ], 422);
+        }
+
+        try {
+            $message = $this->chatService->sendPpvMessage(
+                $conversation,
+                $request->user(),
+                $content,
+                (int) $request->validated('price_tokens'),
+            );
+        } catch (ChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message_id' => $message->id,
+            'created_at' => $message->created_at,
+        ], 201);
+    }
+
+    /**
+     * PPV no chat (Onda 4): o MEMBRO desbloqueia (paga) a peça travada. Débito +
+     * crédito 80/20 + linha content_unlocks, atômicos e idempotentes no ChatService.
+     * Devolve o bloco `ppv` já desbloqueado para o front trocar a bolha sem reload.
+     */
+    public function unlockPpv(Request $request, Conversation $conversation, Message $message): JsonResponse
+    {
+        abort_if($request->user()->cannot('view', $conversation), 404);
+
+        try {
+            $this->chatService->unlockPpvMessage($conversation, $request->user(), $message);
+        } catch (ChatException $e) {
+            return response()->json(['reason' => $e->reason, 'message' => $e->getMessage()], match ($e->reason) {
+                ChatException::NOT_A_PARTICIPANT => 404,
+                default => 422,
+            });
+        } catch (InsufficientBalanceException) {
+            return response()->json([
+                'reason' => 'insufficient_balance',
+                'message' => 'Saldo de tokens insuficiente para desbloquear. Compre tokens na sua carteira.',
+            ], 422);
+        }
+
+        // Re-monta o bloco PPV já desbloqueado (mesma fonte do show) para trocar a bolha
+        // borrada pela mídia na hora.
+        $message->refresh()->loadMissing('ppvContent.performerProfile.user');
+
+        return response()->json([
+            'message_id' => $message->id,
+            'ppv' => $this->ppvBlock($message, $request->user()),
+        ], 200);
     }
 
     /**

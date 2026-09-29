@@ -475,3 +475,62 @@ no Painel. **Fecha a Onda 3.**
 
 **Onda 1 completa.** Próximas frentes: Onda 2 (canal de transmissão + modo efêmero)
 e Onda 3 (fixar conteúdo + insights), ambas em esboço acima.
+
+---
+
+# ONDA 4 — Monetização direta (além do social)
+
+Fechado o social (Ondas 1–3, engajamento/retenção), a Onda 4 CONVERTE a atenção em
+caixa. Ver o doc de estratégia "Monetização Limen — Onda 4 & o fork da assinatura"
+(comparação dos modelos global × fan-club × híbrido + as decisões abertas do fork).
+
+## 4.1 — PPV no chat (conteúdo travado do cofre) ✅ (entregue, PR #296)
+
+A **performer manda uma peça do cofre dela** (`performer_content`, já moderada)
+TRAVADA na DM, com um **preço próprio**; o **membro paga tokens** para desbloquear.
+Primeiro tijolo da Onda 4 e **model-agnostic** (serve global, fan-club ou híbrido) —
+não mexe na Premissa 0.
+
+Decisões travadas com o PO (29/09/2026):
+- **Preço LIVRE com teto** (`monetization.ppv`: piso 5, passo 5, teto 5000;
+  `TokenCreditPolicy::isValidPpvPrice`).
+- **Só em chat ATIVO** — a performer só manda PPV dentro de uma conversa de pé.
+- **Mantém o acesso pós-compra** — o desbloqueio é permanente (linha `content_unlocks`);
+  o membro não é recobrado. (Ressalva de moderação herdada do conteúdo: peça de
+  performer suspensa/banida para de ser servida mesmo a quem pagou — `canView` checa
+  `performerIsReachable`; a linha do unlock permanece e volta a servir se ela reativar.)
+- **Mídia do COFRE** (v1): foto/vídeo já moderados; upload novo no chat e voz-PPV
+  ficam para uma próxima (evita um pipeline de mídia novo neste PR).
+
+Arquitetura (reuso, superfície nova mínima):
+- Colunas `messages.ppv_content_id` (FK `performer_content`, nullOnDelete) +
+  `ppv_price_tokens` (a PRESENÇA do preço marca a mensagem como PPV — `isPpv()`, mesma
+  convenção sem-coluna-de-tipo do áudio/presente).
+- Desbloqueio (`ChatService::unlockPpvMessage` → `doUnlockPpv`) **espelha o
+  `ContentUnlockService`**: trava as duas carteiras em ordem crescente de user_id,
+  cobra o membro (`spend_ppv_message`), credita a performer 80/20
+  (`ppv_message_credit`, rate `content`, `applied_rate` congelado), e grava a **MESMA
+  linha `content_unlocks`** do cofre (UNIQUE peça×membro — nunca cobra duas vezes; e o
+  membro passa a ver a peça também na galeria). `ppv_message_credit` é `*_credit`
+  (nunca respeita teto; ENTRA no payout).
+- **PPV é venda DIRIGIDA:** ignora o gate de TIER (a performer vende o exclusivo direto
+  a este membro), mas mantém peça pronta + performer de pé + role consumer.
+- Serving reusa o do conteúdo permanente: `content.image`/`content.video`
+  (`canView`) para o membro destravado; `content.blur` (borrado irreversível) enquanto
+  travado; a DONA vê pelo `performer.content.image` (as rotas de consumidor são
+  `role:consumer`). A URL da mídia real **nunca** sai travada nem em broadcast.
+- Rotas `chat.ppv.store` (performer) e `chat.ppv.unlock` (membro). Evento
+  `MessagePpvUnlocked` no canal PRIVADO DO MEMBRO (`user.{id}`), nunca no da conversa
+  (não vaza o id do membro à performer). Insights contam `ppv_message_credit`.
+
+Revisão de segurança dedicada: nada CRÍTICO/ALTO/MÉDIO; 2 LOW corrigidos (bolha da
+própria performer usava rota de consumidor → imagem quebrada; e o id do membro ia no
+canal da conversa). Testes Pest (`PpvMessageTest`, prefixo `pv`): dinheiro 80/20,
+idempotência, saldo insuficiente, autorização (só a dona envia, só peça dela, preço
+válido, não-participante 404, dona não paga a própria), mídia não vaza travada, e o
+override de tier.
+
+**Próximos tijolos da Onda 4 (esboço):** metas de gorjeta (tip goals) · encomenda/
+conteúdo sob medida (escrow) · extrato financeiro + previsão de saque · voz-PPV e
+upload novo no chat. O **fork da assinatura** (global × fan-club × híbrido) é decisão
+à parte, no doc de estratégia.

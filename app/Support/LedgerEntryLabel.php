@@ -32,6 +32,7 @@ class LedgerEntryLabel
         // Gastos do membro
         'spend_tip' => 'Gorjeta enviada',
         'spend_content' => 'Conteúdo desbloqueado',
+        'spend_ppv_message' => 'Conteúdo no chat desbloqueado',
         'spend_chat_access' => 'Abertura de conversa',
         'spend_gift' => 'Presente enviado',
         'spend_boost' => 'Destaque no catálogo',
@@ -47,6 +48,7 @@ class LedgerEntryLabel
         'tip_credit' => 'Gorjeta recebida',
         'chat_access_credit' => 'Conversa recebida',
         'content_credit' => 'Conteúdo vendido',
+        'ppv_message_credit' => 'Conteúdo no chat vendido',
         'gift_credit' => 'Presente recebido',
         'call_credit' => 'Chamada recebida',
         'call_noshow_credit' => 'Compensação por falta',

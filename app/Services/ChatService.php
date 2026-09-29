@@ -2,26 +2,33 @@
 
 namespace App\Services;
 
+use App\Events\MessagePpvUnlocked;
 use App\Events\MessageRedacted;
 use App\Events\MessageRevealed;
 use App\Events\MessageSent;
 use App\Events\NewMessage;
 use App\Exceptions\ChatException;
+use App\Exceptions\InsufficientBalanceException;
 use App\Jobs\ProcessChatAudio;
 use App\Models\AuditLog;
 use App\Models\ContentFlag;
+use App\Models\ContentUnlock;
 use App\Models\Conversation;
 use App\Models\Gift;
 use App\Models\Message;
 use Illuminate\Http\UploadedFile;
+use App\Models\PerformerContent;
 use App\Models\PerformerInterest;
 use App\Models\PerformerMessageQuota;
 use App\Models\PerformerProfile;
+use App\Models\TokenWallet;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\ChatContentFilter;
 use App\Support\FanAlias;
 use App\Support\MessageTeaser;
+use App\Support\TokenMath;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
@@ -46,6 +53,9 @@ class ChatService
     public function __construct(
         private ChatAccessService $chatAccessService,
         private ChatAudioStore $audioStore,
+        private TokenService $tokenService,
+        private TokenCreditPolicy $creditPolicy,
+        private ContentVisibilityService $contentVisibility,
     ) {}
 
     /**
@@ -307,6 +317,207 @@ class ChatService
         event(new MessageRevealed($message));
 
         return $message;
+    }
+
+    /**
+     * PPV no chat (Onda 4): a PERFORMER manda uma peça do cofre dela TRAVADA, com um
+     * preço próprio. Só em chat ATIVO (decisão do PO), só a dona da conversa, só peça
+     * DELA e PRONTA, preço livre dentro do piso/passo/teto. Nada de token aqui — a
+     * cobrança acontece no DESBLOQUEIO (unlockPpvMessage). O corpo é rótulo de sistema;
+     * a bolha PPV é desenhada do bloco `ppv` no controller. PPV nunca é efêmero.
+     *
+     * @throws ChatException não-participante, conversa arquivada, ou envio inválido
+     */
+    public function sendPpvMessage(Conversation $conversation, User $performer, PerformerContent $content, int $priceTokens): Message
+    {
+        $conversation->loadMissing('performerProfile');
+
+        if (! $conversation->hasParticipant($performer)) {
+            throw ChatException::notAParticipant();
+        }
+
+        // Só em chat ativo: PPV só dentro de uma conversa de pé (decisão do PO).
+        if ($conversation->status !== 'active') {
+            throw ChatException::conversationArchived();
+        }
+
+        // Só a PERFORMER dona da conversa envia PPV — o membro nunca vende.
+        if ((int) $performer->id !== (int) $conversation->performerProfile->user_id) {
+            throw ChatException::ppvInvalid('Só a performer pode enviar conteúdo travado.');
+        }
+
+        // A peça tem que ser DELA e estar PRONTA (foto sempre; vídeo só após o ffmpeg).
+        if ((int) $content->performer_profile_id !== (int) $conversation->performerProfile->id
+            || ! $content->isReady()) {
+            throw ChatException::ppvInvalid('Este conteúdo não pode ser enviado.');
+        }
+
+        // Preço livre com piso/passo/teto — dona única da regra (TokenCreditPolicy).
+        if (! $this->creditPolicy->isValidPpvPrice($priceTokens)) {
+            throw ChatException::ppvInvalid('Preço inválido para o conteúdo travado.');
+        }
+
+        $message = DB::transaction(function () use ($conversation, $performer, $content, $priceTokens) {
+            $message = Message::forceCreate([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $performer->id,
+                'body' => 'Conteúdo bloqueado',
+                'ephemeral' => false,
+                'ppv_content_id' => $content->id,
+                'ppv_price_tokens' => $priceTokens,
+            ]);
+
+            $conversation->forceFill(['last_message_at' => $message->created_at])->save();
+
+            return $message;
+        });
+
+        $this->broadcastMessage($conversation, $message);
+
+        return $message;
+    }
+
+    /**
+     * PPV no chat (Onda 4): o MEMBRO desbloqueia (paga) a peça travada. Espelha o
+     * ContentUnlockService — trava as DUAS carteiras em ordem crescente de user_id,
+     * cobra o membro (spend_ppv_message) e credita a performer no split 80/20
+     * (ppv_message_credit), e grava a MESMA linha `content_unlocks` do cofre (par
+     * peça×membro, UNIQUE — nunca cobra duas vezes; e o membro passa a ver a peça
+     * também na galeria).
+     *
+     * Diferença do gate da galeria: PPV é venda DIRIGIDA (a performer mandou a peça a
+     * este membro), então NÃO exige tier — mas exige peça pronta, performer de pé e
+     * role consumer (as guardas de moderação/serving continuam).
+     *
+     * @throws ChatException não-participante ou PPV indisponível
+     * @throws InsufficientBalanceException saldo insuficiente
+     */
+    public function unlockPpvMessage(Conversation $conversation, User $member, Message $message): ContentUnlock
+    {
+        if (! $conversation->hasParticipant($member)) {
+            throw ChatException::notAParticipant();
+        }
+
+        if ((int) $message->conversation_id !== (int) $conversation->id) {
+            throw ChatException::notAParticipant(); // máscara: não confirma a mensagem
+        }
+
+        if (! $message->isPpv()) {
+            throw ChatException::ppvNotUnlockable();
+        }
+
+        $content = $message->ppvContent; // null se a peça foi apagada (nullOnDelete)
+        if ($content === null) {
+            throw ChatException::ppvNotUnlockable();
+        }
+
+        $performerUser = $content->performerProfile?->user;
+        // A dona nunca paga a própria peça (o remetente do PPV é a performer).
+        if ($performerUser === null || (int) $performerUser->id === (int) $member->id) {
+            throw ChatException::ppvNotUnlockable();
+        }
+
+        // Fast-path: já desbloqueado (fora da transação, sem lock) — idempotente.
+        $existing = ContentUnlock::where('performer_content_id', $content->id)
+            ->where('user_id', $member->id)
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        try {
+            $unlock = $this->doUnlockPpv($member, $message, $content, $performerUser);
+        } catch (UniqueConstraintViolationException) {
+            // Corrida perdida apesar do lock: a transação reverteu (sem cobrança dupla).
+            return ContentUnlock::where('performer_content_id', $content->id)
+                ->where('user_id', $member->id)
+                ->firstOrFail();
+        }
+
+        // Tempo real: as OUTRAS sessões do membro trocam a bolha borrada pela mídia
+        // (payload só metadado; a URL vem da re-busca autorizada em show).
+        event(new MessagePpvUnlocked($message, $member->id));
+
+        return $unlock;
+    }
+
+    private function doUnlockPpv(User $member, Message $message, PerformerContent $content, User $performerUser): ContentUnlock
+    {
+        return DB::transaction(function () use ($member, $message, $content, $performerUser) {
+            TokenWallet::firstOrCreate(['user_id' => $member->id], ['balance' => 0]);
+            TokenWallet::firstOrCreate(['user_id' => $performerUser->id], ['balance' => 0]);
+
+            // Locks em ordem crescente de user_id (anti-deadlock, como o Tip/Content).
+            TokenWallet::whereIn('user_id', [$member->id, $performerUser->id])
+                ->orderBy('user_id')
+                ->lockForUpdate()
+                ->get();
+
+            // Re-check da idempotência sob o lock: dois desbloqueios concorrentes do
+            // mesmo membro serializam na carteira dele; o segundo relê e devolve.
+            $existing = ContentUnlock::where('performer_content_id', $content->id)
+                ->where('user_id', $member->id)
+                ->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            // Guardas de moderação/serving (sem gate de tier: PPV é venda dirigida).
+            if (! $content->isReady()
+                || $member->role !== 'consumer'
+                || ! $this->contentVisibility->performerIsReachable($content->performerProfile)) {
+                throw ChatException::ppvNotUnlockable();
+            }
+
+            $price = (int) $message->ppv_price_tokens;
+
+            $memberWallet = TokenWallet::where('user_id', $member->id)->first();
+            if (! $memberWallet || TokenMath::cmp($memberWallet->balance, $price) < 0) {
+                throw new InsufficientBalanceException($price, $memberWallet?->balance ?? 0);
+            }
+
+            // Débito do membro. reference = a MENSAGEM (o envio precificado).
+            $spend = $this->tokenService->debit(
+                $member,
+                $price,
+                'spend_ppv_message',
+                Message::class,
+                $message->id,
+                "Desbloqueio de conteúdo no chat #{$message->id}",
+            );
+
+            // Crédito 80/20 da performer (taxa 'content'), applied_rate congelado; nunca
+            // respeita teto (ppv_message_credit é *_credit). Descrição por FanAlias.
+            $credit = $this->creditPolicy->creditWithSplit(
+                $performerUser,
+                $price,
+                'content',
+                'ppv_message_credit',
+                Message::class,
+                $message->id,
+                'Conteúdo no chat vendido para '.FanAlias::label($content->performer_profile_id, $member->id),
+            );
+
+            // content_unlocks: o MESMO registro do cofre (par peça×membro, UNIQUE). Se
+            // disparar a UNIQUE (corrida além do lock), a transação inteira reverte e o
+            // catch de unlockPpvMessage devolve a vencedora — sem cobrança dupla. O
+            // preço gravado é o do PPV, que pode diferir do preço de vitrine da peça.
+            $unlock = new ContentUnlock;
+            $unlock->performer_content_id = $content->id;
+            $unlock->user_id = $member->id;
+            $unlock->tokens_paid = $price;
+            $unlock->spend_ledger_id = $spend->id;
+            $unlock->credit_ledger_id = $credit->id;
+            $unlock->unlocked_at = now();
+            $unlock->save();
+
+            Audit::log('chat.ppv_unlocked', $message, [
+                'tokens_paid' => $price,
+                'content_id' => $content->id,
+            ]);
+
+            return $unlock;
+        });
     }
 
     public function redactMessage(Conversation $conversation, User $sender, Message $message): Message

@@ -303,6 +303,24 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   dela). **Ao evoluir insights, jamais devolver contagem exata de presença.** Não mexe
   em token. **Onda 3 completa — roadmap social (estilo Insta) fechado.** Follow-up
   opcional: push do canal via Reverb.
+- **Onda 4 — Monetização direta** (`docs/ROADMAP_SOCIAL.md` §4; estratégia no doc
+  "Monetização Limen — Onda 4 & o fork da assinatura"). **PPV no chat** (§4.1,
+  entregue, PR #296): a performer manda uma peça do COFRE (`performer_content`, já
+  moderada) TRAVADA na DM com preço próprio (`messages.ppv_content_id` +
+  `ppv_price_tokens`; a presença do preço marca `isPpv()`); o membro paga para
+  desbloquear. `ChatService::unlockPpvMessage`/`doUnlockPpv` **espelha o
+  `ContentUnlockService`** (trava as 2 carteiras em ordem de user_id, débito
+  `spend_ppv_message` + crédito 80/20 `ppv_message_credit` rate `content`, e grava a
+  MESMA linha `content_unlocks` — UNIQUE peça×membro, nunca cobra 2×; o membro passa a
+  ver a peça na galeria). ⚠️ **PPV é venda DIRIGIDA: ignora o gate de TIER** (vende
+  exclusivo direto), mas mantém peça pronta + performer de pé + consumer, e o serving
+  reusa `canView` (peça de performer suspensa/banida para de servir mesmo a quem pagou).
+  A URL da mídia real nunca sai travada; travado mostra `content.blur`; a dona vê pelo
+  `performer.content.image`. Evento `MessagePpvUnlocked` no canal do MEMBRO (`user.{id}`),
+  nunca no da conversa. `ppv_message_credit` é `*_credit` (fora do teto, dentro do
+  payout) e conta nos insights. Preço livre com piso/passo/teto
+  (`monetization.ppv`, `isValidPpvPrice`). Decisões e limitações em
+  `docs/ROADMAP_SOCIAL.md` §4.1.
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

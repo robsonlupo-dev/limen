@@ -381,6 +381,24 @@ class TokenCreditPolicy
         return $price >= $this->contentFloor() && $step > 0 && $price % $step === 0;
     }
 
+    /**
+     * Preço de PPV no chat válido (Onda 4): livre com PISO, PASSO e TETO. A performer
+     * digita o valor ao mandar a peça travada — livre entre o piso e o teto, sempre
+     * múltiplo do passo (config `monetization.ppv`). O teto protege o cap do ledger de
+     * um preço absurdo; o piso/passo espelham a disciplina do conteúdo permanente.
+     */
+    public function isValidPpvPrice(int $price): bool
+    {
+        $min = (int) config('monetization.ppv.min_price');
+        $step = (int) config('monetization.ppv.price_step');
+        $max = (int) config('monetization.ppv.max_price');
+
+        return $price >= $min
+            && $price <= $max
+            && $step > 0
+            && $price % $step === 0;
+    }
+
     // ── Chat / economia de mensagem (M.13.1 SUPERADO 19/08/2026) ─────────────
 
     /** Custo em tokens do membro para abrir chat, por tier (2, ou 1 em Black/FC). */

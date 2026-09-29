@@ -616,6 +616,20 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->whereNumber('conversation')->whereNumber('message')
         ->name('chat.ephemeral.reveal');
 
+    // PPV no chat (roadmap social, Onda 4): a PERFORMER manda uma peça do cofre
+    // travada com preço (throttle de escrita); o MEMBRO desbloqueia pagando (throttle
+    // apertado — é ação de dinheiro, como o unlock do conteúdo permanente). A regra
+    // (dona da conversa / peça pronta / preço / cobrança 80/20) vive no ChatService.
+    Route::post('/chat/{conversation}/ppv', [ChatController::class, 'storePpv'])
+        ->middleware(['throttle:30,1', 'documents.accepted'])
+        ->whereNumber('conversation')
+        ->name('chat.ppv.store');
+
+    Route::post('/chat/{conversation}/mensagem/{message}/desbloquear', [ChatController::class, 'unlockPpv'])
+        ->middleware(['throttle:20,1', 'documents.accepted'])
+        ->whereNumber('conversation')->whereNumber('message')
+        ->name('chat.ppv.unlock');
+
     // Mensagem de voz (feat/chat-voice-message): upload (multipart) num throttle
     // mais apertado — é mídia, como o upload da intro/foto — e o serving dos bytes.
     Route::post('/chat/{conversation}/audio', [ChatController::class, 'storeAudio'])

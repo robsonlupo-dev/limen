@@ -767,6 +767,46 @@ Janelas 7/30 dias. Não mexe em token.
   cobre agregação/janela, faixas, exclusão de exclusivo, ausência de id de membro e
   só-performer.
 
+### PPV no chat — roadmap social, Onda 4 (§ 4.1, entregue) — ABRE A ONDA 4
+
+A performer manda uma peça do COFRE dela (`performer_content`, já moderada) TRAVADA na
+DM com um preço próprio; o membro paga tokens para desbloquear. Primeiro tijolo da Onda
+4 (monetização direta) e model-agnostic — não mexe na Premissa 0 (Círculo global).
+
+- **Marca sem coluna de tipo:** `messages.ppv_content_id` (FK `performer_content`,
+  nullOnDelete) + `ppv_price_tokens`; a PRESENÇA do preço é `Message::isPpv()` (mesma
+  convenção do áudio/presente). Fora do fillable — gravado por `forceCreate` no
+  `ChatService::sendPpvMessage`.
+- **Dinheiro (espelha `ContentUnlockService`, dona única do padrão):**
+  `ChatService::unlockPpvMessage` → `doUnlockPpv` trava as DUAS carteiras em ordem
+  crescente de user_id (anti-deadlock), cobra o membro (`spend_ppv_message`), credita a
+  performer 80/20 (`creditWithSplit(..., 'content', 'ppv_message_credit')`,
+  `applied_rate` congelado), e grava a MESMA linha `content_unlocks` (UNIQUE peça×membro).
+  Idempotente: fast-path + re-check sob lock + a UNIQUE como rede — corrida perde e a
+  transação inteira reverte (sem cobrança dupla, sem débito parcial). `ppv_message_credit`
+  é `*_credit` (nunca respeita teto; ENTRA em `payout.earning_entry_types`) e conta nos
+  insights (`PerformerInsightsService::EARNING_CREDIT_TYPES`).
+- **PPV é venda DIRIGIDA → ignora o gate de TIER** (a performer vende o exclusivo direto
+  a este membro), MAS mantém as guardas de moderação/serving: peça pronta
+  (`isReady`), performer de pé (`performerIsReachable`), role consumer. Ao desbloquear, o
+  membro passa a VER a peça também na galeria (é a linha do cofre).
+- **Mídia nunca vaza travada.** Serving reusa o conteúdo permanente: membro destravado →
+  `content.image`/`content.video` (que já checam `canView` → 404); enquanto travado só o
+  `content.blur` (borrado irreversível). A DONA vê pelo `performer.content.image` (as
+  rotas `content.*` são `role:consumer` e barram a performer — o `ppvBlock` marca
+  `is_owner` e o front renderiza `<img>` do pôster mesmo em vídeo). `media_url` só sai
+  quando `canView` é true; o corpo do PPV é rótulo de sistema (nunca vai à tela).
+- **Anonimato:** o evento `MessagePpvUnlocked` transmite no canal PRIVADO DO MEMBRO
+  (`user.{id}`), NUNCA no `conversation.{id}` (que a performer assina) — senão o id cru do
+  membro chegaria a ela, inclusive num membro que desbloqueia sem nunca ter mandado
+  mensagem. Descrição do crédito por `FanAlias`; `content_unlocks` esconde `user_id`.
+- **Rotas:** `chat.ppv.store` (performer, `StorePpvMessageRequest` só valida input; authz
+  no serviço) e `chat.ppv.unlock` (membro). Preço livre com piso/passo/teto
+  (`config/monetization.php` `ppv`, `TokenCreditPolicy::isValidPpvPrice`).
+- **Revisão dedicada:** nada CRÍTICO/ALTO/MÉDIO; 2 LOW corrigidos (bolha da própria
+  performer com rota de consumidor; id do membro no canal da conversa). Testes
+  `PpvMessageTest` (prefixo `pv`). PR #296.
+
 ## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
 
 Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a
