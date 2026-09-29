@@ -332,7 +332,7 @@ onBeforeUnmount(teardown)
                 <video ref="videoEl" autoplay playsinline class="h-full w-full object-contain" />
                 <audio ref="audioEl" autoplay />
 
-                <LiveOverlay :performer-slug="performer.slug" />
+                <LiveOverlay :performer-slug="performer.slug" :tip-goal="performer.tip_goal" />
 
                 <div v-if="status !== 'live'" class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center text-sm text-cream/80">
                     <span v-if="status === 'connecting'">Conectando à live…</span>

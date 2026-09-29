@@ -14,6 +14,7 @@ import GiftModal from '@/Components/GiftModal.vue'
 import ReportModal from '@/Components/ReportModal.vue'
 import StoryStrip from '@/Components/StoryStrip.vue'
 import StatusBubble from '@/Components/StatusBubble.vue'
+import TipGoalBar from '@/Components/TipGoalBar.vue'
 import HighlightRow from '@/Components/HighlightRow.vue'
 import HighlightViewer from '@/Components/HighlightViewer.vue'
 import Lightbox from '@/Components/Lightbox.vue'
@@ -115,6 +116,9 @@ async function unlockChat() {
 
             <!-- Status do dia (roadmap social, Onda 1a) -->
             <StatusBubble v-if="performer.status" :status="performer.status" class="mt-4" />
+
+            <!-- Meta de gorjeta (roadmap social, Onda 4 §4.2): barra agregada. -->
+            <TipGoalBar v-if="performer.tip_goal" :goal="performer.tip_goal" class="mt-4" />
 
             <!-- Destaques (roadmap social, Onda 1a) -->
             <HighlightRow v-if="highlights.length" :highlights="highlights" class="mt-4" @open="openHighlight = $event" />

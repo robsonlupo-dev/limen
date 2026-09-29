@@ -138,6 +138,12 @@ class PerformerPublicResource extends JsonResource
                 'countdown_at' => $this->activeStatus->countdown_at?->toIso8601String(),
                 'countdown_label' => $this->activeStatus->countdown_label,
             ] : null),
+            // Meta de gorjeta (Onda 4 §4.2): título + alvo + arrecadado (agregado, nunca
+            // "quem"). Só quando a relação foi eager-loaded (whenLoaded). O `raised`/`pct`
+            // é agregação (soma das gorjetas desde o início), resolvida pelo serviço.
+            'tip_goal' => $this->whenLoaded('activeTipGoal', fn () => $this->activeTipGoal
+                ? app(\App\Services\TipGoalService::class)->publicPayload($this->resource, $this->activeTipGoal)
+                : null),
         ];
     }
 

@@ -45,6 +45,10 @@ class ProfileController extends Controller
         // já filtra o expirado — null = sem status ativo.
         $status = $profile->activeStatus;
 
+        // Meta de gorjeta (Onda 4 §4.2) para prefill do editor: título + alvo +
+        // arrecadado até agora. null = sem meta ativa.
+        $tipGoal = app(\App\Services\TipGoalService::class)->publicPayload($profile);
+
         // Destaques (roadmap social, Onda 1a): coleções da performer + os stories
         // PÚBLICOS ativos que ela pode fixar (só público vira destaque no MVP).
         $highlightStories = app(\App\Services\PerformerStoryService::class)->activeFor($profile)
@@ -58,6 +62,12 @@ class ProfileController extends Controller
                 'countdown_at' => $status->countdown_at?->toIso8601String(),
                 'countdown_label' => $status->countdown_label,
             ] : null,
+            'tipGoal' => $tipGoal,
+            'tipGoalLimits' => [
+                'min_target' => (int) config('monetization.tip_goal.min_target'),
+                'max_target' => (int) config('monetization.tip_goal.max_target'),
+                'title_max_length' => (int) config('monetization.tip_goal.title_max_length'),
+            ],
             'highlights' => app(\App\Services\StoryHighlightService::class)->ownerView($profile),
             'highlightStories' => $highlightStories,
             'profile' => [

@@ -545,6 +545,16 @@ class PerformerProfile extends Model
         return $this->hasOne(PerformerStatus::class)->where('expires_at', '>', now());
     }
 
+    /**
+     * Meta de gorjeta ATIVA (roadmap social, Onda 4 §4.2): a mais recente ainda não
+     * encerrada (ended_at nulo). Uma por vez é garantido no TipGoalService. Eager-load
+     * (`->with('activeTipGoal')`) e o resource expõe por whenLoaded, sem N+1.
+     */
+    public function activeTipGoal(): HasOne
+    {
+        return $this->hasOne(TipGoal::class)->whereNull('ended_at')->latestOfMany();
+    }
+
     /** Coleções de destaque (Highlights) da performer (roadmap social, Onda 1a). */
     public function highlights(): HasMany
     {

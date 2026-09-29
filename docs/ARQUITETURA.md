@@ -807,6 +807,35 @@ DM com um preço próprio; o membro paga tokens para desbloquear. Primeiro tijol
   performer com rota de consumidor; id do membro no canal da conversa). Testes
   `PpvMessageTest` (prefixo `pv`). PR #296.
 
+### Metas de gorjeta — roadmap social, Onda 4 (§ 4.2, entregue)
+
+A performer define UMA meta ativa (título + alvo em tokens); uma barra enche com as
+gorjetas recebidas, no perfil e no overlay da live. Leitura AGREGADA por cima das
+gorjetas — **não cria `entry_type`, não mexe em token** (a gorjeta segue 80/20 pelo
+`TipService`).
+
+- **Tabela `tip_goals`** (performer_profile_id, title, target, started_at, ended_at). Uma
+  ativa por performer é garantida no `TipGoalService` (encerra a anterior antes de criar;
+  guarda histórico — sem UNIQUE dura). `PerformerProfile::activeTipGoal` = `hasOne(...)
+  ->whereNull('ended_at')->latestOfMany()`.
+- **Progresso** (`TipGoalService::raisedFor`) = `SUM(tips.amount)` com `created_at >=
+  started_at`, por performer_profile_id — GROSS (número de mobilização; a gorjeta em si
+  já é 80/20). `publicPayload` = `{title, target, raised, pct}` com `pct` saturado em 100 e
+  `target` guardado por `max(1, …)` (nunca divide por zero).
+- ⚠️ **Anonimato é o eixo:** o progresso é só soma + alvo — `raisedFor` é `SUM` puro
+  (nunca COUNT/DISTINCT), e `LiveTipGoalProgress` não leva nem FanAlias. **Ao evoluir,
+  jamais expor id/contagem de quem deu** (seria o canal lateral que o resto do produto
+  fecha). O `raised` (ganho da própria performer) exato é OK, como no extrato/insights.
+- **Exposição:** `PerformerPublicResource.tip_goal` (whenLoaded `activeTipGoal`) no perfil
+  público e no viewer da live; no live, o progresso atualiza em tempo real pelo evento
+  `LiveTipGoalProgress` (broadcastAs `live.goal`, mesmo `PrivateChannel('live.{slug}')` da
+  `LiveReaction`), disparado pós-commit pelo `LiveOverlayService::tip` só com live ativa +
+  meta ativa. Componente `TipGoalBar.vue` (barra reutilizada nas duas telas).
+- **Editor** no painel (`Performer/Profile/Edit` → `TipGoalController` save/end, rotas
+  `performer.tip-goal.*`, `->can('performer-active')`); `SetTipGoalRequest` valida título
+  por `SafeProfileText` e alvo por `monetization.tip_goal` (piso/teto). Revisão dedicada:
+  nada acima de LOW. Testes `TipGoalTest` (prefixo `tg`). PR #298.
+
 ## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
 
 Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a

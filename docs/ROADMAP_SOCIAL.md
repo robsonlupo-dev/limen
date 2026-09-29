@@ -530,7 +530,37 @@ idempotência, saldo insuficiente, autorização (só a dona envia, só peça de
 válido, não-participante 404, dona não paga a própria), mídia não vaza travada, e o
 override de tier.
 
-**Próximos tijolos da Onda 4 (esboço):** metas de gorjeta (tip goals) · encomenda/
-conteúdo sob medida (escrow) · extrato financeiro + previsão de saque · voz-PPV e
-upload novo no chat. O **fork da assinatura** (global × fan-club × híbrido) é decisão
-à parte, no doc de estratégia.
+## 4.2 — Metas de gorjeta (tip goals) ✅ (entregue, PR #298)
+
+A performer define UMA meta ativa (título + alvo em tokens); uma **barra de progresso**
+enche com as gorjetas recebidas, no **perfil** e no **overlay da live**. É leitura
+AGREGADA por cima das gorjetas que já existem — **não cria tipo de ledger, não mexe em
+token** (a gorjeta segue 80/20 pelo `TipService`).
+
+Decisões travadas com o PO (29/09/2026):
+- **Perfil + live** (as duas superfícies onde a gorjeta acontece).
+- **Uma meta ativa por vez** (nova substitui a anterior; guarda histórico).
+- **Toda gorjeta durante a meta conta** (progresso automático, sem o membro marcar nada).
+- **Só tokens arrecadados + barra** — sem contagem de apoiadores (mais simples e sem
+  canal lateral de anonimato).
+
+Arquitetura:
+- Tabela `tip_goals` (performer_profile_id, title, target, started_at, ended_at). Uma
+  ativa garantida no `TipGoalService` (encerra a anterior antes de criar; sem UNIQUE dura
+  — guarda histórico); `activeTipGoal` HasOne (`whereNull ended_at`, `latestOfMany`).
+- **Progresso** = `SUM(tips.amount)` desde `started_at` (gross, por performer_profile_id)
+  — número de mobilização; a gorjeta em si já é 80/20.
+- Exposição: `PerformerPublicResource.tip_goal` (whenLoaded) no perfil; no live, o
+  resource inicial + o evento `LiveTipGoalProgress` (`live.goal`, mesmo canal da
+  `LiveReaction`) que o `LiveOverlayService` dispara a cada gorjeta durante a live.
+- Editor no painel (`Performer/Profile/Edit`): título (SafeProfileText) + alvo
+  (piso/teto de `monetization.tip_goal`), criar/encerrar (rotas `performer.tip-goal.*`).
+- Componente `TipGoalBar.vue` (barra reutilizada no perfil e no overlay).
+
+Anonimato (revisão dedicada — nada acima de LOW): o progresso é só **soma + alvo**,
+nunca "quem" nem contagem de apoiadores (`raisedFor` é `SUM`, sem COUNT/DISTINCT);
+`LiveTipGoalProgress` não leva nem o FanAlias. Testes Pest (`TipGoalTest`, prefixo `tg`).
+
+**Próximos tijolos da Onda 4 (esboço):** encomenda/conteúdo sob medida (escrow) ·
+extrato financeiro + previsão de saque · voz-PPV e upload novo no chat. O **fork da
+assinatura** (global × fan-club × híbrido) é decisão à parte, no doc de estratégia.

@@ -199,6 +199,16 @@ return [
     ],
 
     /*
+    | Metas de gorjeta (Onda 4, §4.2): limites do ALVO em tokens que a performer define
+    | e do título público. Leitura agregada por cima das gorjetas — não mexe em token.
+    */
+    'tip_goal' => [
+        'min_target' => 10,
+        'max_target' => 1000000,
+        'title_max_length' => 80,
+    ],
+
+    /*
     | Margem mínima (M.13.11): custo efetivo por token nunca abaixo disto (R$).
     | Usado pelo teste das 20 combinações pacote×desconto.
     */

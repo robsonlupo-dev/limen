@@ -118,7 +118,7 @@ class PublicCatalogController extends Controller
 
         // Status do dia (roadmap social): eager-load para o resource expor por
         // whenLoaded, sem N+1. activeStatus já filtra o expirado.
-        $profile->loadMissing('activeStatus');
+        $profile->loadMissing('activeStatus', 'activeTipGoal');
 
         $performer = (new PerformerPublicResource($profile))->resolve($request);
 

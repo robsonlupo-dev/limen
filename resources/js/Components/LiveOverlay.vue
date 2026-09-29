@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
 import TokenCoin from '@/Components/TokenCoin.vue'
+import TipGoalBar from '@/Components/TipGoalBar.vue'
 import { useNotificationSound } from '@/composables/useNotificationSound'
 
 /**
@@ -19,7 +20,13 @@ import { useNotificationSound } from '@/composables/useNotificationSound'
  */
 const props = defineProps({
     performerSlug: { type: String, required: true },
+    // Meta de gorjeta (Onda 4 §4.2): estado inicial { title, target, raised, pct } ou
+    // null. Depois atualiza sozinha pelo broadcast '.live.goal'.
+    tipGoal: { type: Object, default: null },
 })
+
+// Barra da meta: começa no valor do servidor e sobe em tempo real a cada gorjeta.
+const goal = ref(props.tipGoal)
 
 const MAX_CONCURRENT = 3
 
@@ -156,6 +163,8 @@ onMounted(() => {
     if (!window.Echo) return
     channel = window.Echo.private(`live.${props.performerSlug}`)
     channel.listen('.live.reaction', (reaction) => enqueue(reaction))
+    // Progresso da meta em tempo real (agregado; sem "quem").
+    channel.listen('.live.goal', (payload) => { goal.value = payload })
 })
 
 onBeforeUnmount(() => {
@@ -169,6 +178,10 @@ onBeforeUnmount(() => {
     <!-- Sobrepõe o vídeo, sem capturar cliques. As reações concorrentes ficam em
          linha centralizada (1 centra; 2-3 espalham). -->
     <div class="pointer-events-none absolute inset-0 flex items-center justify-center gap-6 overflow-hidden">
+        <!-- Meta de gorjeta (Onda 4 §4.2): barra fixa no topo, sobe a cada gorjeta. -->
+        <div v-if="goal" class="absolute inset-x-0 top-0 flex justify-center px-3 pt-3">
+            <TipGoalBar :goal="goal" compact class="w-full max-w-sm" />
+        </div>
         <div
             v-for="item in active"
             :key="item.id"
