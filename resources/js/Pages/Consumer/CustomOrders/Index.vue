@@ -42,7 +42,7 @@ const STATUS = {
     released: { label: 'Concluída', tone: 'text-limen-ink-mute' },
     refunded: { label: 'Estornada', tone: 'text-limen-ink-mute' },
     declined: { label: 'Recusada', tone: 'text-limen-ink-mute' },
-    disputed: { label: 'Em disputa (moderação)', tone: 'text-limen-live' },
+    disputed: { label: 'Relatado — em análise', tone: 'text-limen-live' },
     cancelled: { label: 'Cancelada', tone: 'text-limen-ink-mute' },
     expired: { label: 'Expirada (sem resposta)', tone: 'text-limen-ink-mute' },
 }
@@ -72,7 +72,7 @@ async function act(order, routeName, confirmMsg) {
 
 const cancel = (o) => act(o, 'custom-orders.cancel', 'Cancelar este pedido?')
 const approve = (o) => act(o, 'custom-orders.approve', 'Aprovar a entrega? O valor é liberado para a performer.')
-const dispute = (o) => act(o, 'custom-orders.dispute', 'Contestar a entrega? Um moderador vai analisar o caso.')
+const report = (o) => act(o, 'custom-orders.dispute', 'Relatar um problema com esta entrega? Ela vai para a análise da moderação, que decide liberar ou estornar.')
 
 // Reverb: a performer aceitou/recusou/entregou → recarrega a lista.
 let channel = null
@@ -147,8 +147,9 @@ onBeforeUnmount(() => {
                         </p>
                     </div>
 
-                    <p v-if="order.can_dispute && order.dispute_deadline_at" class="mt-2 text-xs text-limen-ink-mute">
-                        Prazo para contestar: {{ fmtDeadline(order.dispute_deadline_at) }}
+                    <p v-if="order.can_approve && order.dispute_deadline_at" class="mt-2 text-xs text-limen-ink-mute">
+                        Se você não fizer nada, o pedido é concluído automaticamente e a performer
+                        recebe em {{ fmtDeadline(order.dispute_deadline_at) }}.
                     </p>
 
                     <div v-if="order.can_cancel || order.can_approve || order.can_dispute" class="mt-3 flex flex-wrap gap-2">
@@ -171,8 +172,8 @@ onBeforeUnmount(() => {
                             type="button"
                             :disabled="busyId === order.id"
                             class="rounded-lg border border-limen-live/40 px-3 py-1.5 text-sm text-limen-live hover:bg-limen-live/10 disabled:opacity-60"
-                            @click="dispute(order)"
-                        >Contestar</button>
+                            @click="report(order)"
+                        >Relatar problema</button>
                     </div>
                 </li>
             </ul>

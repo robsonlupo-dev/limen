@@ -70,7 +70,8 @@ export const MEMBER_SECTIONS = [
             // que o middleware recusaria.
             { label: 'Chamadas', route: 'reservations.index', feature: 'call_enabled' },
             // Encomendas sob medida (Onda 4 §4.3): pedidos de conteúdo personalizado.
-            { label: 'Encomendas', route: 'custom-orders.index' },
+            // Badge = entregas aguardando o membro aprovar/relatar (delivered).
+            { label: 'Encomendas', route: 'custom-orders.index', badge: 'custom_orders' },
         ],
     },
     {

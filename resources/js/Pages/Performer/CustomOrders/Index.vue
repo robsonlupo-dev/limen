@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { postJson, postForm, errorMessage } from '@/lib/http'
@@ -24,6 +24,15 @@ const error = ref('')
 // Estado do upload de entrega, por encomenda.
 const deliverFor = ref(null) // id da encomenda com o seletor de arquivo aberto
 const file = ref(null)
+// Prévia local do arquivo escolhido (para a performer conferir ANTES de enviar). É um
+// object URL do próprio navegador — nada sobe até ela confirmar em "Enviar entrega".
+const previewUrl = ref(null)
+const previewIsVideo = computed(() => (file.value?.type ?? '').startsWith('video/'))
+
+function clearPreview() {
+    if (previewUrl.value) { URL.revokeObjectURL(previewUrl.value); previewUrl.value = null }
+    file.value = null
+}
 
 const STATUS = {
     requested: 'Novo pedido',
@@ -57,12 +66,20 @@ const decline = (o) => act(o, 'performer.custom-orders.decline', 'Recusar este p
 
 function openDeliver(order) {
     deliverFor.value = order.id
-    file.value = null
+    clearPreview()
     error.value = ''
 }
 
+function closeDeliver() {
+    deliverFor.value = null
+    clearPreview()
+}
+
 function onFile(e) {
-    file.value = e.target.files?.[0] ?? null
+    clearPreview()
+    const f = e.target.files?.[0] ?? null
+    file.value = f
+    if (f) previewUrl.value = URL.createObjectURL(f)
 }
 
 async function submitDelivery(order) {
@@ -74,7 +91,7 @@ async function submitDelivery(order) {
     try {
         await postForm(route('performer.custom-orders.deliver', order.id), form)
         deliverFor.value = null
-        file.value = null
+        clearPreview()
         router.reload({ only: ['orders'] })
     } catch (e) {
         error.value = errorMessage(e, 'Não foi possível entregar. Verifique o arquivo e tente de novo.')
@@ -91,6 +108,7 @@ if (window.Echo && myUserId) {
 }
 onBeforeUnmount(() => {
     if (channel && myUserId) { window.Echo?.leave(`user.${myUserId}`); channel = null }
+    clearPreview()
 })
 </script>
 
@@ -124,6 +142,24 @@ onBeforeUnmount(() => {
                         <span class="shrink-0 text-sm text-limen-gold">{{ order.price }} tk</span>
                     </div>
 
+                    <!-- Confirmação do que foi entregue: a performer revê a peça que enviou
+                         (foto, ou o frame de capa do vídeo — não há player da dona aqui). -->
+                    <div v-if="order.delivered" class="mt-3">
+                        <template v-if="order.delivered.poster">
+                            <img
+                                :src="order.delivered.poster"
+                                alt="Peça entregue"
+                                class="max-h-56 rounded-xl border border-limen-line object-cover"
+                            />
+                            <p v-if="order.delivered.kind === 'video'" class="mt-1 text-xs text-limen-ink-mute">
+                                Vídeo entregue (capa acima).
+                            </p>
+                        </template>
+                        <p v-else class="rounded-lg bg-limen-surface-2 px-3 py-2 text-xs text-limen-ink-soft">
+                            {{ order.delivered.kind === 'video' ? 'Vídeo em processamento…' : 'Preparando a mídia…' }}
+                        </p>
+                    </div>
+
                     <div v-if="order.can_accept || order.can_decline || order.can_deliver" class="mt-3">
                         <div v-if="order.can_accept || order.can_decline" class="flex flex-wrap gap-2">
                             <button
@@ -155,6 +191,25 @@ onBeforeUnmount(() => {
                                     class="block w-full text-sm text-limen-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-limen-surface-2 file:px-3 file:py-1.5 file:text-sm file:text-limen-ink"
                                     @change="onFile"
                                 />
+
+                                <!-- Prévia do arquivo escolhido, para conferir antes de enviar. -->
+                                <div v-if="previewUrl" class="rounded-xl border border-limen-line p-2">
+                                    <p class="mb-1 text-xs text-limen-ink-mute">Prévia — confira antes de enviar:</p>
+                                    <img
+                                        v-if="!previewIsVideo"
+                                        :src="previewUrl"
+                                        alt="Prévia da entrega"
+                                        class="max-h-56 rounded-lg object-cover"
+                                    />
+                                    <video
+                                        v-else
+                                        :src="previewUrl"
+                                        controls
+                                        playsinline
+                                        class="max-h-56 rounded-lg"
+                                    ></video>
+                                </div>
+
                                 <div class="flex gap-2">
                                     <button
                                         type="button"
@@ -166,7 +221,7 @@ onBeforeUnmount(() => {
                                         type="button"
                                         :disabled="busyId === order.id"
                                         class="rounded-lg border border-limen-line px-3 py-1.5 text-sm text-limen-ink-soft hover:bg-limen-surface-2"
-                                        @click="deliverFor = null"
+                                        @click="closeDeliver()"
                                     >Cancelar</button>
                                 </div>
                                 <p class="text-xs text-limen-ink-mute">

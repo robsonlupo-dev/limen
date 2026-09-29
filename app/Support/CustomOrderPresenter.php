@@ -47,7 +47,7 @@ class CustomOrderPresenter
             'price' => (int) $order->offered_price_tokens,
             // O outro lado é o membro — só FanAlias, nunca id/nome reais.
             'fan' => FanAlias::label($order->performer_profile_id, (int) $order->member_id),
-            'delivered' => self::deliveredMedia($order),
+            'delivered' => self::deliveredMediaForOwner($order),
             'dispute_deadline_at' => $order->dispute_deadline_at?->toIso8601String(),
             'created_at' => $order->created_at?->toIso8601String(),
             // Ações que a PERFORMER pode tomar agora.
@@ -113,6 +113,30 @@ class CustomOrderPresenter
             'url' => $piece->isReady()
                 ? ($isVideo ? route('content.video', $piece->id) : route('content.image', $piece->id))
                 : null,
+        ];
+    }
+
+    /**
+     * Mídia entregue vista pela PERFORMER (dona). Usa a rota da dona
+     * (`performer.content.image`) — a rota do membro (`content.image`) vive num grupo
+     * role:consumer e recusaria a performer. Não há stream de vídeo da dona, então para
+     * vídeo servimos o PÔSTER (a mesma rota devolve o thumbnail): serve de conferência
+     * ("é essa peça"), sem playback. A performer já viu o vídeo inteiro na prévia do envio.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function deliveredMediaForOwner(CustomOrder $order): ?array
+    {
+        $piece = $order->deliveredContent;
+        if ($piece === null) {
+            return null;
+        }
+
+        return [
+            'kind' => $piece->isVideo() ? 'video' : 'photo',
+            'status' => $piece->status,
+            // Foto ou pôster do vídeo — sempre uma imagem, pela rota da dona.
+            'poster' => $piece->isReady() ? route('performer.content.image', $piece->id) : null,
         ];
     }
 }

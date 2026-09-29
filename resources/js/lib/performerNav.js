@@ -40,8 +40,8 @@ export const PERFORMER_SECTIONS = [
         children: [
             { label: 'Mensagens', route: 'chat.index', badge: 'messages' },
             // Encomendas sob medida (Onda 4 §4.3): fila de pedidos de conteúdo
-            // personalizado recebidos dos membros.
-            { label: 'Encomendas', route: 'performer.custom-orders.index' },
+            // personalizado recebidos dos membros. Badge = pedidos novos (requested).
+            { label: 'Encomendas', route: 'performer.custom-orders.index', badge: 'custom_orders' },
         ],
     },
     {

@@ -8,7 +8,6 @@ import { computed, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
 import Modal from '@/Components/Modal.vue'
-import Input from '@/Components/Input.vue'
 import { postJson } from '@/lib/http'
 
 const props = defineProps({
@@ -104,19 +103,25 @@ async function submit() {
                 <p class="mt-1 text-right text-xs text-limen-ink-mute">{{ description.length }}/{{ descriptionMax }}</p>
             </div>
 
-            <Input
-                id="co-price"
-                v-model="price"
-                type="number"
-                :min="minPrice"
-                :max="maxPrice"
-                :step="priceStep"
-                label="Preço oferecido (tokens)"
-                :placeholder="`Mínimo ${minPrice}`"
-            />
-            <p class="text-xs text-limen-ink-mute">
-                De {{ minPrice }} a {{ maxPrice }} tokens, em passos de {{ priceStep }}.
-            </p>
+            <div>
+                <label for="co-price" class="block text-sm text-limen-ink-soft">Preço oferecido (tokens)</label>
+                <!-- Input nativo (não o componente Input.vue, que não repassa o `step`):
+                     as setas ↑↓ andam de {{ priceStep }} em {{ priceStep }}. -->
+                <input
+                    id="co-price"
+                    v-model="price"
+                    type="number"
+                    inputmode="numeric"
+                    :min="minPrice"
+                    :max="maxPrice"
+                    :step="priceStep"
+                    :placeholder="`Mínimo ${minPrice}`"
+                    class="mt-1 w-full rounded-lg border border-limen-line bg-limen-surface px-3 py-2 text-sm text-limen-ink placeholder:text-limen-ink-mute focus:border-limen-gold focus:outline-none"
+                />
+                <p class="mt-1 text-xs text-limen-ink-mute">
+                    De {{ minPrice }} a {{ maxPrice }} tokens, em passos de {{ priceStep }}.
+                </p>
+            </div>
 
             <p v-if="error" class="text-sm text-limen-live">{{ error }}</p>
 

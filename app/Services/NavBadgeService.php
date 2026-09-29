@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CustomOrder;
 use App\Models\User;
 
 /**
@@ -32,7 +33,7 @@ class NavBadgeService
     ) {}
 
     /**
-     * @return array{messages: int, hearts: int, channels: int}
+     * @return array{messages: int, hearts: int, channels: int, custom_orders: int}
      */
     public function for(User $user): array
     {
@@ -48,6 +49,32 @@ class NavBadgeService
             'channels' => $user->role === 'consumer'
                 ? $this->broadcasts->unseenCountForMember($user)
                 : 0,
+            // Encomendas sob medida (Onda 4 §4.3) que pedem AÇÃO agora: a performer
+            // vê os pedidos novos (requested, precisa aceitar/recusar); o membro vê as
+            // entregas (delivered, precisa aprovar/relatar). CONTAGEM, nunca carimbo.
+            'custom_orders' => $this->pendingCustomOrders($user),
         ];
+    }
+
+    /** Encomendas que aguardam ação do usuário (por papel). 0 para admin/moderador. */
+    private function pendingCustomOrders(User $user): int
+    {
+        if ($user->role === 'performer') {
+            $profileId = $user->performerProfile?->id;
+
+            return $profileId === null
+                ? 0
+                : CustomOrder::where('performer_profile_id', $profileId)
+                    ->where('status', CustomOrder::STATUS_REQUESTED)
+                    ->count();
+        }
+
+        if ($user->role === 'consumer') {
+            return CustomOrder::where('member_id', $user->id)
+                ->where('status', CustomOrder::STATUS_DELIVERED)
+                ->count();
+        }
+
+        return 0;
     }
 }
