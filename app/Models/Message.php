@@ -44,7 +44,18 @@ class Message extends Model
             'ephemeral' => 'boolean',
             'revealed_at' => 'datetime',
             'audio_duration_seconds' => 'integer',
+            'ppv_price_tokens' => 'integer',
         ];
+    }
+
+    /**
+     * Mensagem PPV (conteúdo travado, Onda 4)? Marca pela PRESENÇA do preço — a mesma
+     * convenção sem-coluna-de-tipo do áudio/presente. A peça vem do cofre da performer
+     * (ppvContent); o direito do membro vive em content_unlocks, não aqui.
+     */
+    public function isPpv(): bool
+    {
+        return $this->ppv_price_tokens !== null;
     }
 
     /**
@@ -106,5 +117,14 @@ class Message extends Model
     public function replyToStory(): BelongsTo
     {
         return $this->belongsTo(PerformerStory::class, 'reply_to_story_id');
+    }
+
+    // Peça do cofre enviada travada como PPV (Onda 4). NULL na mensagem normal;
+    // quando presente, a bolha é um PPV — a mídia é servida pela porta do conteúdo
+    // (content.image/video) e só depois do desbloqueio. nullOnDelete: a peça apagada
+    // deixa o ponteiro nulo e a bolha vira "indisponível".
+    public function ppvContent(): BelongsTo
+    {
+        return $this->belongsTo(PerformerContent::class, 'ppv_content_id');
     }
 }

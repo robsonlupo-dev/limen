@@ -38,6 +38,10 @@ class ChatException extends DomainException
 
     public const EPHEMERAL_GONE = 'ephemeral_gone';
 
+    public const PPV_INVALID = 'ppv_invalid';
+
+    public const PPV_NOT_UNLOCKABLE = 'ppv_not_unlockable';
+
     public function __construct(public readonly string $reason, string $message)
     {
         parent::__construct($message);
@@ -170,6 +174,30 @@ class ChatException extends DomainException
         return new self(
             self::EPHEMERAL_GONE,
             'Mensagem efêmera expirada.',
+        );
+    }
+
+    /**
+     * PPV no chat (Onda 4): o envio da peça travada é inválido — a peça não é da
+     * performer, não está pronta, ou o preço fura o piso/passo/teto. É erro do lado
+     * de QUEM ENVIA (a performer); 422.
+     */
+    public static function ppvInvalid(string $message = 'Não foi possível enviar este conteúdo travado.'): self
+    {
+        return new self(self::PPV_INVALID, $message);
+    }
+
+    /**
+     * PPV no chat (Onda 4): a mensagem não é PPV, a peça foi apagada, ou quem tentou
+     * desbloquear não pode (ex.: é a própria dona). Máscara/estado inválido do
+     * desbloqueio. As negativas de PAGAMENTO (saldo, já desbloqueado) têm suas
+     * próprias exceções (InsufficientBalance/ContentException).
+     */
+    public static function ppvNotUnlockable(): self
+    {
+        return new self(
+            self::PPV_NOT_UNLOCKABLE,
+            'Este conteúdo não está mais disponível.',
         );
     }
 }

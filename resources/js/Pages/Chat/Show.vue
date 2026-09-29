@@ -24,6 +24,9 @@ const props = defineProps({
     // Timer efêmero (Onda 3): segundos que o conteúdo revelado fica visível antes
     // de sumir (contagem client-side; o servidor consome no reveal).
     ephemeralSeconds: { type: Number, default: 10 },
+    // PPV no chat (Onda 4): { can_send, min_price, max_price, price_step, vault:[...] }.
+    // `can_send`/`vault` só vêm preenchidos para a performer dona da conversa.
+    ppv: { type: Object, default: () => ({ can_send: false, min_price: 5, max_price: 5000, price_step: 5, vault: [] }) },
 })
 
 const page = usePage()
@@ -91,6 +94,87 @@ async function revealEphemeral(m) {
         if (e?.status === 410) finalizeReveal(m)
     } finally {
         revealingKey.value = null
+    }
+}
+
+// PPV no chat (Onda 4): o MEMBRO desbloqueia (paga) a peça travada. O bloco `ppv` da
+// mensagem já traz o preview borrado + preço; ao confirmar, o servidor cobra (débito +
+// crédito 80/20 + content_unlock) e devolve o bloco JÁ desbloqueado, que trocamos na
+// própria mensagem para a mídia aparecer sem reload. Saldo insuficiente vira aviso.
+const unlockingPpvKey = ref(null)
+const ppvError = ref(null)
+
+async function unlockPpv(m) {
+    if (!m?.id || unlockingPpvKey.value) return
+    if (!window.confirm(`Desbloquear este conteúdo por ${m.ppv.price} tokens?`)) return
+    unlockingPpvKey.value = m.id
+    ppvError.value = null
+    try {
+        const data = await postJson(route('chat.ppv.unlock', [props.conversation.id, m.id]))
+        // Troca o bloco na mensagem viva (a mídia aparece na hora) e recarrega o saldo.
+        const row = props.messages.data.find((x) => x.id === m.id)
+        if (row && data.ppv) row.ppv = data.ppv
+        router.reload({ only: ['balance'] })
+    } catch (e) {
+        ppvError.value = (e?.status === 422 && e?.data?.reason === 'insufficient_balance')
+            ? 'Saldo de tokens insuficiente. Compre tokens na sua carteira.'
+            : (e?.data?.message ?? 'Não foi possível desbloquear agora.')
+    } finally {
+        unlockingPpvKey.value = null
+    }
+}
+
+// PPV no chat (Onda 4) — lado da PERFORMER: seletor "mandar conteúdo travado". Abre o
+// cofre (peças prontas dela), escolhe uma, define o preço e envia. O envio recarrega o
+// thread (a bolha PPV aparece; ela é dona, então já vê a mídia).
+const ppvPickerOpen = ref(false)
+const ppvSelected = ref(null) // a peça escolhida do cofre
+const ppvPrice = ref(props.ppv.min_price ?? 5)
+const ppvSending = ref(false)
+const ppvSendError = ref(null)
+
+function openPpvPicker() {
+    ppvSelected.value = null
+    ppvPrice.value = props.ppv.min_price ?? 5
+    ppvSendError.value = null
+    ppvPickerOpen.value = true
+}
+
+function selectPpvPiece(piece) {
+    ppvSelected.value = piece
+    // Sugere o preço de vitrine da peça quando válido; senão o piso.
+    const step = props.ppv.price_step || 5
+    const suggested = piece.price_tokens && piece.price_tokens % step === 0
+        ? piece.price_tokens
+        : (props.ppv.min_price ?? 5)
+    ppvPrice.value = suggested
+}
+
+const ppvPriceValid = computed(() => {
+    const p = Number(ppvPrice.value)
+    const step = props.ppv.price_step || 5
+    return Number.isInteger(p)
+        && p >= (props.ppv.min_price ?? 5)
+        && p <= (props.ppv.max_price ?? 5000)
+        && p % step === 0
+})
+
+async function sendPpv() {
+    if (ppvSending.value || !ppvSelected.value || !ppvPriceValid.value) return
+    ppvSending.value = true
+    ppvSendError.value = null
+    try {
+        await postJson(route('chat.ppv.store', props.conversation.id), {
+            content_id: ppvSelected.value.id,
+            price_tokens: Number(ppvPrice.value),
+        })
+        ppvPickerOpen.value = false
+        ppvSelected.value = null
+        reloadThread()
+    } catch (e) {
+        ppvSendError.value = e?.data?.message ?? 'Não foi possível enviar o conteúdo travado.'
+    } finally {
+        ppvSending.value = false
     }
 }
 
@@ -479,6 +563,7 @@ function loadOlder() {
 }
 
 let channel = null
+let userChannel = null
 
 onMounted(() => {
     scrollToBottom()
@@ -510,6 +595,17 @@ onMounted(() => {
         })
     }
 
+    // PPV (Onda 4): o ping de desbloqueio vem no canal PRIVADO do próprio membro
+    // (user.{id}), nunca no da conversa — assim o id do membro não chega à performer.
+    // Serve só para as OUTRAS abas/dispositivos dele trocarem a bolha: se o desbloqueio
+    // foi nesta conversa, recarrega o thread para a mídia aparecer aqui também.
+    if (window.Echo && myId.value) {
+        userChannel = window.Echo.private(`user.${myId.value}`)
+        userChannel.listen('.message.ppv_unlocked', (payload) => {
+            if (payload.conversation_id === props.conversation.id) reloadThread()
+        })
+    }
+
     // Abriu o thread com um áudio ainda processando (ex.: recebido agora) → puxa
     // o `ready` sem depender do Reverb.
     scheduleAudioPoll()
@@ -517,6 +613,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     if (channel) window.Echo?.leave(`conversation.${props.conversation.id}`)
+    if (userChannel) window.Echo?.leave(`user.${myId.value}`)
     // Encerra gravação/stream e timers pendentes ao sair da tela.
     cancelRecording()
     if (audioPollTimer) { clearTimeout(audioPollTimer); audioPollTimer = null }
@@ -743,6 +840,73 @@ watch(() => props.messages.data.length, scrollToBottom)
                             </div>
                             <span class="pt-1 pr-1 text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
                         </div>
+                        <!-- PPV (Onda 4): peça do cofre enviada TRAVADA. Dona/desbloqueado
+                             → a mídia; travado (membro) → preview BORRADO + preço +
+                             "Desbloquear"; peça apagada → indisponível. A URL da mídia só
+                             vem do servidor quando o viewer pode ver. -->
+                        <div
+                            v-else-if="m.ppv"
+                            class="max-w-[75%] flex flex-col"
+                            :class="isMine(m) ? 'items-end' : 'items-start'"
+                        >
+                            <div
+                                v-if="!m.ppv.available"
+                                class="flex items-center gap-2 rounded-2xl border border-dashed border-frame bg-surface/60 px-4 py-2.5"
+                                :class="isMine(m) ? 'rounded-br-sm' : 'rounded-bl-sm'"
+                            >
+                                <span class="text-sm italic text-muted">Conteúdo indisponível</span>
+                            </div>
+                            <template v-else-if="m.ppv.media_url">
+                                <div
+                                    class="overflow-hidden rounded-2xl border"
+                                    :class="isMine(m) ? 'border-gold/40 rounded-br-sm' : 'border-frame rounded-bl-sm'"
+                                >
+                                    <video
+                                        v-if="m.ppv.kind === 'video' && !m.ppv.is_owner"
+                                        :src="m.ppv.media_url"
+                                        controls
+                                        preload="none"
+                                        controlsList="nodownload"
+                                        class="block max-h-80 w-64 max-w-full bg-black"
+                                    ></video>
+                                    <img
+                                        v-else
+                                        :src="m.ppv.media_url"
+                                        alt="Conteúdo"
+                                        class="block max-h-80 w-64 max-w-full object-cover"
+                                    />
+                                </div>
+                                <span class="pt-1 pr-1 text-[10px] text-muted">
+                                    {{ timeLabel(m.created_at) }}
+                                    <span class="text-gold">· conteúdo{{ isMine(m) ? ' enviado' : '' }} · {{ m.ppv.price }} tokens</span>
+                                </span>
+                            </template>
+                            <template v-else>
+                                <div class="relative w-56 max-w-full overflow-hidden rounded-2xl border border-frame">
+                                    <img
+                                        :src="m.ppv.preview_url"
+                                        alt=""
+                                        aria-hidden="true"
+                                        class="block h-56 w-full scale-110 select-none object-cover blur-md"
+                                    />
+                                    <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/50 p-3 text-center backdrop-blur-sm">
+                                        <span class="flex items-center gap-1 text-xs text-gold">
+                                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                            {{ m.ppv.kind === 'video' ? 'Vídeo' : 'Foto' }} bloqueado
+                                        </span>
+                                        <button
+                                            type="button"
+                                            :disabled="unlockingPpvKey === m.id"
+                                            class="rounded-lg bg-gold px-3 py-1.5 text-xs font-medium text-background transition hover:bg-gold/90 disabled:opacity-50"
+                                            @click="unlockPpv(m)"
+                                        >
+                                            {{ unlockingPpvKey === m.id ? 'Desbloqueando…' : `Desbloquear · ${m.ppv.price} tokens` }}
+                                        </button>
+                                    </div>
+                                </div>
+                                <span class="pt-1 pr-1 text-[10px] text-muted">{{ timeLabel(m.created_at) }}</span>
+                            </template>
+                        </div>
                         <!-- Presente (feat/gift-from-profile): bolha com o ÍCONE do
                              item, sempre visível (é a ação do próprio membro, nunca
                              atrás do paywall). Presente é sempre membro→performer. -->
@@ -891,6 +1055,51 @@ watch(() => props.messages.data.length, scrollToBottom)
                 </div>
 
                 <template v-if="showComposer">
+                    <!-- PPV (Onda 4): seletor "mandar conteúdo travado" (só performer).
+                         Escolhe uma peça do cofre, define o preço e envia. -->
+                    <div v-if="ppvPickerOpen" class="mb-2 rounded-xl border border-gold/40 bg-surface/70 p-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-cream">Enviar conteúdo travado</span>
+                            <button type="button" class="text-xs text-muted hover:text-cream" @click="ppvPickerOpen = false">Fechar</button>
+                        </div>
+                        <p v-if="!ppv.vault.length" class="py-4 text-center text-xs text-muted">
+                            Você ainda não tem conteúdo publicado para enviar. Publique fotos ou vídeos no seu conteúdo primeiro.
+                        </p>
+                        <div v-else class="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                            <button
+                                v-for="piece in ppv.vault"
+                                :key="piece.id"
+                                type="button"
+                                class="relative aspect-square overflow-hidden rounded-lg border transition"
+                                :class="ppvSelected?.id === piece.id ? 'border-gold ring-2 ring-gold' : 'border-frame hover:border-gold/60'"
+                                @click="selectPpvPiece(piece)"
+                            >
+                                <img :src="piece.thumb_url" alt="" class="h-full w-full object-cover" />
+                                <span v-if="piece.kind === 'video'" class="absolute bottom-1 right-1 rounded bg-background/70 px-1 text-[9px] text-cream">vídeo</span>
+                            </button>
+                        </div>
+                        <div v-if="ppvSelected" class="mt-3 flex items-end gap-2">
+                            <label class="flex-1 text-xs text-muted">
+                                Preço (tokens)
+                                <input
+                                    v-model.number="ppvPrice"
+                                    type="number"
+                                    :min="ppv.min_price"
+                                    :max="ppv.max_price"
+                                    :step="ppv.price_step"
+                                    class="mt-1 w-full rounded-lg border border-frame bg-surface px-3 py-2 text-sm text-cream focus:border-gold focus:outline-none"
+                                />
+                            </label>
+                            <Button type="button" variant="primary" size="sm" :loading="ppvSending" :disabled="!ppvPriceValid" @click="sendPpv">
+                                Enviar travado
+                            </Button>
+                        </div>
+                        <p v-if="ppvSelected && !ppvPriceValid" class="mt-1 text-[11px] text-muted">
+                            Preço entre {{ ppv.min_price }} e {{ ppv.max_price }}, múltiplo de {{ ppv.price_step }}.
+                        </p>
+                        <p v-if="ppvSendError" class="mt-1 text-[11px] text-danger">{{ ppvSendError }}</p>
+                    </div>
+
                     <!-- Gravando (feat/chat-voice-message): a linha de composição vira
                          a barra de gravação — cronômetro + cancelar/enviar. -->
                     <div v-if="recording" class="flex items-center gap-3 rounded-xl border border-gold/40 bg-gold/5 px-4 py-3">
@@ -904,6 +1113,17 @@ watch(() => props.messages.data.length, scrollToBottom)
                     </div>
 
                     <form v-else class="flex items-end gap-2" @submit.prevent="send">
+                        <!-- PPV (Onda 4): botão "conteúdo travado" — só a performer.
+                             Abre o seletor do cofre. -->
+                        <button
+                            v-if="ppv.can_send"
+                            type="button"
+                            aria-label="Enviar conteúdo travado"
+                            class="shrink-0 rounded-xl border border-frame bg-surface p-3 text-gold transition-colors hover:border-gold"
+                            @click="ppvPickerOpen ? (ppvPickerOpen = false) : openPpvPicker()"
+                        >
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                        </button>
                         <!-- Botão de microfone. Só quando o navegador permite gravar. -->
                         <button
                             v-if="canRecord"
@@ -941,6 +1161,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                     Seu saldo: <span class="text-gold">{{ balance }}</span> tokens.
                 </p>
                 <p v-if="sendError" class="text-xs text-danger text-center mt-1">{{ sendError }}</p>
+                <p v-if="ppvError" class="text-xs text-danger text-center mt-1">{{ ppvError }}</p>
             </div>
 
             <SharePhotoModal

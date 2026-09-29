@@ -41,7 +41,7 @@ class PerformerInsightsService
     /** Créditos que contam como GANHO vindo de membro (nunca bônus/grant/estorno). */
     private const EARNING_CREDIT_TYPES = [
         'tip_credit', 'chat_access_credit', 'content_credit', 'gift_credit',
-        'call_credit', 'call_noshow_credit', 'live_credit',
+        'call_credit', 'call_noshow_credit', 'live_credit', 'ppv_message_credit',
     ];
 
     /**

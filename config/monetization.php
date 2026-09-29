@@ -162,6 +162,9 @@ return [
             // o depósito vira ganho da performer (100/0) — sacável, como call_credit.
             // `call_reservation_refund` NÃO entra: é devolução ao membro, não ganho.
             'call_noshow_credit',
+            // PPV no chat (Onda 4): a fatia da performer (80%) pela venda de conteúdo
+            // travado na DM é ganho sacável, mesma disciplina do content_credit.
+            'ppv_message_credit',
         ],
     ],
 
@@ -181,6 +184,18 @@ return [
             'black' => 1,
             'founders_circle' => 1,
         ],
+    ],
+
+    /*
+    | PPV no chat (Onda 4): preço LIVRE que a performer digita ao mandar uma peça
+    | travada, com PISO e PASSO (reusa a disciplina do conteúdo permanente: ≥ 5,
+    | múltiplo de 5) e um TETO de segurança. A validação é `isValidPpvPrice`; o split
+    | reusa a taxa 'content' (80/20). O membro paga com saldo INTEIRO (nunca fraciona).
+    */
+    'ppv' => [
+        'min_price' => 5,
+        'price_step' => 5,
+        'max_price' => 5000,
     ],
 
     /*
