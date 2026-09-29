@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import SharePhotoModal from '@/Components/SharePhotoModal.vue'
+import Lightbox from '@/Components/Lightbox.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
 import ReportNicknameModal from '@/Components/ReportNicknameModal.vue'
 import { postJson, postForm, deleteJson } from '@/lib/http'
@@ -103,6 +104,17 @@ async function revealEphemeral(m) {
 // própria mensagem para a mídia aparecer sem reload. Saldo insuficiente vira aviso.
 const unlockingPpvKey = ref(null)
 const ppvError = ref(null)
+
+// Ampliar a foto do PPV (clique) — tela cheia. Só foto (vídeo toca inline). Reusa o
+// Lightbox; uma foto por vez (a bolha PPV é uma peça só). A URL é a mesma media_url
+// que o servidor já liberou (só sai destravado).
+const ppvLightboxPhotos = ref([])
+const ppvLightboxIndex = ref(null)
+function openPpvLightbox(m) {
+    if (!m?.ppv?.media_url || m.ppv.kind === 'video') return
+    ppvLightboxPhotos.value = [{ id: m.id, url: m.ppv.media_url }]
+    ppvLightboxIndex.value = 0
+}
 
 async function unlockPpv(m) {
     if (!m?.id || unlockingPpvKey.value) return
@@ -873,7 +885,12 @@ watch(() => props.messages.data.length, scrollToBottom)
                                         v-else
                                         :src="m.ppv.media_url"
                                         alt="Conteúdo"
-                                        class="block max-h-80 w-64 max-w-full object-cover"
+                                        role="button"
+                                        tabindex="0"
+                                        aria-label="Ampliar foto"
+                                        class="block max-h-80 w-64 max-w-full cursor-zoom-in object-cover"
+                                        @click="openPpvLightbox(m)"
+                                        @keydown.enter="openPpvLightbox(m)"
                                     />
                                 </div>
                                 <span class="pt-1 pr-1 text-[10px] text-muted">
@@ -1180,6 +1197,9 @@ watch(() => props.messages.data.length, scrollToBottom)
                 :nickname="memberNickname"
                 @close="reportOpen = false"
             />
+
+            <!-- Ampliar a foto do PPV (clique) — tela cheia. -->
+            <Lightbox :photos="ppvLightboxPhotos" v-model:index="ppvLightboxIndex" />
         </div>
     </AppLayout>
 </template>
