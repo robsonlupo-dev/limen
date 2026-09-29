@@ -340,6 +340,12 @@ Mensagens somem da tela depois de vistas; o original é **retido para moderaçã
   reveal; só o destinatário revela; imutável; paywall; retenção p/ moderação).
 - **Front:** `Chat/Show.vue` — bolha selada com botão "toque para ver" → conteúdo +
   contagem "some em Ns" → "expirada"; remetente vê "· efêmera" na própria mensagem.
+- **Polimento pós-validação (#293):** (a) **sumiço em tempo real para o remetente** —
+  ao revelar, o servidor emite `MessageRevealed` (só metadado) no canal
+  `conversation.{id}`; a bolha do remetente vira "expirada" na hora, sem precisar de
+  reload (antes só sumia no próximo load). (b) **player de áudio** revelado em largura
+  cheia + `controlsList="noplaybackrate nodownload"` — os controles nativos não se
+  amontoam mais nem cobrem o play.
 - Não mexe em token.
 
 ---

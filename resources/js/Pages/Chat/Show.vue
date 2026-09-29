@@ -499,6 +499,15 @@ onMounted(() => {
         channel.listen('.message.redacted', (payload) => {
             if (payload.sender_id !== myId.value) reloadThread()
         })
+        // Timer efêmero (Onda 3): o destinatário revelou/consumiu → o REMETENTE
+        // esconde a própria bolha na hora ("expirada"), sem reload nem cortar a
+        // contagem de quem revelou. Só o remetente (`sender_id === eu`) reage; o
+        // destinatário já tratou localmente.
+        channel.listen('.message.revealed', (payload) => {
+            if (payload.sender_id !== myId.value) return
+            const msg = props.messages.data.find((x) => x.id === payload.message_id)
+            if (msg) { msg.vanished = true; msg.sealed = false }
+        })
     }
 
     // Abriu o thread com um áudio ainda processando (ex.: recebido agora) → puxa
@@ -678,15 +687,23 @@ watch(() => props.messages.data.length, scrollToBottom)
                         >
                             <!-- Revelada: mostra o conteúdo + contagem. -->
                             <template v-if="revealed[m.id]">
+                                <!-- Áudio: player em largura cheia (w-72), sem ícone
+                                     inline amontoando os controles nativos, e sem os
+                                     controles de velocidade/download (controlsList) que
+                                     estouravam a bolha estreita e cobriam o play. -->
                                 <div
-                                    class="flex items-center gap-2 rounded-2xl px-4 py-2.5"
+                                    v-if="revealed[m.id].audio_status === 'ready' && revealed[m.id].audio_url"
+                                    class="w-72 max-w-full rounded-2xl px-3 py-2.5"
                                     :class="isMine(m) ? 'bg-gold/15 border border-gold/40 rounded-br-sm' : 'bg-surface border border-frame rounded-bl-sm'"
                                 >
-                                    <template v-if="revealed[m.id].audio_status === 'ready' && revealed[m.id].audio_url">
-                                        <svg class="h-4 w-4 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                                        <audio :src="revealed[m.id].audio_url" controls autoplay preload="auto" class="h-9 w-56 max-w-full"></audio>
-                                    </template>
-                                    <span v-else class="text-sm text-cream whitespace-pre-line break-words">{{ revealed[m.id].body }}</span>
+                                    <audio :src="revealed[m.id].audio_url" controls autoplay preload="auto" controlsList="noplaybackrate nodownload" class="h-9 w-full"></audio>
+                                </div>
+                                <div
+                                    v-else
+                                    class="rounded-2xl px-4 py-2.5"
+                                    :class="isMine(m) ? 'bg-gold/15 border border-gold/40 rounded-br-sm' : 'bg-surface border border-frame rounded-bl-sm'"
+                                >
+                                    <span class="text-sm text-cream whitespace-pre-line break-words">{{ revealed[m.id].body }}</span>
                                 </div>
                                 <span class="flex items-center gap-1.5 pt-1 pr-1 text-[10px] text-gold">
                                     <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
@@ -770,7 +787,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                             >
                                 <svg class="h-4 w-4 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
                                 <template v-if="m.audio_status === 'ready' && m.audio_url">
-                                    <audio :src="m.audio_url" controls preload="none" class="h-9 w-56 max-w-full"></audio>
+                                    <audio :src="m.audio_url" controls preload="none" controlsList="noplaybackrate nodownload" class="h-9 w-56 max-w-full"></audio>
                                 </template>
                                 <span v-else-if="m.audio_status === 'processing'" class="text-sm text-muted">Processando áudio…</span>
                                 <span v-else class="text-sm text-danger">Não foi possível processar este áudio.</span>
