@@ -734,6 +734,39 @@ herda a mesma assimetria — que é o produto, não detalhe de UI. Não mexe em 
   só-consumidor, sem-vazamento-para-a-performer, lista + performer fora do ar, cascade
   e purga no Hard Delete.
 
+### Insights da performer — roadmap social, Onda 3 (§ 3.2, entregue) — FECHA A ONDA 3
+
+Painel SÓ-LEITURA e AGREGADO (`PerformerInsightsService`, dona única + `Performer/
+Insights/Index.vue`, aba Insights no Painel). Deriva do que já existe (profile_visits,
+follows, story_views, token_ledger, chat_access, content_unlocks) — não cria tabela.
+Janelas 7/30 dias. Não mexe em token.
+
+- **Anonimato é PISO, não número (achado ALTO da revisão dedicada).** A primeira versão
+  emitia contagem EXATA de presença — o mesmo canal lateral que banda/piso/k-anonimato
+  fecham no resto do produto (o contador 3→4 liga a visita/seguida à pessoa). Regra que
+  ficou, e que QUEM MEXER aqui tem que manter:
+  - **Toda métrica de PRESENÇA sai em FAIXA** via `PerformerProfile::followersLabelFor`
+    ("Menos de 5", "10+", "100+", …): visitas, visitantes únicos, seguidores (total e
+    novos), views e viewers de story. NUNCA `->count()` cru na resposta.
+  - **Story views excluem `exclusive`** (`visibility_level != exclusive`): audiência de
+    exclusivo prova que os viewers são Black/FC — a mesma razão do
+    `PerformerStoryService::viewCount()` devolver null para exclusivo.
+  - **Melhores horários** em **4 faixas de 6h** (Madrugada/Manhã/Tarde/Noite), só a
+    PARTICIPAÇÃO (%), e só acima de um piso de volume — nunca hora a hora (mais fino que
+    a faixa de 6h usada no resto seria canal lateral).
+  - **Taxas do funil** (chat/compra sobre visitantes) só aparecem com base ≥ piso
+    (senão "—" — 1/1=100% apontaria uma pessoa).
+  - Ghost/Discreto já ficam fora na ESCRITA de `profile_visits`/`story_views`, então o
+    agregado NÃO re-expõe presença que os perks escondem.
+  - Ações **PAGAS** (chat/compra) e **ganhos** são transações da própria performer →
+    exatos (é a receita/negócio dela).
+- **Custo:** COUNT/SUM/GROUP indexado por (performer, janela); payload inteiro CACHEADO
+  por (performer, janela) ~15 min. Janela normalizada a 7/30 ANTES da chave de cache
+  (só 2 chaves; `window` lixo cai em 30 e não fura o cache). `CONVERT_TZ` com offset
+  numérico (fuso SP) não depende das tabelas de fuso do MySQL. `PerformerInsightsTest`
+  cobre agregação/janela, faixas, exclusão de exclusivo, ausência de id de membro e
+  só-performer.
+
 ## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
 
 Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a

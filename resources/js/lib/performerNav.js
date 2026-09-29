@@ -17,7 +17,13 @@ export const PERFORMER_SECTIONS = [
         key: 'painel',
         label: 'Painel',
         route: 'performer.dashboard',
-        match: ['performer.dashboard'],
+        match: ['performer.dashboard', 'performer.insights'],
+        children: [
+            { label: 'Resumo', route: 'performer.dashboard' },
+            // Insights (roadmap social, Onda 3 §3.2): visão geral, funil, horários,
+            // evolução de ganhos — tudo agregado.
+            { label: 'Insights', route: 'performer.insights' },
+        ],
     },
     {
         key: 'conteudo',

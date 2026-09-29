@@ -128,6 +128,7 @@ return [
         // Gestão de conteúdo permanente (UAT fix): a página + os endpoints JSON
         // que ela consome (listar, publicar, remover).
         'performer.content',
+        'performer.insights',
         'performer.content.index',
         'performer.content.store',
         'performer.content.destroy',

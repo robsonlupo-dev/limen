@@ -393,13 +393,31 @@ Mensagens somem da tela depois de vistas; o original é **retido para moderaçã
     performer cascateia pelo DELETE real das peças. Não mexe em token.
   - **(Coleções NOMEADAS múltiplas ficam para um PR futuro, se houver demanda.)**
 
-## 3.2 — Insights da performer
+## 3.2 — Insights da performer ✅ (entregue, PR #294 — completo)
 
-Painel só-leitura: quem viu o story (por FanAlias, via `story_views`), funil
-**visita → chat → compra**, melhores horários, evolução de ganhos. Deriva do que já
-existe (`story_views`, `ProfileVisit`, ledger). Retém performer — é o que o Insta
-faz com criador. **Cuidado de custo:** agregar em query com cache, nunca varrer o
-ledger inteiro a cada abertura (servidor de 2 vCPU).
+Painel só-leitura e AGREGADO: visão geral (visitas, seguidores, views de story,
+ganhos, conversas, desbloqueios), funil **visita → chat → compra**, melhores horários
+e evolução de ganhos. Deriva do que já existe (`profile_visits`, `follows`,
+`story_views`, `token_ledger`, `chat_access`, `content_unlocks`) — **não cria tabela**.
+`PerformerInsightsService` (dona única) + `Performer/Insights/Index.vue`, aba **Insights**
+no Painel. **Fecha a Onda 3.**
+
+- **Anonimato é piso (achado ALTO da revisão, fechado antes do ship):** o painel
+  emitia contagens EXATAS de presença, o que reabria o canal lateral que banda/piso/
+  k-anonimato do resto do produto fecham (o contador que sobe de 3→4 liga a visita à
+  pessoa). Corrigido: **toda métrica de PRESENÇA sai em FAIXA** (`followersLabelFor`:
+  "Menos de 5", "10+", …) — visitas, visitantes únicos, seguidores, views/viewers de
+  story. Ações **PAGAS** (chat/compra) e **ganhos** são transações da própria performer
+  → exatos. Story views **excluem `exclusive`** (audiência de exclusivo revelaria
+  Black/FC, como o `viewCount()` que devolve null). "Melhores horários" vem em **4
+  faixas de 6h** (nunca hora a hora), só participação (%), e **só com volume mínimo**;
+  as **taxas** do funil só aparecem com base ≥ piso (senão "—"). Ghost/Discreto já
+  ficam fora na ESCRITA de `profile_visits`/`story_views`, então o agregado não
+  re-expõe presença.
+- **Custo:** cada métrica é COUNT/SUM/GROUP indexado por (performer, janela); o payload
+  inteiro é **cacheado** por (performer, janela) por ~15 min. Janela normalizada a 7/30
+  ANTES da chave de cache (só 2 chaves por performer — um `window` lixo não fura o cache).
+- Não mexe em token.
 
 ---
 
