@@ -43,6 +43,8 @@ class LedgerEntryLabel
         'call_reservation_refund' => 'Reembolso de reserva',
         'spend_private' => 'Sessão privada',
         'spend_camera' => 'Câmera',
+        'spend_custom_order' => 'Encomenda sob medida',
+        'custom_order_refund' => 'Reembolso de encomenda',
 
         // Ganhos da performer
         'tip_credit' => 'Gorjeta recebida',
@@ -53,6 +55,7 @@ class LedgerEntryLabel
         'call_credit' => 'Chamada recebida',
         'call_noshow_credit' => 'Compensação por falta',
         'live_credit' => 'Live recebida',
+        'custom_order_credit' => 'Encomenda vendida',
 
         // Saque da performer
         'payout_reserve' => 'Reserva de saque',

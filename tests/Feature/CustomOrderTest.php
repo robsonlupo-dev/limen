@@ -8,6 +8,7 @@ use App\Models\PerformerProfile;
 use App\Models\User;
 use App\Services\ContentVisibilityService;
 use App\Services\CustomOrderService;
+use App\Services\PerformerEarningsService;
 use App\Services\TokenService;
 use App\Support\CustomOrderPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -110,6 +111,27 @@ it('aprovar é idempotente: a segunda aprovação não credita de novo', functio
     expect(fn () => coService()->approve($member, $order))
         ->toThrow(CustomOrderException::class);
     expect($tokens->balance($performer->user))->toBe(80);
+});
+
+it('a encomenda liberada aparece no extrato de ganhos da performer', function () {
+    [$performer, $member] = coPair(300);
+    $order = coRequest($performer, $member, 100);
+    coService()->accept($performer->user, $order);
+    $order = coDeliverPhoto($performer, $order);
+    coService()->approve($member, $order);
+
+    // Regressão: o crédito custom_order_credit não pode ser filtrado pela allowlist do
+    // extrato (PerformerEarningsService::TYPE_MAP) — antes ele sumia da tela mesmo com o
+    // saldo correto.
+    $page = app(PerformerEarningsService::class)->paginate($performer->user, []);
+    $rows = collect($page->items());
+    $co = $rows->firstWhere('type_key', 'custom');
+
+    expect($co)->not->toBeNull()
+        ->and($co['type_label'])->toBe('Encomenda')
+        ->and($co['gross'])->toBe(100)
+        ->and($co['net'])->toBe('80.0000')
+        ->and($co['member_alias'])->toStartWith('Fã');
 });
 
 // ─── Estornos ──────────────────────────────────────────────────────────────────────

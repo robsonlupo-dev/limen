@@ -56,6 +56,9 @@ class PerformerEarningsService
         'call_credit' => ['Chamada', 'call'],
         'call_noshow_credit' => ['Chamada (no-show)', 'call'],
         'live_credit' => ['Live', 'live'],
+        // Encomenda sob medida (Onda 4 §4.3): o crédito 80/20 da entrega liberada. O
+        // alias do fã já vem na description ("Encomenda entregue para Fã #NNNN").
+        'custom_order_credit' => ['Encomenda', 'custom'],
     ];
 
     public function __construct(private TokenService $tokenService) {}
@@ -70,6 +73,7 @@ class PerformerEarningsService
             ['key' => 'gift', 'label' => 'Presente'],
             ['key' => 'call', 'label' => 'Chamada'],
             ['key' => 'live', 'label' => 'Live'],
+            ['key' => 'custom', 'label' => 'Encomenda'],
         ];
     }
 
