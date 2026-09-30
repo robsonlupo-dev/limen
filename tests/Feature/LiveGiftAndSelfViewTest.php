@@ -166,5 +166,10 @@ it('a previa e espelhada, muda (sem microfonia), com fallback de erro e ampliar'
         ->toContain('-scale-x-100')          // espelhada (padrão de espelho)
         ->toContain('muted')                 // sem áudio de retorno
         ->toContain('cameraError')           // mostra o motivo, não quadro preto
-        ->toContain('expanded = !expanded'); // pode ampliar e voltar
+        ->toContain('expanded = true')       // pode ampliar
+        ->toContain('expanded = false')      // e voltar
+        // Prévia flutuante arrastável + fim do PiP nativo (feat/live-pip).
+        ->toContain('disablepictureinpicture')
+        ->toContain('enterFloat')
+        ->toContain('dockFloat');
 });
