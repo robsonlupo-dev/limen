@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Performer;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomOrder;
 use App\Models\IdentityVerification;
 use App\Models\MemberPhotoAccess;
 use App\Models\PerformerInterest;
@@ -80,6 +81,11 @@ class DashboardController extends Controller
             'wallet' => $this->walletBalance($user),
             'totalEarned' => $this->totalEarned($user),
             'tips' => $this->recentTips($profile),
+            // Encomendas sob medida (Onda 4 §4.3) que aguardam a ação DELA: pedido novo
+            // (aceitar/recusar) ou aceito (entregar). Aviso no painel + badge na nav.
+            'customOrdersPending' => CustomOrder::where('performer_profile_id', $profile->id)
+                ->whereIn('status', [CustomOrder::STATUS_REQUESTED, CustomOrder::STATUS_ACCEPTED])
+                ->count(),
             // Faixa também aqui: o observador que o contador exato entrega é a
             // PRÓPRIA performer. Faixar só as telas públicas esconderia o número
             // de terceiros e deixaria em pé exatamente a correlação que o Piso de
