@@ -7,6 +7,7 @@ import SharePhotoModal from '@/Components/SharePhotoModal.vue'
 import Lightbox from '@/Components/Lightbox.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
 import ReportNicknameModal from '@/Components/ReportNicknameModal.vue'
+import VoiceMessagePlayer from '@/Components/VoiceMessagePlayer.vue'
 import { postJson, postForm, deleteJson } from '@/lib/http'
 
 const props = defineProps({
@@ -805,7 +806,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                                     class="w-72 max-w-full rounded-2xl px-3 py-2.5"
                                     :class="isMine(m) ? 'bg-gold/15 border border-gold/40 rounded-br-sm' : 'bg-surface border border-frame rounded-bl-sm'"
                                 >
-                                    <audio :src="revealed[m.id].audio_url" controls autoplay preload="auto" controlsList="noplaybackrate nodownload" class="h-9 w-full"></audio>
+                                    <VoiceMessagePlayer :src="revealed[m.id].audio_url" :duration="revealed[m.id].audio_duration || 0" :autoplay="true" />
                                 </div>
                                 <div
                                     v-else
@@ -968,7 +969,7 @@ watch(() => props.messages.data.length, scrollToBottom)
                             >
                                 <svg class="h-4 w-4 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
                                 <template v-if="m.audio_status === 'ready' && m.audio_url">
-                                    <audio :src="m.audio_url" controls preload="none" controlsList="noplaybackrate nodownload" class="h-9 w-56 max-w-full"></audio>
+                                    <VoiceMessagePlayer :src="m.audio_url" :duration="m.audio_duration || 0" />
                                 </template>
                                 <span v-else-if="m.audio_status === 'processing'" class="text-sm text-muted">Processando áudio…</span>
                                 <span v-else class="text-sm text-danger">Não foi possível processar este áudio.</span>
