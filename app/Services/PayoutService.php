@@ -115,6 +115,55 @@ class PayoutService
     }
 
     /**
+     * Previsão de saque (Onda 4) — só leitura, deriva do que já existe. Diz à performer,
+     * SEM adivinhação: quanto ela tem sacável hoje em R$ (floor), quando é o próximo saque
+     * automático (dia 1 do próximo mês) e o valor ESTIMADO que cairá, e o que ainda falta
+     * para o saque automático rodar (mínimo, KYC, e a chave PIX — que o sweep só tem se já
+     * houve um saque manual bem-sucedido). Espelha exatamente as regras do sweepOne.
+     *
+     * @return array<string, mixed>
+     */
+    public function forecast(User $performer): array
+    {
+        $owed = $this->earningsOwed($performer);
+        $breakdown = $this->payoutBreakdown($owed);
+        $min = $this->minTokens();
+
+        $reachesMin = TokenMath::cmp($owed, $min) >= 0;
+        $toMin = $reachesMin ? 0 : (int) ceil((float) TokenMath::sub($min, $owed));
+
+        // KYC ativo + verificada (mesmo corte do sweep) e chave PIX de um saque anterior
+        // BEM-SUCEDIDO — sem ela o sweep pula (skipped_no_key): o 1º saque é manual.
+        $profile = $performer->performerProfile;
+        $kycOk = $performer->status === 'active' && $profile && (bool) $profile->is_verified;
+        $hasKey = Payout::where('performer_id', $performer->id)
+            ->whereIn('status', ['paid', 'processing'])
+            ->whereNotNull('pix_key')
+            ->exists();
+
+        $autoEligible = $kycOk && $hasKey && $reachesMin;
+
+        return [
+            'withdrawable_tokens' => TokenMath::readable($owed),
+            'withdrawable_centavos' => $breakdown['centavos'],
+            'remainder_tokens' => TokenMath::readable($breakdown['remainder']),
+            'rate_per_token' => (float) config('monetization.payout_rate_per_token'),
+            'min_tokens' => $min,
+            'reaches_minimum' => $reachesMin,
+            'tokens_to_minimum' => $toMin,
+            // Dia 1 do PRÓXIMO mês (fuso de exibição) — o sweep roda monthlyOn(1, 02:00).
+            'next_auto_payout_at' => now(ProfileVisitService::DISPLAY_TIMEZONE)
+                ->startOfMonth()->addMonthNoOverflow()->toIso8601String(),
+            // Estimativa do que cairá no automático: o sacável de hoje convertido — 0 se
+            // hoje não entraria (abaixo do mínimo / sem KYC / sem chave). Cresce até lá.
+            'next_auto_estimate_centavos' => $autoEligible ? $breakdown['centavos'] : 0,
+            'kyc_ok' => $kycOk,
+            'has_payout_key' => $hasKey,
+            'auto_eligible' => $autoEligible,
+        ];
+    }
+
+    /**
      * Tokens de GANHO ainda devidos à performer (M.13.5, decisão do PO 04/08):
      *   owed = SUM(créditos de ganho) − SUM(reservados) + SUM(estornados)
      * Somando SÓ o allowlist de entry_types de ganho da config (tip_credit,
