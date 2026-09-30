@@ -40,6 +40,9 @@ class PayoutController extends Controller
             // Ganhos sacáveis (M.13.5): só o que ela ganhou, não o saldo bruto.
             'withdrawableTokens' => $this->payoutService->earningsOwed($user),
             'kycOk' => (bool) $profile->is_verified,
+            // Previsão de saque (Onda 4): sacável em R$, próximo saque automático + valor
+            // estimado, e o que falta pro automático rodar. Só leitura.
+            'forecast' => $this->payoutService->forecast($user),
             'recent' => $this->recentPayouts($user, 5),
         ]);
     }

@@ -13,8 +13,20 @@ const props = defineProps({
     maxTokens: { type: Number, required: true },
     withdrawableTokens: { type: Number, required: true },
     kycOk: { type: Boolean, required: true },
+    // Previsão de saque (Onda 4): valores autoritativos do servidor (centavos, floor).
+    forecast: { type: Object, default: null },
     recent: { type: Array, required: true },
 })
+
+// Centavos (inteiro, autoritativo do servidor) → R$. Nunca recalcula a conversão no
+// cliente — o floor já foi aplicado no servidor (R2).
+function brlFromCentavos(centavos) {
+    return ((Number(centavos) || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+function fmtMonthDay(iso) {
+    if (!iso) return ''
+    return new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'long' })
+}
 
 const pixKeyTypes = [
     { value: 'cpf', label: 'CPF' },
@@ -92,6 +104,40 @@ function submit() {
                 <Link :href="route('performer.payouts.history')" class="text-sm text-gold hover:text-gold-light transition-colors">
                     Ver histórico de saques
                 </Link>
+            </div>
+
+            <!-- Previsão de saque (Onda 4): sacável em R$, próximo saque automático e o
+                 que falta pra ele rodar. Só leitura. -->
+            <div v-if="forecast" class="rounded-2xl border border-frame bg-surface p-6">
+                <h2 class="font-serif text-xl text-cream">Previsão de saque</h2>
+                <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div class="rounded-xl border border-frame bg-limen-bg/40 p-4">
+                        <p class="text-[11px] uppercase tracking-wide text-muted">Sacável agora</p>
+                        <p class="mt-1 font-serif text-3xl text-gold">{{ brlFromCentavos(forecast.withdrawable_centavos) }}</p>
+                        <p class="mt-1 text-xs text-muted">
+                            {{ formatTokens(forecast.withdrawable_tokens) }} tokens
+                            <template v-if="Number(forecast.remainder_tokens) > 0">
+                                · sobra {{ formatTokens(forecast.remainder_tokens) }} (fica pro próximo)
+                            </template>
+                        </p>
+                    </div>
+                    <div class="rounded-xl border border-frame bg-limen-bg/40 p-4">
+                        <p class="text-[11px] uppercase tracking-wide text-muted">Próximo saque automático</p>
+                        <p class="mt-1 font-serif text-2xl text-cream">{{ fmtMonthDay(forecast.next_auto_payout_at) }}</p>
+                        <p v-if="forecast.auto_eligible" class="mt-1 text-xs text-muted">
+                            Estimativa: <span class="text-gold">{{ brlFromCentavos(forecast.next_auto_estimate_centavos) }}</span>
+                            (o valor cresce até lá)
+                        </p>
+                        <p v-else class="mt-1 text-xs text-gold/90">
+                            <template v-if="!forecast.kyc_ok">Complete a verificação para entrar no automático.</template>
+                            <template v-else-if="!forecast.reaches_minimum">Faltam {{ forecast.tokens_to_minimum }} tokens para o mínimo de {{ forecast.min_tokens }}.</template>
+                            <template v-else-if="!forecast.has_payout_key">Faça um 1º saque manual abaixo — depois os próximos caem sozinhos, na sua chave PIX.</template>
+                        </p>
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-muted">
+                    O saque automático roda todo dia 1. Você também pode sacar quando quiser, abaixo.
+                </p>
             </div>
 
             <div v-if="!kycOk" class="rounded-xl border border-gold/30 bg-gold/10 p-5 text-sm text-gold">
