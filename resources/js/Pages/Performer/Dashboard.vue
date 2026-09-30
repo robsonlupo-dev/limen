@@ -17,6 +17,8 @@ const props = defineProps({
     wallet: { type: Number, required: true },
     totalEarned: { type: Number, required: true },
     tips: { type: Array, required: true },
+    // Encomendas sob medida aguardando ação dela (novos + a entregar). Aviso no topo.
+    customOrdersPending: { type: Number, default: 0 },
     // Faixa ("Menos de 5", "10+", ou o número exato a partir de 500), não Number:
     // o contador preciso de um perfil pequeno identifica quem seguiu e quando.
     followers: { type: String, required: true },
@@ -250,6 +252,19 @@ async function decideAccess(req, approve) {
         <KycPendingBanner :kyc-status="kycStatus" />
 
         <div class="max-w-6xl mx-auto px-6 py-10 space-y-8">
+            <!-- Aviso de encomendas sob medida aguardando ação (Onda 4 §4.3). -->
+            <Link
+                v-if="customOrdersPending > 0"
+                :href="route('performer.custom-orders.index')"
+                class="flex items-center justify-between gap-4 rounded-2xl border border-limen-gold/40 bg-limen-gold/10 px-5 py-4 no-underline transition-colors hover:bg-limen-gold/15"
+            >
+                <span class="text-sm text-limen-ink">
+                    Você tem <strong>{{ customOrdersPending }}</strong>
+                    {{ customOrdersPending === 1 ? 'encomenda aguardando' : 'encomendas aguardando' }} sua resposta.
+                </span>
+                <span class="shrink-0 text-sm font-medium text-limen-gold">Abrir →</span>
+            </Link>
+
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div class="space-y-1">
                     <h1 class="font-serif text-4xl text-cream">Painel</h1>

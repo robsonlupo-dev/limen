@@ -62,10 +62,11 @@ class NavBadgeService
         if ($user->role === 'performer') {
             $profileId = $user->performerProfile?->id;
 
+            // Precisa da ação DELA: pedido novo (aceitar/recusar) OU aceito (entregar).
             return $profileId === null
                 ? 0
                 : CustomOrder::where('performer_profile_id', $profileId)
-                    ->where('status', CustomOrder::STATUS_REQUESTED)
+                    ->whereIn('status', [CustomOrder::STATUS_REQUESTED, CustomOrder::STATUS_ACCEPTED])
                     ->count();
         }
 
