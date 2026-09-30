@@ -77,23 +77,53 @@ class VideoProcessingService
     }
 
     /**
-     * Re-encoda para H.264/AAC MP4, sem metadados, mapeando só 1 vídeo + 1 áudio
-     * (opcional). Escreve em $destPath (.mp4). Falha → encodeFailed.
+     * Dimensões (largura, altura) do 1º stream de vídeo, por ffprobe. Usado para gerar
+     * o overlay da marca d'água no tamanho exato do vídeo (Onda 4 §4.3).
+     *
+     * @return array{0:int,1:int}
      *
      * @throws VideoProcessingException
      */
-    public function sanitize(string $srcPath, string $destPath): void
+    public function probeDimensions(string $path): array
     {
         $this->assertAvailable();
 
         $process = $this->run([
-            config('video.ffmpeg'),
-            '-y',
-            '-i', $srcPath,
-            // Só o 1º vídeo e (se houver) o 1º áudio; nada de data/subtitle/anexos
-            // (vetores de payload). `-dn`/`-sn` reforçam.
-            '-map', '0:v:0',
-            '-map', '0:a:0?',
+            config('video.ffprobe'),
+            '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height',
+            '-of', 'csv=s=x:p=0',
+            $path,
+        ], (float) config('video.probe_timeout'));
+
+        if (! $process->isSuccessful()) {
+            throw VideoProcessingException::unreadable();
+        }
+
+        $out = trim($process->getOutput());
+        if (! preg_match('/^(\d+)x(\d+)$/', $out, $m)) {
+            throw VideoProcessingException::unreadable();
+        }
+
+        return [(int) $m[1], (int) $m[2]];
+    }
+
+    /**
+     * Re-encoda para H.264/AAC MP4, sem metadados, mapeando só 1 vídeo + 1 áudio
+     * (opcional). Escreve em $destPath (.mp4). Falha → encodeFailed.
+     *
+     * `$overlayPngPath` (Onda 4 §4.3): quando presente, um PNG transparente do TAMANHO do
+     * vídeo é sobreposto (marca d'água) via filter_complex. Sem ele, o comando é idêntico
+     * ao de sempre (o conteúdo do cofre/PPV não muda).
+     *
+     * @throws VideoProcessingException
+     */
+    public function sanitize(string $srcPath, string $destPath, ?string $overlayPngPath = null): void
+    {
+        $this->assertAvailable();
+
+        $common = [
             '-dn', '-sn',
             '-map_metadata', '-1',
             '-c:v', config('video.video_codec'),
@@ -104,7 +134,37 @@ class VideoProcessingService
             '-movflags', '+faststart',
             '-f', 'mp4',
             $destPath,
-        ]);
+        ];
+
+        if ($overlayPngPath !== null) {
+            // Marca d'água: sobrepõe o PNG sobre o 1º vídeo. `scale2ref` ESTICA o overlay
+            // para as dimensões REAIS do frame decodificado (`[0:v]`), então a cobertura é
+            // sempre total mesmo quando o coded size difere do exibido — vídeo de celular
+            // com matriz de rotação (retrato) é o caso comum e cairia num overlay parcial
+            // se fixássemos 0:0 no tamanho probado. Com filter_complex o auto-map some,
+            // então mapeamos a saída [vout] e o 1º áudio (opcional) explicitamente.
+            $command = array_merge([
+                config('video.ffmpeg'),
+                '-y',
+                '-i', $srcPath,
+                '-i', $overlayPngPath,
+                '-filter_complex', '[1:v][0:v]scale2ref=w=iw:h=ih[wm][base];[base][wm]overlay=0:0:format=auto[vout]',
+                '-map', '[vout]',
+                '-map', '0:a:0?',
+            ], $common);
+        } else {
+            $command = array_merge([
+                config('video.ffmpeg'),
+                '-y',
+                '-i', $srcPath,
+                // Só o 1º vídeo e (se houver) o 1º áudio; nada de data/subtitle/anexos
+                // (vetores de payload). `-dn`/`-sn` reforçam.
+                '-map', '0:v:0',
+                '-map', '0:a:0?',
+            ], $common);
+        }
+
+        $process = $this->run($command);
 
         if (! $process->isSuccessful() || ! is_file($destPath) || filesize($destPath) === 0) {
             @unlink($destPath);

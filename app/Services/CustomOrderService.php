@@ -173,7 +173,11 @@ class CustomOrderService
             throw CustomOrderException::gone();
         }
 
-        $piece = $this->content->deliverCustomPiece($pre->performerProfile, $file, $pre->id);
+        // Marca d'água (§4.3): FanAlias do par + data — nunca dado real do membro. A foto
+        // é marcada no store (aqui); o vídeo é marcado no job (que reobtém o texto pelo
+        // custom_order_id). Texto calculado sempre; só é aplicado se a marca estiver ligada.
+        $watermarkText = WatermarkService::labelFor(FanAlias::label($pre->performer_profile_id, (int) $pre->member_id));
+        $piece = $this->content->deliverCustomPiece($pre->performerProfile, $file, $pre->id, $watermarkText);
 
         try {
             DB::transaction(function () use ($performerUser, $order, $piece) {

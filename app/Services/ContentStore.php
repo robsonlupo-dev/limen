@@ -33,16 +33,22 @@ class ContentStore
     public function __construct(
         private ImageProcessingService $images,
         private CsamScanService $csam,
+        private WatermarkService $watermark,
     ) {}
 
     /**
      * Higieniza e grava. Devolve ['path' => ..., 'hash' => ...]. O `$uploader` é a
      * conta que envia — para a sinalização anti-CSAM no match.
      *
+     * `$watermarkText` (Onda 4 §4.3): quando presente E a marca está ligada, queima a
+     * marca d'água nos bytes DEPOIS do scan CSAM e antes de gravar — o scan sempre vê o
+     * conteúdo real; a marca é overlay nosso. Fail-closed: se a marca falhar, o store
+     * inteiro lança e nada é gravado (a entrega falha; a performer reenvia).
+     *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      * @throws \App\Exceptions\CsamDetectedException imagem bate na lista de CSAM
      */
-    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null): array
+    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null, ?string $watermarkText = null): array
     {
         $processed = $this->images->process($file);
 
@@ -57,6 +63,11 @@ class ContentStore
             // bloqueia (nada é gravado). content_id ainda não existe (a linha nasce
             // depois do store); o par context+user identifica a trilha.
             $this->csam->scanBytes($bytes, 'content', $uploader);
+
+            // Marca d'água (depois do scan, no conteúdo real): só quando pedida e ligada.
+            if ($watermarkText !== null && (bool) config('custom_order.watermark.enabled')) {
+                $bytes = $this->watermark->applyToPhotoBytes($bytes, $watermarkText);
+            }
 
             $hash = hash('sha256', $bytes);
             $path = $performerProfileId.'/'.Str::random(40).'.jpg';
