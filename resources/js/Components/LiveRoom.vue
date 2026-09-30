@@ -30,6 +30,48 @@ const status = ref('idle') // idle | starting | live | stopping | error
 const error = ref('')
 const cameraError = ref('')
 const expanded = ref(false)
+// Prévia flutuante arrastável (feat/live-pip): a performer solta a caixinha e põe no canto
+// que quiser, sem o PiP nativo do navegador (que espelhava e sequestrava a página). É o
+// MESMO <video>, só muda o wrapper — o track do LiveKit segue anexado.
+const floating = ref(false)
+const fx = ref(0)
+const fy = ref(0)
+const FLOAT_W = 224 // ~ w-56
+const FLOAT_H = 126 // 16:9
+let dragActive = false
+let dragOffX = 0
+let dragOffY = 0
+
+function enterFloat() {
+    expanded.value = false
+    fx.value = Math.max(8, window.innerWidth - FLOAT_W - 16)
+    fy.value = Math.max(8, window.innerHeight - FLOAT_H - 16)
+    floating.value = true
+}
+function dockFloat() {
+    floating.value = false
+}
+function onDragStart(e) {
+    if (!floating.value || expanded.value) return
+    if (e.target.closest('button')) return // clicar num botão não arrasta
+    dragActive = true
+    dragOffX = e.clientX - fx.value
+    dragOffY = e.clientY - fy.value
+    window.addEventListener('pointermove', onDragMove)
+    window.addEventListener('pointerup', onDragEnd)
+    e.preventDefault()
+}
+function onDragMove(e) {
+    if (!dragActive) return
+    fx.value = Math.min(Math.max(4, e.clientX - dragOffX), window.innerWidth - FLOAT_W - 4)
+    fy.value = Math.min(Math.max(4, e.clientY - dragOffY), window.innerHeight - FLOAT_H - 4)
+}
+function onDragEnd() {
+    dragActive = false
+    window.removeEventListener('pointermove', onDragMove)
+    window.removeEventListener('pointerup', onDragEnd)
+}
+
 const viewers = ref(0)
 const earned = ref(0)
 const mobileTab = ref('chat')
@@ -275,6 +317,7 @@ async function onCallEnded() {
 }
 
 onBeforeUnmount(disconnectRoom)
+onBeforeUnmount(onDragEnd)
 </script>
 
 <template>
@@ -328,13 +371,18 @@ onBeforeUnmount(disconnectRoom)
             <div
                 :class="expanded
                     ? 'fixed inset-0 z-30 flex items-center justify-center bg-black/85 p-4'
-                    : 'relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg border border-frame bg-black sm:w-52'"
+                    : (floating
+                        ? 'fixed z-40 aspect-video w-56 shrink-0 touch-none cursor-move overflow-hidden rounded-lg border border-gold/60 bg-black shadow-2xl'
+                        : 'relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg border border-frame bg-black sm:w-52')"
+                :style="floating && !expanded ? { left: fx + 'px', top: fy + 'px' } : null"
+                @pointerdown="onDragStart"
             >
                 <video
                     ref="videoEl"
                     autoplay
                     muted
                     playsinline
+                    disablepictureinpicture
                     :class="expanded
                         ? 'max-h-full w-auto max-w-4xl -scale-x-100 rounded-lg bg-black'
                         : 'h-full w-full -scale-x-100 object-cover'"
@@ -347,17 +395,39 @@ onBeforeUnmount(disconnectRoom)
 
                 <span v-if="!expanded" class="absolute left-1 top-1 rounded bg-limen-live px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Ao vivo</span>
 
+                <!-- Controles da prévia. Expandida: fechar. Flutuante: fixar de volta.
+                     Ancorada: ampliar (conferir enquadramento) + flutuar (soltar no canto). -->
                 <button
+                    v-if="expanded"
                     type="button"
                     class="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-cream hover:bg-black/80"
-                    :aria-label="expanded ? 'Reduzir prévia' : 'Ampliar prévia para conferir o enquadramento'"
-                    @click="expanded = !expanded"
-                >
-                    <template v-if="expanded">✕ Fechar</template>
-                    <template v-else><svg class="inline-block h-3 w-3 align-[-0.1em]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg> Ampliar</template>
-                </button>
+                    aria-label="Reduzir prévia"
+                    @click="expanded = false"
+                >✕ Fechar</button>
+                <button
+                    v-else-if="floating"
+                    type="button"
+                    class="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-cream hover:bg-black/80"
+                    aria-label="Fixar a prévia de volta na barra"
+                    @click="dockFloat"
+                >⤓ Fixar</button>
+                <div v-else class="absolute right-1 top-1 flex gap-1">
+                    <button
+                        type="button"
+                        class="rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-cream hover:bg-black/80"
+                        aria-label="Soltar a prévia numa janela flutuante que você arrasta"
+                        @click="enterFloat"
+                    >⤢ Flutuar</button>
+                    <button
+                        type="button"
+                        class="rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-cream hover:bg-black/80"
+                        aria-label="Ampliar prévia para conferir o enquadramento"
+                        @click="expanded = true"
+                    ><svg class="inline-block h-3 w-3 align-[-0.1em]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg></button>
+                </div>
 
                 <span v-if="expanded" class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-[11px] text-cream/80">Prévia espelhada — só você vê</span>
+                <span v-else-if="floating" class="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2 py-0.5 text-[9px] text-cream/80">arraste para o canto</span>
             </div>
 
             <div class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2">
