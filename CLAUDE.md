@@ -357,6 +357,16 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   performer vê o membro só por FanAlias; broadcast `CustomOrderChanged` (`user.{id}`) sem
   member_id. Preço/janelas em `monetization.custom_order` + `config/custom_order.php`.
   Decisões e limitações em `docs/ROADMAP_SOCIAL.md` §4.3.
+  **Marca d'água na entrega** (§4.3, PR próprio): queima "Fã #NNNN · dd/mm/aaaa" (FanAlias
+  + data, NUNCA dado real) em diagonal repetida na foto (`WatermarkService::applyToPhotoBytes`,
+  no `ContentStore::store` DEPOIS do scan CSAM) e no vídeo (overlay PNG via ffmpeg
+  `scale2ref`+`overlay` no `ProcessVideoContent`). SÓ encomendas (cofre/PPV intactos:
+  `store()`/`sanitize()` sem watermark são byte/comando-idênticos). **Kill-switch
+  `custom_order.watermark.enabled` nasce OFF** (o caminho de vídeo não é coberto pela suíte
+  e dev==prod) — ligar só após `php artisan custom-orders:watermark-selftest` + entrega real
+  de foto e vídeo. Fail-closed quando ligada (falhou a marca → entrega falha / peça FAILED →
+  estorno). Overlay com lado ≤1920 (anti-OOM no worker); scale2ref cobre o frame real
+  (retrato/rotação).
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

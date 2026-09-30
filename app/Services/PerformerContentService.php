@@ -142,7 +142,7 @@ class PerformerContentService
      *
      * @throws ContentException|VideoProcessingException
      */
-    public function deliverCustomPiece(PerformerProfile $profile, UploadedFile $file, int $customOrderId): PerformerContent
+    public function deliverCustomPiece(PerformerProfile $profile, UploadedFile $file, int $customOrderId, ?string $watermarkText = null): PerformerContent
     {
         $isVideo = str_starts_with((string) $file->getMimeType(), 'video/');
 
@@ -171,8 +171,9 @@ class PerformerContentService
             return $content;
         }
 
-        // Foto: higieniza + grava (CSAM antes de escrever), pronta na hora.
-        $stored = $this->store->store($file, $profile->id, $profile->user);
+        // Foto: higieniza + grava (CSAM antes de escrever), pronta na hora. A marca
+        // d'água (§4.3) é queimada no store, depois do scan (fail-closed quando ligada).
+        $stored = $this->store->store($file, $profile->id, $profile->user, $watermarkText);
 
         try {
             $content = new PerformerContent;

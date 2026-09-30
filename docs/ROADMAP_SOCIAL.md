@@ -630,6 +630,29 @@ Preço: livre com piso/passo/teto (`monetization.custom_order`: 20 / passo 5 / 2
 janelas e tetos anti-flood em `config/custom_order.php` (aceite 48h, entrega 168h,
 contestação 72h; máx. 10 ativas/membro, 3 ativas/par).
 
+### Marca d'água na mídia entregue (§4.3, PR próprio)
+
+Proteção contra vazamento do conteúdo entregue: queima **"Fã #NNNN · dd/mm/aaaa"** (o
+FanAlias por par + a data — nunca id/nome real) em **diagonal repetida e sutil** na foto e no
+vídeo da entrega. Não impede ver, mas rastreia quem vazou e desencoraja — o único mecanismo
+que de fato protege (borrar/prévia temporária é teatro: o byte já foi pro cliente).
+
+Decisões travadas com o PO (29/09): **só encomendas sob medida** (não o cofre/PPV); **diagonal
+repetida**; queima **na entrega** (permanente, sobrevive ao download); **depois** do scan CSAM;
+texto = FanAlias + data; **fail-closed** (marca falhou → entrega falha / peça FAILED → estorno).
+
+Arquitetura: `WatermarkService` (Intervention v3/GD) desenha o ladrilho diagonal; a **foto**
+é marcada dentro do `ContentStore::store` (novo param opcional, aplicado após o scan); o
+**vídeo** ganha um PNG transparente que o `ProcessVideoContent` gera e o ffmpeg sobrepõe com
+`scale2ref`+`overlay` (cobre o frame real mesmo em vídeo retrato/rotacionado). Cofre e PPV
+seguem **byte/comando-idênticos** (sem texto/overlay = caminho de sempre).
+
+⚠️ **Kill-switch `custom_order.watermark.enabled` nasce DESLIGADO.** O caminho de vídeo
+(overlay ffmpeg) não é coberto pela suíte e `limen.dev.br` == produção, então ligar só depois
+de `php artisan custom-orders:watermark-selftest` (gera amostras para conferir) **e** de uma
+entrega real de foto E de vídeo. Overlay limitado a lado ≤1920 (anti-OOM no worker de 2 vCPU).
+A foto É coberta por `WatermarkTest` (roda no servidor, valida a API do Intervention).
+
 **Próximos tijolos da Onda 4 (esboço):** extrato financeiro + previsão de saque · voz-PPV e
 upload novo no chat. O **fork da assinatura** (global × fan-club × híbrido) é decisão à
 parte, no doc de estratégia.
