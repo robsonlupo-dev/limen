@@ -23,6 +23,7 @@ use App\Http\Controllers\Web\MemberGalleryMediaController;
 use App\Http\Controllers\Web\Consumer\CallReservationController as ConsumerCallReservationController;
 use App\Http\Controllers\Web\Performer\CallReservationController as PerformerCallReservationController;
 use App\Http\Controllers\Web\Consumer\CustomOrderController as ConsumerCustomOrderController;
+use App\Http\Controllers\Web\Consumer\FanclubController as ConsumerFanclubController;
 use App\Http\Controllers\Web\Performer\CustomOrderController as PerformerCustomOrderController;
 use App\Http\Controllers\Web\GroupShowController;
 use App\Http\Controllers\Web\ChatController;
@@ -1936,6 +1937,21 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:20,1')->whereNumber('order')->name('custom-orders.approve');
         Route::post('/encomendas/{order}/contestar', [ConsumerCustomOrderController::class, 'dispute'])
             ->middleware('throttle:20,1')->whereNumber('order')->name('custom-orders.dispute');
+
+        // Fã-Clube — lado do membro (Onda 4, fork da assinatura). Assinar/desvincular
+        // (binding por SLUG, como a encomenda) e "Minhas assinaturas". O dinheiro (débito
+        // 80/20 + ciclo) é do FanclubService; aqui é só a porta.
+        Route::get('/minhas-assinaturas', [ConsumerFanclubController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('fanclub.mine');
+
+        Route::post('/performer/{profile:slug}/fa-clube/assinar', [ConsumerFanclubController::class, 'subscribe'])
+            ->middleware('throttle:10,1')
+            ->name('fanclub.subscribe');
+
+        Route::post('/performer/{profile:slug}/fa-clube/desvincular', [ConsumerFanclubController::class, 'cancel'])
+            ->middleware('throttle:20,1')
+            ->name('fanclub.cancel');
     });
 
     // Performer: fila de pedidos, aceita (escrow), recusa, entrega (peça do cofre).
