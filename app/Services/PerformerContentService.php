@@ -201,6 +201,94 @@ class PerformerContentService
     }
 
     /**
+     * Publica uma peça no SET DE FÃ-CLUBE (Onda 4 — fork da assinatura). Espelha
+     * publish/publishVideo + deliverCustomPiece, mas marca `fanclub=true`: a peça fica
+     * FORA da vitrine e do painel de conteúdo (galleryFor/forOwner filtram), NÃO é
+     * desbloqueável por peça (denialForUnlock), e o acesso é só por ASSINATURA ativa
+     * (ContentVisibilityService::canView). `access_level` exclusivo e `price_tokens=0`
+     * (o preço é a assinatura do clube, não a peça). SEM marca d'água (é do cofre dela,
+     * não entrega de encomenda). Foto nasce READY; vídeo nasce PROCESSING (job ffmpeg).
+     *
+     * @throws ContentException|VideoProcessingException
+     */
+    public function publishToFanclub(PerformerProfile $profile, UploadedFile $file): PerformerContent
+    {
+        $isVideo = str_starts_with((string) $file->getMimeType(), 'video/');
+
+        if ($isVideo) {
+            $duration = $this->video->probeDurationSeconds($file->getRealPath());
+            if ($duration > (int) config('video.max_duration_seconds')) {
+                throw VideoProcessingException::tooLong((int) config('video.max_duration_seconds'));
+            }
+
+            $rawPath = $this->store->storeRawVideo($file, $profile->id);
+
+            $content = new PerformerContent;
+            $content->performer_profile_id = $profile->id;
+            $content->fanclub = true;
+            $content->kind = PerformerContent::KIND_VIDEO;
+            $content->status = PerformerContent::STATUS_PROCESSING;
+            $content->access_level = PerformerContent::LEVEL_EXCLUSIVE;
+            $content->price_tokens = 0;
+            $content->path = '';
+            $content->save();
+
+            Audit::log('content.fanclub_published', $content, ['kind' => PerformerContent::KIND_VIDEO]);
+
+            ProcessVideoContent::dispatch($content->id, $rawPath);
+
+            return $content;
+        }
+
+        $stored = $this->store->store($file, $profile->id, $profile->user);
+
+        try {
+            $content = new PerformerContent;
+            $content->performer_profile_id = $profile->id;
+            $content->fanclub = true;
+            $content->kind = PerformerContent::KIND_PHOTO;
+            $content->status = PerformerContent::STATUS_READY;
+            $content->access_level = PerformerContent::LEVEL_EXCLUSIVE;
+            $content->price_tokens = 0;
+            $content->path = $stored['path'];
+            $content->content_hash = $stored['hash'];
+            $content->save();
+        } catch (\Throwable $e) {
+            try {
+                $this->store->delete($stored['path']);
+            } catch (\Throwable) {
+            }
+
+            throw $e;
+        }
+
+        Audit::log('content.fanclub_published', $content, ['kind' => PerformerContent::KIND_PHOTO]);
+
+        return $content;
+    }
+
+    /** O set de fã-clube da performer (painel da dona). Só peças do clube, recentes primeiro. */
+    public function fanclubForOwner(PerformerProfile $profile): Collection
+    {
+        return PerformerContent::query()
+            ->where('performer_profile_id', $profile->id)
+            ->where('fanclub', true)
+            ->whereNull('custom_order_id')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (PerformerContent $c) => [
+                'id' => $c->id,
+                'kind' => $c->kind,
+                'status' => $c->status,
+                // URL injetada pelo servidor (reusa performer.content.image, owner-scoped) —
+                // mesma disciplina de forOwner; não entra no allowlist do Ziggy.
+                'image_url' => $c->isReady() ? route('performer.content.image', $c->id) : null,
+                'created_at' => $c->created_at?->toIso8601String(),
+            ])
+            ->values();
+    }
+
+    /**
      * Remove uma peça (dona só). Bytes PRIMEIRO, depois a linha (hard delete). Uma
      * denúncia em aberto CONGELA a remoção (anti-destruição de prova) — mesma regra
      * do Story. O ledger dos desbloqueios PERMANECE (append-only).

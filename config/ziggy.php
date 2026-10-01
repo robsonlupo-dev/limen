@@ -143,6 +143,12 @@ return [
         'performer.content.store',
         'performer.content.destroy',
         'performer.content.pin',
+        // Fã-Clube da performer (Onda 4): painel, salvar config e publicar no set. A
+        // remoção do set reusa performer.content.destroy; o preview usa image_url
+        // injetado pelo servidor (não via route(), fora do allowlist).
+        'performer.fanclub',
+        'performer.fanclub.settings',
+        'performer.fanclub.content',
         // Intro de voz (feat/voice-intro): a tela de gestão envia/remove por fetch
         // e o link do painel usa route(). O serving (performer.voice-intro.audio,
         // voice-intro.audio público, moderacao.voice-intros.audio) NÃO entra: são
