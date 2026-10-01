@@ -108,7 +108,7 @@ async function sendGift() {
 
             <p v-if="catalogError" class="text-sm text-danger">{{ catalogError }}</p>
 
-            <div v-else class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div v-else class="grid grid-cols-2 gap-2">
                 <button
                     v-for="gift in gifts"
                     :key="gift.slug"

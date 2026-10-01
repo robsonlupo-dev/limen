@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
 import { getJson, postForm, postJson, deleteJson } from '@/lib/http'
 
 const props = defineProps({
@@ -31,6 +32,21 @@ const LEVEL_HINTS = {
 const pieces = ref([...props.content])
 const loading = ref(false)
 const error = ref('')
+
+// Lightbox: a performer clica na própria peça para conferir em tamanho grande
+// "se ficou bom". Dona sempre vê (canView: isOwner curto-circuita o paywall), então
+// é só reusar o image_url já servido — zero query/processamento novo. Peça em
+// processamento/falha não tem bytes (image_url null) e não abre.
+const lightbox = ref(null)
+
+function openLightbox(piece) {
+    if (piece.status !== 'ready' || !piece.image_url) return
+    lightbox.value = piece
+}
+
+function closeLightbox() {
+    lightbox.value = null
+}
 
 // Formulário de publicação.
 const file = ref(null)
@@ -198,6 +214,10 @@ async function remove(piece) {
             <!-- Lista -->
             <div class="space-y-4">
                 <h2 class="font-serif text-xl text-cream">Suas peças</h2>
+                <p class="text-xs text-muted">
+                    Toque numa peça para vê-la em tamanho grande e conferir se ficou boa.
+                    <span class="text-cream/80">Destacar</span> coloca a peça no topo do seu perfil, com selo Destaque.
+                </p>
 
                 <p v-if="!pieces.length" class="rounded-xl border border-frame bg-surface px-5 py-8 text-center text-sm text-muted">
                     Você ainda não publicou nenhuma peça.
@@ -209,11 +229,26 @@ async function remove(piece) {
                         :key="piece.id"
                         class="flex items-center gap-4 rounded-xl border border-frame bg-surface p-4"
                     >
-                        <div class="h-16 w-16 shrink-0 rounded-lg border border-frame overflow-hidden bg-surface-2 flex items-center justify-center">
+                        <button
+                            type="button"
+                            :disabled="piece.status !== 'ready' || !piece.image_url"
+                            :title="(piece.status === 'ready' && piece.image_url) ? 'Ver em tamanho grande' : null"
+                            :aria-label="(piece.status === 'ready' && piece.image_url) ? 'Ver esta peça em tamanho grande' : 'Peça ainda indisponível'"
+                            class="group relative h-16 w-16 shrink-0 rounded-lg border border-frame overflow-hidden bg-surface-2 flex items-center justify-center enabled:cursor-zoom-in enabled:hover:border-gold/50 disabled:cursor-default"
+                            @click="openLightbox(piece)"
+                        >
                             <img v-if="piece.image_url" :src="piece.image_url" alt="" class="h-full w-full object-cover" />
                             <svg v-else-if="piece.kind === 'video'" class="h-6 w-6 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4" /></svg>
                             <svg v-else class="h-6 w-6 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="9" r="1.8" /><path d="m21 15-4.5-4.5L5 21" /></svg>
-                        </div>
+                            <!-- Dica visual de ampliar (só na peça clicável, no hover). -->
+                            <span
+                                v-if="piece.status === 'ready' && piece.image_url"
+                                class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-cream opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100"
+                                aria-hidden="true"
+                            >
+                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3M11 8v6M8 11h6" /></svg>
+                            </span>
+                        </button>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-cream">
                                 <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-gold">{{ levelLabel(piece.access_level) }}</span>
@@ -235,6 +270,7 @@ async function remove(piece) {
                                 type="button"
                                 :disabled="loading"
                                 :aria-pressed="piece.pinned"
+                                :title="piece.pinned ? 'No topo do seu perfil. Toque para tirar do destaque.' : 'Destacar coloca a peça no topo do seu perfil, com selo Destaque.'"
                                 :class="[
                                     'inline-flex items-center justify-center gap-1 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-50',
                                     piece.pinned
@@ -244,7 +280,7 @@ async function remove(piece) {
                                 @click="togglePin(piece)"
                             >
                                 <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /><path d="M12 15v5" /></svg>
-                                {{ piece.pinned ? 'Fixado' : 'Fixar' }}
+                                {{ piece.pinned ? 'Destacado' : 'Destacar' }}
                             </button>
                             <button
                                 type="button"
@@ -259,5 +295,32 @@ async function remove(piece) {
                 </ul>
             </div>
         </div>
+
+        <!-- Lightbox da própria peça: a dona confere em tamanho grande. Para vídeo,
+             o image_url é o quadro/poster (o player completo é do fluxo de quem
+             desbloqueia); a legenda deixa isso claro. -->
+        <Modal :show="!!lightbox" max-width="2xl" @close="closeLightbox">
+            <div v-if="lightbox" class="space-y-4">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-gold">{{ levelLabel(lightbox.access_level) }}</span>
+                        <span class="text-sm text-muted">{{ lightbox.price_tokens }} tokens</span>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-frame px-3 py-1.5 text-xs text-muted transition-colors hover:text-cream hover:bg-surface-2"
+                        @click="closeLightbox"
+                    >
+                        Fechar
+                    </button>
+                </div>
+                <div class="overflow-hidden rounded-lg border border-frame bg-black">
+                    <img :src="lightbox.image_url" alt="" class="mx-auto max-h-[70vh] w-auto object-contain" />
+                </div>
+                <p v-if="lightbox.kind === 'video'" class="text-xs text-muted">
+                    Este é o quadro de capa do vídeo. A reprodução completa fica disponível para quem desbloqueia.
+                </p>
+            </div>
+        </Modal>
     </AppLayout>
 </template>

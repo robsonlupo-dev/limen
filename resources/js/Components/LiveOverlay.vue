@@ -23,6 +23,10 @@ const props = defineProps({
     // Meta de gorjeta (Onda 4 §4.2): estado inicial { title, target, raised, pct } ou
     // null. Depois atualiza sozinha pelo broadcast '.live.goal'.
     tipGoal: { type: Object, default: null },
+    // Silencia o som por reação. Usado no console da PERFORMER: ela transmite com
+    // o microfone aberto, e um "ding" por presente vazaria para o stream. O
+    // espectador mantém o som (default false).
+    silent: { type: Boolean, default: false },
 })
 
 // Barra da meta: começa no valor do servidor e sobe em tempo real a cada gorjeta.
@@ -106,8 +110,9 @@ function styleFor(reaction) {
 
 function enqueue(reaction) {
     // Som por reação (gorjeta E presente caem na preferência 'tip'); toca na
-    // chegada, respeitando o toggle do usuário e falhando em silêncio.
-    play('tip')
+    // chegada, respeitando o toggle do usuário e falhando em silêncio. No console
+    // da performer (`silent`) não toca — evita o "ding" vazar pelo microfone aberto.
+    if (!props.silent) play('tip')
 
     if (active.value.length < MAX_CONCURRENT) {
         activate(reaction)
