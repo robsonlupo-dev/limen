@@ -150,8 +150,8 @@ function bandClass(b) { return BAND_CLASS[b] ?? BAND_CLASS.novo }
                         <label class="text-xs uppercase tracking-wide text-muted">Prefere pensar no líquido?</label>
                         <div class="flex items-center gap-2">
                             <input
-                                v-model.number="targetNet" type="number" min="0" placeholder="R$ que quero sacar"
-                                class="w-40 rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream"
+                                v-model.number="targetNet" type="number" min="0" placeholder="R$ a sacar"
+                                class="min-w-0 flex-1 rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream"
                             />
                             <button type="button" class="rounded-lg border border-gold px-3 py-2 text-xs text-gold hover:bg-gold/10" @click="applyTargetNet">
                                 Calcular tokens

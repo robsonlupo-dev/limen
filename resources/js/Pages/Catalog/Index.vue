@@ -146,7 +146,7 @@ function selectWorld(value) {
             <FilterPanel :filters="filters" :saved-searches="savedSearches" :can-save="true" />
 
             <!-- Skeleton loading: molde com brilho dourado que varre. -->
-            <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+            <div v-if="loading" class="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3.5">
                 <SkeletonCard v-for="n in 8" :key="n" />
             </div>
 
@@ -161,7 +161,7 @@ function selectWorld(value) {
 
             <!-- Grid -->
             <template v-else>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                <div class="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3.5">
                     <!-- Slot de Destaque (Boost): card largo (2 colunas) no topo,
                          só quando há performer boostada. Sai do grid normal abaixo
                          para não duplicar. -->

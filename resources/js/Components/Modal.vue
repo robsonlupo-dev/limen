@@ -31,6 +31,8 @@ defineEmits(['close'])
                     maxWidth === 'sm' && 'max-w-sm',
                     maxWidth === 'md' && 'max-w-md',
                     maxWidth === 'lg' && 'max-w-lg',
+                    maxWidth === 'xl' && 'max-w-2xl',
+                    maxWidth === '2xl' && 'max-w-4xl',
                 ]"
             >
                 <slot />

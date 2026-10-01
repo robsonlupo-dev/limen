@@ -37,7 +37,7 @@ function initial(name) {
 
 <template>
     <div v-if="lives.length || feed.length" class="-mx-6 px-6">
-        <div class="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div class="flex gap-4 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <!-- ── AO VIVO (anel vermelho, primeiro) ── -->
             <button
                 v-for="live in lives"

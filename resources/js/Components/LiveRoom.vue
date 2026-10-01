@@ -4,6 +4,7 @@ import { Room, Track, VideoPresets, ConnectionQuality, RoomEvent } from 'livekit
 import { postJson, getJson, errorMessage } from '@/lib/http'
 import LiveChat from '@/Components/LiveChat.vue'
 import LiveReactionFeed from '@/Components/LiveReactionFeed.vue'
+import LiveOverlay from '@/Components/LiveOverlay.vue'
 import TokenCoin from '@/Components/TokenCoin.vue'
 import CallIncoming from '@/Components/CallIncoming.vue'
 import PrivateCall from '@/Components/PrivateCall.vue'
@@ -345,8 +346,11 @@ onBeforeUnmount(onDragEnd)
         </div>
     </div>
 
-    <!-- Console ao vivo. -->
-    <div v-else class="space-y-4">
+    <!-- Console ao vivo. No desktop (lg) a coluna inteira é limitada à altura da
+         viewport e só o CHAT rola por dentro — a performer nunca precisa rolar a
+         página para alcançar o campo de digitar (achado UAT). No mobile mantém o
+         fluxo de rolagem normal com as abas Chat/Gorjetas. -->
+    <div v-else class="space-y-4 lg:flex lg:h-[calc(100dvh-10rem)] lg:flex-col lg:overflow-hidden">
         <!-- Em chamada privada: a live está PAUSADA e a sala 1:1 assume a tela. -->
         <div v-if="activeCall" class="space-y-3">
             <p class="rounded-lg border border-limen-live/40 bg-limen-live/10 px-3 py-2 text-sm text-cream">
@@ -363,7 +367,7 @@ onBeforeUnmount(onDragEnd)
 
         <template v-else>
         <!-- Barra de status: presença, ganho, prévia pequena e encerrar. -->
-        <div class="flex flex-wrap items-center gap-3 rounded-xl border border-frame bg-surface p-3">
+        <div class="flex flex-wrap items-center gap-3 rounded-xl border border-frame bg-surface p-3 lg:shrink-0">
             <!-- Prévia do próprio vídeo: espelhada, sem áudio (sem microfonia),
                  ampliável para conferir o enquadramento. O MESMO <video> serve os
                  dois tamanhos (só a classe muda), então a faixa não se solta ao
@@ -428,6 +432,18 @@ onBeforeUnmount(onDragEnd)
 
                 <span v-if="expanded" class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-[11px] text-cream/80">Prévia espelhada — só você vê</span>
                 <span v-else-if="floating" class="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2 py-0.5 text-[9px] text-cream/80">arraste para o canto</span>
+
+                <!-- Animação de gorjeta/presente no PRÓPRIO console (mesmo canal
+                     `live.{slug}` que alimenta a lista): a performer vê a celebração
+                     sobre a prévia, como o público vê sobre o vídeo — antes ela só
+                     via o item entrar na lista, sem animação. `pointer-events-none`
+                     (no root do overlay) deixa os controles da prévia clicáveis.
+                     Oculta ao AMPLIAR (conferência de enquadramento em tela cheia)
+                     para não cobrir tudo de pétalas. `v-show` (não `v-if`): o overlay
+                     faz `Echo.leave` do canal `live.{slug}` ao desmontar, e esse canal
+                     é COMPARTILHADO com o chat e a lista — desmontar ao ampliar
+                     derrubaria o tempo-real deles. Som desligado (microfone aberto). -->
+                <LiveOverlay v-show="!expanded" :performer-slug="performerSlug" :tip-goal="null" silent />
             </div>
 
             <div class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2">
@@ -452,7 +468,7 @@ onBeforeUnmount(onDragEnd)
         </div>
 
         <!-- Controles de transmissão: microfone, câmera e qualidade. Alvos ≥44px. -->
-        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-frame bg-surface p-2">
+        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-frame bg-surface p-2 lg:shrink-0">
             <button
                 type="button"
                 :aria-pressed="!micOn"
@@ -553,7 +569,7 @@ onBeforeUnmount(onDragEnd)
             </button>
         </div>
 
-        <div class="grid gap-4 lg:h-[calc(100vh-19rem)] lg:grid-cols-[1fr_340px]">
+        <div class="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_340px]">
             <div class="h-[68vh] min-h-0 lg:h-auto" :class="mobileTab === 'chat' ? 'block' : 'hidden lg:block'">
                 <LiveChat
                     :performer-slug="performerSlug"
