@@ -80,6 +80,7 @@ use App\Http\Controllers\Web\Performer\MemberProfileController;
 use App\Http\Controllers\Web\Performer\MemberNotesController;
 use App\Http\Controllers\Web\Performer\OnboardingController;
 use App\Http\Controllers\Web\Performer\PayoutController;
+use App\Http\Controllers\Web\Performer\FanclubController;
 use App\Http\Controllers\Web\Performer\InsightsController;
 use App\Http\Controllers\Web\Performer\PerformerContentController;
 use App\Http\Controllers\Web\Performer\PerformerLiveController;
@@ -1174,6 +1175,25 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->middleware('throttle:30,1')
                 ->whereNumber('content')
                 ->name('performer.content.pin')
+                ->can('performer-active');
+
+            // Fã-Clube da performer (Onda 4 — fork da assinatura). Painel (editor +
+            // set + lista de assinantes com sinal de baleia), salvar config e publicar
+            // no set. Preview/remoção das peças do set reusam performer.content.image/
+            // .destroy (owner-scoped). O lado do membro (assinar) é PR próprio.
+            Route::get('/performer/fa-clube', [FanclubController::class, 'page'])
+                ->middleware('throttle:60,1')
+                ->name('performer.fanclub')
+                ->can('performer-active');
+
+            Route::post('/performer/fa-clube/config', [FanclubController::class, 'saveSettings'])
+                ->middleware('throttle:30,1')
+                ->name('performer.fanclub.settings')
+                ->can('performer-active');
+
+            Route::post('/performer/fa-clube/conteudo', [FanclubController::class, 'publishContent'])
+                ->middleware('throttle:10,1')
+                ->name('performer.fanclub.content')
                 ->can('performer-active');
 
             // Intro de voz (feat/voice-intro). Só performer ATIVA grava/envia; o

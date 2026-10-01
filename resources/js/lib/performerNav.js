@@ -29,7 +29,13 @@ export const PERFORMER_SECTIONS = [
         key: 'conteudo',
         label: 'Conteúdo',
         route: 'performer.content',
-        match: ['performer.content'],
+        match: ['performer.content', 'performer.fanclub'],
+        children: [
+            { label: 'Cofre', route: 'performer.content' },
+            // Fã-Clube (Onda 4 — fork da assinatura): abrir o clube, publicar no set e
+            // ver os assinantes (sinal de baleia anônimo).
+            { label: 'Fã-clube', route: 'performer.fanclub' },
+        ],
     },
     {
         key: 'mensagens',

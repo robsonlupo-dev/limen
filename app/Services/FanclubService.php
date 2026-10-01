@@ -6,6 +6,8 @@ use App\Exceptions\FanclubException;
 use App\Models\FanclubMembership;
 use App\Models\FanclubSettings;
 use App\Models\PerformerProfile;
+use App\Models\Subscription;
+use App\Models\TokenLedger;
 use App\Models\TokenWallet;
 use App\Models\User;
 use App\Support\Audit;
@@ -354,6 +356,107 @@ class FanclubService
             ->where('performer_profile_id', $profile->id)
             ->where('status', FanclubMembership::STATUS_ACTIVE)
             ->exists();
+    }
+
+    // ── Leitura (painel da performer) ───────────────────────────────────────────
+
+    /** Config atual do fã-clube da performer, no shape do editor. */
+    public function settingsFor(PerformerProfile $profile): array
+    {
+        $s = FanclubSettings::where('performer_profile_id', $profile->id)->first();
+
+        return [
+            'is_open' => (bool) ($s?->is_open ?? false),
+            'price_public_tokens' => $s?->price_public_tokens,
+            'vip_enabled' => (bool) ($s?->vip_enabled ?? false),
+            'price_vip_tokens' => $s?->price_vip_tokens,
+        ];
+    }
+
+    /**
+     * Lista de assinantes para a performer — o sinal de baleia (docs/FORK_ASSINATURA.md §5).
+     * SEMPRE anônimo: FanAlias + selo de tier + FAIXA de gasto. NUNCA member_id, nome, ou
+     * número exato. Respeita o PISO de anonimato (abaixo dele, nenhuma linha — só a faixa de
+     * contagem), mesma disciplina da lista de seguidores.
+     *
+     * @return array{below_floor:bool, count_label:string, supporters:array<int,array<string,string>>}
+     */
+    public function rosterFor(PerformerProfile $profile): array
+    {
+        $floor = (int) config('interest.anonymity_floor', 5);
+
+        $activeCount = FanclubMembership::where('performer_profile_id', $profile->id)
+            ->where('status', FanclubMembership::STATUS_ACTIVE)
+            ->count();
+
+        $countLabel = PerformerProfile::followersLabelFor($activeCount);
+
+        // Abaixo do piso: nenhuma linha individual (deanonimização por contagem pequena).
+        if ($activeCount < $floor) {
+            return ['below_floor' => true, 'count_label' => $countLabel, 'supporters' => []];
+        }
+
+        // Gasto acumulado em assinatura POR MEMBRO com esta performer (uma query agregada,
+        // sem N+1): soma e contagem dos débitos spend_fanclub_sub referenciando este perfil.
+        $spend = TokenLedger::query()
+            ->join('token_wallets', 'token_wallets.id', '=', 'token_ledger.wallet_id')
+            ->where('token_ledger.entry_type', 'spend_fanclub_sub')
+            ->where('token_ledger.reference_type', PerformerProfile::class)
+            ->where('token_ledger.reference_id', $profile->id)
+            ->groupBy('token_wallets.user_id')
+            ->selectRaw('token_wallets.user_id as uid, COUNT(*) as charges, SUM(ABS(token_ledger.amount)) as total')
+            ->get()
+            ->keyBy('uid');
+
+        $recorrente = (int) config('fanclub.whale.recorrente_charges', 2);
+        $alto = (int) config('fanclub.whale.alto_tokens', 300);
+
+        $memberships = FanclubMembership::query()
+            ->where('performer_profile_id', $profile->id)
+            ->where('status', FanclubMembership::STATUS_ACTIVE)
+            ->orderByDesc('id')
+            ->limit((int) config('fanclub.roster_limit', 200))
+            ->get(['id', 'member_id']);
+
+        // Selo de tier POR MEMBRO numa query só (sem N+1 de assinatura por linha): o
+        // Círculo ativo (status active + não vencido) mais recente de cada member_id.
+        $memberIds = $memberships->pluck('member_id')->all();
+        $slugByUser = Subscription::query()
+            ->join('circles', 'circles.id', '=', 'subscriptions.circle_id')
+            ->whereIn('subscriptions.user_id', $memberIds)
+            ->where('subscriptions.status', 'active')
+            ->where('subscriptions.current_period_end', '>', now())
+            ->orderByDesc('subscriptions.id')
+            ->get(['subscriptions.user_id as uid', 'circles.slug as slug'])
+            ->groupBy('uid')
+            ->map(fn ($rows) => $rows->first()->slug);
+
+        $rows = $memberships
+            ->map(function (FanclubMembership $m) use ($profile, $spend, $slugByUser, $recorrente, $alto) {
+                $s = $spend[$m->member_id] ?? null;
+                $charges = $s ? (int) $s->charges : 1;
+                $total = $s ? (int) round((float) $s->total) : 0;
+
+                $band = match (true) {
+                    $total >= $alto => 'alto',
+                    $charges >= $recorrente => 'recorrente',
+                    default => 'novo',
+                };
+
+                $tier = match ($slugByUser[$m->member_id] ?? null) {
+                    'founders_circle' => 'FC',
+                    'black' => 'Black',
+                    null => 'Membro',
+                    default => 'Assinante',
+                };
+
+                // Só dados ANÔNIMOS: alias + selo + faixa. Nunca member_id/nome/total exato.
+                return ['alias' => FanAlias::label($profile->id, $m->member_id), 'tier' => $tier, 'band' => $band];
+            })
+            ->values()
+            ->all();
+
+        return ['below_floor' => false, 'count_label' => $countLabel, 'supporters' => $rows];
     }
 
     // ── Interno ───────────────────────────────────────────────────────────────

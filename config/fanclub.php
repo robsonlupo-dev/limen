@@ -24,4 +24,20 @@ return [
     // Teto de assinaturas ATIVAS por membro (anti-engano/anti-flood; o limite real de
     // gasto é o saldo). Alto o bastante para não atrapalhar uso legítimo.
     'max_active_per_member' => (int) env('FANCLUB_MAX_ACTIVE_PER_MEMBER', 50),
+
+    /*
+    | Sinal de baleia (docs/FORK_ASSINATURA.md §5.1): a performer vê o assinante por
+    | FanAlias + selo de tier + uma FAIXA de gasto (nunca o número exato — canal lateral).
+    | As faixas: "novo" (1º ciclo), "recorrente" (renovou ≥1 vez), "alto apoiador"
+    | (acumulou >= high_tokens em assinatura com ela). Calibrável; limites conservadores.
+    | O roster só aparece acima do PISO de anonimato (config interest.anonymity_floor).
+    */
+    'whale' => [
+        'recorrente_charges' => (int) env('FANCLUB_WHALE_RECORRENTE_CHARGES', 2),
+        'alto_tokens' => (int) env('FANCLUB_WHALE_ALTO_TOKENS', 300),
+    ],
+
+    // Teto de linhas no roster (painel da performer; não é hot path, mas evita payload
+    // gigante numa performer com muitos assinantes).
+    'roster_limit' => (int) env('FANCLUB_ROSTER_LIMIT', 200),
 ];
