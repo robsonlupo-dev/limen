@@ -97,54 +97,76 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <!-- Empilha no canto inferior direito, acima de tudo. -->
-    <div class="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3">
+    <!-- Empilha no canto inferior direito, acima de tudo. No mobile ocupa a largura. -->
+    <div class="pointer-events-none fixed bottom-4 right-4 left-4 sm:left-auto z-[100] flex w-auto sm:w-[27rem] flex-col gap-3">
         <transition-group name="toast">
+            <!-- O CARD INTEIRO é clicável (abre a conversa) — alvo grande e óbvio. O ×
+                 e o botão param a propagação para não disparar duas vezes. -->
             <div
                 v-for="toast in toasts"
                 :key="toast.id"
-                class="pointer-events-auto flex items-start gap-3 rounded-xl border p-4 shadow-2xl"
+                role="button"
+                tabindex="0"
+                class="toast-card pointer-events-auto cursor-pointer rounded-2xl border p-5 shadow-2xl transition-colors"
                 style="background-color: #0d0d0d; border-color: #262626; color: #F5F0E8"
+                @click="open(toast)"
+                @keydown.enter="open(toast)"
+                @keydown.space.prevent="open(toast)"
             >
-                <!-- Foto redonda 40px; placeholder com inicial quando não há avatar
-                     (ex.: FanAlias do membro, que não tem foto visível à performer). -->
-                <img
-                    v-if="toast.avatar"
-                    :src="toast.avatar"
-                    alt=""
-                    class="h-12 w-12 shrink-0 rounded-full object-cover"
-                    @error="toast.avatar = null"
-                />
-                <div
-                    v-else
-                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold"
-                    style="background-color: #262626; color: #C9A84C"
-                >{{ initial(toast.name) }}</div>
-
-                <div class="min-w-0 flex-1">
-                    <p class="truncate text-base font-semibold" style="color: #C9A84C">{{ toast.name }}</p>
-                    <!-- Gancho da mensagem quando há (teaser cortado no servidor p/
-                         quem não pagou; trecho normal p/ quem lê). Sem preview, o
-                         genérico. `truncate` evita estourar o toast. -->
-                    <p class="mt-0.5 line-clamp-2 text-sm" style="color: #F5F0E8">{{ toast.preview || 'Enviou uma mensagem' }}</p>
+                <!-- Cabeçalho: etiqueta "Nova mensagem" + fechar. -->
+                <div class="mb-3 flex items-center justify-between">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide" style="color: #C9A84C">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+                        Nova mensagem
+                    </span>
                     <button
                         type="button"
-                        class="mt-1.5 inline-block min-h-[32px] text-sm font-medium underline-offset-2 hover:underline"
-                        style="color: #C9A84C"
-                        @click="open(toast)"
+                        aria-label="Fechar"
+                        class="-m-1 shrink-0 rounded p-1 text-xl leading-none opacity-60 hover:opacity-100"
+                        style="color: #F5F0E8"
+                        @click.stop="dismiss(toast.id)"
                     >
-                        Ler mensagem
+                        &times;
                     </button>
                 </div>
 
+                <div class="flex items-start gap-4">
+                    <!-- Foto redonda 56px; placeholder com inicial quando não há avatar
+                         (ex.: FanAlias do membro, que não tem foto visível à performer).
+                         Pontinho dourado = não lida. -->
+                    <div class="relative shrink-0">
+                        <img
+                            v-if="toast.avatar"
+                            :src="toast.avatar"
+                            alt=""
+                            class="h-14 w-14 rounded-full object-cover"
+                            @error="toast.avatar = null"
+                        />
+                        <div
+                            v-else
+                            class="flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold"
+                            style="background-color: #262626; color: #C9A84C"
+                        >{{ initial(toast.name) }}</div>
+                        <span class="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2" style="background-color: #C9A84C; border-color: #0d0d0d"></span>
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-lg font-semibold" style="color: #C9A84C">{{ toast.name }}</p>
+                        <!-- Gancho da mensagem quando há (teaser cortado no servidor p/
+                             quem não pagou; trecho normal p/ quem lê). Sem preview, o genérico. -->
+                        <p class="mt-1 line-clamp-2 text-sm" style="color: #F5F0E8; opacity: 0.9">{{ toast.preview || 'enviou uma mensagem para você' }}</p>
+                    </div>
+                </div>
+
+                <!-- Ação primária: botão cheio, alvo grande (≥44px). Abrir conversa. -->
                 <button
                     type="button"
-                    aria-label="Fechar"
-                    class="shrink-0 self-start rounded p-1 text-lg leading-none opacity-60 hover:opacity-100"
-                    style="color: #F5F0E8"
-                    @click="dismiss(toast.id)"
+                    class="mt-4 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+                    style="background-color: #C9A84C; color: #0d0d0d"
+                    @click.stop="open(toast)"
                 >
-                    &times;
+                    Abrir conversa
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </button>
             </div>
         </transition-group>
@@ -152,6 +174,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Realce da borda ao passar o mouse (o card inteiro é clicável). */
+.toast-card:hover {
+    border-color: #C9A84C !important;
+}
+
 /* Slide-in da direita ao entrar, fade-out ao sair. */
 .toast-enter-active {
     transition: transform 0.3s ease, opacity 0.3s ease;
