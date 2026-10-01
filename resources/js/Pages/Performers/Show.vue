@@ -22,6 +22,7 @@ import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import ContentGallery from '@/Components/ContentGallery.vue'
+import FanclubSection from '@/Components/Profile/FanclubSection.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import { stateLabel } from '@/lib/performerAttributes'
@@ -36,6 +37,7 @@ const props = defineProps({
     report: { type: Object, default: null },
     favorite: { type: Object, default: null },
     contents: { type: Array, default: () => [] },
+    fanclub: { type: Object, default: null },
     meta: { type: Object, default: () => ({ title: 'Limen', description: '' }) },
 })
 
@@ -204,6 +206,15 @@ async function unlockChat() {
                                 Criar conta
                             </Link>
                         </div>
+
+                        <!-- Fã-clube (Onda 4): assinatura por-performer + set. -->
+                        <FanclubSection
+                            v-if="fanclub && (fanclub.open || fanclub.is_subscribed)"
+                            class="mt-6"
+                            :fanclub="fanclub"
+                            :slug="performer.slug"
+                            :performer-name="performer.stage_name"
+                        />
                     </div>
 
                     <div v-if="report" class="pt-4 text-center">

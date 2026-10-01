@@ -78,10 +78,12 @@ export const MEMBER_SECTIONS = [
         key: 'carteira',
         label: 'Carteira',
         route: 'wallet.index',
-        match: ['wallet.index', 'wallet.history', 'subscribe.index'],
+        match: ['wallet.index', 'wallet.history', 'subscribe.index', 'fanclub.mine'],
         children: [
             { label: 'Tokens', route: 'wallet.index' },
             { label: 'Círculos', route: 'subscribe.index' },
+            // Fã-clubes assinados (Onda 4): assinaturas por-performer, à parte dos Círculos.
+            { label: 'Assinaturas', route: 'fanclub.mine' },
         ],
     },
 ]

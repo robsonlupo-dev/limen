@@ -22,6 +22,7 @@ import Lightbox from '@/Components/Lightbox.vue'
 import PerformerAbout from '@/Components/PerformerAbout.vue'
 import PhotoCarousel from '@/Components/PhotoCarousel.vue'
 import ContentGallery from '@/Components/ContentGallery.vue'
+import FanclubSection from '@/Components/Profile/FanclubSection.vue'
 import ComingSoon from '@/Components/ComingSoon.vue'
 import ScheduleCallModal from '@/Components/ScheduleCallModal.vue'
 import CallRequest from '@/Components/CallRequest.vue'
@@ -35,6 +36,7 @@ const props = defineProps({
     highlights: { type: Array, default: () => [] },
     photos: { type: Array, default: () => [] },
     contents: { type: Array, default: () => [] },
+    fanclub: { type: Object, default: null },
     report: { type: Object, default: null },
     chat: { type: Object, default: null },
     chatCost: { type: Number, default: null },
@@ -264,6 +266,15 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
                                 Ver Círculos
                             </Link>
                         </div>
+
+                        <!-- Fã-clube (Onda 4): assinatura por-performer + set. -->
+                        <FanclubSection
+                            v-if="fanclub && (fanclub.open || fanclub.is_subscribed)"
+                            class="mt-6"
+                            :fanclub="fanclub"
+                            :slug="performer.slug"
+                            :performer-name="performer.stage_name"
+                        />
                     </div>
 
                     <!-- Denúncia: discreta, no rodapé do conteúdo. -->

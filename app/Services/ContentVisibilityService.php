@@ -301,6 +301,33 @@ class ContentVisibilityService
     }
 
     /**
+     * A grade do SET DE FÃ-CLUBE que ESTE espectador vê no perfil (Onda 4). Todas as
+     * peças prontas do set aparecem via ContentPresenter — para o NÃO-assinante vêm
+     * `locked` e sem URL de bytes (teaser que leva a assinar); para o assinante ativo
+     * (e para a dona) vêm destravadas. O paywall é o `canView` (assinatura ativa), a
+     * MESMA porta do serving — tela e bytes nunca divergem.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function fanclubGalleryFor(?User $viewer, PerformerProfile $profile): array
+    {
+        if (! $this->performerIsReachable($profile)) {
+            return [];
+        }
+
+        return PerformerContent::query()
+            ->where('performer_profile_id', $profile->id)
+            ->where('fanclub', true)
+            ->whereNull('custom_order_id')
+            ->ready()
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (PerformerContent $content) => ContentPresenter::one($content, $viewer))
+            ->values()
+            ->all();
+    }
+
+    /**
      * Rótulo do TIER de assinatura que destrava este nível — para o upsell do tile
      * bloqueado POR TIER (Exclusivo/FC Only sem o Círculo). `null` quando o espectador
      * já vê, PODE comprar avulso (Aberto/Premium, ou o tier alcança), ou é Aberto.

@@ -459,6 +459,73 @@ class FanclubService
         return ['below_floor' => false, 'count_label' => $countLabel, 'supporters' => $rows];
     }
 
+    // ── Leitura (lado do membro) ─────────────────────────────────────────────────
+
+    /**
+     * Visão do fã-clube da performer para ESTE espectador (card do perfil público). O
+     * preço é o DELE (público, ou VIP se Black/FC e a performer ligou). Inclui a grade do
+     * set (teaser p/ não-assinante, destravada p/ assinante/dona). Nunca expõe id de outro
+     * membro — é tudo sobre o próprio espectador.
+     */
+    public function memberView(?User $viewer, PerformerProfile $profile): array
+    {
+        $settings = FanclubSettings::where('performer_profile_id', $profile->id)->first();
+        $open = ($settings?->isSubscribable() ?? false) && $this->performerIsReachable($profile);
+        $isOwner = $viewer !== null && (int) $profile->user_id === (int) $viewer->id;
+
+        $membership = ($viewer !== null && $viewer->role === 'consumer')
+            ? FanclubMembership::where('member_id', $viewer->id)
+                ->where('performer_profile_id', $profile->id)
+                ->first()
+            : null;
+
+        [$price, $tier] = $open ? $settings->priceFor($viewer) : [null, 'public'];
+
+        $isSubscribed = $membership?->isActive() ?? false;
+
+        return [
+            'open' => $open,
+            'price_tokens' => $open ? (int) $price : null,
+            'price_tier' => $tier,
+            'is_subscribed' => $isSubscribed,
+            'status' => $membership?->status,
+            'renews_at' => $isSubscribed ? $membership->current_period_end?->toIso8601String() : null,
+            'is_owner' => $isOwner,
+            // Mostra a grade quando o clube está aberto, para a dona, OU para quem já
+            // assina (o assinante ativo não perde o set se a performer fechar o clube —
+            // o acesso por canView depende da assinatura, não de is_open).
+            'set' => ($open || $isOwner || $isSubscribed)
+                ? app(ContentVisibilityService::class)->fanclubGalleryFor($viewer, $profile)
+                : [],
+        ];
+    }
+
+    /**
+     * As assinaturas de fã-clube do membro (tela "Minhas assinaturas"). Ativas e pausadas
+     * (as canceladas somem). Cada linha: a performer (pública), status, preço e renovação.
+     */
+    public function mySubscriptions(User $member): array
+    {
+        return FanclubMembership::with('performerProfile:id,stage_name,slug')
+            ->where('member_id', $member->id)
+            ->whereIn('status', [FanclubMembership::STATUS_ACTIVE, FanclubMembership::STATUS_PAUSED])
+            ->orderByDesc('id')
+            ->limit(200)
+            ->get()
+            ->map(fn (FanclubMembership $m) => [
+                'performer' => [
+                    'stage_name' => $m->performerProfile?->stage_name,
+                    'slug' => $m->performerProfile?->slug,
+                ],
+                'status' => $m->status,
+                'price_tokens' => (int) $m->price_tokens,
+                'price_tier' => $m->price_tier,
+                'renews_at' => $m->isActive() ? $m->current_period_end?->toIso8601String() : null,
+            ])
+            ->values()
+            ->all();
+    }
+
     // ── Interno ───────────────────────────────────────────────────────────────
 
     /**

@@ -282,6 +282,9 @@ class CatalogController extends Controller
             // com locked/price/image_url resolvido pelo ContentVisibilityService
             // (dona única do paywall) — bloqueado NÃO recebe URL de bytes.
             'contents' => $this->contentVisibility->galleryFor($request->user(), $profile),
+            // Fã-Clube (Onda 4): card da assinatura para ESTE espectador — aberto, preço
+            // dele (público/VIP), se já assina, e a grade do set (teaser ou destravada).
+            'fanclub' => app(\App\Services\FanclubService::class)->memberView($request->user(), $profile),
             // Alvo da denúncia (ver PublicCatalogController::show). Toda a rota
             // já está atrás de auth, então não há caso de visitante aqui.
             'report' => ['type' => 'performer', 'id' => $profile->id],

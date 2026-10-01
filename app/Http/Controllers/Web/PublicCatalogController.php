@@ -155,6 +155,9 @@ class PublicCatalogController extends Controller
             // Free veem só o Aberto (bloqueado, sem URL de bytes — o CTA leva ao
             // cadastro/desbloqueio). Mesma fonte do serving (ContentVisibilityService).
             'contents' => $this->contentVisibility->galleryFor($request->user(), $profile),
+            // Fã-Clube (Onda 4): card da assinatura para ESTE espectador — aberto, preço
+            // dele (público/VIP), se já assina, e a grade do set (teaser ou destravada).
+            'fanclub' => app(\App\Services\FanclubService::class)->memberView($request->user(), $profile),
             // Estado do chat para ESTE espectador. Chat é interest-gated: só há
             // conversa se a performer mandou Interesse e o membro desbloqueou —
             // não dá para iniciar chat frio daqui. Null (guest, performer/admin,

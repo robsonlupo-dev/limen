@@ -149,6 +149,12 @@ return [
         'performer.fanclub',
         'performer.fanclub.settings',
         'performer.fanclub.content',
+        // Fã-Clube — lado do membro (Onda 4): assinar/desvincular (seção do perfil) e
+        // "Minhas assinaturas" (nav). O set é servido por content.image/.video (URLs
+        // injetadas pelo ContentPresenter, não via route()).
+        'fanclub.mine',
+        'fanclub.subscribe',
+        'fanclub.cancel',
         // Intro de voz (feat/voice-intro): a tela de gestão envia/remove por fetch
         // e o link do painel usa route(). O serving (performer.voice-intro.audio,
         // voice-intro.audio público, moderacao.voice-intros.audio) NÃO entra: são
