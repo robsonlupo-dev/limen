@@ -177,6 +177,11 @@ contrato técnico que um dev quebraria sem saber:
   `custom_order_refund` (estorno 100% ao membro — devolução, NÃO entra no payout e nunca
   respeita o teto, como o `call_reservation_refund`). O crédito/estorno só se move sob
   `escrow_settled` re-lido em `lockForUpdate` (idempotente por linha).
+- **`entry_type` do Fã-Clube (fork da assinatura):** `spend_fanclub_sub` (débito do membro na
+  assinatura/renovação — é gasto, fora do payout) e `fanclub_sub_credit` (crédito 80/20 à
+  performer, rate `content`, ganho sacável — entra no `payout.earning_entry_types` e ignora o
+  teto). Débito+crédito sob lock das 2 carteiras em ordem de user_id; idempotente por
+  UNIQUE(member,performer) + re-leitura sob lock. **Nunca BRL** (trilho só token).
 ## Estado atual
 
 - **Branch principal:** `main` · **último commit:** `ccc5ad6` (Merge PR #274 —
@@ -367,6 +372,22 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   de foto e vídeo. Fail-closed quando ligada (falhou a marca → entrega falha / peça FAILED →
   estorno). Overlay com lado ≤1920 (anti-OOM no worker); scale2ref cobre o frame real
   (retrato/rotação).
+  **Fã-Clube da performer** (fork da assinatura, entregue, PRs #307/#308/#309): assinatura
+  recorrente POR-PERFORMER em token (estilo OnlyFans), **híbrido** por cima do Círculo global
+  (Premissa 0 intacta). Fonte de produto: `docs/FORK_ASSINATURA.md`; detalhe técnico em
+  `docs/ARQUITETURA.md`. `FanclubService` (dona única): `subscribe`/`cancel`/`processRenewals`
+  (cron `fanclub:process`). Débito `spend_fanclub_sub` + crédito **80/20** `fanclub_sub_credit`
+  (rate `content`, sacável/fora do teto); **nunca BRL** — trilho só token, com **avisa-e-pausa**
+  na renovação sem saldo. Locks das 2 carteiras em ordem de user_id (carteiras→assinatura nos
+  dois caminhos, anti-deadlock); idempotente por UNIQUE(member,performer); só `role=consumer`
+  assina. **Preço único + VIP opcional** (trava servidor público ≥ VIP; `isValidFanclubPrice`,
+  piso 20/passo 5/teto 2000 em `monetization.fanclub`; janelas em `config/fanclub.php`). **Set**
+  = `performer_content.fanclub` (balde separado): `canView` serve só a assinante ATIVO/dona,
+  `galleryFor`/`forOwner`/`denialForUnlock` excluem/recusam; acesso RECORRENTE/REVOGÁVEL (o
+  permanente é só o avulso PPV/unlock). ⚠️ **Sinal de baleia (anonimato M.13.10):** a performer
+  vê o assinante só por **FanAlias + selo de tier + faixa de gasto**, NUNCA id/nome/número
+  exato, e só acima do **piso de anonimato** — exceção DELIBERADA e escopada ao §12. Testes
+  `FanclubTest`/`FanclubPerformerTest`/`FanclubMemberTest` (`fcl`/`fcp`/`fcm`).
 - **Programa de indicação** (`feat/referral-program`): "indique e ganhe", bônus
   **fixo e não-sacável** aos dois lados quando a indicação converte (1ª compra do
   membro OU KYC + 1º ganho de terceiro da performer). `ReferralService`,

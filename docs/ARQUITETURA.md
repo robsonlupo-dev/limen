@@ -836,6 +836,51 @@ gorjetas — **não cria `entry_type`, não mexe em token** (a gorjeta segue 80/
   por `SafeProfileText` e alvo por `monetization.tip_goal` (piso/teto). Revisão dedicada:
   nada acima de LOW. Testes `TipGoalTest` (prefixo `tg`). PR #298.
 
+### Fã-Clube da performer — roadmap social, Onda 4 (fork da assinatura, entregue) — PRs #307/#308/#309
+
+Assinatura recorrente POR-PERFORMER paga em token (estilo OnlyFans), **model-híbrido** por
+cima do Círculo global (que continua a espinha dorsal — Premissa 0 intacta). Fonte de
+produto: `docs/FORK_ASSINATURA.md`. Três PRs: dados+ledger (#307), UI da performer (#308),
+UI do membro (#309).
+
+- **Dados:** `fanclub_settings` (performer_profile_id UNIQUE, is_open, price_public_tokens,
+  vip_enabled, price_vip_tokens); `fanclub_memberships` (UNIQUE member×performer; status
+  active|paused|cancelled; price_tokens/price_tier congelados; current_period_*; grace_until;
+  cancel_requested); flag `performer_content.fanclub` (o "set", balde separado do cofre/PPV).
+- **Ledger:** `spend_fanclub_sub` (débito do membro) + `fanclub_sub_credit` (crédito 80/20,
+  rate `content`, sacável/fora do teto — em `payout.earning_entry_types`). Preço em
+  `monetization.fanclub` (piso 20/passo 5/teto 2000); janelas em `config/fanclub.php`.
+- **Serviço (`FanclubService`, dona única):** `subscribe` (débito+crédito 80/20 sob lock das
+  duas carteiras em ordem de user_id, idempotente por UNIQUE + re-leitura sob lock);
+  `cancel` (desvincular — mantém acesso até o fim do ciclo pago); `processRenewals`
+  (cron `fanclub:process` 10/10min: renova cobrando o saldo, entra em **carência** quando
+  falta token e **pausa** quando vence — "avisa-e-pausa", NUNCA BRL; encerra as
+  desvinculadas). Locks sempre carteiras→assinatura (anti-deadlock); só `role=consumer`
+  assina. Leitura: `settingsFor`, `rosterFor` (sinal de baleia), `memberView`,
+  `mySubscriptions`.
+- **Preço único + VIP opcional:** todos pagam o mesmo em token por padrão; a performer PODE
+  ligar um preço VIP MENOR para Black/FC (trava servidor público ≥ VIP). Não é imposto: eles
+  já pagam tokens mais baratos. Tela com os dois modos (preço→saque / saque→preço) e o spread
+  honesto (`FanclubService`/`TokenCreditPolicy::isValidFanclubPrice`).
+- **Serving do set:** `ContentVisibilityService::canView` serve peça `fanclub` só a assinante
+  ATIVO (ou à dona); `denialForUnlock` recusa unlock por peça; `galleryFor`/`forOwner`
+  excluem o set da vitrine/painel. `fanclubGalleryFor` monta a grade via `ContentPresenter`
+  (teaser bloqueado p/ não-assinante/guest, destravado p/ assinante). PPV/cofre intactos.
+- **Sinal de baleia (anonimato, M.13.10):** a performer vê o assinante só por **FanAlias +
+  selo de tier (Black/FC/Assinante/Membro) + faixa de gasto (novo/recorrente/alto apoiador)**,
+  NUNCA id/nome/número exato; respeita o **piso de anonimato** (`interest.anonymity_floor`,
+  abaixo dele nenhuma linha). É uma exceção DELIBERADA e escopada ao §12 (consentida ao
+  assinar). Faixas calibráveis em `config/fanclub.php` (`whale`).
+- **UI:** performer em `Performer/Fanclub/Index.vue` (`FanclubController`, rotas
+  `performer.fanclub[.settings|.content]`); membro na seção `Components/Profile/FanclubSection.vue`
+  (embutida em `Catalog/Show` e `Performers/Show`) + página `Consumer/Fanclub/Index.vue`
+  ("Minhas assinaturas", rota `fanclub.mine`; assinar/desvincular `fanclub.subscribe|.cancel`,
+  binding por slug). Preview/remoção do set reusam `performer.content.image|.destroy`.
+- **Acesso vs. permanência:** o acesso ao set é RECORRENTE/REVOGÁVEL (perde tudo ao sair) —
+  o permanente é só o avulso (PPV/unlock). Revisões de segurança dedicadas nos três PRs: sem
+  CRÍTICO/ALTO; sem vazamento de bytes/anonimato, sem IDOR, preço derivado no servidor.
+  Testes `FanclubTest`/`FanclubPerformerTest`/`FanclubMemberTest` (prefixos `fcl`/`fcp`/`fcm`).
+
 ## Extrato de ganhos + UX de chat no mobile — `fix/chat-ux-mobile` (base `feat/chat-economy-v2`, PR pendente)
 
 Seis correções de UX (mobile primeiro), a mais importante sendo a de confiança: a

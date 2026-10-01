@@ -2,7 +2,7 @@
 
 User Acceptance Testing — Roteiro completo passo a passo.
 227 cenários organizados por jornada (102 originais + 68 das features do Sprint 16 + 28 da moderação Fase 1→4c + 29 da janela de chat/perfil 24–25/09).
-**Atualizado: 2026-09-25** — adicionada a PARTE 3 (janela 24–25/09): FASE 19 (chat 1:1 em tempo real, voz, envio otimista, desfazer envio), FASE 20 (mensagens de catálogo pré-cadastradas), FASE 21 (anel do avatar + story/foto no perfil) e FASE 22 (responder ao story → chat). Versão anterior: 2026-09-22 (FASE 18 — Moderação).
+**Atualizado: 2026-10-01** — adicionada a PARTE 4 (Onda 4 — monetização direta): FASE 31 (Fã-Clube da performer — assinar/set/sinal de baleia) e FASE 32 (demais Onda 4: PPV no chat, metas de gorjeta, encomenda sob medida, marca d'água). Versão anterior: 2026-09-25 (PARTE 3 — janela 24–25/09: FASES 19–22).
 
 ---
 
@@ -806,6 +806,50 @@ Preencha DEPOIS de todos os testes:
 | 269 | Performer não vê nada | ana@ procura qualquer sinal de "quem salvou / quantos salvaram" | **Não existe** — zero superfície, zero contador | 🔴 | | |
 | 270 | Lista respeita paywall | Um salvo cujo acesso **expirou** | Aparece **bloqueado** na aba Salvos (reresolvido por espectador) | 🟡 | | |
 | 271 | Performer fora do ar some | Salvo de uma performer **suspensa** | Some da lista; o salvo em si continua guardado (se ela voltar, volta) | 🟢 | | |
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# PARTE 4 — ONDA 4: MONETIZAÇÃO DIRETA (fã-clube + follow-ups)
+# ═══════════════════════════════════════════════════════════════
+
+## FASE 31 — FÃ-CLUBE DA PERFORMER (fork da assinatura, PRs #307/#308/#309)
+
+> Assinatura mensal POR-PERFORMER em **token**, 80/20, recorrente. A performer abre o
+> clube e publica no "set"; o membro assina e vê o set enquanto a assinatura estiver ativa.
+> **Dinheiro = 🔴.** Contas: Browser B = performer (ana@), Browser A = membro com saldo.
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 272 | Abrir o clube | ana@ → **Conteúdo → Fã-clube** → marca "aberto", preço **50 tokens**, salva | Salva; aparece "O membro paga 50 tokens (~R$50) · você saca ~R$24,00" | 🟡 | | |
+| 273 | Trava do piso | Tente salvar preço **7** ou **22** | Rejeitado (mín. 20, múltiplo de 5) | 🔴 | | |
+| 274 | VIP opcional | Ligue "preço VIP" e ponha **80** (maior que o público 50) | **Rejeitado** — VIP não pode ser maior que o público | 🔴 | | |
+| 275 | VIP válido | Ponha VIP **30**, salva | Salva; só Black/FC verão 30 | 🟡 | | |
+| 276 | Publicar no set | Publique 2 fotos no set do fã-clube | Aparecem na grade do set (não no cofre/vitrine normal) | 🟡 | | |
+| 277 | Set não vaza | ana@ → painel de **Conteúdo (cofre)** | As peças do set **NÃO** aparecem lá (são do clube) | 🔴 | | |
+| 278 | Assinantes < piso | ana@ → Fã-clube → lista de assinantes | "Menos de 5" — nenhuma linha (piso de anonimato) | 🔴 | | |
+| 279 | Membro vê o card | free@ (com saldo) → perfil da ana@ → seção **Fã-clube** | Mostra preço (50 tk), botão **Assinar**, set em **teaser bloqueado** | 🟡 | | |
+| 280 | Teaser sem bytes | No set teaser, tente abrir a imagem real (sem assinar) | Fica borrada/cadeado — **nunca** serve o arquivo real | 🔴 | | |
+| 281 | Assinar | free@ → **Assinar** → confirma | Debita 50 do saldo; set **destrava**; selo "Você assina" | 🔴 | | |
+| 282 | Crédito 80/20 | ana@ → **Ganhos → Extrato** | Entra "Fã-clube" = **40 tokens** (80% de 50) | 🔴 | | |
+| 283 | Sem saldo | Um membro com <50 tenta assinar | Erro "tokens insuficientes"; nada cobrado | 🔴 | | |
+| 284 | Minhas assinaturas | free@ → **Carteira → Assinaturas** | Lista a ana@, status **Ativa**, renova em (data) | 🟡 | | |
+| 285 | Desvincular | free@ → Assinaturas → **Desvincular** → confirma | Mantém acesso até o fim do ciclo; não renova | 🟡 | | |
+| 286 | VIP (se tiver Black/FC) | Membro **Black/FC** abre o card da ana@ | Preço **30** com selo "preço VIP" | 🟡 | | |
+| 287 | Idempotência | Assine, e tente **assinar de novo** sem desvincular | Não cobra 2×; continua uma assinatura | 🔴 | | |
+
+## FASE 32 — DEMAIS ONDA 4 (follow-ups de monetização, PRs #296/#298/#299)
+
+> Features da Onda 4 que subiram ANTES do fã-clube e ainda não tinham roteiro de UAT.
+> Teste rápido de cada uma. **Dinheiro = 🔴.**
+
+| # | Passo | Ação | Esperado | Crit. | Result. | Notas |
+|---|---|---|---|---|---|---|
+| 288 | PPV no chat | ana@ manda uma peça do cofre **travada com preço** na DM; free@ paga | Debita; desbloqueia **permanente**; ana@ recebe 80% | 🔴 | | PR #296 |
+| 289 | Meta de gorjeta | ana@ cria uma meta (alvo em tokens); free@ dá gorjeta | Barra enche no perfil; **sem** "quem/quantos" | 🟡 | | PR #298 |
+| 290 | Encomenda — pedir | free@ encomenda conteúdo (preço oferecido); ana@ **aceita** | No aceite, debita o membro (escrow); nada antes | 🔴 | | PR #299 |
+| 291 | Encomenda — entregar | ana@ entrega a peça; free@ **aprova** | Libera 80/20 à performer; membro mantém a peça | 🔴 | | |
+| 292 | Marca d'água | (se `CUSTOM_ORDER_WATERMARK=true`) entrega de **foto E vídeo** | Sai "Fã #NNNN · data" em diagonal; vídeo idem | 🟡 | | ⚠️ ligar só após self-test |
 
 ---
 
