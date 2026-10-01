@@ -169,6 +169,10 @@ return [
             // escrow é ganho sacável. `custom_order_refund` NÃO entra (é devolução ao
             // membro, não ganho — como o call_reservation_refund).
             'custom_order_credit',
+            // Fã-Clube (Onda 4, fork da assinatura): a fatia da performer (80%) na
+            // assinatura/renovação por-performer é ganho sacável, mesma disciplina do
+            // content_credit. `spend_fanclub_sub` NÃO entra (é gasto do membro).
+            'fanclub_sub_credit',
         ],
     ],
 
@@ -221,6 +225,18 @@ return [
         'min_price' => 20,
         'price_step' => 5,
         'max_price' => 20000,
+    ],
+
+    /*
+    | Fã-Clube da performer (Onda 4, docs/FORK_ASSINATURA.md §3/§8): preço MENSAL em
+    | token que a performer define (público e, opcional, VIP para Black/FC). Livre com
+    | piso/passo/teto, mesma disciplina do PPV/encomenda. O split reusa 'content'
+    | (80/20). A trava público ≥ VIP é no service/Form Request, não aqui.
+    */
+    'fanclub' => [
+        'min_price' => 20,
+        'price_step' => 5,
+        'max_price' => 2000,
     ],
 
     /*

@@ -59,6 +59,9 @@ class PerformerEarningsService
         // Encomenda sob medida (Onda 4 §4.3): o crédito 80/20 da entrega liberada. O
         // alias do fã já vem na description ("Encomenda entregue para Fã #NNNN").
         'custom_order_credit' => ['Encomenda', 'custom'],
+        // Fã-Clube (Onda 4 — fork da assinatura): o crédito 80/20 da assinatura/renovação
+        // por-performer. Grupo próprio no extrato.
+        'fanclub_sub_credit' => ['Fã-clube', 'fanclub'],
     ];
 
     public function __construct(private TokenService $tokenService) {}
@@ -74,6 +77,7 @@ class PerformerEarningsService
             ['key' => 'call', 'label' => 'Chamada'],
             ['key' => 'live', 'label' => 'Live'],
             ['key' => 'custom', 'label' => 'Encomenda'],
+            ['key' => 'fanclub', 'label' => 'Fã-clube'],
         ];
     }
 
