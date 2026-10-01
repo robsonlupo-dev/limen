@@ -578,6 +578,8 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   ENGENHARIA** da economia (ledger append-only, decimal exato, R1–R4) ficam neste guia,
   seção "Invariantes de ENGENHARIA da economia".
 - **Decisões de produto de agosto/2026:** `docs/DECISOES_2026-08.md`.
+- **Fork da assinatura (Onda 4 — Fã-Clube por performer):** `docs/FORK_ASSINATURA.md`
+  (modelo híbrido travado em 01/10/2026 — fonte canônica do Fã-Clube; ainda sem código).
 - **Pendências que dependem do jurídico:** `docs/PENDENCIAS_JURIDICAS.md`.
 - **Histórico de sprints (auditoria):** `docs/HISTORICO_SPRINTS.md`.
 - **Arquitetura detalhada e features/serviços:** `docs/ARQUITETURA.md`.
