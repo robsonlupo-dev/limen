@@ -416,6 +416,24 @@ class TokenCreditPolicy
             && $price % $step === 0;
     }
 
+    /**
+     * Preço de Fã-Clube válido (Onda 4, fork da assinatura): o preço MENSAL em token que
+     * a performer define, livre com piso/passo/teto (config `monetization.fanclub`). Mesma
+     * disciplina do PPV/encomenda; o teto protege o cap do ledger. A trava público ≥ VIP
+     * é à parte (no service/Form Request), não aqui.
+     */
+    public function isValidFanclubPrice(int $price): bool
+    {
+        $min = (int) config('monetization.fanclub.min_price');
+        $step = (int) config('monetization.fanclub.price_step');
+        $max = (int) config('monetization.fanclub.max_price');
+
+        return $price >= $min
+            && $price <= $max
+            && $step > 0
+            && $price % $step === 0;
+    }
+
     // ── Chat / economia de mensagem (M.13.1 SUPERADO 19/08/2026) ─────────────
 
     /** Custo em tokens do membro para abrir chat, por tier (2, ou 1 em Black/FC). */

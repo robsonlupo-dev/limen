@@ -301,6 +301,7 @@ class PerformerContentService
         return PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
             ->whereNull('custom_order_id') // entregas de encomenda não entram no painel de conteúdo
+            ->where('fanclub', false)      // set de fã-clube tem painel próprio (não o de conteúdo)
             ->withCount('unlocks')
             ->orderedForShowcase() // mesma ordem da vitrine pública (§ 3.1)
             ->get()

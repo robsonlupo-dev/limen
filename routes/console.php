@@ -149,6 +149,12 @@ Schedule::command('reservations:process')->everyMinute()->withoutOverlapping(2);
 // 10 min basta. Idempotente por encomenda (escrow_settled).
 Schedule::command('custom-orders:process')->everyTenMinutes()->withoutOverlapping(5);
 
+// Fã-Clube (Onda 4 — fork da assinatura): renova as assinaturas por-performer vencidas
+// (debita o saldo de token), entra em carência quando falta token e pausa quando ela
+// vence; encerra as desvinculadas no fim do ciclo. Janelas em DIAS, então de 10 em 10 min
+// basta. Idempotente por assinatura (a renovação empurra o período).
+Schedule::command('fanclub:process')->everyTenMinutes()->withoutOverlapping(5);
+
 // Frames de preview de live ÓRFÃOS (Sprint 15, PR #143). O frame morre no fim da
 // live (stop/ban/reconciliação na leitura); isto varre o que escapou — um quadro
 // sem atualização há mais de 1h é de uma live encerrada. De hora em hora basta: a

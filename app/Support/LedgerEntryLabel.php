@@ -45,6 +45,7 @@ class LedgerEntryLabel
         'spend_camera' => 'Câmera',
         'spend_custom_order' => 'Encomenda sob medida',
         'custom_order_refund' => 'Reembolso de encomenda',
+        'spend_fanclub_sub' => 'Assinatura de fã-clube',
 
         // Ganhos da performer
         'tip_credit' => 'Gorjeta recebida',
@@ -56,6 +57,7 @@ class LedgerEntryLabel
         'call_noshow_credit' => 'Compensação por falta',
         'live_credit' => 'Live recebida',
         'custom_order_credit' => 'Encomenda vendida',
+        'fanclub_sub_credit' => 'Fã-clube',
 
         // Saque da performer
         'payout_reserve' => 'Reserva de saque',

@@ -160,6 +160,13 @@ class ContentVisibilityService
             return false;
         }
 
+        // Peça de fã-clube (Onda 4): acesso SÓ por assinatura ATIVA — não é grátis por
+        // tier nem desbloqueável por peça. app() lazy evita ciclo de construtor com o
+        // FanclubService (mesma disciplina do ContentSave em galleryFor).
+        if ($content->fanclub) {
+            return app(FanclubService::class)->hasActiveMembership($member, $content->performerProfile);
+        }
+
         return $this->isFreeFor($member, $content) || $this->hasUnlock($member, $content);
     }
 
@@ -178,6 +185,12 @@ class ContentVisibilityService
         // vem de um content_unlocks criado pelo CustomOrderService na entrega, não daqui.
         // Trata como fora do ar (a mesma máscara do resto).
         if ($content->custom_order_id !== null) {
+            return ContentException::OFFLINE;
+        }
+
+        // Peça de fã-clube (Onda 4): acesso é por ASSINATURA, nunca unlock por peça —
+        // trata como fora do ar na porta do catálogo (o membro nem a vê na vitrine).
+        if ($content->fanclub) {
             return ContentException::OFFLINE;
         }
 
@@ -253,6 +266,7 @@ class ContentVisibilityService
         $pieces = PerformerContent::query()
             ->where('performer_profile_id', $profile->id)
             ->whereNull('custom_order_id') // entregas de encomenda são privadas, nunca na vitrine
+            ->where('fanclub', false)      // set de fã-clube é privado do clube, nunca na vitrine
             ->ready() // vídeo em processing/failed não aparece na vitrine
             ->orderedForShowcase() // fixadas primeiro (§ 3.1) — mesma ordem do painel
             ->get();

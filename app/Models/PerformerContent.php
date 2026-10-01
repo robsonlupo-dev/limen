@@ -56,6 +56,7 @@ class PerformerContent extends Model
             'price_tokens' => 'integer',
             'duration_seconds' => 'integer',
             'pinned_at' => 'datetime',
+            'fanclub' => 'boolean',
         ];
     }
 
