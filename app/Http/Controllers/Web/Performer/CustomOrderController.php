@@ -69,7 +69,12 @@ class CustomOrderController extends Controller
         Gate::authorize('performer-active');
 
         try {
-            $this->orders->deliver($request->user(), $order, $request->file('arquivo'));
+            $this->orders->deliver(
+                $request->user(),
+                $order,
+                $request->file('arquivo'),
+                $request->validated('mensagem'),
+            );
         } catch (CustomOrderException $e) {
             return $this->fail($e);
         } catch (VideoProcessingException $e) {

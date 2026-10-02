@@ -162,7 +162,7 @@ class CustomOrderService
      * transação (grava bytes/dispatcha job, como a voz do chat); se a encomenda não
      * estiver mais em `accepted` (race), a peça recém-criada é removida e recusa.
      */
-    public function deliver(User $performerUser, CustomOrder $order, UploadedFile $file): CustomOrder
+    public function deliver(User $performerUser, CustomOrder $order, UploadedFile $file, ?string $message = null): CustomOrder
     {
         // Checagem barata antes de gastar o upload caro (relê sem lock só para decidir).
         $pre = CustomOrder::find($order->id);
@@ -179,8 +179,15 @@ class CustomOrderService
         $watermarkText = WatermarkService::labelFor(FanAlias::label($pre->performer_profile_id, (int) $pre->member_id));
         $piece = $this->content->deliverCustomPiece($pre->performerProfile, $file, $pre->id, $watermarkText);
 
+        // Recado opcional da performer (já validado/filtrado na porta). Normaliza: string
+        // vazia vira null, para não gravar um recado em branco.
+        $deliveryMessage = $message !== null ? trim($message) : null;
+        if ($deliveryMessage === '') {
+            $deliveryMessage = null;
+        }
+
         try {
-            DB::transaction(function () use ($performerUser, $order, $piece) {
+            DB::transaction(function () use ($performerUser, $order, $piece, $deliveryMessage) {
                 $locked = $this->lockOwnedByPerformer($order->id, $performerUser);
                 if (! $locked->isAccepted()) {
                     throw CustomOrderException::gone();
@@ -190,6 +197,7 @@ class CustomOrderService
                 $locked->forceFill([
                     'status' => CustomOrder::STATUS_DELIVERED,
                     'performer_content_id' => $piece->id,
+                    'delivery_message' => $deliveryMessage,
                     'delivered_at' => now(),
                     'dispute_deadline_at' => now()->addHours($window),
                 ])->save();
@@ -244,10 +252,16 @@ class CustomOrderService
         $this->notify($order->performerProfile->user_id, $order->id, CustomOrder::STATUS_RELEASED);
     }
 
-    /** O membro CONTESTA a entrega dentro da janela → segura o escrow para a moderação. */
-    public function dispute(User $member, CustomOrder $order): void
+    /**
+     * O membro CONTESTA a entrega dentro da janela → segura o escrow para a moderação. O
+     * MOTIVO é obrigatório (validado na porta) e fica na linha para o moderador decidir —
+     * sem ele a disputa seria "recusou e sumiu" e a performer sairia perdendo às cegas.
+     */
+    public function dispute(User $member, CustomOrder $order, string $reason): void
     {
-        DB::transaction(function () use ($member, $order) {
+        $reason = trim($reason);
+
+        DB::transaction(function () use ($member, $order, $reason) {
             $locked = $this->lockOwnedByMember($order->id, $member);
             if (! $locked->isDelivered()) {
                 throw CustomOrderException::gone();
@@ -255,7 +269,12 @@ class CustomOrderService
             if ($locked->dispute_deadline_at !== null && now()->greaterThan($locked->dispute_deadline_at)) {
                 throw CustomOrderException::gone(); // janela vencida → o cron libera
             }
-            $locked->forceFill(['status' => CustomOrder::STATUS_DISPUTED])->save();
+            $locked->forceFill([
+                'status' => CustomOrder::STATUS_DISPUTED,
+                'dispute_reason' => $reason,
+            ])->save();
+            // O motivo é PII-free (texto do membro filtrado), mas não vai ao audit para
+            // manter o log enxuto — ele vive na linha, que a moderação lê.
             Audit::log('custom_order.disputed', $locked, ['content_id' => $locked->performer_content_id]);
         });
 
