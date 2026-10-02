@@ -71,7 +71,9 @@ function resolve(order, decision) {
                                 <span class="text-limen-ink-mute"> · </span>
                                 <span>{{ order.fan }}</span>
                             </p>
-                            <p class="mt-1 text-sm text-limen-ink-soft">{{ order.description }}</p>
+                            <p class="mt-1 text-sm text-limen-ink-soft">
+                                <span class="text-limen-ink-mute">Pedido: </span>{{ order.description }}
+                            </p>
                             <p class="mt-2 text-xs text-limen-ink-mute">
                                 Entrega: {{ order.delivered ? (order.delivered.kind === 'video' ? 'vídeo' : 'foto') + ' (' + order.delivered.status + ')' : 'sem mídia' }}
                                 · aceita em {{ fmt(order.accepted_at) }}
@@ -79,6 +81,21 @@ function resolve(order, decision) {
                             </p>
                         </div>
                         <span class="shrink-0 text-sm text-limen-gold">{{ order.price }} tk</span>
+                    </div>
+
+                    <!-- Os dois lados do caso. O MOTIVO do membro é o centro da decisão
+                         (destacado); o recado da performer dá o contexto da entrega. -->
+                    <div class="mt-3 space-y-2">
+                        <div class="rounded-lg border border-limen-live/30 bg-limen-live/5 px-3 py-2">
+                            <p class="text-xs font-medium text-limen-live">Motivo da contestação (membro)</p>
+                            <p class="mt-0.5 text-sm text-limen-ink-soft">
+                                {{ order.dispute_reason || '— (contestação anterior ao campo de motivo)' }}
+                            </p>
+                        </div>
+                        <div v-if="order.delivery_message" class="rounded-lg bg-limen-surface-2 px-3 py-2">
+                            <p class="text-xs font-medium text-limen-ink-mute">Recado da performer na entrega</p>
+                            <p class="mt-0.5 text-sm text-limen-ink-soft">{{ order.delivery_message }}</p>
+                        </div>
                     </div>
 
                     <div class="mt-3 flex flex-wrap gap-2">

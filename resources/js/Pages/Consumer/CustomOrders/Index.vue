@@ -23,6 +23,12 @@ const myUserId = page.props.auth?.user?.id
 const busyId = ref(null)
 const error = ref('')
 
+// Contestação: motivo OBRIGATÓRIO. Abre um campo inline (não um prompt) para o membro
+// explicar o problema — é o que o moderador lê para decidir liberar ou estornar.
+const disputeFor = ref(null)
+const disputeReason = ref('')
+const DISPUTE_MIN = 10
+
 // Lightbox das fotos entregues: coleção plana de fotos prontas + índice aberto.
 const lightboxIndex = ref(null)
 const deliveredPhotos = computed(() =>
@@ -72,7 +78,37 @@ async function act(order, routeName, confirmMsg) {
 
 const cancel = (o) => act(o, 'custom-orders.cancel', 'Cancelar este pedido?')
 const approve = (o) => act(o, 'custom-orders.approve', 'Aprovar a entrega? O valor é liberado para a performer.')
-const report = (o) => act(o, 'custom-orders.dispute', 'Relatar um problema com esta entrega? Ela vai para a análise da moderação, que decide liberar ou estornar.')
+
+function openDispute(order) {
+    disputeFor.value = order.id
+    disputeReason.value = ''
+    error.value = ''
+}
+
+function closeDispute() {
+    disputeFor.value = null
+    disputeReason.value = ''
+}
+
+async function submitDispute(order) {
+    if (busyId.value) return
+    if (disputeReason.value.trim().length < DISPUTE_MIN) {
+        error.value = `Explique o problema com pelo menos ${DISPUTE_MIN} caracteres.`
+        return
+    }
+    busyId.value = order.id
+    error.value = ''
+    try {
+        await postJson(route('custom-orders.dispute', order.id), { motivo: disputeReason.value.trim() })
+        disputeFor.value = null
+        disputeReason.value = ''
+        router.reload({ only: ['orders', 'balance'] })
+    } catch (e) {
+        error.value = errorMessage(e, 'Não foi possível relatar o problema.')
+    } finally {
+        busyId.value = null
+    }
+}
 
 // Reverb: a performer aceitou/recusou/entregou → recarrega a lista.
 let channel = null
@@ -145,6 +181,9 @@ onBeforeUnmount(() => {
                         <p v-else class="rounded-lg bg-limen-surface-2 px-3 py-2 text-xs text-limen-ink-soft">
                             {{ order.delivered.kind === 'video' ? 'Vídeo em processamento…' : 'Preparando a mídia…' }}
                         </p>
+                        <p v-if="order.delivery_message" class="mt-2 rounded-lg bg-limen-surface-2 px-3 py-2 text-sm text-limen-ink-soft">
+                            <span class="text-limen-ink-mute">Recado da performer: </span>{{ order.delivery_message }}
+                        </p>
                     </div>
 
                     <p v-if="order.can_approve && order.dispute_deadline_at" class="mt-2 text-xs text-limen-ink-mute">
@@ -168,12 +207,45 @@ onBeforeUnmount(() => {
                             @click="approve(order)"
                         >Aprovar entrega</button>
                         <button
-                            v-if="order.can_dispute"
+                            v-if="order.can_dispute && disputeFor !== order.id"
                             type="button"
                             :disabled="busyId === order.id"
                             class="rounded-lg border border-limen-live/40 px-3 py-1.5 text-sm text-limen-live hover:bg-limen-live/10 disabled:opacity-60"
-                            @click="report(order)"
+                            @click="openDispute(order)"
                         >Relatar problema</button>
+                    </div>
+
+                    <!-- Contestação: motivo obrigatório. Vai para a moderação, que lê o
+                         relato dos dois lados antes de liberar ou estornar. -->
+                    <div v-if="order.can_dispute && disputeFor === order.id" class="mt-3 space-y-2 rounded-xl border border-limen-live/30 bg-limen-live/5 p-3">
+                        <label class="block text-sm text-limen-ink">
+                            O que houve com esta entrega?
+                        </label>
+                        <textarea
+                            v-model="disputeReason"
+                            rows="3"
+                            maxlength="500"
+                            :disabled="busyId === order.id"
+                            placeholder="Explique o problema — ex.: não era o que foi combinado, a imagem veio cortada…"
+                            class="block w-full rounded-lg border border-limen-line bg-limen-bg px-3 py-2 text-sm text-limen-ink placeholder:text-limen-ink-mute focus:border-limen-gold focus:outline-none disabled:opacity-60"
+                        ></textarea>
+                        <p class="text-xs text-limen-ink-mute">
+                            A moderação analisa seu relato e a entrega, e decide liberar à performer ou estornar você.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                :disabled="busyId === order.id"
+                                class="rounded-lg bg-limen-live px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                                @click="submitDispute(order)"
+                            >Enviar para a moderação</button>
+                            <button
+                                type="button"
+                                :disabled="busyId === order.id"
+                                class="rounded-lg border border-limen-line px-3 py-1.5 text-sm text-limen-ink-soft hover:bg-limen-surface-2 disabled:opacity-60"
+                                @click="closeDispute()"
+                            >Cancelar</button>
+                        </div>
                     </div>
                 </li>
             </ul>

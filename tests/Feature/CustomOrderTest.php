@@ -158,8 +158,9 @@ it('disputa resolvida a favor do membro estorna 100% e revoga o acesso à peça'
     // Membro tem acesso à peça enquanto decide.
     expect(ContentUnlock::where('performer_content_id', $pieceId)->where('user_id', $member->id)->exists())->toBeTrue();
 
-    coService()->dispute($member, $order);
-    expect($order->fresh()->status)->toBe(CustomOrder::STATUS_DISPUTED);
+    coService()->dispute($member, $order, 'Não foi o que combinamos na descrição.');
+    expect($order->fresh()->status)->toBe(CustomOrder::STATUS_DISPUTED)
+        ->and($order->fresh()->dispute_reason)->toBe('Não foi o que combinamos na descrição.');
 
     coService()->resolveDispute($order->fresh(), 'refund');
 
@@ -178,12 +179,96 @@ it('disputa resolvida a favor da performer libera 80/20', function () {
     $order = coRequest($performer, $member, 100);
     coService()->accept($performer->user, $order);
     $order = coDeliverPhoto($performer, $order);
-    coService()->dispute($member, $order);
+    coService()->dispute($member, $order, 'A imagem veio cortada e sem o combinado.');
 
     coService()->resolveDispute($order->fresh(), 'release');
 
     expect($tokens->balance($performer->user))->toBe(80);
     expect($order->fresh()->status)->toBe(CustomOrder::STATUS_RELEASED);
+});
+
+// ─── Recado da entrega + motivo da contestação (Parte 2) ───────────────────────────
+
+it('a entrega guarda o recado da performer e o expõe aos dois lados', function () {
+    [$performer, $member] = coPair(300);
+    $order = coRequest($performer, $member, 100);
+    coService()->accept($performer->user, $order);
+
+    $order = coService()->deliver(
+        $performer->user,
+        $order,
+        UploadedFile::fake()->image('co.jpg', 640, 480),
+        '  Espero que goste!  ',
+    );
+
+    // Gravado e com trim.
+    expect($order->fresh()->delivery_message)->toBe('Espero que goste!');
+    // Visível na projeção do membro e da performer, e para a moderação.
+    expect(CustomOrderPresenter::forMember($order->fresh())['delivery_message'])->toBe('Espero que goste!')
+        ->and(CustomOrderPresenter::forPerformer($order->fresh())['delivery_message'])->toBe('Espero que goste!');
+});
+
+it('recado vazio na entrega vira null (não grava recado em branco)', function () {
+    [$performer, $member] = coPair(300);
+    $order = coRequest($performer, $member, 100);
+    coService()->accept($performer->user, $order);
+
+    $order = coService()->deliver(
+        $performer->user,
+        $order,
+        UploadedFile::fake()->image('co.jpg', 640, 480),
+        '   ',
+    );
+
+    expect($order->fresh()->delivery_message)->toBeNull();
+});
+
+it('a contestação exige um motivo e o guarda na linha', function () {
+    [$performer, $member] = coPair(300);
+    $order = coRequest($performer, $member, 100);
+    coService()->accept($performer->user, $order);
+    $order = coDeliverPhoto($performer, $order);
+
+    // Sem motivo → 422 (não contesta).
+    $this->actingAs($member)
+        ->postJson(route('custom-orders.dispute', $order->id), [])
+        ->assertStatus(422);
+    expect($order->fresh()->status)->toBe(CustomOrder::STATUS_DELIVERED);
+
+    // Motivo curto demais → 422.
+    $this->actingAs($member)
+        ->postJson(route('custom-orders.dispute', $order->id), ['motivo' => 'ruim'])
+        ->assertStatus(422);
+    expect($order->fresh()->status)->toBe(CustomOrder::STATUS_DELIVERED);
+
+    // Motivo curto PADDED com espaços (burlaria o piso se medido sem trim) → 422.
+    $this->actingAs($member)
+        ->postJson(route('custom-orders.dispute', $order->id), ['motivo' => 'ruim      '])
+        ->assertStatus(422);
+    expect($order->fresh()->status)->toBe(CustomOrder::STATUS_DELIVERED);
+
+    // Motivo válido → contesta e grava.
+    $this->actingAs($member)
+        ->postJson(route('custom-orders.dispute', $order->id), ['motivo' => 'Não foi o que combinamos.'])
+        ->assertStatus(200);
+    $order->refresh();
+    expect($order->status)->toBe(CustomOrder::STATUS_DISPUTED)
+        ->and($order->dispute_reason)->toBe('Não foi o que combinamos.');
+
+    // E chega à moderação.
+    expect(CustomOrderPresenter::forModeration($order->fresh())['dispute_reason'])->toBe('Não foi o que combinamos.');
+});
+
+it('o motivo da contestação barra troca de contato (SafeProfileText)', function () {
+    [$performer, $member] = coPair(300);
+    $order = coRequest($performer, $member, 100);
+    coService()->accept($performer->user, $order);
+    $order = coDeliverPhoto($performer, $order);
+
+    $this->actingAs($member)
+        ->postJson(route('custom-orders.dispute', $order->id), ['motivo' => 'me chama no zap 11 99999-8888 por favor'])
+        ->assertStatus(422);
+    expect($order->fresh()->status)->toBe(CustomOrder::STATUS_DELIVERED);
 });
 
 // ─── Cron por tempo ──────────────────────────────────────────────────────────────

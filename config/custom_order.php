@@ -31,6 +31,14 @@ return [
     // Tamanho da descrição do pedido.
     'description_max_length' => 500,
 
+    // Recado opcional da performer na entrega (foto/vídeo) — texto que o membro lê.
+    'delivery_message_max_length' => 500,
+
+    // Motivo OBRIGATÓRIO do membro ao contestar a entrega — o moderador precisa dele
+    // para decidir a disputa. Piso para barrar "." / "ruim" que não informam nada.
+    'dispute_reason_min_length' => 10,
+    'dispute_reason_max_length' => 500,
+
     /*
     |--------------------------------------------------------------------------
     | Marca d'água na mídia entregue (Onda 4 §4.3)

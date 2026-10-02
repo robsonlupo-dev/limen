@@ -25,6 +25,8 @@ class CustomOrderPresenter
                 'slug' => $order->performerProfile?->slug,
             ],
             'delivered' => self::deliveredMedia($order),
+            // Recado da performer na entrega (quando houver). Texto já filtrado na porta.
+            'delivery_message' => $order->delivery_message,
             'dispute_deadline_at' => $order->dispute_deadline_at?->toIso8601String(),
             'created_at' => $order->created_at?->toIso8601String(),
             // Ações que o MEMBRO pode tomar agora.
@@ -48,6 +50,8 @@ class CustomOrderPresenter
             // O outro lado é o membro — só FanAlias, nunca id/nome reais.
             'fan' => FanAlias::label($order->performer_profile_id, (int) $order->member_id),
             'delivered' => self::deliveredMediaForOwner($order),
+            // O próprio recado que ela escreveu na entrega (para ela reler).
+            'delivery_message' => $order->delivery_message,
             'dispute_deadline_at' => $order->dispute_deadline_at?->toIso8601String(),
             'created_at' => $order->created_at?->toIso8601String(),
             // Ações que a PERFORMER pode tomar agora.
@@ -84,6 +88,10 @@ class CustomOrderPresenter
                 'kind' => $piece->isVideo() ? 'video' : 'photo',
                 'status' => $piece->status,
             ],
+            // As duas falas que o moderador precisa para decidir a disputa com justiça: o
+            // recado da performer na entrega e o MOTIVO que o membro deu ao contestar.
+            'delivery_message' => $order->delivery_message,
+            'dispute_reason' => $order->dispute_reason,
             'dispute_deadline_at' => $order->dispute_deadline_at?->toIso8601String(),
             'accepted_at' => $order->accepted_at?->toIso8601String(),
             'delivered_at' => $order->delivered_at?->toIso8601String(),

@@ -27,6 +27,9 @@ const uploadPct = ref(0)
 // Estado do upload de entrega, por encomenda.
 const deliverFor = ref(null) // id da encomenda com o seletor de arquivo aberto
 const file = ref(null)
+// Recado opcional que acompanha a entrega (o membro lê). Passa pelo filtro anti-contato
+// no servidor — mesma regra da descrição do pedido.
+const deliveryMsg = ref('')
 // Prévia local do arquivo escolhido (para a performer conferir ANTES de enviar). É um
 // object URL do próprio navegador — nada sobe até ela confirmar em "Enviar entrega".
 const previewUrl = ref(null)
@@ -35,6 +38,7 @@ const previewIsVideo = computed(() => (file.value?.type ?? '').startsWith('video
 function clearPreview() {
     if (previewUrl.value) { URL.revokeObjectURL(previewUrl.value); previewUrl.value = null }
     file.value = null
+    deliveryMsg.value = ''
 }
 
 const STATUS = {
@@ -92,6 +96,7 @@ async function submitDelivery(order) {
     uploadPct.value = 0
     const form = new FormData()
     form.append('arquivo', file.value)
+    if (deliveryMsg.value.trim() !== '') form.append('mensagem', deliveryMsg.value.trim())
     try {
         await postFormWithProgress(
             route('performer.custom-orders.deliver', order.id),
@@ -167,6 +172,9 @@ onBeforeUnmount(() => {
                         <p v-else class="rounded-lg bg-limen-surface-2 px-3 py-2 text-xs text-limen-ink-soft">
                             {{ order.delivered.kind === 'video' ? 'Vídeo em processamento…' : 'Preparando a mídia…' }}
                         </p>
+                        <p v-if="order.delivery_message" class="mt-2 rounded-lg bg-limen-surface-2 px-3 py-2 text-sm text-limen-ink-soft">
+                            <span class="text-limen-ink-mute">Seu recado: </span>{{ order.delivery_message }}
+                        </p>
                     </div>
 
                     <div v-if="order.can_accept || order.can_decline || order.can_deliver" class="mt-3">
@@ -217,6 +225,24 @@ onBeforeUnmount(() => {
                                         playsinline
                                         class="max-h-56 rounded-lg"
                                     ></video>
+                                </div>
+
+                                <!-- Recado opcional para o membro (lido junto da entrega). -->
+                                <div>
+                                    <label class="mb-1 block text-xs text-limen-ink-mute">
+                                        Recado para o membro (opcional)
+                                    </label>
+                                    <textarea
+                                        v-model="deliveryMsg"
+                                        rows="2"
+                                        maxlength="500"
+                                        :disabled="busyId === order.id"
+                                        placeholder="Ex.: Espero que você goste! Fiz com carinho."
+                                        class="block w-full rounded-lg border border-limen-line bg-limen-bg px-3 py-2 text-sm text-limen-ink placeholder:text-limen-ink-mute focus:border-limen-gold focus:outline-none disabled:opacity-60"
+                                    ></textarea>
+                                    <p class="mt-1 text-xs text-limen-ink-mute">
+                                        Sem telefone, e-mail ou redes sociais — a conversa segue no chat.
+                                    </p>
                                 </div>
 
                                 <div class="flex gap-2">

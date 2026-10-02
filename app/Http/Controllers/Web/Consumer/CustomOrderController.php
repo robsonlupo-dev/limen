@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Consumer;
 
 use App\Exceptions\CustomOrderException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Web\DisputeCustomOrderRequest;
 use App\Http\Requests\Web\StoreCustomOrderRequest;
 use App\Models\CustomOrder;
 use App\Models\PerformerProfile;
@@ -80,10 +81,10 @@ class CustomOrderController extends Controller
         return response()->json(['status' => 'released'], 200);
     }
 
-    public function dispute(Request $request, CustomOrder $order): JsonResponse
+    public function dispute(DisputeCustomOrderRequest $request, CustomOrder $order): JsonResponse
     {
         try {
-            $this->orders->dispute($request->user(), $order);
+            $this->orders->dispute($request->user(), $order, $request->validated('motivo'));
         } catch (CustomOrderException $e) {
             return $this->fail($e);
         }
