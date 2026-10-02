@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
-import { getJson, postForm, postJson, deleteJson } from '@/lib/http'
+import { getJson, postFormWithProgress, postJson, deleteJson } from '@/lib/http'
 
 const props = defineProps({
     // Estado inicial (o controller já entrega a primeira lista); as mutações
@@ -54,6 +54,8 @@ const filePreview = ref(null)
 const nivel = ref(props.levels[0] ?? 'open')
 const preco = ref(props.minPrice)
 const publishing = ref(false)
+// Progresso do upload (0–100). Vídeo até 500 MB subia sem feedback — parecia travado.
+const uploadPct = ref(0)
 
 const canPublish = computed(
     () => !!file.value && !publishing.value && Number(preco.value) >= props.minPrice,
@@ -88,8 +90,13 @@ async function publish() {
     form.append('nivel', nivel.value)
     form.append('preco', String(preco.value))
 
+    uploadPct.value = 0
     try {
-        await postForm(route('performer.content.store'), form)
+        await postFormWithProgress(
+            route('performer.content.store'),
+            form,
+            (frac) => { uploadPct.value = Math.round(frac * 100) },
+        )
         // Reset e recarrega a lista.
         file.value = null
         filePreview.value = null
@@ -100,6 +107,7 @@ async function publish() {
         error.value = e.data?.message ?? 'Não foi possível publicar. Tente novamente.'
     } finally {
         publishing.value = false
+        uploadPct.value = 0
     }
 }
 
@@ -207,8 +215,19 @@ async function remove(piece) {
                     class="inline-flex items-center rounded-lg bg-gold px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-50"
                     @click="publish"
                 >
-                    {{ publishing ? 'Publicando...' : 'Publicar' }}
+                    {{ publishing ? `Enviando… ${uploadPct}%` : 'Publicar' }}
                 </button>
+
+                <!-- Barra de progresso do upload (vídeo grande). Em 100% subiu e o
+                     servidor está processando. -->
+                <div v-if="publishing" class="space-y-1">
+                    <div class="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+                        <div class="h-full rounded-full bg-gold transition-all duration-150" :style="{ width: uploadPct + '%' }"></div>
+                    </div>
+                    <p class="text-xs text-muted">
+                        {{ uploadPct < 100 ? `Enviando… ${uploadPct}%` : 'Enviado — processando no servidor…' }}
+                    </p>
+                </div>
             </div>
 
             <!-- Lista -->

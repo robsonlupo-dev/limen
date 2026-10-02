@@ -124,3 +124,60 @@ export async function postForm(url, formData) {
 
     return data
 }
+
+/**
+ * POST multipart COM progresso de upload. O `fetch` não expõe progresso de envio,
+ * então vídeos grandes (até 500 MB) subiam sem nenhum feedback e a performer achava
+ * que travou. Usa XHR só por isso: `onProgress(fraction 0..1)` é chamado conforme os
+ * bytes sobem. Mesmo contrato de erro do postForm/request (error.status + error.data).
+ * Cookies de sessão vão juntos (same-origin) e o CSRF é o mesmo meta.
+ */
+export function postFormWithProgress(url, formData, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', url)
+        xhr.responseType = 'text'
+        xhr.setRequestHeader('Accept', 'application/json')
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+        xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken())
+
+        if (xhr.upload && typeof onProgress === 'function') {
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(e.loaded / e.total)
+            }
+        }
+
+        xhr.onload = () => {
+            let data = null
+            try { data = JSON.parse(xhr.responseText) } catch { data = null }
+            if (xhr.status >= 200 && xhr.status < 300) {
+                // 2xx mas corpo não-JSON = o XHR seguiu um redirect (sessão/CSRF
+                // expirada → tela de login em HTML). Não é sucesso — mesma guarda do
+                // `response.redirected` no postForm/request. Os endpoints de upload
+                // sempre respondem JSON no sucesso, então data null aqui é redirect.
+                if (data === null) {
+                    const error = new Error('Request redirected')
+                    error.status = xhr.status
+                    error.redirected = true
+                    error.data = { message: 'Não foi possível confirmar o envio. Recarregue a página e tente novamente.' }
+                    reject(error)
+                    return
+                }
+                resolve(data)
+                return
+            }
+            const error = new Error('Request failed')
+            error.status = xhr.status
+            error.data = data
+            reject(error)
+        }
+        xhr.onerror = () => {
+            const error = new Error('Network error')
+            error.status = 0
+            error.data = null
+            reject(error)
+        }
+
+        xhr.send(formData)
+    })
+}

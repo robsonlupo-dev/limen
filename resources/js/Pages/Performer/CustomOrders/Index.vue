@@ -2,7 +2,7 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { postJson, postForm, errorMessage } from '@/lib/http'
+import { postJson, postFormWithProgress, errorMessage } from '@/lib/http'
 
 /**
  * Fila de encomendas sob medida (Onda 4 §4.3) — lado da PERFORMER. Lista os pedidos
@@ -20,6 +20,9 @@ const myUserId = page.props.auth?.user?.id
 
 const busyId = ref(null)
 const error = ref('')
+// Progresso do upload da entrega (0–100). O envio pode ser um vídeo de até 500 MB;
+// sem barra a performer achava que travou.
+const uploadPct = ref(0)
 
 // Estado do upload de entrega, por encomenda.
 const deliverFor = ref(null) // id da encomenda com o seletor de arquivo aberto
@@ -86,10 +89,15 @@ async function submitDelivery(order) {
     if (busyId.value || !file.value) return
     busyId.value = order.id
     error.value = ''
+    uploadPct.value = 0
     const form = new FormData()
     form.append('arquivo', file.value)
     try {
-        await postForm(route('performer.custom-orders.deliver', order.id), form)
+        await postFormWithProgress(
+            route('performer.custom-orders.deliver', order.id),
+            form,
+            (frac) => { uploadPct.value = Math.round(frac * 100) },
+        )
         deliverFor.value = null
         clearPreview()
         router.reload({ only: ['orders'] })
@@ -97,6 +105,7 @@ async function submitDelivery(order) {
         error.value = errorMessage(e, 'Não foi possível entregar. Verifique o arquivo e tente de novo.')
     } finally {
         busyId.value = null
+        uploadPct.value = 0
     }
 }
 
@@ -216,13 +225,24 @@ onBeforeUnmount(() => {
                                         :disabled="busyId === order.id || !file"
                                         class="rounded-lg bg-limen-gold px-3 py-1.5 text-sm font-medium text-limen-bg hover:opacity-90 disabled:opacity-60"
                                         @click="submitDelivery(order)"
-                                    >Enviar entrega</button>
+                                    >{{ busyId === order.id ? `Enviando… ${uploadPct}%` : 'Enviar entrega' }}</button>
                                     <button
                                         type="button"
                                         :disabled="busyId === order.id"
                                         class="rounded-lg border border-limen-line px-3 py-1.5 text-sm text-limen-ink-soft hover:bg-limen-surface-2"
                                         @click="closeDeliver()"
                                     >Cancelar</button>
+                                </div>
+
+                                <!-- Barra de progresso do upload (vídeo grande). Em
+                                     100% o arquivo subiu e o servidor está processando. -->
+                                <div v-if="busyId === order.id" class="space-y-1">
+                                    <div class="h-2 w-full overflow-hidden rounded-full bg-limen-surface-2">
+                                        <div class="h-full rounded-full bg-limen-gold transition-all duration-150" :style="{ width: uploadPct + '%' }"></div>
+                                    </div>
+                                    <p class="text-xs text-limen-ink-mute">
+                                        {{ uploadPct < 100 ? `Enviando… ${uploadPct}%` : 'Enviado — processando no servidor…' }}
+                                    </p>
                                 </div>
                                 <p class="text-xs text-limen-ink-mute">
                                     Foto (JPG/PNG) ou vídeo (MP4/MOV/WebM). O conteúdo passa pela moderação antes de ficar disponível.
