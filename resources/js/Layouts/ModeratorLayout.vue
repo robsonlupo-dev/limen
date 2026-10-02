@@ -17,12 +17,16 @@ defineProps({
 
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? null)
+// Só o admin tem o back-office Blade (/admin/*); o moderador puro não. O link de
+// volta ao painel admin aparece só para ele.
+const isAdmin = computed(() => user.value?.role === 'admin')
 
 const nav = [
     { label: 'Visão geral', routeName: 'moderacao.overview', match: 'moderacao.overview' },
     { label: 'Denúncias', routeName: 'moderacao.reports.index', match: 'moderacao.reports.*' },
     { label: 'Fotos de membro', routeName: 'moderacao.member-photos.index', match: 'moderacao.member-photos.*' },
     { label: 'Intros de voz', routeName: 'moderacao.voice-intros.index', match: 'moderacao.voice-intros.*' },
+    { label: 'Encomendas', routeName: 'moderacao.custom-orders.index', match: 'moderacao.custom-orders.*' },
     { label: 'Minhas ações', routeName: 'moderacao.my-actions', match: 'moderacao.my-actions' },
     { label: 'Estatísticas', routeName: 'moderacao.estatisticas', match: 'moderacao.estatisticas' },
 ]
@@ -56,6 +60,18 @@ function logout() {
                 </span>
 
                 <div class="flex-1"></div>
+
+                <!-- Volta ao back-office admin (Blade, fora do Inertia) — só admin. Sem
+                     ele, quem entrava na moderação a partir do /admin/dashboard ficava
+                     preso nas filas, sem caminho de volta. -->
+                <a
+                    v-if="isAdmin"
+                    href="/admin/dashboard"
+                    class="inline-flex items-center gap-2 rounded-lg border border-frame px-3 py-2 text-xs font-semibold text-muted no-underline transition-colors hover:border-gold/60 hover:text-gold"
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+                    Painel admin
+                </a>
 
                 <div v-if="user" class="flex items-center gap-3">
                     <span class="hidden sm:flex flex-col text-right leading-tight">
