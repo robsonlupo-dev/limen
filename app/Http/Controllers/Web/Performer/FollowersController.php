@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Follow;
 use App\Models\PerformerInterest;
 use App\Models\PerformerProfile;
+use App\Models\User;
 use App\Services\FollowerVisibilityService;
+use App\Services\MemberCatalogService;
 use App\Services\MemberNoteService;
 use App\Support\FanAlias;
 use App\Support\LifestyleTier;
@@ -103,6 +105,29 @@ class FollowersController extends Controller
             collect($follows->items())->pluck('user_id')->all()
         );
 
+        // Foto do seguidor para o card (redesenho estilo catálogo). CONSENTIMENTO
+        // DUPLO, pelo lado mais seguro: o rosto só aparece para quem (a) o CATÁLOGO
+        // também mostraria — mesmo gate de nível catálogo (`visibleQuery`:
+        // visible_to_performers resolvido + ativo + não-discreto) — E (b) ligou
+        // `profile_visible`. Assim quem optou por SAIR do catálogo não tem o rosto
+        // exposto aqui tampouco (achado da revisão). Sem qualquer um dos dois →
+        // null → o card cai na silhueta, e o FanAlias segue sendo a identidade
+        // (nunca id/nome). `visibleQuery` restrita à página = 1 query; avatarUrl()
+        // só assina a URL (token opaco), não toca DB/disco — sem N+1.
+        $pageUserIds = collect($follows->items())->pluck('user_id');
+        $catalogVisibleIds = app(MemberCatalogService::class)->visibleQuery()
+            ->whereIn('users.id', $pageUserIds)
+            ->pluck('users.id')
+            ->all();
+
+        $avatarUrls = User::whereIn('id', $pageUserIds)
+            ->get(['id', 'avatar_path', 'avatar_token', 'profile_visible'])
+            ->mapWithKeys(fn (User $u) => [
+                $u->id => ($u->profile_visible && in_array($u->id, $catalogVisibleIds, true))
+                    ? $u->avatarUrl()
+                    : null,
+            ]);
+
         return Inertia::render('Performer/Followers', [
             'followers' => $follows->through(fn (Follow $follow) => [
                 // Handle opaco, não o id: é ele que volta no POST do Interesse.
@@ -110,6 +135,7 @@ class FollowersController extends Controller
                 // legível nas props do Inertia, que é de onde a performer leria.
                 'member_handle' => FanAlias::handle($profile->id, $follow->user_id),
                 'label' => FanAlias::label($profile->id, $follow->user_id, 'Membro #'),
+                'avatar_url' => $avatarUrls[$follow->user_id] ?? null,
                 'lifestyle' => $lifestyleLabels[$follow->user_id] ?? null,
                 'following_since' => $follow->created_at->format('d/m/Y'),
                 'interest_sent' => in_array($follow->user_id, $inCooldown, true),

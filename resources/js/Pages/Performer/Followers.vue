@@ -195,67 +195,91 @@ async function removeNote(handle) {
                     <p class="text-muted text-sm">Complete seu perfil para aparecer no catálogo.</p>
                 </div>
 
-                <div
-                    v-for="follower in followers.data"
-                    :key="follower.member_handle"
-                    class="rounded-xl border border-frame bg-surface p-5 flex items-center gap-4"
-                >
-                    <div class="h-12 w-12 rounded-full bg-surface-2 border border-frame flex items-center justify-center shrink-0">
-                        <span class="font-serif text-lg text-gold/60" aria-hidden="true">M</span>
-                    </div>
+                <!-- Grade estilo catálogo. Foto só de quem optou (profile_visible);
+                     os demais caem na silhueta. FanAlias continua sendo a
+                     identidade; nunca nome/e-mail/id. -->
+                <div v-else class="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                    <div
+                        v-for="follower in followers.data"
+                        :key="follower.member_handle"
+                        class="group flex flex-col overflow-hidden rounded-xl border border-frame bg-surface transition-shadow hover:border-gold/40 hover:shadow-lg"
+                    >
+                        <!-- Foto / silhueta -->
+                        <div class="relative aspect-[3/4] w-full overflow-hidden bg-surface-2">
+                            <img
+                                v-if="follower.avatar_url"
+                                :src="follower.avatar_url"
+                                alt=""
+                                loading="lazy"
+                                class="h-full w-full object-cover"
+                            />
+                            <div
+                                v-else
+                                class="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-2 to-black"
+                                aria-hidden="true"
+                            >
+                                <svg class="h-16 w-16 text-gold/25" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-5.33 0-8 2.67-8 6v2h16v-2c0-3.33-2.67-6-8-6Z" /></svg>
+                            </div>
 
-                    <div class="flex-1 min-w-0 space-y-0.5">
-                        <!-- Estilo de Vida ao lado do apelido, quando o membro
-                             declarou. `v-if` e não fallback: sem faixa não sai
-                             nada — um "não informou" diria que ele viu o
-                             formulário e recusou, que é informação sobre ele. -->
-                        <p class="text-cream">
-                            {{ follower.label }}<span v-if="follower.lifestyle" class="text-muted"> · {{ follower.lifestyle }}</span>
-                        </p>
-                        <p class="text-xs text-muted">Segue desde {{ follower.following_since }}</p>
-                        <p v-if="errorFor[follower.member_handle]" class="text-xs text-danger pt-1">
-                            {{ errorFor[follower.member_handle] }}
-                        </p>
-                    </div>
+                            <!-- Nota privada (Sprint 11). Ícone preenchido quando já
+                                 existe nota; o membro nunca vê nada disto. -->
+                            <button
+                                type="button"
+                                class="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition-colors"
+                                :class="hasNote(follower)
+                                    ? 'border-gold/60 bg-gold/20 text-gold'
+                                    : 'border-frame/60 bg-black/50 text-cream/80 hover:border-gold/40 hover:text-gold'"
+                                :title="hasNote(follower) ? 'Editar nota privada' : 'Adicionar nota privada'"
+                                :aria-label="hasNote(follower) ? 'Editar nota privada' : 'Adicionar nota privada'"
+                                @click="openNote(follower)"
+                            >
+                                <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true"
+                                     :fill="hasNote(follower) ? 'currentColor' : 'none'"
+                                     stroke="currentColor" stroke-width="1.6">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                          d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9A1.5 1.5 0 0118.5 16H9l-5 4V5.5z" />
+                                </svg>
+                            </button>
+                        </div>
 
-                    <div class="shrink-0 flex items-center gap-2">
-                        <!-- Nota privada (Sprint 11). Ícone preenchido quando já
-                             existe nota; o membro nunca vê nada disto. -->
-                        <button
-                            type="button"
-                            class="inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
-                            :class="hasNote(follower)
-                                ? 'border-gold/60 bg-gold/10 text-gold'
-                                : 'border-frame text-muted hover:border-gold/40 hover:text-gold'"
-                            :title="hasNote(follower) ? 'Editar nota privada' : 'Adicionar nota privada'"
-                            :aria-label="hasNote(follower) ? 'Editar nota privada' : 'Adicionar nota privada'"
-                            @click="openNote(follower)"
-                        >
-                            <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true"
-                                 :fill="hasNote(follower) ? 'currentColor' : 'none'"
-                                 stroke="currentColor" stroke-width="1.6">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9A1.5 1.5 0 0118.5 16H9l-5 4V5.5z" />
-                            </svg>
-                        </button>
+                        <!-- Corpo -->
+                        <div class="flex flex-1 flex-col gap-2 p-3">
+                            <div class="min-w-0">
+                                <!-- Estilo de Vida ao lado do apelido, quando o membro
+                                     declarou. `v-if` e não fallback: sem faixa não sai
+                                     nada — um "não informou" diria que ele viu o
+                                     formulário e recusou, que é informação sobre ele. -->
+                                <p class="truncate text-sm text-cream">
+                                    {{ follower.label }}<span v-if="follower.lifestyle" class="text-muted"> · {{ follower.lifestyle }}</span>
+                                </p>
+                                <p class="text-xs text-muted">Segue desde {{ follower.following_since }}</p>
+                            </div>
 
-                        <span
-                            v-if="alreadySent(follower)"
-                            class="inline-flex items-center rounded-full border border-frame bg-muted/10 px-3 py-1 text-xs text-muted"
-                        >
-                            Interesse enviado
-                        </span>
-                        <Button
-                            v-else
-                            variant="primary"
-                            size="sm"
-                            :loading="sendingHandle === follower.member_handle"
-                            :disabled="remaining <= 0"
-                            :title="remaining <= 0 ? 'Você atingiu o limite de envios de hoje' : undefined"
-                            @click="sendInterest(follower)"
-                        >
-                            Demonstrar interesse
-                        </Button>
+                            <p v-if="errorFor[follower.member_handle]" class="text-xs text-danger">
+                                {{ errorFor[follower.member_handle] }}
+                            </p>
+
+                            <div class="mt-auto">
+                                <span
+                                    v-if="alreadySent(follower)"
+                                    class="flex w-full items-center justify-center rounded-lg border border-frame bg-muted/10 px-3 py-2 text-xs text-muted"
+                                >
+                                    Interesse enviado
+                                </span>
+                                <Button
+                                    v-else
+                                    variant="primary"
+                                    size="sm"
+                                    class="w-full justify-center"
+                                    :loading="sendingHandle === follower.member_handle"
+                                    :disabled="remaining <= 0"
+                                    :title="remaining <= 0 ? 'Você atingiu o limite de envios de hoje' : undefined"
+                                    @click="sendInterest(follower)"
+                                >
+                                    Demonstrar interesse
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
