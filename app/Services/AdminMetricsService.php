@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CallSession;
+use App\Models\CustomOrder;
 use App\Models\IdentityVerification;
 use App\Models\LiveSession;
 use App\Models\Payment;
@@ -245,6 +246,9 @@ class AdminMetricsService
             // só Resolver/Descartar tira da contagem. Alinha o badge/painel com o
             // conceito de OPEN_STATUSES do modelo.
             'open_reports'    => Report::whereIn('status', Report::OPEN_STATUSES)->count(),
+            // Encomendas CONTESTADAS aguardando decisão humana (release/refund). O
+            // admin passa no gate de moderação, mas não tinha link nem sinal.
+            'open_disputes'   => CustomOrder::where('status', CustomOrder::STATUS_DISPUTED)->count(),
             'waitlist_total'  => WaitlistEntry::count(),
         ];
     }

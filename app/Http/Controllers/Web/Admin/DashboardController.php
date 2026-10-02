@@ -30,8 +30,10 @@ class DashboardController extends Controller
         $platform = $metrics->platform();
         $pendingPayouts = $metrics->pendingPayouts();
 
-        // Total de pendências para o sino do header (payouts + KYC + denúncias).
-        $pendingTotal = $pendingPayouts->count() + (int) $platform['pending_kyc'] + (int) $platform['open_reports'];
+        // Total de pendências para o sino do header (payouts + KYC + denúncias +
+        // disputas de encomenda).
+        $pendingTotal = $pendingPayouts->count() + (int) $platform['pending_kyc']
+            + (int) $platform['open_reports'] + (int) $platform['open_disputes'];
 
         return view('admin.dashboard', [
             'revenue' => $metrics->revenue(),

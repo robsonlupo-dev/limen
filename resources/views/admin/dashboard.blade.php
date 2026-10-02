@@ -503,6 +503,12 @@
                         <span class="badge badge-red">{{ $platform['open_reports'] }}</span>
                     @endif
                 </a>
+                <a href="{{ route('moderacao.custom-orders.index') }}" class="nav-item nav-sub">
+                    Encomendas (disputas)
+                    @if ($platform['open_disputes'] > 0)
+                        <span class="badge badge-red">{{ $platform['open_disputes'] }}</span>
+                    @endif
+                </a>
             </div>
  
             {{-- Ledger status card --}}

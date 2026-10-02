@@ -62,7 +62,8 @@ export const MEMBER_SECTIONS = [
         label: 'Mensagens',
         route: 'chat.index',
         match: ['chat.index', 'chat.show', 'reservations.index', 'custom-orders.index'],
-        badge: 'messages',
+        // Topo soma mensagens + encomendas (a subnav detalha cada uma).
+        badges: ['messages', 'custom_orders'],
         children: [
             { label: 'Mensagens', route: 'chat.index', badge: 'messages' },
             // Chamadas agendadas vivem sob feature:call (dark launch): o filho

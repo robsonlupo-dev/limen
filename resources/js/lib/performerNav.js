@@ -42,7 +42,8 @@ export const PERFORMER_SECTIONS = [
         label: 'Mensagens',
         route: 'chat.index',
         match: ['chat.*', 'performer.custom-orders.index'],
-        badge: 'messages',
+        // Topo soma mensagens + encomendas (a subnav detalha cada uma).
+        badges: ['messages', 'custom_orders'],
         children: [
             { label: 'Mensagens', route: 'chat.index', badge: 'messages' },
             // Encomendas sob medida (Onda 4 §4.3): fila de pedidos de conteúdo
