@@ -58,6 +58,12 @@ const sections = MEMBER_SECTIONS
 const menuItems = MEMBER_MENU
 
 function badgeCount(section) {
+    // `badges` (array) soma várias chaves — a seção-topo "Mensagens" mostra
+    // mensagens + encomendas juntas, para o número aparecer no TOPO e não só na
+    // subnav. `badge` (única) segue valendo para as demais.
+    if (Array.isArray(section.badges)) {
+        return section.badges.reduce((sum, key) => sum + Number(props.navCounts?.[key] ?? 0), 0)
+    }
     if (!section.badge) return 0
     return Number(props.navCounts?.[section.badge] ?? 0)
 }

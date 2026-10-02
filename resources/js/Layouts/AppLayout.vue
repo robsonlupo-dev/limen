@@ -10,6 +10,7 @@ import PerformerSubnav from '@/Components/Performer/PerformerSubnav.vue'
 import MemberNav from '@/Components/Member/MemberNav.vue'
 import MemberSubnav from '@/Components/Member/MemberSubnav.vue'
 import MessageToast from '@/Components/MessageToast.vue'
+import CustomOrderToast from '@/Components/CustomOrderToast.vue'
 import InsufficientBalanceModal from '@/Components/InsufficientBalanceModal.vue'
 import ReservationNotice from '@/Components/ReservationNotice.vue'
 
@@ -202,6 +203,11 @@ function logout() {
         <!-- Toast global de mensagem recebida (Sprint 15). Listener em qualquer
              página autenticada; escuta o canal user.{id} e nunca mostra o corpo. -->
         <MessageToast />
+
+        <!-- Toast global de encomenda: sinaliza em tempo real a mudança de estado
+             (pedido/aceite/entrega/contestação/resolução) para a parte que precisa
+             saber — igual à mensagem. -->
+        <CustomOrderToast />
 
         <!-- Modal global de saldo insuficiente: qualquer ação de gasto do membro que
              bata em saldo baixo o abre (singleton useInsufficientBalance). -->
