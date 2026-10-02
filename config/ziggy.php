@@ -358,6 +358,7 @@ return [
 
         // Consumer wallet
         'wallet.index',
+        'wallet.packages',
         'wallet.history',
         'wallet.purchase',
         'wallet.pending',

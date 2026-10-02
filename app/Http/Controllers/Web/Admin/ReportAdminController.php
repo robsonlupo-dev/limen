@@ -74,6 +74,12 @@ class ReportAdminController extends Controller
             'status' => $validated['status'],
         ]);
 
-        return back()->with('success', "Denúncia #{$report->id} marcada como {$validated['status']}.");
+        $statusLabels = [
+            'reviewed' => 'revisada (continua aberta — Resolver ou Descartar para fechar)',
+            'resolved' => 'resolvida',
+            'dismissed' => 'descartada',
+        ];
+
+        return back()->with('success', "Denúncia #{$report->id} {$statusLabels[$validated['status']]}.");
     }
 }

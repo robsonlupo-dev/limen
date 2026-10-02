@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
@@ -70,6 +70,21 @@ function closeModal() {
     modalOpen.value = false
     activePayment.value = null
 }
+
+// Veio do modal de saldo insuficiente com ?package=ID: rola até o pacote e o
+// destaca por alguns segundos (a compra em si ainda pede CPF/PIX aqui, então não
+// dispara sozinha — só guia o olho ao pacote escolhido).
+const highlightId = ref(null)
+
+onMounted(async () => {
+    const raw = new URLSearchParams(window.location.search).get('package')
+    const id = raw ? Number(raw) : null
+    if (!id || !props.packages.some((p) => p.id === id)) return
+    highlightId.value = id
+    await nextTick()
+    document.getElementById(`pkg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => { highlightId.value = null }, 2600)
+})
 </script>
 
 <template>
@@ -106,9 +121,11 @@ function closeModal() {
                 <div
                     v-for="pkg in packages"
                     :key="pkg.id"
+                    :id="`pkg-${pkg.id}`"
                     :class="[
-                        'relative rounded-xl border bg-surface p-6 space-y-4 flex flex-col',
+                        'relative rounded-xl border bg-surface p-6 space-y-4 flex flex-col transition-shadow',
                         pkg.slug === 'ouro' ? 'border-2 border-gold' : 'border-frame',
+                        highlightId === pkg.id ? 'ring-2 ring-gold ring-offset-2 ring-offset-background' : '',
                     ]"
                 >
                     <span

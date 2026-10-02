@@ -224,6 +224,14 @@ class UatSeeder extends Seeder
             // firstOrCreate os descarta. Força consumer/active (idempotente).
             $this->forceRole($user, Role::Consumer->value);
 
+            // Reforça a senha de UAT mesmo em conta PRÉ-EXISTENTE (igual o
+            // seedStaff faz). Sem isto, um membro criado num seed anterior ficava
+            // preso na senha antiga quando a SEED_ADMIN_PASSWORD mudava — foi o
+            // bloqueador do `pobre@` no UAT. O cast `hashed` cifra ao atribuir.
+            if (! $user->wasRecentlyCreated) {
+                $user->forceFill(['password' => $password])->save();
+            }
+
             if ($user->wasRecentlyCreated) {
                 // Backdate para o membro contar no Piso de Anonimato (7+ dias).
                 // save() na atualização só mexe em updated_at; created_at persiste.

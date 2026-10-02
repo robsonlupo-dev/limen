@@ -841,11 +841,11 @@ function saveLifestyle() {
                      visível para as performers. Default OFF. -->
                 <div class="flex items-center justify-between gap-4 rounded-lg border border-gold/30 bg-gold/5 p-4">
                     <div class="min-w-0">
-                        <p class="text-sm font-medium text-cream">Perfil visível para performers</p>
+                        <p class="text-sm font-medium text-cream">Deixar performers abrirem meu perfil</p>
                         <p class="text-xs text-muted">
                             {{ galleryVisible
-                                ? 'As performers podem abrir seu perfil e ver suas fotos aprovadas.'
-                                : 'Seu perfil está oculto. Ligue para as performers verem suas fotos.' }}
+                                ? 'As performers que te acharem podem abrir seu perfil e ver suas fotos aprovadas. (Para APARECER na lista delas, ligue "Aparecer no catálogo de membros" nas Configurações.)'
+                                : 'Seu perfil está oculto. Ligue para as performers que te acharem verem suas fotos.' }}
                         </p>
                     </div>
                     <button
