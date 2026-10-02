@@ -58,9 +58,18 @@ return [
         'enabled' => (bool) env('CUSTOM_ORDER_WATERMARK', false),
         // TTF para o texto (GD precisa de fonte de arquivo). Default do Debian.
         'font' => env('CUSTOM_ORDER_WATERMARK_FONT', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
-        'opacity' => 0.22,   // 0..1 — sutil, mas visível
-        'angle' => 30,       // diagonal
+        // Marca LEVE, legível no claro E no escuro (UAT, PO): texto branco bem
+        // transparente POR CIMA de uma sombra escura sutil. O branco sozinho sumia nas
+        // áreas claras da foto; a sombra é o que faz a marca aparecer no branco.
+        'opacity' => 0.11,          // 0..1 — opacidade do texto BRANCO (áreas escuras)
+        'shadow_opacity' => 0.16,   // 0..1 — opacidade da SOMBRA escura (áreas claras)
+        'shadow_offset' => 2,       // px de deslocamento da sombra (0 = sem sombra)
+        'angle' => 30,              // diagonal
         // Tamanho da fonte como fração do menor lado da mídia (escala com a resolução).
-        'size_ratio' => 0.045,
+        'size_ratio' => 0.028,
+        // Folga do ladrilho em relação à CAIXA do texto girado (1.0 = colado). Quanto
+        // maior, mais arejado (menos repetições). gap_y maior = uma fileira a menos.
+        'gap_x' => 1.6,
+        'gap_y' => 2.6,
     ],
 ];
