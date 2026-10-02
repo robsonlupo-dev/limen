@@ -8,7 +8,10 @@ import { computed, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
 import Modal from '@/Components/Modal.vue'
-import { postJson } from '@/lib/http'
+import { postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -67,9 +70,12 @@ async function submit() {
         // Leva o membro à fila de encomendas para acompanhar o aceite.
         router.visit(route('custom-orders.index'))
     } catch (e) {
-        if (e.status === 422 && e.data?.reason === 'insufficient_balance') {
-            error.value = 'Saldo insuficiente para o preço oferecido — o débito ocorre quando a performer aceita.'
-        } else if (e.status === 429) {
+        if (isInsufficientBalance(e)) {
+            emit('close')
+            promptToBuy('Você precisa de tokens para o preço oferecido. O débito só ocorre quando a performer aceita.')
+            return
+        }
+        if (e.status === 429) {
             error.value = 'Muitos pedidos em pouco tempo. Aguarde um instante.'
         } else {
             error.value = e.data?.message ?? 'Não foi possível enviar o pedido. Tente novamente.'

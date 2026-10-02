@@ -324,7 +324,10 @@ onBeforeUnmount(onDragEnd)
 <template>
     <!-- Estado ocioso / conectando / erro: a câmera ainda não está no ar. -->
     <div v-if="status !== 'live'" class="space-y-4">
-        <div class="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl border border-frame bg-black">
+        <!-- `max-h` trava a altura do retângulo (o aspect-video em tela larga ficava
+             alto demais e empurrava o botão "Entrar ao vivo" para baixo da dobra —
+             achado UAT). O vídeo é object-contain, então o corte vira letterbox. -->
+        <div class="relative flex aspect-video max-h-[60vh] items-center justify-center overflow-hidden rounded-xl border border-frame bg-black">
             <video ref="videoEl" autoplay muted playsinline class="h-full w-full object-contain" />
             <div class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-cream/70">
                 <span v-if="status === 'idle'">Sua câmera aparece aqui quando você entra ao vivo.</span>

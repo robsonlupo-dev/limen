@@ -3,7 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import LoadingBar from '@/Components/LoadingBar.vue'
 import ReactionIcon from '@/Components/ReactionIcon.vue'
-import { postJson, errorMessage } from '@/lib/http'
+import { postJson, errorMessage, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 // Visualizador fullscreen dos Stories (Sprint 13), tipo Instagram: barra de
 // progresso por segmento, timer de 5s com pausa ao segurar, tap esquerdo/direito
@@ -300,11 +303,14 @@ async function sendReply() {
         close()
         router.visit(route('chat.show', data.conversation_id))
     } catch (error) {
-        if (error?.data?.reason === 'insufficient_balance') {
-            replyError.value = 'Saldo insuficiente para abrir a conversa.'
-        } else {
-            replyError.value = errorMessage(error, 'Não foi possível enviar sua resposta.')
+        if (isInsufficientBalance(error) || error?.data?.reason === 'insufficient_balance') {
+            // O viewer é z-[60] e o Modal z-50 — fecha o viewer para o pop aparecer
+            // por cima (o estado do modal é singleton, sobrevive ao unmount daqui).
+            promptToBuy('Você precisa de mais tokens para abrir a conversa.')
+            close()
+            return
         }
+        replyError.value = errorMessage(error, 'Não foi possível enviar sua resposta.')
     } finally {
         replySending.value = false
     }

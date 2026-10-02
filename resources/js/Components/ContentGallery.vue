@@ -4,7 +4,10 @@ import { Link } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import Lightbox from '@/Components/Lightbox.vue'
-import { postJson } from '@/lib/http'
+import { postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 // Galeria de conteúdo permanente (M.4/M.13.13). Cada item chega JÁ resolvido pelo
 // servidor (ContentVisibilityService) para ESTE espectador:
@@ -120,10 +123,8 @@ async function confirmUnlock() {
         }
         selected.value = null
     } catch (e) {
-        error.value =
-            e.status === 422 && e.data?.reason === 'insufficient_balance'
-                ? 'Saldo insuficiente. Compre tokens na sua carteira.'
-                : (e.data?.message ?? 'Não foi possível desbloquear este conteúdo.')
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para desbloquear este conteúdo.'); return }
+        error.value = e.data?.message ?? 'Não foi possível desbloquear este conteúdo.'
     } finally {
         unlocking.value = false
     }

@@ -26,7 +26,10 @@ import FanclubSection from '@/Components/Profile/FanclubSection.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
 import { stateLabel } from '@/lib/performerAttributes'
-import { postJson } from '@/lib/http'
+import { postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 const props = defineProps({
     performer: { type: Object, required: true },
@@ -99,9 +102,8 @@ async function unlockChat() {
         await postJson(route('chat.access.open', props.chat.conversation_id), { idempotency_key: crypto.randomUUID() })
         router.visit(route('chat.show', props.chat.conversation_id))
     } catch (e) {
-        chatError.value = e.status === 422 && e.data?.reason === 'insufficient_balance'
-            ? 'Saldo insuficiente. Compre tokens na sua carteira.'
-            : (e.data?.message ?? 'Não foi possível desbloquear o chat.')
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para abrir o chat.'); return }
+        chatError.value = e.data?.message ?? 'Não foi possível desbloquear o chat.'
     } finally {
         unlockingChat.value = false
     }

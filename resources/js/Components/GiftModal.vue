@@ -9,7 +9,10 @@ import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
 import Modal from '@/Components/Modal.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
-import { getJson, postJson } from '@/lib/http'
+import { getJson, postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 import { formatTokens } from '@/lib/tokens'
 
 const props = defineProps({
@@ -83,8 +86,9 @@ async function sendGift() {
         toastMessage.value = 'Presente enviado'
         setTimeout(() => (toastMessage.value = ''), 4000)
     } catch (error) {
-        if (error.status === 422 && error.data?.reason === 'insufficient_balance') {
-            router.visit(route('wallet.index'))
+        if (isInsufficientBalance(error)) {
+            emit('close')
+            promptToBuy('Você precisa de mais tokens para enviar este presente.')
             return
         }
         if (error.status === 429) {
