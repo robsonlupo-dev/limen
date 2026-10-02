@@ -271,6 +271,44 @@ it('o motivo da contestação barra troca de contato (SafeProfileText)', functio
     expect($order->fresh()->status)->toBe(CustomOrder::STATUS_DELIVERED);
 });
 
+// ─── Prova da disputa visível para a moderação (PR B) ──────────────────────────────
+
+it('o moderador vê a mídia da peça em disputa; fora da disputa é 404', function () {
+    $moderator = User::factory()->create(['role' => 'moderator', 'status' => 'active', 'email_verified_at' => now()]);
+    [$performer, $member] = coPair(300);
+    $order = coRequest($performer, $member, 100);
+    coService()->accept($performer->user, $order);
+    $order = coDeliverPhoto($performer, $order);
+
+    // Entregue, ainda NÃO contestado → a prova não é servível (404 uniforme).
+    $this->actingAs($moderator)
+        ->get(route('moderacao.custom-orders.media', $order->id))
+        ->assertStatus(404);
+
+    // Contestado → o moderador vê a foto entregue.
+    coService()->dispute($member, $order, 'Não foi o combinado, quero revisar.');
+    $this->actingAs($moderator)
+        ->get(route('moderacao.custom-orders.media', $order->id))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/jpeg');
+
+    // A projeção de moderação expõe a URL da prova.
+    expect(CustomOrderPresenter::forModeration($order->fresh())['delivered']['image_url'])->toContain('/midia');
+});
+
+it('a mídia da disputa é negada a quem não é moderador', function () {
+    [$performer, $member] = coPair(300);
+    $order = coRequest($performer, $member, 100);
+    coService()->accept($performer->user, $order);
+    $order = coDeliverPhoto($performer, $order);
+    coService()->dispute($member, $order, 'Problema com a entrega, por favor revisar.');
+
+    // O próprio membro (consumer) não alcança a porta de moderação.
+    $this->actingAs($member)
+        ->get(route('moderacao.custom-orders.media', $order->id))
+        ->assertForbidden();
+});
+
 // ─── Cron por tempo ──────────────────────────────────────────────────────────────
 
 it('expira pedidos não aceitos além da janela sem mover token', function () {
