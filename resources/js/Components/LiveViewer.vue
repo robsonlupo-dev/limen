@@ -2,7 +2,10 @@
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { Room, RoomEvent, Track } from 'livekit-client'
-import { postJson, getJson, errorMessage } from '@/lib/http'
+import { postJson, getJson, errorMessage, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 import LiveOverlay from '@/Components/LiveOverlay.vue'
 import LiveChat from '@/Components/LiveChat.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
@@ -139,6 +142,7 @@ async function requestCall() {
         startPendingTimeout(expires_in_seconds ?? 60)
     } catch (e) {
         callState.value = 'idle'
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para iniciar a chamada.'); return }
         callError.value = errorMessage(e, 'Não foi possível pedir a chamada agora.')
     }
 }
@@ -269,6 +273,7 @@ async function sendTip(amount) {
         await postJson(route('tips.send'), { performer_slug: slug, amount, idempotency_key: crypto.randomUUID() })
         notice.value = `Gorjeta de ${amount} enviada`
     } catch (e) {
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para enviar esta gorjeta.'); return }
         notice.value = errorMessage(e, 'Não foi possível enviar a gorjeta.')
     }
 }
@@ -280,6 +285,7 @@ async function sendGift(gift) {
         notice.value = `${gift.name} enviado`
         showGifts.value = false
     } catch (e) {
+        if (isInsufficientBalance(e)) { showGifts.value = false; promptToBuy('Você precisa de mais tokens para enviar este presente.'); return }
         notice.value = errorMessage(e, 'Não foi possível enviar o presente.')
     }
 }

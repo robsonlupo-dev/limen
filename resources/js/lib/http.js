@@ -57,6 +57,15 @@ export function errorMessage(error, fallback = 'Algo deu errado. Tente novamente
     return fallback
 }
 
+/**
+ * O erro é "saldo insuficiente"? Sinal uniforme do backend: HTTP 422 +
+ * `data.reason === 'insufficient_balance'`. Usado pelas ações de GASTO do membro para
+ * abrir o modal global de compra (ver useInsufficientBalance).
+ */
+export function isInsufficientBalance(error) {
+    return error?.status === 422 && error?.data?.reason === 'insufficient_balance'
+}
+
 export function postJson(url, body) {
     return request('POST', url, body)
 }

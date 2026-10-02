@@ -4,7 +4,10 @@ import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Button from '@/Components/Button.vue'
 import Modal from '@/Components/Modal.vue'
-import { patchJson, postJson } from '@/lib/http'
+import { patchJson, postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 const props = defineProps({
     unlockCost: { type: Number, required: true },
@@ -64,8 +67,8 @@ async function confirmUnlock() {
         toastMessage.value = `Interesse de ${data.performer.stage_name} revelado`
         setTimeout(() => (toastMessage.value = ''), 4000)
     } catch (error) {
-        if (error.status === 422 && error.data?.reason === 'insufficient_balance') {
-            router.visit(route('wallet.index'))
+        if (isInsufficientBalance(error)) {
+            promptToBuy('Você precisa de mais tokens para revelar este interesse.')
             return
         }
         if (error.status === 429) {

@@ -1,7 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
-import { postJson } from '@/lib/http'
+import { postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 // Seção de Fã-Clube no perfil público da performer (Onda 4, fork da assinatura). Mostra o
 // preço do ESPECTADOR (público/VIP), o botão assinar, e a grade do set (teaser p/ quem não
@@ -36,6 +39,7 @@ async function subscribe() {
         await postJson(route('fanclub.subscribe', props.slug))
         router.reload({ only: ['fanclub'] })
     } catch (e) {
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para assinar o fã-clube.'); return }
         error.value = e.data?.message ?? 'Não foi possível assinar. Tente novamente.'
     } finally {
         busy.value = false

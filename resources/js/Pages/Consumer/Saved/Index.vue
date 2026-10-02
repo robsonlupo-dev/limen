@@ -4,7 +4,10 @@ import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
-import { postJson } from '@/lib/http'
+import { postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 // "Salvos" do membro (roadmap social, Onda 3 §3.1). Lista PRIVADA de peças que o
 // membro salvou — a performer nunca sabe. Cada item chega resolvido pelo servidor
@@ -110,10 +113,8 @@ async function confirmUnlock() {
         }
         selected.value = null
     } catch (e) {
-        error.value =
-            e.status === 422 && e.data?.reason === 'insufficient_balance'
-                ? 'Saldo insuficiente. Compre tokens na sua carteira.'
-                : (e.data?.message ?? 'Não foi possível desbloquear este conteúdo.')
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para desbloquear este conteúdo.'); return }
+        error.value = e.data?.message ?? 'Não foi possível desbloquear este conteúdo.'
     } finally {
         unlocking.value = false
     }

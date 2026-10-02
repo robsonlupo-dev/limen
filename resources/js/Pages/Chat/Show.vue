@@ -8,7 +8,10 @@ import Lightbox from '@/Components/Lightbox.vue'
 import GiftIcon from '@/Components/GiftIcon.vue'
 import ReportNicknameModal from '@/Components/ReportNicknameModal.vue'
 import VoiceMessagePlayer from '@/Components/VoiceMessagePlayer.vue'
-import { postJson, postForm, deleteJson } from '@/lib/http'
+import { postJson, postForm, deleteJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 const props = defineProps({
     conversation: { type: Object, required: true },
@@ -129,9 +132,8 @@ async function unlockPpv(m) {
         if (row && data.ppv) row.ppv = data.ppv
         router.reload({ only: ['balance'] })
     } catch (e) {
-        ppvError.value = (e?.status === 422 && e?.data?.reason === 'insufficient_balance')
-            ? 'Saldo de tokens insuficiente. Compre tokens na sua carteira.'
-            : (e?.data?.message ?? 'Não foi possível desbloquear agora.')
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para desbloquear.'); return }
+        ppvError.value = e?.data?.message ?? 'Não foi possível desbloquear agora.'
     } finally {
         unlockingPpvKey.value = null
     }
@@ -347,6 +349,11 @@ function removeOutbox(key) {
 }
 
 function sendErrorMessage(e) {
+    // Chokepoint dos dois catches de envio (compor + otimista): abre o modal global
+    // de compra quando é saldo insuficiente, mantendo o texto inline como contexto.
+    if (isInsufficientBalance(e)) {
+        promptToBuy('Você precisa de mais tokens para enviar esta mensagem.')
+    }
     return e.status === 422 && e.data?.reason === 'insufficient_balance'
         ? 'Saldo insuficiente. Compre tokens na sua carteira para enviar.'
         : (e.data?.message ?? 'Não foi possível enviar. Tente novamente.')
@@ -532,9 +539,8 @@ async function renew() {
         // Reabre o acesso: recarrega props (access/messages/balance).
         router.reload({ only: ['access', 'messages', 'balance'], onSuccess: scrollToBottom })
     } catch (e) {
-        renewError.value = e.status === 422 && e.data?.reason === 'insufficient_balance'
-            ? 'Saldo insuficiente. Compre tokens na sua carteira.'
-            : (e.data?.message ?? 'Não foi possível renovar o acesso.')
+        if (isInsufficientBalance(e)) { promptToBuy('Você precisa de mais tokens para renovar o acesso.'); return }
+        renewError.value = e.data?.message ?? 'Não foi possível renovar o acesso.'
     } finally {
         renewing.value = false
     }

@@ -8,7 +8,10 @@ import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
 import Modal from '@/Components/Modal.vue'
 import Input from '@/Components/Input.vue'
-import { postJson } from '@/lib/http'
+import { postJson, isInsufficientBalance } from '@/lib/http'
+import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
+
+const { promptToBuy } = useInsufficientBalance()
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -73,8 +76,9 @@ async function sendTip() {
         toastMessage.value = 'Gorjeta enviada!'
         setTimeout(() => (toastMessage.value = ''), 4000)
     } catch (error) {
-        if (error.status === 422 && error.data?.reason === 'insufficient_balance') {
-            router.visit(route('wallet.index'))
+        if (isInsufficientBalance(error)) {
+            emit('close')
+            promptToBuy('Você precisa de mais tokens para enviar esta gorjeta.')
             return
         }
         if (error.status === 429) {

@@ -10,6 +10,7 @@ import PerformerSubnav from '@/Components/Performer/PerformerSubnav.vue'
 import MemberNav from '@/Components/Member/MemberNav.vue'
 import MemberSubnav from '@/Components/Member/MemberSubnav.vue'
 import MessageToast from '@/Components/MessageToast.vue'
+import InsufficientBalanceModal from '@/Components/InsufficientBalanceModal.vue'
 import ReservationNotice from '@/Components/ReservationNotice.vue'
 
 defineProps({
@@ -201,6 +202,10 @@ function logout() {
         <!-- Toast global de mensagem recebida (Sprint 15). Listener em qualquer
              página autenticada; escuta o canal user.{id} e nunca mostra o corpo. -->
         <MessageToast />
+
+        <!-- Modal global de saldo insuficiente: qualquer ação de gasto do membro que
+             bata em saldo baixo o abre (singleton useInsufficientBalance). -->
+        <InsufficientBalanceModal />
 
         <!-- Avisos não-intrusivos do agendamento de chamada (feat/scheduled-call-v1):
              T-5min, "performer entrou" com contador de 2min, no-show/refund. Divide
