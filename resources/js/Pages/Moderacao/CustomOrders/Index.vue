@@ -83,6 +83,26 @@ function resolve(order, decision) {
                         <span class="shrink-0 text-sm text-limen-gold">{{ order.price }} tk</span>
                     </div>
 
+                    <!-- A prova: a peça entregue que está sendo contestada. Foto, ou
+                         pôster + player do vídeo. Servida por endpoint dedicado (bytes
+                         nunca na prop); só carrega enquanto a encomenda está em disputa. -->
+                    <div v-if="order.delivered && order.delivered.image_url" class="mt-3">
+                        <video
+                            v-if="order.delivered.kind === 'video' && order.delivered.video_url"
+                            :src="order.delivered.video_url"
+                            :poster="order.delivered.image_url"
+                            controls
+                            playsinline
+                            class="max-h-72 w-full rounded-xl border border-limen-line bg-black"
+                        ></video>
+                        <img
+                            v-else
+                            :src="order.delivered.image_url"
+                            alt="Peça entregue (em disputa)"
+                            class="max-h-72 rounded-xl border border-limen-line object-contain"
+                        />
+                    </div>
+
                     <!-- Os dois lados do caso. O MOTIVO do membro é o centro da decisão
                          (destacado); o recado da performer dá o contexto da entrega. -->
                     <div class="mt-3 space-y-2">

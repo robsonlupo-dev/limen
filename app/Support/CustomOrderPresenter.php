@@ -87,6 +87,12 @@ class CustomOrderPresenter
             'delivered' => $piece === null ? null : [
                 'kind' => $piece->isVideo() ? 'video' : 'photo',
                 'status' => $piece->status,
+                // A prova em si, servida por endpoint dedicado e throttlado (nunca os bytes
+                // na prop). URL só quando a peça está PRONTA; vídeo também expõe o stream.
+                'image_url' => $piece->isReady() ? route('moderacao.custom-orders.media', $order->id) : null,
+                'video_url' => ($piece->isReady() && $piece->isVideo())
+                    ? route('moderacao.custom-orders.video', $order->id)
+                    : null,
             ],
             // As duas falas que o moderador precisa para decidir a disputa com justiça: o
             // recado da performer na entrega e o MOTIVO que o membro deu ao contestar.

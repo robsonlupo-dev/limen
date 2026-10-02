@@ -467,6 +467,17 @@ Route::middleware(['auth', 'moderator.access'])->prefix('moderacao')->group(func
         Route::get('/fotos-de-membro/{photo}/imagem', [MemberPhotoModerationController::class, 'image'])
             ->whereNumber('photo')
             ->name('moderacao.member-photos.image');
+
+        // Prova RETIDA de uma disputa de encomenda (Onda 4 §4.3): a peça entregue —
+        // foto ou pôster+vídeo — que o moderador VÊ para decidir release/refund. Mesma
+        // disciplina da prova retida (bytes, Content-Type fixo); só serve enquanto a
+        // encomenda está EM DISPUTA (o controller reescopa o acesso ao caso em julgamento).
+        Route::get('/encomendas/{order}/midia', [CustomOrderDisputeController::class, 'media'])
+            ->whereNumber('order')
+            ->name('moderacao.custom-orders.media');
+        Route::get('/encomendas/{order}/video', [CustomOrderDisputeController::class, 'video'])
+            ->whereNumber('order')
+            ->name('moderacao.custom-orders.video');
     });
 
     // Fila de moderação das intros de voz (feat/voice-intro). Áudio sanitizado
