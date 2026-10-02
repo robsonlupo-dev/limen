@@ -241,7 +241,10 @@ class AdminMetricsService
                 ->where('status', 'banned')->count(),
 
             'pending_kyc'     => IdentityVerification::where('status', 'pending')->count(),
-            'open_reports'    => Report::pending()->count(),
+            // "Aberta" = pendente OU revisada (decisão do PO): Revisar não fecha,
+            // só Resolver/Descartar tira da contagem. Alinha o badge/painel com o
+            // conceito de OPEN_STATUSES do modelo.
+            'open_reports'    => Report::whereIn('status', Report::OPEN_STATUSES)->count(),
             'waitlist_total'  => WaitlistEntry::count(),
         ];
     }

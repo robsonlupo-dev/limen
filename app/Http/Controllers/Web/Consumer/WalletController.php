@@ -52,6 +52,26 @@ class WalletController extends Controller
         ]);
     }
 
+    /**
+     * Pacotes ativos em JSON para o quick-buy do modal global de saldo
+     * insuficiente. Mesma fonte e forma mínima do catálogo de pacotes (id/tokens/
+     * bonus/preço formatado). A cobrança (CPF + PIX) continua em `purchase`.
+     */
+    public function packages(): JsonResponse
+    {
+        $packages = TokenPackage::where('active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn (TokenPackage $package) => [
+                'id' => $package->id,
+                'tokens' => $package->tokens,
+                'bonus' => $package->bonus,
+                'price_formatted' => 'R$ '.number_format($package->price_cents / 100, 2, ',', '.'),
+            ]);
+
+        return response()->json(['packages' => $packages]);
+    }
+
     public function purchase(WalletPurchaseRequest $request, TokenPackage $package): JsonResponse
     {
         if (! $package->active) {

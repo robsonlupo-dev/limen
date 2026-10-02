@@ -1725,6 +1725,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('saved.index');
 
         Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
+        // Lista JSON dos pacotes ativos (quick-buy do modal global de saldo
+        // insuficiente). Lazy: só é chamada quando o modal abre, então NÃO
+        // acrescenta query ao carregamento de nenhuma página.
+        Route::get('/wallet/packages', [WalletController::class, 'packages'])
+            ->middleware('throttle:60,1')
+            ->name('wallet.packages');
         Route::get('/wallet/history', [WalletController::class, 'history'])->name('wallet.history');
 
         Route::post('/wallet/purchase/{package}', [WalletController::class, 'purchase'])

@@ -30,16 +30,42 @@
         button { font: inherit; font-size: 12px; padding: 5px 10px; margin-right: 4px; border-radius: 7px; border: 1px solid #262626; background: #141414; color: #cfc8bd; cursor: pointer; }
         button:hover { border-color: #C9A84C; color: #C9A84C; }
         .flash { border: 1px solid #C9A84C; color: #C9A84C; border-radius: 10px; padding: 12px 16px; font-size: 14px; margin-bottom: 20px; }
+        .back { display: inline-block; color: #9a938a; text-decoration: none; font-size: 13px; margin-bottom: 18px; }
+        .back:hover { color: #C9A84C; }
+        .reason-label { font-weight: 600; color: #e5705e; }
+        .reason-label.normal { color: #cfc8bd; }
+        .reason-slug { font-size: 11px; color: #6f6a62; margin-top: 2px; }
+        .details-label { font-size: 11px; text-transform: uppercase; color: #6f6a62; margin-top: 8px; }
         .pager { margin-top: 18px; font-size: 13px; }
         .pager a { color: #C9A84C; }
     </style>
 </head>
 <body>
+    @php
+        // Motivos em PT (o slug cru é técnico). Fallback para o próprio slug.
+        $reasonLabels = [
+            'underage_content' => 'Conteúdo de menor',
+            'non_consensual'   => 'Conteúdo não consensual',
+            'coercion'         => 'Coerção / ameaça',
+            'impersonation'    => 'Falsidade de identidade',
+            'spam'             => 'Spam',
+            'other'            => 'Outro',
+        ];
+        // Status em PT.
+        $statusLabels = [
+            'pending'   => 'Pendente',
+            'reviewed'  => 'Revisada',
+            'resolved'  => 'Resolvida',
+            'dismissed' => 'Descartada',
+        ];
+    @endphp
     <div class="wrap">
+        <a class="back" href="{{ route('admin.dashboard') }}">← Voltar ao painel</a>
         <h1>Denúncias</h1>
         <p class="sub">
             Painel de moderação · {{ $pendingCount }} pendente{{ $pendingCount === 1 ? '' : 's' }}.
             O denunciante aparece pseudonimizado — o id real fica na tabela.
+            <br>Revisar só marca que você olhou; a denúncia continua aberta até Resolver ou Descartar.
         </p>
 
         @if (session('success'))
@@ -79,13 +105,15 @@
                                 <td class="muted">{{ $report['reporter'] }}</td>
                                 <td>{{ $report['target_type'] }} #{{ $report['target_id'] }}</td>
                                 <td>
-                                    <span class="tag {{ $urgent ? 'urgent' : '' }}">{{ $report['reason'] }}</span>
+                                    <div class="reason-label {{ $urgent ? '' : 'normal' }}">{{ $reasonLabels[$report['reason']] ?? $report['reason'] }}</div>
+                                    <div class="reason-slug">{{ $report['reason'] }}</div>
                                     @if ($report['details'])
+                                        <div class="details-label">Mensagem do denunciante</div>
                                         <div class="details">{{ $report['details'] }}</div>
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="tag {{ $report['status'] === 'pending' ? 'pending' : '' }}">{{ $report['status'] }}</span>
+                                    <span class="tag {{ $report['status'] === 'pending' ? 'pending' : '' }}">{{ $statusLabels[$report['status']] ?? $report['status'] }}</span>
                                     @if ($report['reviewed_at'])
                                         <div class="muted" style="font-size:11px;margin-top:4px">
                                             {{ optional($report['reviewed_at'])->format('d/m/Y H:i') }}

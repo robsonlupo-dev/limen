@@ -32,9 +32,10 @@ function toggle() {
 <template>
     <div class="rounded-xl border border-frame bg-surface p-5 flex items-start justify-between gap-6">
         <div class="space-y-1">
-            <span class="text-cream font-medium">Visível para performers</span>
+            <span class="text-cream font-medium">Aparecer no catálogo de membros</span>
             <p class="text-muted text-sm">
                 Permite que performers encontrem você no catálogo de membros e demonstrem interesse.
+                (Diferente de "Deixar performers abrirem meu perfil", no Editar perfil, que controla ver suas fotos.)
             </p>
             <p class="text-muted text-xs">
                 Elas veem apenas um apelido e sua atividade recente — nunca seu nome, e-mail ou plano.
@@ -46,7 +47,7 @@ function toggle() {
             type="button"
             role="switch"
             :aria-checked="enabled"
-            aria-label="Visível para performers"
+            aria-label="Aparecer no catálogo de membros"
             :disabled="saving"
             @click="toggle"
             :class="[
