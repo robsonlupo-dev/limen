@@ -78,12 +78,12 @@ const hasActiveFilter = computed(() => !!(form.from || form.to || (form.type && 
             <!-- HERO: saldo atual com as casas decimais. O gold é o dinheiro dela. -->
             <section class="rounded-2xl border border-limen-line bg-limen-surface p-6">
                 <p class="text-[11px] uppercase tracking-[0.2em] text-limen-ink-mute">Saldo atual</p>
-                <p class="mt-1 font-serif text-4xl text-limen-gold tabular-nums">{{ br(summary.balance) }}</p>
+                <p class="mt-1 font-sans text-4xl font-semibold text-limen-gold tabular-nums">{{ br(summary.balance) }}</p>
                 <p class="mt-1 text-sm text-limen-ink-soft">
                     ≈ {{ balanceReais }} no saque
                 </p>
                 <p class="mt-3 text-xs leading-relaxed text-limen-ink-mute">
-                    Você recebe 80% dos tokens de cada transação. Cada token vale R$&nbsp;0,60 no saque.
+                    Você recebe 80% dos tokens na maioria das transações (70% em live e chamada). Cada token vale R$&nbsp;0,60 no saque.
                 </p>
             </section>
 
@@ -164,7 +164,7 @@ const hasActiveFilter = computed(() => !!(form.from || form.to || (form.type && 
                                 <span v-if="entry.gross !== null">{{ entry.gross }} {{ entry.gross === 1 ? 'token' : 'tokens' }}</span>
                                 <span v-if="entry.gross !== null" class="text-limen-ink-mute/70"> · {{ entry.applied_rate }}%</span>
                             </p>
-                            <p class="font-serif text-2xl text-limen-gold tabular-nums leading-none">
+                            <p class="font-sans text-2xl font-semibold text-limen-gold tabular-nums leading-none">
                                 +{{ br(entry.net) }}
                             </p>
                         </div>
