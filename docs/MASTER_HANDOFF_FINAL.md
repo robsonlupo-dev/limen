@@ -5338,6 +5338,66 @@ imagens convertidos para WebP com `ffmpeg` — conversão LEVE, não render pesa
 
 ---
 
+## Landing — fix do hero cinematográfico (transições + card em vídeo) (07/10/2026)
+
+> **Branch `fix/landing-hero-transitions`** (a partir da `main` já com o redesign v2
+> do PR #323 mergeado). PR NOVO, não reabre o #323. **Só `resources/js/Pages/Landing.vue`**
+> + o vídeo versionado `public/landing/destaque-01-convite-envelope.mp4`. Nenhuma rota,
+> controller, model ou o formulário/waitlist tocados; nenhum `<link>` de Google Fonts.
+> Design de referência: `reference/SiteDesktop.dc.html` / `SiteMobile.dc.html` (NÃO
+> versionados — só referência).
+
+Quatro correções, todas no topo (hero) e no card 1 dos Destaques:
+
+1. **Controles do topo removidos.** Sumiram o contador `0N / 07`, a barra de 7 segmentos
+   clicáveis e o botão pausar/retomar — o topo não mostra mais em que cena está nem
+   controle de reprodução (bate com o design de `reference/`, que não renderiza nenhum
+   desses). Removidos do template, do `<script>` (`heroPaused`, `heroCounter`,
+   `heroPauseLabel`, `toggleHeroPause`) e do CSS (`.hero-progress/.hero-counter/.hero-bars/
+   .hero-bar/.hero-pause` + overrides no breakpoint desktop). **Selo de velocidade "1.00":**
+   era o overlay de `playbackRate` do controle NATIVO de mídia (o mesmo "1.00" documentado
+   em `VoiceMessagePlayer.vue`); o hero da v2 já NÃO usa `controls`, então o selo já estava
+   ausente no código mergeado — não restou nada a remover (só aparecia na versão antiga no
+   ar). A troca de cena segue automática; sem controle visível, não há mais navegação por
+   teclado no topo (nada visível para navegar, como o handoff autoriza).
+2. **Porta → corredor (e toda cena de vídeo) avança no FIM do vídeo.** Antes a cena
+   avançava por um timer fixo MENOR que o vídeo (porta `abertura.mp4` dura 8,0 s, mas a
+   cena tinha 4,5 s — reiniciava e cortava seco; idem silhueta 11 s/10,5 s, carimbo 8/7,5,
+   vela 9,9/9,5, salão 8/7,5). Agora a cena de VÍDEO avança no evento `@ended`
+   (`onHeroVideoEnded`), com um timer só de **segurança** (`HERO_VIDEO_FALLBACK_MS` = 15 s,
+   acima do maior vídeo) para não travar se o `ended` não disparar. A cena de IMAGEM
+   continua por tempo (`heroDurations`). O `<video>` já montava só na cena ativa (`v-if`),
+   recomeçando do 1º frame; sem `loop`. Adicionado **preload** do vídeo da próxima cena
+   (`heroNextVideoSrc` + `<video class="hero-preload">` fora de tela) para não piscar.
+3. **Crossfade → saída para preto.** `heroTransition(k)` espelha o `tr(k)` do `reference/`:
+   a cena ATIVA entra com `opacity .9s ease .5s` e a que sai some com `opacity .5s ease`;
+   o atraso de .5 s na entrada garante que a anterior já sumiu — nunca duas cenas visíveis
+   ao mesmo tempo (acaba o "fantasma" do 3→4, silhueta→selo). Aplicada às 7 trocas via
+   `:style` inline; a transição única de 1,2 s saiu do `.hscene`.
+4. **Card 1 "Exclusivo de verdade" em vídeo.** Troca a foto `destaque-1.webp` pelo vídeo
+   `destaque-01-convite-envelope.mp4` (`autoplay muted loop playsinline`, `poster` = a foto
+   atual, `aria-label` = "Uma mão retira o convite de um envelope negro, ao lado de uma vela
+   acesa"). Um `IntersectionObserver` (classe `.d-card-video`) **pausa o vídeo quando o card
+   sai de vista** (desliza no carrossel ou a seção sai da tela) e retoma ao reaparecer.
+
+**`prefers-reduced-motion` honrado:** sem `motionOk` não há autoplay nem auto-avanço no
+hero (o `<video>` nem monta), `heroTransition` devolve `none`, e o card 1 cai no `<img>`
+estático (sem vídeo/observer). **Testes:** `LandingCinematicAssetsTest` e
+`ExternalAssetPolicyTest` seguem verdes (10/10, 97 asserts) — o novo `.mp4` é self-host e
+resolve para arquivo existente; nenhuma origem externa vazou. SSR off → `LandingCinematicTest`
+(contrato de servidor) intacto. Camada visual, sem testes novos. Gravação de tela
+(desktop + mobile, as 7 trocas) a capturar na validação em `limen.dev.br` após o deploy —
+este clone não serve o site nem tem Chrome headless.
+
+**Divergências conhecidas do `reference/`:** (a) o `reference/` ainda cicla as cenas de
+vídeo por timer fixo; o fix avança por `@ended` DE PROPÓSITO (instrução nº 2 do handoff,
+que supera a referência nesse ponto). (b) O card 1 em vídeo no `reference/` não tem `poster`
+nem pausa fora de tela; o fix adiciona os dois (robustez pedida no handoff). (c) As cenas 2
+(corredor), 5 (máscara) e o rodapé (água) seguem com os fallbacks já registrados acima —
+este fix não mexe neles.
+
+---
+
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
 real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
 (`main`, `93b2878`, tag `v1.0-sprint8`), em 29/07/2026 no fecho do **Sprint 9A**

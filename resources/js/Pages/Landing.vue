@@ -11,9 +11,10 @@ import WorldIcon from '@/Components/WorldIcon.vue'
 // opt-in), que mora na seção #fundadores / #lista-de-espera. O backend de
 // /cadastro continua intacto e volta ao header no lançamento (só o .env muda).
 //
-// Estrutura: (1) HERO de 7 cenas em ciclo automático (barra de progresso
-// clicável, pausar/retomar, contador 0N/07, copy rotativa; cada cena de vídeo só
-// MONTA o <video> enquanto ativa, para sempre recomeçar do zero); (2) O Portal
+// Estrutura: (1) HERO de 7 cenas em ciclo automático (sem controles visíveis: a
+// troca é por TEMPO nas cenas de imagem e pelo FIM do vídeo — evento `ended` — nas
+// de vídeo; copy rotativa; cada cena de vídeo só MONTA o <video> enquanto ativa,
+// para sempre recomeçar do zero e nunca cortar antes do fim); (2) O Portal
 // que se abre com a rolagem (seção sticky dirigida por scroll); (3) Só o que é
 // real; (4) Destaques (carrossel de 5); (5) Por dentro (mockup + FAQ); (6)
 // Recursos (3 pilares); (7) Círculos; (8) Lista de fundadores (porta entreaberta
@@ -39,8 +40,12 @@ const isDesktop = ref(false)
 const motionOk = ref(true)
 
 // ── HERO: 7 cenas em ciclo automático ────────────────────────────────────────
-// Cross-fade por opacidade (dirigido por TEMPO, não por scroll). Durações por
-// cena vindas do design. Cenas de vídeo montam o <video> só quando ativas.
+// Transição "saída para preto": a cena que SAI some em .5s; a nova ENTRA em .9s
+// com atraso de .5s (espera a anterior sumir) — nunca duas cenas visíveis ao mesmo
+// tempo. A cena de IMAGEM avança por TEMPO (heroDurations); a de VÍDEO avança
+// quando o vídeo TERMINA (evento `ended`), com um timer só de SEGURANÇA. Cenas de
+// vídeo montam o <video> só quando ativas (recomeçam do 1º frame) e fazem preload
+// da próxima, para não piscar na troca.
 const heroScenes = [
     { k: 0, type: 'video', src: '/landing/abertura.mp4', poster: '/landing/porta.webp', alt: 'A câmera atravessa uma porta entreaberta rumo a um portal de luz dourada.', bg: '#050506', pos: 'center' },
     { k: 1, type: 'image', srcD: '/landing/corredor.webp', srcM: '/landing/corredor-mobile.webp', alt: 'Um corredor de portas douradas desaparecendo na penumbra.', bg: '#0b0d10', pos: 'center' },
@@ -66,28 +71,41 @@ const heroLines = [
 const heroDurations = [4.5, 4.5, 10.5, 7.5, 5.5, 9.5, 7.5]
 
 const heroIndex = ref(0)
-const heroPaused = ref(false)
 let heroTimer = null
 
-const heroCounter = computed(() => '0' + (heroIndex.value + 1))
-const heroPauseLabel = computed(() => (heroPaused.value ? 'Retomar cenas' : 'Pausar cenas'))
+// Timer de SEGURANÇA das cenas de vídeo: o avanço real é no evento `ended`; este só
+// dispara se o vídeo não terminar (erro de rede/codec). Fica acima do maior vídeo do
+// topo (~11s) para nunca cortar a cena antes do fim (ponto nº 2 do fix).
+const HERO_VIDEO_FALLBACK_MS = 15000
+
+// Fonte do vídeo da PRÓXIMA cena (null se for imagem), para preload fora de tela.
+const heroNextVideoSrc = computed(() => {
+    const next = heroScenes[(heroIndex.value + 1) % heroScenes.length]
+    return next.type === 'video' ? next.src : null
+})
+
+// Saída para preto: a cena ATIVA entra em .9s com atraso de .5s (espera a anterior
+// sumir); a que sai some em .5s. Sem movimento → sem transição.
+function heroTransition(k) {
+    if (!motionOk.value) return 'none'
+    return heroIndex.value === k ? 'opacity .9s ease .5s' : 'opacity .5s ease'
+}
 
 function heroSchedule(k) {
     clearTimeout(heroTimer)
-    if (!motionOk.value || heroPaused.value) return
-    heroTimer = setTimeout(() => {
-        if (heroPaused.value) return
-        heroGo((k + 1) % heroScenes.length)
-    }, heroDurations[k] * 1000)
+    if (!motionOk.value) return
+    // Imagem: avança por tempo. Vídeo: só o timer de segurança (quem manda é o `ended`).
+    const ms = heroScenes[k].type === 'video' ? HERO_VIDEO_FALLBACK_MS : heroDurations[k] * 1000
+    heroTimer = setTimeout(() => heroGo((k + 1) % heroScenes.length), ms)
 }
 function heroGo(k) {
     heroIndex.value = k
     heroSchedule(k)
 }
-function toggleHeroPause() {
-    heroPaused.value = !heroPaused.value
-    if (heroPaused.value) clearTimeout(heroTimer)
-    else heroSchedule(heroIndex.value)
+function onHeroVideoEnded(k) {
+    // Só o vídeo da cena ATIVA avança (ignora `ended` de um vídeo sendo desmontado).
+    if (!motionOk.value || heroIndex.value !== k) return
+    heroGo((k + 1) % heroScenes.length)
 }
 
 // Object-position da mídia da cena (mobile tem recorte próprio no design; aqui
@@ -139,7 +157,7 @@ function onPortalScroll() {
 // ── Destaques: carrossel de 5 cards ──────────────────────────────────────────
 // AJUSTE de copy nº 1 no card do PIX (tokens, não "sem cartão" geral).
 const cards = [
-    { img: '/landing/destaque-1.webp', alt: 'Envelope lacrado com selo de cera sobre madeira.', lead: 'Exclusivo de verdade.', tail: 'Cada conteúdo é lacrado para quem assina.' },
+    { img: '/landing/destaque-1.webp', video: '/landing/destaque-01-convite-envelope.mp4', videoAlt: 'Uma mão retira o convite de um envelope negro, ao lado de uma vela acesa.', alt: 'Envelope lacrado com selo de cera sobre madeira.', lead: 'Exclusivo de verdade.', tail: 'Cada conteúdo é lacrado para quem assina.' },
     { img: '/landing/destaque-2.webp', alt: 'Selo dourado sobre veludo negro.', lead: 'Verificação em cada perfil.', tail: 'Biometria e documento antes do primeiro post.' },
     { img: '/landing/mascara.webp', alt: 'Máscara veneziana preta com filigrana dourada.', lead: 'Discrição total.', tail: 'Apelido, modo fantasma e controle de quem te vê.' },
     { img: '/landing/destaque-4.webp', alt: 'Lounge com poltronas de veludo negro e detalhes dourados.', lead: 'Um clube, não uma vitrine.', tail: 'Curadoria no lugar da rolagem infinita.' },
@@ -150,6 +168,8 @@ const cardsPaused = ref(false)
 const trackEl = ref(null)
 const cardStep = ref(0)
 let cardTimer = null
+// Pausa o vídeo do card 1 ("Exclusivo de verdade") quando ele sai de vista.
+let cardVideoObserver = null
 
 const trackStyle = computed(() => ({ transform: `translateX(-${cardIndex.value * cardStep.value}px)` }))
 
@@ -324,6 +344,22 @@ onMounted(() => {
         if (!cardsPaused.value) goCard(cardIndex.value + 1)
     }, 6500)
 
+    // Pausar o vídeo do card 1 quando ele sai de vista (desliza no carrossel ou a
+    // seção sai da tela) e retomar quando reaparece — poupa rede/bateria.
+    const cardVideo = trackEl.value?.querySelector('.d-card-video')
+    if (cardVideo && 'IntersectionObserver' in window) {
+        cardVideoObserver = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) entry.target.play?.().catch(() => {})
+                    else entry.target.pause?.()
+                }
+            },
+            { threshold: 0.5 },
+        )
+        cardVideoObserver.observe(cardVideo)
+    }
+
     // Scroll do Portal.
     window.addEventListener('scroll', onPortalScroll, { passive: true })
     runPortalScroll()
@@ -332,6 +368,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     clearTimeout(heroTimer)
     clearInterval(cardTimer)
+    cardVideoObserver?.disconnect()
     window.removeEventListener('scroll', onPortalScroll)
     if (portalRaf !== null) cancelAnimationFrame(portalRaf)
 })
@@ -354,7 +391,7 @@ onBeforeUnmount(() => {
                     :key="s.k"
                     class="hscene"
                     :class="{ 'hscene--panel': s.panel }"
-                    :style="{ opacity: heroIndex === s.k ? 1 : 0, background: s.bg }"
+                    :style="{ opacity: heroIndex === s.k ? 1 : 0, background: s.bg, transition: heroTransition(s.k) }"
                     :aria-hidden="heroIndex === s.k ? 'false' : 'true'"
                 >
                     <template v-if="s.type === 'video'">
@@ -369,6 +406,7 @@ onBeforeUnmount(() => {
                             preload="auto"
                             :aria-label="s.alt"
                             :style="mediaStyle(s)"
+                            @ended="onHeroVideoEnded(s.k)"
                         />
                         <img v-else class="hmedia" :src="s.poster" :alt="s.alt" :style="mediaStyle(s)" />
                     </template>
@@ -383,27 +421,18 @@ onBeforeUnmount(() => {
                 <!-- Véu de leitura (base + lateral esquerda). -->
                 <div class="hero-veil" aria-hidden="true" />
 
-                <!-- Barra de progresso: 7 segmentos clicáveis + contador + pausar. -->
-                <div class="hero-progress">
-                    <span class="hero-counter">{{ heroCounter }} / 07</span>
-                    <div class="hero-bars">
-                        <button
-                            v-for="s in heroScenes"
-                            :key="'bar-' + s.k"
-                            type="button"
-                            class="hero-bar"
-                            :aria-label="'Ver cena ' + (s.k + 1)"
-                            :aria-current="heroIndex === s.k ? 'true' : 'false'"
-                            @click="heroGo(s.k)"
-                        >
-                            <span class="hero-bar-fill" :class="{ 'is-on': s.k <= heroIndex }" />
-                        </button>
-                    </div>
-                    <button type="button" class="hero-pause" :aria-label="heroPauseLabel" @click="toggleHeroPause">
-                        <svg v-if="!heroPaused" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5 3v10M11 3v10" /></svg>
-                        <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l8 5-8 5z" /></svg>
-                    </button>
-                </div>
+                <!-- Preload (fora de tela) do vídeo da próxima cena: evita tela vazia na troca. -->
+                <video
+                    v-if="motionOk && heroNextVideoSrc"
+                    :key="'preload-' + heroNextVideoSrc"
+                    class="hero-preload"
+                    :src="heroNextVideoSrc"
+                    preload="auto"
+                    muted
+                    playsinline
+                    aria-hidden="true"
+                    tabindex="-1"
+                />
 
                 <!-- Conteúdo do hero. -->
                 <div class="hero-content">
@@ -481,7 +510,19 @@ onBeforeUnmount(() => {
                 <div class="destaques-rail">
                     <div ref="trackEl" class="destaques-track" :style="trackStyle">
                         <article v-for="(c, idx) in cards" :key="'card-' + idx" class="d-card">
-                            <img class="d-card-img" :src="c.img" :alt="c.alt" loading="lazy" />
+                            <video
+                                v-if="c.video && motionOk"
+                                class="d-card-img d-card-video"
+                                :src="c.video"
+                                :poster="c.img"
+                                :aria-label="c.videoAlt"
+                                autoplay
+                                muted
+                                loop
+                                playsinline
+                                preload="metadata"
+                            />
+                            <img v-else class="d-card-img" :src="c.img" :alt="c.alt" loading="lazy" />
                             <div class="d-card-veil" aria-hidden="true" />
                             <div class="d-card-text"><strong>{{ c.lead }}</strong> <span>{{ c.tail }}</span></div>
                         </article>
@@ -916,7 +957,7 @@ onBeforeUnmount(() => {
     position: absolute;
     inset: 0;
     overflow: hidden;
-    transition: opacity 1.2s ease;
+    /* A transição de opacidade é inline por cena (heroTransition) — saída para preto. */
 }
 .hmedia {
     position: absolute;
@@ -947,56 +988,13 @@ onBeforeUnmount(() => {
         linear-gradient(to right, rgba(8, 6, 10, 0.72) 0%, rgba(8, 6, 10, 0) 58%);
 }
 
-.hero-progress {
+/* Preloader da próxima cena de vídeo: presente no DOM, mas invisível e inerte. */
+.hero-preload {
     position: absolute;
-    z-index: 3;
-    left: 1rem;
-    right: 1rem;
-    top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-}
-.hero-counter {
-    display: none;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    color: var(--gold-soft);
-    white-space: nowrap;
-}
-.hero-bars { flex-grow: 1; display: flex; gap: 5px; }
-.hero-bar {
-    flex-grow: 1;
-    height: 22px;
-    padding: 0;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-}
-.hero-bar-fill {
-    display: block;
-    width: 100%;
-    height: 2px;
-    border-radius: 2px;
-    background: rgba(242, 232, 214, 0.28);
-    transition: background-color 0.4s ease;
-}
-.hero-bar-fill.is-on { background: var(--gold); }
-.hero-pause {
-    width: 44px;
-    height: 44px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    color: var(--ink);
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .hero-content {
@@ -1073,8 +1071,6 @@ onBeforeUnmount(() => {
 .hero-scroll svg { color: var(--gold); }
 
 @media (min-width: 768px) {
-    .hero-progress { left: auto; right: 3.4rem; top: 6rem; width: 377px; }
-    .hero-counter { display: block; }
     .hero-content {
         padding: 0 5.5rem 5.5rem;
         flex-direction: row;

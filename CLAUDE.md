@@ -232,7 +232,17 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   opt-in) e a flag `LANDING_PRELAUNCH` seguem intactos. PIX só promete TOKENS
   (Círculos são cartão/Asaas); nota de "imagens de ambiente por IA" no rodapé.
   Detalhe e próximos passos de asset (água, vídeos de corredor/máscara/salão) no
-  `MASTER_HANDOFF_FINAL.md`. **Anti-CSAM, Som de notificação**.
+  `MASTER_HANDOFF_FINAL.md`. **Fix do hero** (`fix/landing-hero-transitions`,
+  07/10/2026, PR novo sobre a v2 já mergeada): topo SEM controles (sumiram contador
+  `0N/07`, barra de cenas e pausar — o "selo 1.00" era o overlay de `playbackRate`
+  do `<video controls>` nativo, que a v2 já não usava); cena de VÍDEO avança no
+  `@ended` (não mais por timer fixo menor que o vídeo, que cortava a porta seco) com
+  timer só de segurança + preload da próxima; crossfade virou **saída para preto**
+  (`heroTransition` = `tr(k)` do design: sai .5s / entra .9s com atraso .5s, nunca
+  2 cenas juntas); e o card 1 dos Destaques virou vídeo
+  (`destaque-01-convite-envelope.mp4`, autoplay/muted/loop/poster/aria-label, pausa
+  fora de vista por IntersectionObserver). `prefers-reduced-motion` mantido (sem
+  autoplay/auto-avanço; card cai no `<img>`). **Anti-CSAM, Som de notificação**.
 - **Roadmap social ("estilo Insta")** (`docs/ROADMAP_SOCIAL.md`): 3 ondas —
   Destaques, Stories VIP por tier, Status do dia, enquetes/reações (Onda 1);
   canal de transmissão + modo efêmero (Onda 2); fixar conteúdo + insights (Onda 3).
