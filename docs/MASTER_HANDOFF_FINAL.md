@@ -5260,6 +5260,84 @@ WAITLIST_SPEC.md · COMMUNICATION_ECONOMY.md · CURRENT_ISSUES_AND_NEXT_ACTIONS.
 
 ---
 
+## Landing cinematográfica v2 — redesign do design-canvas (07/10/2026)
+
+> **Branch `feat/landing-cinematografica-v2`** (a partir da `main`). Porta o
+> redesign do canvas de design para a `Landing.vue` real, SEM quebrar o que já
+> funcionava (lista de fundadores + double opt-in, Turnstile, headers de
+> segurança, flag `LANDING_PRELAUNCH`, selo 18+). **Só a landing muda** —
+> `resources/js/Pages/Landing.vue`, `resources/css/fonts.css`, assets em
+> `public/landing/` e `public/fonts/`. Nenhuma rota, controller ou model novo.
+
+### O que entrou
+
+- **HERO de 7 cenas em ciclo automático** (antes eram 5 cenas de scroll
+  empilhado). Barra de progresso com 7 segmentos clicáveis, botão pausar/retomar,
+  contador `0N / 07` e copy rotativa por cena. Cada cena de VÍDEO monta o
+  `<video>` só enquanto está ativa (`v-if heroIndex===k`), para sempre recomeçar
+  do zero. Cross-fade por opacidade (dirigido por TEMPO, não por scroll).
+  Durações `[4.5, 4.5, 10.5, 7.5, 5.5, 9.5, 7.5]` s.
+- **"O Portal se abre com a rolagem"** — seção sticky dirigida por scroll (rAF
+  único): `portal.webp` cresce conforme a rolagem, o texto do Capítulo I some, o
+  "ATRAVESSE o limiar" entra/sai e a cena escurece no fim. Derivado da POSIÇÃO
+  (simétrico).
+- **Seções novas:** Só o que é real · Destaques (carrossel de 5, autoplay 6,5 s,
+  dots/setas, pausável) · Por dentro (mockup de telefone com 5 telas trocáveis +
+  FAQ accordion de 5 itens, um dirige o outro) · Recursos (3 pilares: Discrição /
+  Conexão / Exclusividade, com selos de tier) · Círculos (5 cards, números
+  conferidos contra `docs/ECONOMIA.md`) · Lista de fundadores (porta entreaberta
+  + o wizard de lista de espera existente, re-estilizado) · rodapé de fechamento.
+- **Fontes (self-host, auditoria de pixel):** adicionadas **Cinzel** (display/
+  versalete, `public/fonts/cinzel-latin*.woff2`, baixada do Google e commitada —
+  NUNCA `<link>` para `fonts.googleapis.com`) e **Manrope** (corpo; os `.woff2` já
+  estavam em `public/fonts/` sem `@font-face` — agora têm). `@font-face` em
+  `resources/css/fonts.css`. `ExternalAssetPolicyTest` segue verde.
+
+### Decisões e divergências do design (documentadas de propósito)
+
+- **Formulário da lista de fundadores:** o design mostrava e-mail + toggle
+  simples. Mantivemos o **wizard de 2 passos existente** (papel + e-mail + 18+ →
+  mundo/kind), que é o contrato real do double opt-in — só re-estilizado. O toggle
+  "Quero explorar / Sou criadora" do design mapeia para `member/performer`.
+- **Paleta:** a landing usa a paleta cinematográfica própria do design (fundo
+  `#050506`, dourado `#f3c97e`), **escopada ao componente** (`<style scoped>`), sem
+  tocar nos tokens globais `limen-*`. É superfície de marketing bespoke, como a
+  landing já era.
+- **AJUSTES DE COPY obrigatórios (feitos):** (1) PIX só promete **tokens**
+  ("Tokens por PIX, em segundos"), nunca "sem cartão" geral — os Círculos são
+  assinatura por cartão (Asaas). (2) Nenhuma promessa de "fatura discreta/soft
+  descriptor" (pendente de verificação jurídica). (3) **Nota de IA no rodapé:**
+  "Imagens ilustrativas, geradas por IA, de ambientação. Todas as criadoras do
+  Limen são pessoas reais e verificadas." As imagens de ambiente por IA ficam
+  FORA das seções de verificação/criadoras (o card "Verificação" dos Destaques
+  usa objeto, não pessoa).
+- **Chrome do GuestLayout:** a landing segue dentro do `GuestLayout` (age gate,
+  intro, panic, e o `:hide-account-nav="prelaunch"` que os testes travam). O
+  header/rodapé elaborados do design NÃO substituem o chrome do layout; o rodapé
+  da landing é uma banda de fechamento (sem duplicar o copyright do layout).
+
+### Assets e o que depende do PO (próximos passos)
+
+Mídia nova copiada para `public/landing/` (vídeos mudos H.264 < 4 MB; pôsteres e
+imagens convertidos para WebP com `ffmpeg` — conversão LEVE, não render pesado):
+`hero-03-silhueta-nevoa.mp4`, `hero-04-carimbo-selo-vela.mp4`,
+`hero-06-vela-apagando.mp4`, `hero-07-salao-mascarado.mp4` (+ pôsteres),
+`corredor.webp`, `fundadores.webp`, `destaque-{1,2,4,5}.webp` (+ variantes mobile).
+
+- **`água` (fundo do rodapé) NÃO existe no repo** → o rodapé usa `fundo.webp`
+  (mármore) escurecido como fallback. Entregar o asset de água depois.
+- **Cena 2 (Corredor)** usa `corredor.webp` (estático, de `ref-corredor-portas-douradas.jpg`)
+  até chegar o **vídeo do corredor das portas douradas**.
+- **Cena 5 (Máscara)** usa a imagem estática `mascara.webp` do repo — o **vídeo
+  novo da máscara** fica para depois (como o handoff previu).
+- **Cena 7 (Salão)** usa `hero-07-salao-mascarado.mp4`; o PO pode trocar pelo
+  **salão com a moça de vestido longo**.
+- **Lighthouse (antes/depois)** NÃO foi capturado: este clone (`~/limen-dev`) é só
+  build/testes, não serve o site, e não há Chrome headless instalado. Medir na
+  validação em `limen.dev.br` após o deploy.
+
+---
+
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
 real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
 (`main`, `93b2878`, tag `v1.0-sprint8`), em 29/07/2026 no fecho do **Sprint 9A**
