@@ -5398,6 +5398,47 @@ este fix não mexe neles.
 
 ---
 
+## Live — destaque AO VIVO, saída da live e reação no chat (08/10/2026, `feat/live-destaque-ux`)
+
+Melhorias de UX nascidas do UAT da Fase 9 (live), **só front** — zero mudança em
+rota, controller, evento ou token. Os quatro achados do PO e o que foi feito:
+
+1. **"Ao vivo" era pequeno demais no catálogo.** O card de quem está ao vivo agora
+   tem **anel `limen-live` pulsante no card inteiro** (`live-card-ring`, com
+   precedência sobre o anel Maison; `prefers-reduced-motion` → brilho estático) e o
+   selo "● AO VIVO" ficou maior, com tooltip "Ao vivo agora — toque para entrar na
+   transmissão". Na trilha "Agora" (NowStrip), o círculo de live cresceu para 76px
+   (story segue 62px), ganhou o selo "AO VIVO" sobreposto e o **nome da performer**
+   embaixo (`now-live-name`). A ordenação "lives primeiro" NÃO precisou de mudança:
+   `scopePublicCatalog` já ordena boost → `is_live` desc.
+2. **O membro não tinha como sair da live** (só o voltar do navegador; o "Voltar ao
+   catálogo" só existia na tela de encerrada). Botão **"← Sair"** no canto superior
+   direito do vídeo (`LiveViewer`), toque ≥44px, some quando `status === 'ended'`.
+3. **Gorjeta/presente não deixavam rastro no chat** (a animação do overlay flutua e
+   some; o chat seguia "Ainda não há mensagens"). O `LiveChat` agora também ouve
+   `.live.reaction` no MESMO canal e registra uma **linha dourada** no fluxo —
+   ícone (GiftIcon/TokenCoin) + FanAlias label + "enviou Rosa · 4 tokens" / "mandou
+   10 tokens de gorjeta". ⚠️ O unmount remove **só o próprio callback**
+   (`stopListening('.live.reaction', appendReaction)`): overlay (membro) e feed do
+   console (performer) ouvem o mesmo evento no canal compartilhado — um
+   `stopListening` sem callback os mataria. Payload do evento inalterado (nada
+   sensível: type/gift_slug/amount/fan_alias_label).
+4. **O feed "Gorjetas e presentes" do console era seco.** Linha em dois níveis
+   (FanAlias + "enviou Rosa"/"gorjeta"), presente com fundo dourado, valor com
+   `TokenCoin`. O nome do presente é derivado do slug (`giftName`: 'rosa' → 'Rosa')
+   — exibição, não um mapa de conhecimento local.
+
+Teste estático: `tests/Feature/LiveDestaqueUxTest.php` (prefixo `ldu`). Pendência
+conhecida (FORA deste PR, follow-up "tempo real"): o catálogo só reflete live no
+carregamento da página — o badge acender sem F5 exige um evento
+`LiveStarted/LiveEnded` por mundo que o catálogo escute (Pacote 2). Observação
+pré-existente não tocada: o `LiveOverlay` faz `Echo.leave` no unmount (os demais
+componentes do canal usam `stopListening`) — inofensivo hoje porque ele desmonta
+junto da página, mas é o motivo de o chat morrer quando o membro entra em chamada
+privada a partir da live.
+
+---
+
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
 real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
 (`main`, `93b2878`, tag `v1.0-sprint8`), em 29/07/2026 no fecho do **Sprint 9A**

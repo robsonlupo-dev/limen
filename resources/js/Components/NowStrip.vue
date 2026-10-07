@@ -38,15 +38,18 @@ function initial(name) {
 <template>
     <div v-if="lives.length || feed.length" class="-mx-6 px-6">
         <div class="flex gap-4 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <!-- ── AO VIVO (anel vermelho, primeiro) ── -->
+            <!-- ── AO VIVO (anel vermelho, primeiro) ──
+                 Círculo MAIOR que o de story de propósito (UAT Fase 9: o destaque
+                 era pequeno demais), com o selo "AO VIVO" e o nome da performer. -->
             <button
                 v-for="live in lives"
                 :key="`live-${live.slug}`"
                 type="button"
+                :title="`${live.stage_name} está ao vivo — toque para entrar`"
                 class="flex shrink-0 flex-col items-center gap-1.5 focus:outline-none"
                 @click="emit('open-live', live.slug)"
             >
-                <span class="relative flex h-[62px] w-[62px] items-center justify-center rounded-full bg-limen-live p-[2px]">
+                <span class="relative flex h-[76px] w-[76px] items-center justify-center rounded-full bg-limen-live p-[3px]">
                     <span class="now-live-ring pointer-events-none absolute inset-0 rounded-full ring-2 ring-limen-live" />
                     <span class="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-limen-bg bg-limen-surface-2">
                         <img
@@ -56,10 +59,13 @@ function initial(name) {
                             loading="lazy"
                             class="h-full w-full object-cover"
                         />
-                        <span v-else class="font-serif text-lg text-limen-gold">{{ initial(live.stage_name) }}</span>
+                        <span v-else class="font-serif text-xl text-limen-gold">{{ initial(live.stage_name) }}</span>
+                    </span>
+                    <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-limen-live px-2 py-[2px] text-[9px] font-bold uppercase tracking-wider text-white ring-2 ring-limen-bg">
+                        Ao vivo
                     </span>
                 </span>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-limen-live">Ao vivo</span>
+                <span class="now-live-name max-w-[80px] truncate text-[11px] font-medium text-limen-ink-soft">{{ live.stage_name }}</span>
             </button>
 
             <!-- ── Stories (anel dourado/cinza) ── -->

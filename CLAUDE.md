@@ -416,7 +416,12 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   teto e fica FORA do payout. Desligado por padrão (`REFERRAL_PROGRAM_ENABLED`).
   Detalhe e limitações conhecidas em `docs/PROGRAMA_INDICACAO.md` + `docs/ARQUITETURA.md`.
 - **LiveKit:** Agendamento de chamada, Console de live, Chamada privada a partir da live,
-  controles de transmissão, navegação do catálogo ao vivo.
+  controles de transmissão, navegação do catálogo ao vivo. **UX de destaque da live**
+  (`feat/live-destaque-ux`, UAT Fase 9): anel pulsante + selo maior no card ao vivo,
+  círculo de live maior na trilha "Agora", botão "Sair" no viewer do membro, e
+  gorjeta/presente registrados como linha dourada no chat da sala (`LiveChat` ouve
+  `.live.reaction`; ⚠️ remover SÓ o próprio callback no unmount — o canal é
+  compartilhado com overlay/feed). Detalhe no `MASTER_HANDOFF_FINAL.md`.
 - **PanicButton, Navegação (painel performer e membro)** — mobile-first.
 - **Foto Efêmera, Stories da Performer** — conteúdo efêmero e moderação.
 - **Segurança/compliance:** 2FA (TOTP), Login OTP, Captcha (driver hCaptcha/Turnstile),
