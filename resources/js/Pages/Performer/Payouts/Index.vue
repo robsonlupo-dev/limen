@@ -113,7 +113,7 @@ function submit() {
                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
                     <div class="rounded-xl border border-frame bg-limen-bg/40 p-4">
                         <p class="text-[11px] uppercase tracking-wide text-muted">Sacável agora</p>
-                        <p class="mt-1 font-serif text-3xl text-gold">{{ brlFromCentavos(forecast.withdrawable_centavos) }}</p>
+                        <p class="mt-1 font-sans text-3xl font-semibold text-gold tabular-nums">{{ brlFromCentavos(forecast.withdrawable_centavos) }}</p>
                         <p class="mt-1 text-xs text-muted">
                             {{ formatTokens(forecast.withdrawable_tokens) }} tokens
                             <template v-if="Number(forecast.remainder_tokens) > 0">

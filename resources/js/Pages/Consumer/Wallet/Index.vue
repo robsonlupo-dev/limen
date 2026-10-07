@@ -99,7 +99,7 @@ onMounted(async () => {
                     </p>
                 </div>
                 <Link :href="route('wallet.history')" class="text-sm text-gold hover:text-gold-light transition-colors">
-                    Ver histórico de gastos
+                    Ver histórico
                 </Link>
             </div>
 
@@ -124,12 +124,12 @@ onMounted(async () => {
                     :id="`pkg-${pkg.id}`"
                     :class="[
                         'relative rounded-xl border bg-surface p-6 space-y-4 flex flex-col transition-shadow',
-                        pkg.slug === 'ouro' ? 'border-2 border-gold' : 'border-frame',
+                        pkg.slug === 'popular' ? 'border-2 border-gold' : 'border-frame',
                         highlightId === pkg.id ? 'ring-2 ring-gold ring-offset-2 ring-offset-background' : '',
                     ]"
                 >
                     <span
-                        v-if="pkg.slug === 'ouro'"
+                        v-if="pkg.slug === 'popular'"
                         class="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gold px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-background"
                     >
                         Popular
@@ -137,7 +137,7 @@ onMounted(async () => {
 
                     <div class="text-center space-y-1">
                         <h2 class="font-serif text-2xl text-gold">{{ pkg.name }}</h2>
-                        <p class="font-serif text-4xl text-cream">{{ pkg.tokens }}</p>
+                        <p class="font-sans text-4xl font-semibold text-cream tabular-nums">{{ pkg.tokens }}</p>
                         <p class="text-xs text-muted">tokens</p>
                     </div>
 

@@ -128,6 +128,8 @@ it('o card de membro é foto-primeiro 3:4 com placeholder que preenche (não sil
 it('os links de histórico têm a redação específica de cada tela', function () {
     expect(file_get_contents(resource_path('js/Pages/Performer/Payouts/Index.vue')))
         ->toContain('Ver histórico de saques');
+    // A carteira mostra TODAS as movimentações (compras e créditos também), não só
+    // gastos — então o link é "Ver histórico" (a redação "de gastos" induzia erro).
     expect(file_get_contents(resource_path('js/Pages/Consumer/Wallet/Index.vue')))
-        ->toContain('Ver histórico de gastos');
+        ->toContain('Ver histórico');
 });
