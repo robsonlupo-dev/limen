@@ -221,7 +221,18 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   Fotos/Sobre/Conteúdo, ações sempre alcançáveis (barra fixa no mobile / coluna sticky no
   desktop), valores acima do conteúdo, selo de verificada clicável (só critérios reais).
   Componentes em `Components/Profile/*`; detalhe no `MASTER_HANDOFF_FINAL.md`.
-- **Landing cinematográfica** (a porta pública `/`), **Anti-CSAM, Som de notificação**.
+- **Landing cinematográfica** (a porta pública `/`) — **redesign v2**
+  (`feat/landing-cinematografica-v2`, 07/10/2026): HERO de 7 cenas em ciclo
+  automático (barra de progresso clicável, pausar/retomar, contador, vídeo monta
+  só quando a cena está ativa), o Portal que abre com a rolagem, e as seções Só o
+  que é real / Destaques (carrossel) / Por dentro (mockup + FAQ) / Recursos (3
+  pilares) / Círculos / Lista de fundadores / rodapé. Fontes self-host **Cinzel** e
+  **Manrope** adicionadas em `fonts.css` (nunca `<link>` Google — pixel audit).
+  Mídia self-host em `public/landing/*`; o wizard de lista de espera (double
+  opt-in) e a flag `LANDING_PRELAUNCH` seguem intactos. PIX só promete TOKENS
+  (Círculos são cartão/Asaas); nota de "imagens de ambiente por IA" no rodapé.
+  Detalhe e próximos passos de asset (água, vídeos de corredor/máscara/salão) no
+  `MASTER_HANDOFF_FINAL.md`. **Anti-CSAM, Som de notificação**.
 - **Roadmap social ("estilo Insta")** (`docs/ROADMAP_SOCIAL.md`): 3 ondas —
   Destaques, Stories VIP por tier, Status do dia, enquetes/reações (Onda 1);
   canal de transmissão + modo efêmero (Onda 2); fixar conteúdo + insights (Onda 3).
