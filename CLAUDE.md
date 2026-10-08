@@ -635,6 +635,10 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
 - **Fork da assinatura (Onda 4 — Fã-Clube por performer):** `docs/FORK_ASSINATURA.md`
   (modelo híbrido travado em 01/10/2026 — fonte canônica do Fã-Clube; ainda sem código).
 - **Pendências que dependem do jurídico:** `docs/PENDENCIAS_JURIDICAS.md`.
+- **Processador de pagamento (substituto do Asaas — Asaas vetou adulto):**
+  `docs/DECISAO_PROCESSADOR_PAGAMENTO.md` (08/10/2026 — Transfeera principal +
+  Efí/Woovi failover; Stripe e internacionais descartados; gateway agnóstico;
+  só o go-live depende disso, testes/dev seguem em paralelo).
 - **Histórico de sprints (auditoria):** `docs/HISTORICO_SPRINTS.md`.
 - **Arquitetura detalhada e features/serviços:** `docs/ARQUITETURA.md`.
 - **Handoff mestre:** `docs/MASTER_HANDOFF_FINAL.md` (ler antes de pegar tarefa nova).
