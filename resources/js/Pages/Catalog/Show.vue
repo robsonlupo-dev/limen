@@ -44,6 +44,19 @@ const props = defineProps({
 
 const page = usePage()
 const canFavorite = computed(() => page.props.auth?.user?.role === 'consumer')
+
+// Chamada 1:1 AGORA só quando a performer está alcançável: online
+// (is_available, já respeita o appear_offline) e NÃO em live pública (is_live).
+// Fora disso, fica só "Agendar chamada". Regra confirmada pelo PO (08/10/2026).
+// NÃO cruzamos "ocupada em chamada": isso não é exposto ao membro (preservar a
+// invisibilidade da 1:1); se ela estiver ocupada, o servidor recusa o pedido com
+// 409 genérico — o botão aparecer e o pedido falhar não revela nada.
+const canInstantCall = computed(() =>
+    !!features.value.call_enabled
+    && !!props.performer.call_price_per_minute
+    && !!props.performer.is_available
+    && !props.performer.is_live,
+)
 const myUserId = computed(() => page.props.auth?.user?.id ?? 0)
 const features = computed(() => page.props.features ?? {})
 
@@ -191,6 +204,7 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
                         class="flex flex-wrap gap-3"
                     >
                         <CallRequest
+                            v-if="canInstantCall"
                             :performer-profile-id="performer.profile_id"
                             :price-per-minute="performer.call_price_per_minute"
                             :my-user-id="myUserId"
