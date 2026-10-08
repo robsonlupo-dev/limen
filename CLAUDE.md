@@ -421,7 +421,14 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   círculo de live maior na trilha "Agora", botão "Sair" no viewer do membro, e
   gorjeta/presente registrados como linha dourada no chat da sala (`LiveChat` ouve
   `.live.reaction`; ⚠️ remover SÓ o próprio callback no unmount — o canal é
-  compartilhado com overlay/feed). Detalhe no `MASTER_HANDOFF_FINAL.md`.
+  compartilhado com overlay/feed). **Badge AO VIVO em tempo real**
+  (`feat/live-realtime-badge`, Pacote 2): `CatalogLivePresence` (`.catalog.live`)
+  transmitido pelo `LiveSessionService` em toda transição (start/stop/ban/
+  reconciliação, after-commit) num canal POR MUNDO (`catalog.{world}`, auth
+  fail-closed contra `WORLDS`); o `Catalog/Index` assina o mundo corrente e
+  atualiza trilha + cards sem F5 (⚠️ canal PRÓPRIO do catálogo → `Echo.leave`,
+  ao contrário do `live.{slug}` compartilhado). Gorjeta escalona a animação por
+  valor no `LiveOverlay` (≥50 grande, ≥100 festa). Detalhe no `MASTER_HANDOFF_FINAL.md`.
 - **PanicButton, Navegação (painel performer e membro)** — mobile-first.
 - **Foto Efêmera, Stories da Performer** — conteúdo efêmero e moderação.
 - **Segurança/compliance:** 2FA (TOTP), Login OTP, Captcha (driver hCaptcha/Turnstile),

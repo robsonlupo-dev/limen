@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\CatalogLivePresence;
 use App\Events\LiveStateChanged;
 use App\Models\CallSession;
 use App\Models\LiveSession;
@@ -69,6 +70,10 @@ class LiveSessionService
             ]);
 
             $locked->forceFill(['is_live' => true])->save();
+
+            // Badge do catálogo acende sem F5 (Pacote 2 do UAT Fase 9). O evento
+            // é ShouldDispatchAfterCommit: só transmite se este commit confirmar.
+            event(CatalogLivePresence::fromProfile($locked, true));
 
             return $session;
         });
@@ -158,6 +163,9 @@ class LiveSessionService
             }
             if ($locked) {
                 $locked->forceFill(['is_live' => false])->save();
+                // Sala morta reconciliada na leitura também apaga o badge do
+                // catálogo (CatalogLivePresence; after-commit).
+                event(CatalogLivePresence::fromProfile($locked, false));
             }
         });
 
@@ -323,6 +331,10 @@ class LiveSessionService
         ])->save();
 
         $profile->forceFill(['is_live' => false])->save();
+
+        // Stop e ban passam por aqui: apaga o badge do catálogo sem F5
+        // (CatalogLivePresence; after-commit quando dentro de transação).
+        event(CatalogLivePresence::fromProfile($profile, false));
 
         $this->safeDeleteRoom($session->room_name);
 
