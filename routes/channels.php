@@ -56,3 +56,16 @@ Broadcast::channel('live.{slug}', function (User $user, string $slug) {
     return $profile->user_id === $user->id
         || ($user->role === 'consumer' && $user->status === 'active');
 });
+
+/*
+| catalog.{world}: presença de live do CATÁLOGO (Pacote 2 do UAT Fase 9 — o
+| badge "AO VIVO" acende/apaga sem F5, evento CatalogLivePresence). O payload é
+| o item público da trilha "Agora" (slug, nome artístico, avatar assinado);
+| canal PRIVADO por defesa em profundidade, como o live.{slug}: qualquer conta
+| ATIVA pode assinar o mundo que navega (o catálogo é a área logada). Mundo fora
+| da lista oficial nega (fail-closed) — ninguém assina canal inventado.
+*/
+Broadcast::channel('catalog.{world}', function (User $user, string $world) {
+    return in_array($world, PerformerProfile::WORLDS, true)
+        && $user->status === 'active';
+});

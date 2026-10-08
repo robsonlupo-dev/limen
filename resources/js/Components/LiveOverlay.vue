@@ -45,7 +45,14 @@ const GIFT_STYLES = {
     diamante: { size: 'xl', duration: 3000 },
 }
 const GIFT_DEFAULT = { size: 'md', duration: 2500 }
+
+// Gorjeta ESCALONADA por valor (Pacote 2, UAT Fase 9): 100 tokens fazem festa
+// maior que 10. Limiares fixos de coreografia (não são preço — não vêm de
+// config): < 50 normal · 50–99 grande · ≥ 100 explosão dourada (reusa SPARKS).
+// Presentes NÃO escalonam por valor: cada um já tem coreografia própria acima.
 const TIP_STYLE = { size: 'md', duration: 2500 }
+const TIP_STYLE_BIG = { size: 'lg', duration: 3000 }
+const TIP_STYLE_FESTA = { size: 'xl', duration: 3500 }
 
 // Partículas pré-computadas (determinísticas — sem Math.random): posições/atrasos
 // espalhados à mão para um visual agradável e reproduzível.
@@ -105,6 +112,9 @@ function styleFor(reaction) {
         const s = known ?? GIFT_DEFAULT
         return { anim: known ? reaction.gift_slug : 'gift', size: s.size, duration: s.duration }
     }
+    const amount = Number(reaction.amount_tokens) || 0
+    if (amount >= 100) return { anim: 'tipfesta', size: TIP_STYLE_FESTA.size, duration: TIP_STYLE_FESTA.duration }
+    if (amount >= 50) return { anim: 'tip', size: TIP_STYLE_BIG.size, duration: TIP_STYLE_BIG.duration }
     return { anim: 'tip', size: TIP_STYLE.size, duration: TIP_STYLE.duration }
 }
 
@@ -214,8 +224,9 @@ onBeforeUnmount(() => {
                 />
             </div>
 
-            <!-- Diamante: explosão de partículas douradas a partir do centro. -->
-            <div v-else-if="item.anim === 'diamante'" class="absolute inset-0">
+            <!-- Diamante (e gorjeta ≥ 100 — "festa", Pacote 2): explosão de
+                 partículas douradas a partir do centro. -->
+            <div v-else-if="item.anim === 'diamante' || item.anim === 'tipfesta'" class="absolute inset-0">
                 <span
                     v-for="(p, i) in SPARKS"
                     :key="i"

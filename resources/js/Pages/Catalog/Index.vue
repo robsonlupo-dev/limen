@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import FilterPanel from '@/Components/Catalog/FilterPanel.vue'
@@ -75,6 +75,51 @@ function closeViewer() {
     loadFeed()
 }
 
+// ── Badge AO VIVO sem F5 (Pacote 2, UAT Fase 9) ──────────────────────────────
+// O servidor transmite cada começo/fim de live no canal do MUNDO
+// (`catalog.{world}`, evento `.catalog.live` — ver CatalogLivePresence). Aqui a
+// trilha "Agora" e o selo dos cards reagem na hora, sem F5. O canal é NOSSO (só
+// o catálogo o assina), então Echo.leave no unmount e na troca de mundo — ao
+// contrário do live.{slug}, que é compartilhado e usa stopListening.
+const liveNow = ref([...props.lives])
+// Visita Inertia (filtro/página/mundo) manda a lista fresca: ressemeia.
+watch(() => props.lives, (list) => { liveNow.value = [...(list ?? [])] })
+
+let catalogChannel = null
+
+function onCatalogLive(e) {
+    if (e.live) {
+        if (!liveNow.value.some((l) => l.slug === e.slug)) {
+            liveNow.value.unshift({ slug: e.slug, stage_name: e.stage_name, avatar_url: e.avatar_url })
+        }
+    } else {
+        liveNow.value = liveNow.value.filter((l) => l.slug !== e.slug)
+    }
+    // Selo do card na grade: liga/desliga sem reload (props do Inertia são
+    // reativas; a próxima visita reconcilia com o servidor de qualquer forma).
+    const card = props.performers.data.find((p) => p.slug === e.slug)
+    if (card) card.is_live = e.live
+}
+
+function joinCatalogChannel(world) {
+    if (!window.Echo || !world || !page.props.features?.live_enabled) return
+    catalogChannel = window.Echo.private(`catalog.${world}`)
+    catalogChannel.listen('.catalog.live', onCatalogLive)
+}
+
+function leaveCatalogChannel(world) {
+    if (!catalogChannel) return
+    window.Echo?.leave(`catalog.${world}`)
+    catalogChannel = null
+}
+
+// Trocar de mundo troca de canal (a tela pode atualizar por visita Inertia sem
+// remontar o componente).
+watch(() => props.currentWorld, (next, prev) => {
+    leaveCatalogChannel(prev)
+    joinCatalogChannel(next)
+})
+
 const worlds = [
     { value: 'mulheres', label: 'Mulheres' },
     { value: 'homens', label: 'Homens' },
@@ -98,11 +143,13 @@ const showTutorial = ref(
 
 onMounted(() => {
     loadFeed()
+    joinCatalogChannel(props.currentWorld)
     removeStart = router.on('start', () => (loading.value = true))
     removeFinish = router.on('finish', () => (loading.value = false))
 })
 
 onUnmounted(() => {
+    leaveCatalogChannel(props.currentWorld)
     removeStart?.()
     removeFinish?.()
 })
@@ -141,7 +188,7 @@ function selectWorld(value) {
                  dourado) no topo do catálogo. Some inteira quando não há nem live
                  nem story. Clique em live entra na transmissão; em story abre o
                  viewer. -->
-            <NowStrip :lives="lives" :feed="feed" @open-live="enterLive" @open-story="openViewer" />
+            <NowStrip :lives="liveNow" :feed="feed" @open-live="enterLive" @open-story="openViewer" />
 
             <FilterPanel :filters="filters" :saved-searches="savedSearches" :can-save="true" />
 

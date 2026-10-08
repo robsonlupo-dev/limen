@@ -5439,6 +5439,38 @@ privada a partir da live.
 
 ---
 
+## Live — badge AO VIVO em tempo real + gorjeta escalonada (08/10/2026, `feat/live-realtime-badge`)
+
+Pacote 2 do UAT Fase 9 (o Pacote 1 é a seção acima). Fecha a pendência "o
+catálogo só reflete live no F5".
+
+1. **Badge sem F5.** Evento novo `App\Events\CatalogLivePresence`
+   (`.catalog.live`), transmitido pelo `LiveSessionService` em TODA transição de
+   live — `start()`, `endSession()` (stop E ban) e a reconciliação de sala morta
+   — com `ShouldDispatchAfterCommit` (dispara dentro das transações; só transmite
+   no commit). Canal **por mundo**: `catalog.{world}`, um canal por mundo VÁLIDO
+   do perfil (`worlds` JSON ?? `category` legado, interseção com
+   `PerformerProfile::WORLDS` — fail-closed; auth em `routes/channels.php`:
+   qualquer conta `active`, mundo fora da lista nega). Payload = o MESMO item da
+   trilha "Agora" do CatalogController (slug, stage_name, avatar_url assinada por
+   profile_id, 60 min) + `live`; **room_name nunca sai**. Volume: um evento por
+   começo/fim de live — irrisório pro Reverb (2 vCPU).
+2. **Catálogo reage.** `Catalog/Index.vue` assina `catalog.{currentWorld}` no
+   mount (só com `features.live_enabled`), atualiza a trilha "Agora" (`liveNow`,
+   ressemeada a cada visita Inertia) e liga/desliga `is_live` do card na grade.
+   ⚠️ Este canal é PRÓPRIO do catálogo → `Echo.leave` no unmount e na troca de
+   mundo — diferente do `live.{slug}`, que é compartilhado e usa `stopListening`.
+3. **Gorjeta escalonada por valor** (`LiveOverlay`): < 50 normal · 50–99 grande
+   (lg/3000ms) · ≥ 100 "festa" (xl/3500ms + explosão de partículas douradas,
+   reusando o SPARKS do diamante). Limiares fixos de coreografia, não preço.
+   Presentes não escalonam — cada um já tem coreografia própria.
+
+Testes: `tests/Feature/CatalogLivePresenceTest.php` (prefixo `clp`) — dispatch
+real no start/stop (LiveKit mockado, padrão LiveConsoleTest), canal por mundo,
+fail-closed de mundo inválido, payload sem room_name, e estáticas do front.
+
+---
+
 *Fim do MASTER_HANDOFF_FINAL. Gerado em 22/07/2026 a partir da inspeção do código
 real na branch `feat/sprint6-final`; atualizado em 27/07/2026 no fecho do Sprint 8
 (`main`, `93b2878`, tag `v1.0-sprint8`), em 29/07/2026 no fecho do **Sprint 9A**
