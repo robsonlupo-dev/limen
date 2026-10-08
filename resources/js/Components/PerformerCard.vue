@@ -206,9 +206,14 @@ onBeforeUnmount(stopPreview)
         class="mi-card group relative overflow-hidden rounded-xl bg-limen-surface-2 transition-all duration-200"
         :class="[
             featured ? 'aspect-[16/10]' : 'aspect-[3/4]',
-            isMaison
-                ? 'ring-1 ring-limen-gold/80 shadow-[0_0_22px_-10px_rgba(214,184,114,0.5)]'
-                : 'ring-1 ring-limen-line hover:ring-limen-gold/40',
+            // AO VIVO tem precedência visual sobre Maison (achado do UAT Fase 9:
+            // o destaque era pequeno demais): anel limen-live pulsante no card
+            // inteiro — a cor é exclusiva do estado ao vivo (CLAUDE.md).
+            showLive
+                ? 'live-card-ring ring-2 ring-limen-live/90'
+                : isMaison
+                    ? 'ring-1 ring-limen-gold/80 shadow-[0_0_22px_-10px_rgba(214,184,114,0.5)]'
+                    : 'ring-1 ring-limen-line hover:ring-limen-gold/40',
         ]"
     >
         <!-- Ações (favorito, mensagem): IRMÃS do <Link> de navegação, nunca
@@ -257,10 +262,13 @@ onBeforeUnmount(stopPreview)
                 v-if="showLive"
                 :href="route('live.show', performer.slug)"
                 aria-label="Entrar na transmissão ao vivo"
+                title="Ao vivo agora — toque para entrar na transmissão"
                 class="group/live inline-flex min-h-[44px] items-center no-underline focus:outline-none"
             >
-                <span class="inline-flex items-center gap-1.5 rounded-full bg-limen-live px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white shadow-lg transition group-hover/live:brightness-110 group-focus-visible/live:ring-2 group-focus-visible/live:ring-white/80">
-                    <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                <!-- Selo maior que os demais de propósito (UAT Fase 9): "ao vivo"
+                     é o sinal mais perecível do catálogo e precisa gritar. -->
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-limen-live px-3.5 py-2 text-[12px] font-bold uppercase tracking-wider text-white shadow-[0_2px_14px_rgba(226,75,74,0.55)] transition group-hover/live:brightness-110 group-focus-visible/live:ring-2 group-focus-visible/live:ring-white/80">
+                    <span class="h-2 w-2 rounded-full bg-white animate-pulse motion-reduce:animate-none" />
                     Ao vivo
                 </span>
             </Link>
@@ -410,6 +418,23 @@ onBeforeUnmount(stopPreview)
 </template>
 
 <style scoped>
+/* Anel AO VIVO do card (UAT Fase 9): brilho que respira em limen-live para o
+   card inteiro chamar o olho de longe. Com prefers-reduced-motion, vira um
+   brilho estático — o destaque permanece, o movimento não. */
+.live-card-ring {
+    animation: live-card-glow 1.8s ease-in-out infinite;
+}
+@keyframes live-card-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(226, 75, 74, 0.45); }
+    50% { box-shadow: 0 0 22px 4px rgba(226, 75, 74, 0.28); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .live-card-ring {
+        animation: none;
+        box-shadow: 0 0 18px -4px rgba(226, 75, 74, 0.4);
+    }
+}
+
 /* Preview da live: fade-in suave ao entrar/sair (PR #143). */
 .live-preview-enter-active,
 .live-preview-leave-active {

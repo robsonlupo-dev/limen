@@ -21,6 +21,14 @@ const emit = defineEmits(['reaction'])
 const reactions = ref([])
 let counter = 0
 
+// Nome de exibição do presente derivado do slug ('rosa' → 'Rosa'), como no
+// LiveChat — a linha diz O QUE veio, não só o ícone (UAT Fase 9).
+function giftName(slug) {
+    if (!slug) return 'um presente'
+    const s = String(slug).replace(/-/g, ' ')
+    return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function append(r) {
     reactions.value.unshift({
         key: counter++,
@@ -59,15 +67,19 @@ onBeforeUnmount(() => {
             <div
                 v-for="r in reactions"
                 :key="r.key"
-                class="flex items-center gap-2.5 rounded-lg border border-frame/60 bg-background/40 px-3 py-2"
+                class="flex items-center gap-2.5 rounded-lg border px-3 py-2"
+                :class="r.type === 'gift' ? 'border-gold/40 bg-gold/10' : 'border-frame/60 bg-background/40'"
             >
-                <span v-if="r.type === 'gift'" class="h-6 w-6 shrink-0 text-gold">
+                <span v-if="r.type === 'gift'" class="h-7 w-7 shrink-0 text-gold">
                     <GiftIcon :slug="r.giftSlug" />
                 </span>
-                <span v-else class="h-6 w-6 shrink-0 text-gold"><TokenCoin class="h-full w-full" /></span>
+                <span v-else class="h-7 w-7 shrink-0 text-gold"><TokenCoin class="h-full w-full" /></span>
 
-                <span class="min-w-0 flex-1 truncate text-[13px] text-cream/90">{{ r.label }}</span>
-                <span class="shrink-0 text-sm font-semibold text-gold">{{ r.amount }}</span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] font-medium text-cream">{{ r.label }}</span>
+                    <span class="block text-[11px] text-muted">{{ r.type === 'gift' ? `enviou ${giftName(r.giftSlug)}` : 'gorjeta' }}</span>
+                </span>
+                <span class="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-gold">{{ r.amount }} <TokenCoin class="h-3.5 w-3.5" /></span>
             </div>
         </div>
     </div>

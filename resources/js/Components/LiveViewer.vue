@@ -380,6 +380,20 @@ onBeforeUnmount(teardown)
                     <span class="inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-cream"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>{{ viewers }}</span>
                 </div>
 
+                <!-- Sair da live (UAT Fase 9): o membro não tinha porta de saída —
+                     só o voltar do navegador. Encerrada, some: a tela de fim já tem
+                     o "Voltar ao catálogo agora". Toque ≥44px (mobile first). -->
+                <button
+                    v-if="status !== 'ended'"
+                    type="button"
+                    class="mi-press absolute right-3 top-3 z-10 inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-black/60 px-3.5 text-[13px] font-medium text-cream ring-1 ring-white/15 backdrop-blur-sm transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/70"
+                    aria-label="Sair da live e voltar ao catálogo"
+                    @click="goToCatalog"
+                >
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                    Sair
+                </button>
+
                 <div class="absolute bottom-3 left-3 flex items-center gap-2">
                     <img v-if="performer.avatar_url" :src="performer.avatar_url" alt="" class="h-8 w-8 rounded-full object-cover ring-1 ring-white/20" >
                     <span class="rounded-full bg-black/60 px-2.5 py-1 font-serif text-sm text-cream">{{ performer.stage_name }}</span>

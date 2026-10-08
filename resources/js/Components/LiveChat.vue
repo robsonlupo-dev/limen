@@ -1,6 +1,8 @@
 <script setup>
 import { ref, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { errorMessage } from '@/lib/http'
+import GiftIcon from '@/Components/GiftIcon.vue'
+import TokenCoin from '@/Components/TokenCoin.vue'
 
 /**
  * Chat da sala de live (feat/live-room-console), usado pelos DOIS lados — console da
@@ -46,6 +48,34 @@ function scrollToBottom() {
     })
 }
 
+// ── Gorjeta/presente NO FLUXO do chat (UAT Fase 9) ───────────────────────────
+// A animação do <LiveOverlay> é efêmera (flutua e some); aqui fica o RASTRO que a
+// sala inteira lê — linha dourada com ícone, quem mandou (FanAlias label, dado já
+// público no evento) e o valor. Mesmo canal, evento `.live.reaction`; payload só
+// com type/gift_slug/amount_tokens/fan_alias_label (nada sensível — ver LiveReaction).
+let reactionSeq = 0
+
+// Nome de exibição do presente derivado do próprio slug ('rosa' → 'Rosa',
+// 'urso-dourado' → 'Urso dourado'). Fallback neutro sem slug.
+function giftName(slug) {
+    if (!slug) return 'um presente'
+    const s = String(slug).replace(/-/g, ' ')
+    return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function appendReaction(r) {
+    messages.value.push({
+        id: `reaction-${++reactionSeq}`,
+        kind: 'reaction',
+        type: r.type,
+        gift_slug: r.gift_slug ?? null,
+        amount: r.amount_tokens,
+        label: r.fan_alias_label,
+    })
+    if (messages.value.length > 200) messages.value.splice(0, messages.value.length - 200)
+    scrollToBottom()
+}
+
 async function submit() {
     const body = draft.value.trim()
     if (!body || sending.value || props.disabled) return
@@ -80,11 +110,15 @@ onMounted(() => {
     if (!window.Echo) return
     channel = window.Echo.private(`live.${props.performerSlug}`)
     channel.listen('.live.chat', append)
+    channel.listen('.live.reaction', appendReaction)
 })
 
 onBeforeUnmount(() => {
     // stopListening (não leave): o <LiveOverlay> ouve `.live.reaction` no MESMO canal.
     channel?.stopListening('.live.chat')
+    // Só o PRÓPRIO callback: overlay (membro) e feed do console (performer) ouvem
+    // `.live.reaction` no mesmo canal — um stopListening sem callback os mataria.
+    channel?.stopListening('.live.reaction', appendReaction)
 })
 
 // Se o pai injetar histórico depois (reload que resolve a sessão), semeia uma vez.
@@ -108,25 +142,43 @@ watch(() => props.initialMessages, (list) => list?.forEach(append))
                 :key="m.id"
                 class="group flex items-start gap-2"
             >
-                <div class="min-w-0 flex-1">
-                    <p class="text-[13px] leading-snug">
-                        <span
-                            class="mr-1.5 font-semibold"
-                            :class="m.is_performer ? 'text-gold' : 'text-cream/70'"
-                        >{{ m.label }}</span>
-                        <span class="break-words text-cream/90">{{ m.body }}</span>
+                <!-- Gorjeta/presente: linha de destaque dourada no fluxo (UAT Fase 9). -->
+                <div
+                    v-if="m.kind === 'reaction'"
+                    class="flex w-full items-center gap-2 rounded-lg border border-gold/30 bg-gold/10 px-2.5 py-1.5"
+                >
+                    <span class="h-5 w-5 shrink-0 text-gold" aria-hidden="true">
+                        <GiftIcon v-if="m.type === 'gift'" :slug="m.gift_slug" />
+                        <TokenCoin v-else class="h-full w-full" />
+                    </span>
+                    <p class="min-w-0 flex-1 truncate text-[13px] leading-snug text-cream">
+                        <span class="font-semibold text-gold">{{ m.label }}</span>
+                        <template v-if="m.type === 'gift'"> enviou {{ giftName(m.gift_slug) }} · {{ m.amount }} tokens</template>
+                        <template v-else> mandou {{ m.amount }} tokens de gorjeta</template>
                     </p>
                 </div>
 
-                <button
-                    v-if="canModerate && !m.is_performer"
-                    type="button"
-                    class="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted opacity-0 transition hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
-                    :title="`Remover ${m.label} da sala`"
-                    @click="mute(m.id)"
-                >
-                    Remover
-                </button>
+                <template v-else>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[13px] leading-snug">
+                            <span
+                                class="mr-1.5 font-semibold"
+                                :class="m.is_performer ? 'text-gold' : 'text-cream/70'"
+                            >{{ m.label }}</span>
+                            <span class="break-words text-cream/90">{{ m.body }}</span>
+                        </p>
+                    </div>
+
+                    <button
+                        v-if="canModerate && !m.is_performer"
+                        type="button"
+                        class="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted opacity-0 transition hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                        :title="`Remover ${m.label} da sala`"
+                        @click="mute(m.id)"
+                    >
+                        Remover
+                    </button>
+                </template>
             </div>
         </div>
 
