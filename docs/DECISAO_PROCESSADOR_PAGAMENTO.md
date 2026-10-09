@@ -1,9 +1,10 @@
 # Decisão — Processador de pagamento (substituto do Asaas)
 
-> **Status:** em aberto (aguardando aceites por escrito dos PSPs). Documento vivo:
-> registra o que **sabemos** em 08/10/2026 para confrontar com informação nova.
-> Nada aqui ainda está contratado. Fonte de pesquisa: relatório "Processadores PIX
-> para plataforma adulta" (sessão de 08/10/2026).
+> **Status:** em aberto, mas com **avanço grande em 09/10/2026** — contato comercial
+> ao vivo com Efí, Woovi e Asaas (ver "Atualização 09/10/2026"). Documento vivo.
+> Nada aqui ainda está contratado; a prova final continua sendo o **"sim" por escrito**
+> de cada onboarding. Fontes: relatório "Processadores PIX para plataforma adulta"
+> (08/10/2026) + atendimentos comerciais de 09/10/2026.
 
 ## Contexto — por que sair do Asaas
 
@@ -79,6 +80,98 @@
   os três confirmados como instituições de pagamento reguladas. A prova final para
   todos continua sendo o **"sim" por escrito** do onboarding.
 
+## Atualização 09/10/2026 (rodada ao vivo de onboarding — respostas comerciais)
+
+Contato comercial direto com os PSPs (chat/WhatsApp/telefone). **Regra seguida em todos:
+transparência total sobre ser conteúdo adulto** — esconder o ramo para um PSP é o caminho
+para saldo congelado depois. Resultado: dois "sim" fortes.
+
+### Quadro dos processadores
+
+| PSP | Aceita o ramo? | PIX-in | PIX-out (payout) | Cartão | Setup/mensalidade | Situação |
+|---|---|---|---|---|---|---|
+| **Efí** (ex-Gerencianet) | **SIM** — "não há restrição de atividade para esse CNPJ"; protocolo **22098787** | 1,19% (30 PIX grátis/mês) | **grátis** | 3,49% à vista; 3,99% (2–6x); 4,39% (7–12x) | **zero** | **Confirmado** (falta e-mail de registro) |
+| **Woovi/OpenPix** | **SIM** — "a gente consegue te atender"; IP Bacen código **694**, banco liquidante, nota A no IQS | 0,80% (mín. R$0,50, **teto R$5,00**) ou R$0,85 fixo | cobrado no saque (**repassável/rentabilizável** à criadora); nº exato a confirmar | não (PIX-nativo) | **zero** (sem setup/mensalidade; o BAAS de R$20k **não** se aplica) | **Confirmado (verbal)** — falta só a tabela numérica + aceite por escrito |
+| **Transfeera** | provável (é o PSP do líder do segmento) | cob via API | transferência em massa via API | — | a confirmar | **Aguardando** resposta comercial (Raquel) |
+| **Asaas** | **NÃO** — recusou o ramo por política comercial | — | — | — | — | **Fora** (respondido por honestidade/registro) |
+
+### Efí — detalhe
+- Atendente confirmou por chat: **sem restrição de atividade** para o CNPJ do ramo
+  (protocolo **22098787**), faz **PIX de entrada e de saída** e **cartão**. Sem setup.
+- Ressalva deles (normal p/ o segmento): abertura passa por **validação documental** e
+  há **monitoramento periódico** (podem pedir novas comprovações a qualquer momento).
+- Cadastro de negócios exige **CNPJ** (ainda em abertura) → cadastro deixado como rascunho.
+- Vantagem estrutural: **PIX-out grátis** (metade do sistema é pagar as criadoras) + cartão
+  disponível para um futuro trilho tipo Privacy. Simplicidade.
+
+### Woovi/OpenPix — detalhe (e por que importa para o jurídico)
+- IP regulada pelo Bacen (código **694**), **banco liquidante próprio**, participante
+  direto do PIX, nota **A** no IQS do Bacen.
+- **Modelo operacional (caixinha por criadora):** os pagamentos caem na conta da
+  plataforma; para repassar, informa-se a chave PIX da criadora e a Woovi cria uma
+  **subconta ("caixinha")** por criadora; o repasse sai **quando a plataforma autoriza**
+  (regra de saque — diária/semanal — definida pela plataforma).
+- **A "caixinha" NÃO exige KYC/cadastro da criadora** (confirmado pelo comercial em
+  09/10): é **controle interno da plataforma** vinculado à chave PIX de destino; a
+  criadora só pede o saque dentro do Limen e a Woovi libera para a chave dela. Como as
+  criadoras são **PF**, isso remove o atrito que o BAAS (PJ-only) criaria.
+- **Split é grátis** (mandar para N subcontas no ato do pagamento não custa) e pode jogar
+  a parcela da criadora direto na caixinha dela.
+- **Sem setup, sem mensalidade, sem amarra contratual** (sem multa/*make-whole* — pode
+  encerrar quando quiser). **Cobrança só sobre transação liquidada** (emitiu 10 mil QR,
+  pagaram mil → paga só pelos mil).
+- ⚠️ **Relevância jurídica (ressalva ii do Monteseiler):** a caixinha permite **segregar
+  a parcela da criadora** (earmark) em vez de "receber 100% e repassar em bloco" — ataca
+  diretamente o risco de caracterização por fluxo financeiro. Ver abaixo a nota de split.
+- **Correção de proof point:** o comercial **esclareceu que Privacy e Fatal Fans NÃO são
+  clientes da Woovi** — foram citados só como *exemplo do modelo*. Ou seja, a Woovi **não**
+  tem a prova social de "já roda o líder do segmento"; quem tem esse proof point (decodificado)
+  é a **Transfeera**. A Woovi aceita o ramo ("a gente consegue te atender"), mas isso é
+  aceite comercial, não histórico com o líder.
+- **Pendências a confirmar por escrito:** (1) aceite formal do ramo; (2) **tabela numérica
+  completa** — principalmente o **valor do PIX-out/saque** (o PIX-in já está na tabela).
+  (Os pontos antigos — KYC da caixinha e setup de R$20k — foram **resolvidos** acima.)
+- Monetização do saque: a Woovi cobra pelo saque, mas a plataforma pode repassar mais à
+  criadora e embolsar a diferença — payout pode virar **fonte de receita** (modelo comum
+  no segmento).
+
+### Nota de arquitetura — split na origem × carteira pré-paga (alinhado com o jurídico)
+- **Split na origem NÃO se aplica à compra de token** (crédito pré-pago): no ato da compra
+  **ainda não existe criadora de destino** — o membro gasta o saldo depois, pulverizado.
+  Inerente a qualquer modelo de carteira (tipo saldo de app/jogo).
+- **Onde o split na origem SE aplica:** compras **diretas** (PPV na DM, encomenda sob
+  medida), em que a criadora é conhecida no ato. Woovi cobre bem esse caso.
+- **Mitigação para o token genérico (validada pelo Monteseiler, parecer Parte 3 —
+  09/10/2026):** o dinheiro do token é **Passivo Circulante** (não receita); a receita da
+  Limen (base ISS/IRPJ) nasce **só no consumo, sobre o split**; a parcela da criadora é
+  **repasse** (não tributável para a Limen). Isso resolve **bitributação** e o
+  enquadramento penal (**"HIPÓTESE VALIDADA — BLINDAGEM EFICAZ"**), **sem** exigir split
+  na origem para o token. O MCC 5967 foi esclarecido: **só existe no trilho de cartão**;
+  no PIX o equivalente é o aceite do ramo — já obtido na Efí (protocolo = "Safe Harbor
+  documental", nas palavras do parecer).
+- **Ação de produto que caiu do jurídico:** o **ToS do Membro** deve ter cláusula de
+  natureza jurídica do token: *"Créditos de Uso não resgatáveis, sujeitos a prescrição
+  quinquenal, sem equivalência com moeda corrente"* (blinda contra tese de "IP não
+  autorizada pelo Bacen"). Entra na F2 (documentos) do jurídico.
+
+### Leitura atual do trilho (substitui provisoriamente o "Transfeera principal" de 08/10)
+- **Dois finalistas, pau a pau: Efí e Woovi.**
+  - **Efí** ganha em **simplicidade** e **PIX-out grátis**, e tem **cartão** para o futuro.
+  - **Woovi** ganha em **custo de PIX-in** (teto R$5) e no **modelo de caixinha/split**
+    (sem KYC da criadora, sem setup, sem amarra contratual), que agrada ao jurídico.
+- **Transfeera** segue como opção/failover, pendente de resposta comercial.
+- **Decisão final** espera: (a) tabela de taxas por escrito da Woovi (falta só o
+  **valor do PIX-out/saque**); (b) resposta da Transfeera. Como entrada e saída são
+  **trilhos independentes**, há inclusive a opção de **receber por um e pagar por outro**
+  (ex.: Woovi na entrada barata, Efí na saída grátis) — só vale se o ganho compensar a
+  complexidade de dois provedores.
+- ⚠️ **Gate prático — todos dependem do CNPJ:** os três (Efí, Woovi, Transfeera) exigem
+  **CNPJ para FINALIZAR o cadastro**, e o CNPJ ainda está em abertura (F3 do jurídico).
+  A sequência certa é: (1) pergunta de elegibilidade do ramo **agora** (feito/em curso),
+  (2) abertura do CNPJ com o CNAE certo (jurídico), (3) finalização do cadastro no PSP
+  escolhido **por último**. Nenhum onboarding fecha antes do CNPJ — não é bloqueio de
+  PSP, é a ordem natural.
+
 ## Riscos estruturais a validar com o jurídico
 
 - **Token resgatável = possível moeda eletrônica.** As Resoluções BCB 494–498/2025
@@ -123,5 +216,16 @@
 Este documento responde ao **item 4 do Plano de Ação** do parecer ("mapear
 adquirentes/subadquirentes de PIX que aceitem a MCC de Entretenimento Adulto").
 Os demais itens (ToS duplo, LGPD/segregação, vesting + cessão de PI do CTO,
-estrutura HoldCo×OpCo, INPI) seguem no acompanhamento jurídico — ver
-`docs/PENDENCIAS_JURIDICAS.md` e `docs/LEGAL_GAP_ANALYSIS.md`.
+estrutura societária + Contrato de Mútuo do capital, INPI) seguem no acompanhamento
+jurídico — ver `docs/PENDENCIAS_JURIDICAS.md` e `docs/LEGAL_GAP_ANALYSIS.md`.
+
+**Parecer Parte 3 (09/10/2026) — pontos que tocam esta decisão:**
+- **Arquitetura financeira VALIDADA ("blindagem eficaz"):** token = Passivo Circulante,
+  receita só sobre o split no consumo → sem bitributação e sem exploração (Art. 228 CP).
+  Não exige split na origem para o token (ver "Nota de arquitetura" acima).
+- **Protocolo escrito da Efí** aceitando o ramo para PIX = **Safe Harbor documental**
+  (prova de boa-fé perante adquirentes/Bacen). Guardar o protocolo 22098787 e o e-mail.
+- **ToS do Membro** precisa da cláusula de natureza jurídica do token (crédito de uso
+  não resgatável, prescrição quinquenal, sem equivalência com moeda) — entra na **F2**.
+- **Honorários (pacote):** R$ 20.825 (F1 penal+PSP, F2 documentos, F3 societário, F4 marca),
+  50% no aceite / 50% na entrega de F2 e F3 — **decisão de PO, fora do escopo deste ADR**.
