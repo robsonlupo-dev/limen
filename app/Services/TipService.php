@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\CallReactionReceived;
 use App\Exceptions\InsufficientBalanceException;
 use App\Support\TokenMath;
 use App\Models\AuditLog;
@@ -144,6 +145,15 @@ class TipService
         // do serviço fica intacto, sem quebrar quem o instancia à mão em teste).
         if ($tip->wasRecentlyCreated) {
             app(LiveOverlayService::class)->tip($performerProfile, $consumer, $amount);
+
+            // Reação na chamada 1:1 (feat/in-call-reaction): avisa a performer pelo
+            // canal pessoal. Só o <PrivateCall> consome `.call.reaction`, então fora
+            // de uma chamada é inócuo. Payload não-sensível (tipo + valor), do
+            // servidor — nunca member_id/saldo/tier (M.13.10).
+            CallReactionReceived::dispatch($performerProfile->user_id, [
+                'type' => 'tip',
+                'amount' => $amount,
+            ]);
         }
 
         return $tip;

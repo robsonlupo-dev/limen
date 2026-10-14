@@ -8,6 +8,7 @@ use App\Http\Resources\PerformerPublicResource;
 use App\Models\Conversation;
 use App\Models\Follow;
 use App\Models\PerformerProfile;
+use App\Models\TokenPackage;
 use App\Services\ChatAccessService;
 use App\Services\ContentVisibilityService;
 use App\Services\FavoriteService;
@@ -269,6 +270,11 @@ class CatalogController extends Controller
 
         return Inertia::render('Catalog/Show', [
             'performer' => $performer,
+            // Compra de tokens SOBRE a chamada 1:1 (InCallBuyPanel): sem isto o
+            // botão "Comprar tokens" não tinha para onde abrir e o membro teria de
+            // sair da chamada. Mesma fonte do viewer da live. Só o membro usa.
+            'tokenPackages' => $this->tokenPackages(),
+            'needsCpf' => ! $request->user()?->asaas_customer_id,
             // Stories vivos dela (Sprint 9C). Cada item já vem com `locked` e, se
             // aberto, a URL do serving autenticado — story fechado NÃO recebe URL
             // (ver profileStripFor: blur em CSS não é paywall).
@@ -343,5 +349,27 @@ class CatalogController extends Controller
             // Custo por tier do próprio membro (M.13.1): 2 ou 1 token.
             'cost' => $this->creditPolicy->chatCost($user),
         ];
+    }
+
+    /**
+     * Pacotes de token ativos para a compra SOBRE a chamada (InCallBuyPanel).
+     * Mesma forma do LiveViewController::tokenPackages — o membro recarrega sem
+     * sair da chamada.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function tokenPackages(): array
+    {
+        return TokenPackage::where('active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn (TokenPackage $package) => [
+                'id' => $package->id,
+                'name' => $package->name,
+                'tokens' => $package->tokens,
+                'bonus' => $package->bonus,
+                'price_formatted' => 'R$ '.number_format($package->price_cents / 100, 2, ',', '.'),
+            ])
+            ->all();
     }
 }

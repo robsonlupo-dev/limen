@@ -40,6 +40,10 @@ const props = defineProps({
     report: { type: Object, default: null },
     chat: { type: Object, default: null },
     chatCost: { type: Number, default: null },
+    // Compra de tokens SOBRE a chamada 1:1 (InCallBuyPanel). Sem pacotes o botão
+    // "Comprar tokens" cai no comportamento antigo (emit 'recharge').
+    tokenPackages: { type: Array, default: () => [] },
+    needsCpf: { type: Boolean, default: false },
 })
 
 const page = usePage()
@@ -396,6 +400,8 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
                     :price-per-minute="activeCall.pricePerMinute"
                     :performer-slug="performer.slug"
                     :performer-name="performer.stage_name"
+                    :token-packages="tokenPackages"
+                    :needs-cpf="needsCpf"
                     @ended="onCallEnded"
                 />
             </div>

@@ -43,14 +43,19 @@ it('reusa os modais autocontidos de gorjeta e presente', function () {
     expect($src)->toContain('@sent="onGiftSent"');
 });
 
-it('publica o sinal cosmético e anima a reação nas duas pontas', function () {
+it('membro anima a reação local e a performer recebe pelo servidor', function () {
     $src = privateCallSource();
 
-    // Publica para a outra ponta (entrega confiável) e escuta o de volta.
-    expect($src)->toContain('publishData');
-    expect($src)->toContain('RoomEvent.DataReceived');
-    expect($src)->toContain('onDataReceived');
-    expect($src)->toContain("msg.t !== 'reaction'");
+    // A performer ouve o canal pessoal (trilho confiável do servidor), NÃO mais o
+    // pacote cliente-a-cliente do LiveKit.
+    expect($src)->toContain('reactionChannel = window.Echo.private(`user.${uid}`)');
+    expect($src)->toContain("reactionChannel.listen('.call.reaction', onCallReaction)");
+    expect($src)->toContain('function onCallReaction');
+    // Sai só do próprio callback (canal compartilhado).
+    expect($src)->toContain("stopListening('.call.reaction', onCallReaction)");
+    // A perna LiveKit data foi removida.
+    expect($src)->not->toContain('publishData');
+    expect($src)->not->toContain('RoomEvent.DataReceived');
 
     // Reação local + atualização imediata do saldo (banner não defasa).
     expect($src)->toContain('showReaction');
@@ -68,9 +73,11 @@ it('GiftModal entrega o presente escolhido no evento sent', function () {
     expect($src)->toContain('gift_name: selectedGift.value?.name');
 });
 
-it('Catalog/Show passa slug e nome da performer para a chamada', function () {
+it('Catalog/Show passa slug, nome e pacotes de token para a chamada', function () {
     $src = file_get_contents(resource_path('js/Pages/Catalog/Show.vue'));
 
     expect($src)->toContain(':performer-slug="performer.slug"');
     expect($src)->toContain(':performer-name="performer.stage_name"');
+    expect($src)->toContain(':token-packages="tokenPackages"');
+    expect($src)->toContain(':needs-cpf="needsCpf"');
 });

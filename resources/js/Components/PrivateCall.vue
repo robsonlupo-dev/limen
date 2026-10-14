@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { usePage } from '@inertiajs/vue3'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { postJson } from '@/lib/http'
 import InCallBuyPanel from '@/Components/InCallBuyPanel.vue'
@@ -45,6 +46,8 @@ const props = defineProps({
 
 const emit = defineEmits(['ended', 'recharge'])
 
+const page = usePage()
+
 const localVideo = ref(null)
 const remoteVideo = ref(null)
 const remoteAudio = ref(null)
@@ -81,6 +84,7 @@ let refreshTimer = null
 let clockTimer = null
 let goodbyeTimer = null
 let reactionTimer = null
+let reactionChannel = null
 // finish() só pode rodar uma vez — vários caminhos (Encerrar, saldo, a outra
 // pessoa sai, sala fechada, botão Fechar) podem convergir aqui; sem a trava o
 // 'ended' seria emitido mais de uma vez para o pai.
@@ -147,11 +151,6 @@ function attach(track, participantIsLocal) {
 async function connect() {
     room = new Room()
     room.on(RoomEvent.TrackSubscribed, (track) => attach(track, false))
-    // Reação (gorjeta/presente) da outra ponta: a performer recebe o sinal que o
-    // membro publicou e anima na tela. Só leitura cosmética; decodifica com cuidado
-    // e ignora qualquer coisa fora do formato (payload de terceiro não é confiável
-    // para nada além de disparar a animação).
-    room.on(RoomEvent.DataReceived, (payload) => onDataReceived(payload))
     // A OUTRA pessoa saiu da sala: encerra graciosamente deste lado também, para
     // ninguém ficar preso numa tela preta esperando uma contraparte que já foi.
     room.on(RoomEvent.ParticipantDisconnected, () => {
@@ -304,7 +303,8 @@ async function toggleCam() {
 // --- Gorjeta / presente na chamada -------------------------------------------
 // O modal já fez o POST (Tip/GiftService, débito+crédito+split no servidor) e
 // devolve o novo saldo. Atualiza o saldo local NA HORA (o banner de minutos não
-// fica defasado até o próximo heartbeat), anima deste lado e avisa a outra ponta.
+// fica defasado até o próximo heartbeat) e anima a reação deste lado (o membro).
+// A PERFORMER recebe a mesma reação pelo servidor (`.call.reaction`).
 function onTipSent(data) {
     if (data && typeof data.new_balance === 'number') {
         balance.value = data.new_balance
@@ -312,7 +312,6 @@ function onTipSent(data) {
     }
     const amount = Number(data?.amount) || 0
     showReaction({ kind: 'tip', amount, label: `Gorjeta · ${amount} tokens` })
-    publishReaction({ t: 'reaction', kind: 'tip', amount })
 }
 
 function onGiftSent(data) {
@@ -323,30 +322,35 @@ function onGiftSent(data) {
     const giftSlug = data?.gift_slug || ''
     const name = data?.gift_name || 'Presente'
     showReaction({ kind: 'gift', giftSlug, label: `Presente · ${name}` })
-    publishReaction({ t: 'reaction', kind: 'gift', giftSlug, name })
 }
 
-// Publica o sinal cosmético para a outra ponta (entrega confiável). Falha em
-// silêncio — a animação local e o crédito no servidor não dependem disto.
-function publishReaction(payload) {
-    if (!room) return
-    try {
-        const bytes = new TextEncoder().encode(JSON.stringify(payload))
-        room.localParticipant.publishData(bytes, { reliable: true })
-    } catch (e) { /* cosmético — ignora */ }
+// A PERFORMER recebe a reação pelo canal pessoal `user.{id}` (evento
+// `.call.reaction`, disparado no servidor por Tip/GiftService) — o mesmo trilho
+// confiável do CallEnded, e não um pacote cliente-a-cliente que pode cair. O
+// valor/presente vem do servidor (nunca forjável). Só o lado da performer assina;
+// o membro já vê a própria reação local no envio.
+function subscribeReactions() {
+    if (isMember.value) return // só a performer assina (o membro vê a reação local)
+    const uid = page.props?.auth?.user?.id
+    if (!uid || !window.Echo) return
+    reactionChannel = window.Echo.private(`user.${uid}`)
+    reactionChannel.listen('.call.reaction', onCallReaction)
 }
 
-function onDataReceived(payload) {
-    try {
-        const msg = JSON.parse(new TextDecoder().decode(payload))
-        if (!msg || msg.t !== 'reaction') return
-        if (msg.kind === 'tip') {
-            const amount = Number(msg.amount) || 0
-            showReaction({ kind: 'tip', amount, label: `Gorjeta · ${amount} tokens` })
-        } else if (msg.kind === 'gift') {
-            showReaction({ kind: 'gift', giftSlug: String(msg.giftSlug || ''), label: `Presente · ${String(msg.name || 'Presente')}` })
-        }
-    } catch (e) { /* payload inválido — ignora */ }
+function onCallReaction(payload) {
+    if (!payload) return
+    if (payload.type === 'tip') {
+        const amount = Number(payload.amount) || 0
+        showReaction({ kind: 'tip', amount, label: `Gorjeta · ${amount} tokens` })
+    } else if (payload.type === 'gift') {
+        showReaction({ kind: 'gift', giftSlug: String(payload.gift_slug || ''), label: `Presente · ${String(payload.gift_name || 'Presente')}` })
+    }
+}
+
+// Sai SÓ do próprio callback — o canal user.{id} é compartilhado (CallIncoming,
+// lista de conversas…); um Echo.leave calaria os irmãos.
+function unsubscribeReactions() {
+    if (reactionChannel) { reactionChannel.stopListening('.call.reaction', onCallReaction); reactionChannel = null }
 }
 
 // Mostra UMA reação por vez por ~3,2s (a nova substitui a anterior). Sem fila: na
@@ -364,6 +368,7 @@ function stopBillingTimers() {
 
 async function teardown() {
     stopBillingTimers()
+    unsubscribeReactions()
     if (clockTimer) { clearInterval(clockTimer); clockTimer = null }
     if (goodbyeTimer) { clearTimeout(goodbyeTimer); goodbyeTimer = null }
     if (reactionTimer) { clearTimeout(reactionTimer); reactionTimer = null }
@@ -371,6 +376,7 @@ async function teardown() {
 }
 
 onMounted(async () => {
+    subscribeReactions()
     try {
         await connect()
     } catch (e) {
