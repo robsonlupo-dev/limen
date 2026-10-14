@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CallSession;
 use App\Models\Conversation;
 use App\Models\PerformerProfile;
 use App\Models\User;
@@ -68,4 +69,22 @@ Broadcast::channel('live.{slug}', function (User $user, string $slug) {
 Broadcast::channel('catalog.{world}', function (User $user, string $world) {
     return in_array($world, PerformerProfile::WORLDS, true)
         && $user->status === 'active';
+});
+
+/*
+| call.{id}: canal privado da CHAMADA 1:1 (feat/in-call-chat) — carrega o chat de
+| texto e a reação de gorjeta/presente DENTRO da sala. Autorizado SÓ aos dois
+| participantes: o membro dono (member_id) ou o usuário da performer. Qualquer
+| outra conta é negada; sessão inexistente nega (nunca vaza existência). Por
+| call_sessions.id (NUNCA o room_name do LiveKit — invariante do #138).
+*/
+Broadcast::channel('call.{call}', function (User $user, int $call) {
+    $session = CallSession::with('performerProfile')->find($call);
+
+    if ($session === null) {
+        return false;
+    }
+
+    return $session->member_id === $user->id
+        || $session->performerProfile?->user_id === $user->id;
 });

@@ -16,6 +16,7 @@ use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\OtpLoginController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\Auth\ResetPasswordController;
+use App\Http\Controllers\Web\CallChatController;
 use App\Http\Controllers\Web\CallController;
 use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\MemberMediaController;
@@ -1812,6 +1813,17 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('throttle:60,1')
             ->whereNumber('call')
             ->name('call.end');
+
+        // Chat de texto da chamada 1:1 (feat/in-call-chat). Autorização de
+        // participante no controller (404 uniforme). O envio exige chamada ativa.
+        Route::get('/call/{call}/messages', [CallChatController::class, 'index'])
+            ->whereNumber('call')
+            ->name('call.chat.index');
+
+        Route::post('/call/{call}/messages', [CallChatController::class, 'store'])
+            ->middleware('throttle:60,1')
+            ->whereNumber('call')
+            ->name('call.chat.store');
 
         // ── Group show 1:X (Sprint 15, PR #141) ──────────────────────────────
         // Mesmo dark-launch (`feature:call`) e mesma disciplina do 1:1. `{group}`
