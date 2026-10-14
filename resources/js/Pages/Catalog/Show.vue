@@ -389,6 +389,8 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
                 :ws-url="activeCall.wsUrl"
                 role="member"
                 :price-per-minute="activeCall.pricePerMinute"
+                :performer-slug="performer.slug"
+                :performer-name="performer.stage_name"
                 @ended="onCallEnded"
             />
         </div>

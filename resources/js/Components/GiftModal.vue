@@ -81,7 +81,9 @@ async function sendGift() {
             deliver_to_chat: true,
         })
 
-        emit('sent', data)
+        // Inclui o presente escolhido no payload (o servidor devolve só tokens/saldo).
+        // Chaves extras — consumidores antigos ignoram; quem anima a reação usa.
+        emit('sent', { ...data, gift_slug: selectedSlug.value, gift_name: selectedGift.value?.name })
         emit('close')
         toastMessage.value = 'Presente enviado'
         setTimeout(() => (toastMessage.value = ''), 4000)
