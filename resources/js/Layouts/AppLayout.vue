@@ -13,6 +13,7 @@ import MessageToast from '@/Components/MessageToast.vue'
 import CustomOrderToast from '@/Components/CustomOrderToast.vue'
 import InsufficientBalanceModal from '@/Components/InsufficientBalanceModal.vue'
 import ReservationNotice from '@/Components/ReservationNotice.vue'
+import GlobalCallHost from '@/Components/GlobalCallHost.vue'
 
 defineProps({
     title: String,
@@ -217,6 +218,13 @@ function logout() {
              T-5min, "performer entrou" com contador de 2min, no-show/refund. Divide
              o canal user.{id} com o MessageToast sem derrubá-lo. -->
         <ReservationNotice />
+
+        <!-- Chamada 1:1 com presença (feat/online-presence-call): a performer LOGADA
+             recebe e atende a chamada em QUALQUER tela, sem precisar estar ao vivo.
+             O próprio host se desliga no console da live (onde o LiveRoom cuida da
+             chamada, pausando a live) para não duplicar o ouvinte do canal user.{id}.
+             A chamada 1:1 é INVISÍVEL: não liga is_live. -->
+        <GlobalCallHost />
 
         <!-- Saída rápida GLOBAL — ícone flutuante (teleportado) no canto
              SUPERIOR-esquerdo, DESKTOP-ONLY, presente em toda tela autenticada

@@ -29,20 +29,23 @@ const error = ref('')
 let channel = null
 let countdown = null
 
+// Handler nomeado para poder removê-lo PONTUALMENTE no unmount (ver abaixo).
+function onRequested(e) {
+    // Som de chamada ao vivo (preferência 'live'); silencioso se desligado
+    // ou se o autoplay estiver bloqueado.
+    play('live')
+    incoming.value = {
+        callId: e.call_id,
+        memberLabel: e.member_label,
+        pricePerMinute: e.price_per_minute,
+    }
+    startCountdown(e.expires_in_seconds ?? 60)
+}
+
 function subscribe() {
     if (!window.Echo) return
     channel = window.Echo.private(`user.${props.myUserId}`)
-    channel.listen('.call.requested', (e) => {
-        // Som de chamada ao vivo (preferência 'live'); silencioso se desligado
-        // ou se o autoplay estiver bloqueado.
-        play('live')
-        incoming.value = {
-            callId: e.call_id,
-            memberLabel: e.member_label,
-            pricePerMinute: e.price_per_minute,
-        }
-        startCountdown(e.expires_in_seconds ?? 60)
-    })
+    channel.listen('.call.requested', onRequested)
 }
 
 function startCountdown(seconds) {
@@ -94,7 +97,12 @@ async function decline() {
 onMounted(subscribe)
 onBeforeUnmount(() => {
     clearCountdown()
-    if (channel) window.Echo?.leave(`user.${props.myUserId}`)
+    // stopListening do PRÓPRIO callback — NUNCA Echo.leave: o canal user.{id} é
+    // COMPARTILHADO (MessageToast, ReservationNotice, CustomOrderToast e o host
+    // global da chamada). Um Echo.leave desinscreveria o canal inteiro e deixaria
+    // todos os listeners irmãos mudos pelo resto da página (achado ALTO da revisão
+    // de segurança). Com stopListening nomeado, só esta reação sai.
+    channel?.stopListening('.call.requested', onRequested)
 })
 </script>
 

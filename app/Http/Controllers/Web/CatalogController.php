@@ -246,6 +246,13 @@ class CatalogController extends Controller
                 // chamadas → o botão "Agendar chamada" não aparece. É o preço DELA,
                 // mostrado ao membro para decidir; nada sensível.
                 'call_price_per_minute' => $profile->call_price_per_minute,
+                // Chamada 1:1 com presença (feat/online-presence-call): NÃO expomos
+                // "ocupada em chamada" ao membro — seria um oráculo de presença que
+                // fere a INVISIBILIDADE da 1:1 (um membro poderia pollar o perfil e
+                // inferir quando/quão frequente ela atende 1:1). O gate do botão no
+                // front cruza só online (is_available) e não-live (is_live); o caso
+                // "ocupada" é recusado pelo servidor no `call.request` (409 genérico,
+                // sob lock) — sem revelar nada. (Achado ALTO da revisão de segurança.)
                 // profile_id para o POST reservations.store ({profile}). O resource
                 // público omite o `id` de propósito; o media já expõe o profile_id em
                 // URL assinada, então isto não vaza nada novo.
