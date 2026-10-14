@@ -275,6 +275,14 @@ class CatalogController extends Controller
             // sair da chamada. Mesma fonte do viewer da live. Só o membro usa.
             'tokenPackages' => $this->tokenPackages(),
             'needsCpf' => ! $request->user()?->asaas_customer_id,
+            // Janela de agendamento (feat/scheduled-call-v1) para o picker do membro
+            // mostrar "de HH:mm de hoje até DD/MM" e barrar horário cedo demais ANTES
+            // do 422. Fonte única: config/scheduled_call.php (o servidor ainda valida).
+            'scheduleWindow' => [
+                'minLeadMinutes' => (int) config('scheduled_call.min_lead_minutes'),
+                'maxLeadDays' => (int) config('scheduled_call.max_lead_days'),
+                'timezone' => (string) config('scheduled_call.display_timezone'),
+            ],
             // Stories vivos dela (Sprint 9C). Cada item já vem com `locked` e, se
             // aberto, a URL do serving autenticado — story fechado NÃO recebe URL
             // (ver profileStripFor: blur em CSS não é paywall).
