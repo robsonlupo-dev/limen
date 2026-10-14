@@ -46,6 +46,10 @@ const minutesLeft = ref(props.pricePerMinute > 0 ? Math.floor(props.initialBalan
 const endedNotice = ref('')
 const showBuyPanel = ref(false)
 const purchasePending = ref(false)
+// Controles de mídia local (mudo de microfone/câmera). Começam ligados — o
+// enableLocalMedia() publica os dois no connect.
+const micOn = ref(true)
+const camOn = ref(true)
 
 const isMember = computed(() => props.role === 'member')
 const canBuyInCall = computed(() => isMember.value && props.tokenPackages.length > 0)
@@ -58,6 +62,10 @@ let heartbeatTimer = null
 let refreshTimer = null
 let clockTimer = null
 let goodbyeTimer = null
+// finish() só pode rodar uma vez — vários caminhos (Encerrar, saldo, a outra
+// pessoa sai, sala fechada, botão Fechar) podem convergir aqui; sem a trava o
+// 'ended' seria emitido mais de uma vez para o pai.
+let finished = false
 
 const timerLabel = computed(() => {
     const m = Math.floor(elapsedSeconds.value / 60)
@@ -120,8 +128,17 @@ function attach(track, participantIsLocal) {
 async function connect() {
     room = new Room()
     room.on(RoomEvent.TrackSubscribed, (track) => attach(track, false))
+    // A OUTRA pessoa saiu da sala: encerra graciosamente deste lado também, para
+    // ninguém ficar preso numa tela preta esperando uma contraparte que já foi.
+    room.on(RoomEvent.ParticipantDisconnected, () => {
+        if (status.value === 'live') beginGoodbye()
+    })
+    // FUI desconectado (a sala foi fechada no fim da chamada, ou a rede caiu).
+    // Antes isto só marcava 'ended' em silêncio — sem aviso e sem emitir 'ended'
+    // para o pai, então o overlay ficava preto e preso. Agora vai pela despedida
+    // (aviso + botão Fechar + auto-encerramento), nunca sem saída.
     room.on(RoomEvent.Disconnected, () => {
-        if (status.value === 'live') status.value = 'ended'
+        if (status.value === 'live') beginGoodbye()
     })
 
     await room.connect(props.wsUrl, props.token)
@@ -233,9 +250,31 @@ async function endCall() {
 }
 
 async function finish() {
+    if (finished) return
+    finished = true
     await teardown()
     status.value = 'ended'
     emit('ended')
+}
+
+// Mudo de microfone / câmera. Vale para os DOIS lados (membro e performer). O
+// estado só vira se o LiveKit confirmar — assim o ícone nunca mente.
+async function toggleMic() {
+    if (!room) return
+    const next = !micOn.value
+    try {
+        await room.localParticipant.setMicrophoneEnabled(next)
+        micOn.value = next
+    } catch (e) { /* mantém o estado atual */ }
+}
+
+async function toggleCam() {
+    if (!room) return
+    const next = !camOn.value
+    try {
+        await room.localParticipant.setCameraEnabled(next)
+        camOn.value = next
+    } catch (e) { /* mantém o estado atual */ }
 }
 
 function stopBillingTimers() {
@@ -283,12 +322,20 @@ onBeforeUnmount(teardown)
                 {{ timerLabel }}
             </div>
 
-            <!-- Despedida / encerramento. -->
+            <!-- Despedida / encerramento. Sempre com um botão Fechar: mesmo que o
+                 auto-encerramento falhe, nunca se fica preso na tela preta. -->
             <div
                 v-if="status === 'ending' || status === 'ended'"
-                class="absolute inset-0 flex items-center justify-center bg-black/80 p-6 text-center text-white"
+                class="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/80 p-6 text-center text-white"
             >
-                <p class="max-w-sm text-lg">{{ endedNotice }}</p>
+                <p class="max-w-sm text-lg">{{ endedNotice || 'A chamada foi encerrada.' }}</p>
+                <button
+                    type="button"
+                    class="rounded-lg bg-white/10 px-5 py-2 font-medium text-white ring-1 ring-white/30 hover:bg-white/20"
+                    @click="finish"
+                >
+                    Fechar
+                </button>
             </div>
 
             <!-- Compra SOBRE o vídeo (feat/private-call-from-live): overlay no rodapé.
@@ -332,8 +379,43 @@ onBeforeUnmount(teardown)
             </button>
         </div>
 
-        <!-- Controles. -->
+        <!-- Controles. Mudo de microfone e câmera valem para os dois lados. -->
         <div v-if="status === 'live'" class="flex items-center gap-3">
+            <button
+                type="button"
+                :aria-pressed="!micOn"
+                :title="micOn ? 'Silenciar microfone' : 'Reativar microfone'"
+                :class="[
+                    'rounded-lg border px-4 py-2 font-medium transition-colors',
+                    micOn ? 'border-frame hover:bg-neutral-50' : 'border-danger/40 bg-danger/15 text-danger',
+                ]"
+                @click="toggleMic"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true">
+                    <rect x="9" y="3" width="6" height="11" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="18" x2="12" y2="21" />
+                    <line v-if="!micOn" x1="3" y1="3" x2="21" y2="21" />
+                </svg>
+                <span class="sr-only">{{ micOn ? 'Silenciar microfone' : 'Reativar microfone' }}</span>
+            </button>
+            <button
+                type="button"
+                :aria-pressed="!camOn"
+                :title="camOn ? 'Desligar câmera' : 'Ligar câmera'"
+                :class="[
+                    'rounded-lg border px-4 py-2 font-medium transition-colors',
+                    camOn ? 'border-frame hover:bg-neutral-50' : 'border-danger/40 bg-danger/15 text-danger',
+                ]"
+                @click="toggleCam"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true">
+                    <rect x="3" y="6" width="13" height="12" rx="2" />
+                    <path d="M16 10l5-3v10l-5-3" />
+                    <line v-if="!camOn" x1="3" y1="3" x2="21" y2="21" />
+                </svg>
+                <span class="sr-only">{{ camOn ? 'Desligar câmera' : 'Ligar câmera' }}</span>
+            </button>
             <button
                 type="button"
                 class="rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
