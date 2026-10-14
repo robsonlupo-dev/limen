@@ -44,6 +44,11 @@ const props = defineProps({
     // "Comprar tokens" cai no comportamento antigo (emit 'recharge').
     tokenPackages: { type: Array, default: () => [] },
     needsCpf: { type: Boolean, default: false },
+    // Janela do picker de agendamento (feat/scheduled-call-v1), de config/scheduled_call.php.
+    scheduleWindow: {
+        type: Object,
+        default: () => ({ minLeadMinutes: 45, maxLeadDays: 30, timezone: 'America/Sao_Paulo' }),
+    },
 })
 
 const page = usePage()
@@ -217,6 +222,7 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
                         <ScheduleCallModal
                             :performer-profile-id="performer.profile_id"
                             :price-per-minute="performer.call_price_per_minute"
+                            :schedule-window="scheduleWindow"
                         />
                     </div>
 
