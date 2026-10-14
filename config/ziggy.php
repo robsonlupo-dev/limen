@@ -284,6 +284,8 @@ return [
         'call.heartbeat',
         'call.token-refresh',
         'call.end',
+        'call.chat.index',
+        'call.chat.store',
         'performer.call.settings',
 
         // Group show 1:X (Sprint 15): performer inicia/encerra + resolve upgrade;

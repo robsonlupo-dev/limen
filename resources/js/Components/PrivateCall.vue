@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import { Room, RoomEvent, Track } from 'livekit-client'
-import { postJson } from '@/lib/http'
+import { getJson, postJson } from '@/lib/http'
 import InCallBuyPanel from '@/Components/InCallBuyPanel.vue'
 import TipModal from '@/Components/TipModal.vue'
 import GiftModal from '@/Components/GiftModal.vue'
@@ -74,6 +74,19 @@ const showGiftModal = ref(false)
 // envio; a performer vê a dela pelo canal de dados do LiveKit — payload
 // NÃO-sensível (tipo + valor/presente), nunca member_id/saldo/tier (M.13.10).
 const callReaction = ref(null) // { kind:'tip'|'gift', amount?, giftSlug?, label }
+
+// Chat de texto da chamada (feat/in-call-chat). Painel recolhível, fechado por
+// padrão, para não atrapalhar o vídeo. As mensagens ficam no servidor para a
+// moderação; aqui só enquanto a chamada está viva. Os dois lados usam.
+const showChat = ref(false)
+const chatMessages = ref([])
+const chatInput = ref('')
+const chatSending = ref(false)
+const chatError = ref('')
+const chatLoaded = ref(false)
+const hasUnseen = ref(false)
+const chatLog = ref(null)
+const isPerformerSide = computed(() => props.role === 'performer')
 // Segundos até o próximo minuto ser cobrado — quando o saldo não cobre o próximo
 // minuto (minutesLeft==0), é a contagem regressiva até a chamada encerrar.
 const secondsToBoundary = computed(() => 60 - (elapsedSeconds.value % 60))
@@ -85,6 +98,7 @@ let clockTimer = null
 let goodbyeTimer = null
 let reactionTimer = null
 let reactionChannel = null
+let chatChannel = null
 // finish() só pode rodar uma vez — vários caminhos (Encerrar, saldo, a outra
 // pessoa sai, sala fechada, botão Fechar) podem convergir aqui; sem a trava o
 // 'ended' seria emitido mais de uma vez para o pai.
@@ -353,6 +367,72 @@ function unsubscribeReactions() {
     if (reactionChannel) { reactionChannel.stopListening('.call.reaction', onCallReaction); reactionChannel = null }
 }
 
+// --- Chat de texto da chamada -------------------------------------------------
+// Canal `call.{id}` (privado aos 2 participantes). É exclusivo desta chamada e só
+// o PrivateCall o usa, então o teardown pode dar Echo.leave sem calar ninguém.
+function subscribeChat() {
+    if (!props.callId || !window.Echo || chatChannel) return
+    chatChannel = window.Echo.private(`call.${props.callId}`)
+    chatChannel.listen('.call.chat', onChatMessage)
+}
+
+function unsubscribeChat() {
+    if (chatChannel && props.callId) { window.Echo?.leave(`call.${props.callId}`); chatChannel = null }
+}
+
+// Minha mensagem? `is_performer` do payload casa com o meu papel.
+function isMine(msg) {
+    return !!msg.is_performer === isPerformerSide.value
+}
+
+function appendMessage(msg) {
+    if (!msg || chatMessages.value.some((m) => m.id === msg.id)) return
+    chatMessages.value.push(msg)
+    scrollChatSoon()
+}
+
+function onChatMessage(msg) {
+    appendMessage(msg)
+    if (!showChat.value && !isMine(msg)) hasUnseen.value = true
+}
+
+async function toggleChat() {
+    showChat.value = !showChat.value
+    if (!showChat.value) return
+    hasUnseen.value = false
+    if (!chatLoaded.value) await loadChatHistory()
+    scrollChatSoon()
+}
+
+async function loadChatHistory() {
+    try {
+        const r = await getJson(route('call.chat.index', props.callId))
+        ;(r.messages || []).forEach(appendMessage)
+        chatLoaded.value = true
+    } catch (e) { /* silencioso — o painel abre vazio e recebe em tempo real */ }
+}
+
+async function sendChat() {
+    const body = chatInput.value.trim()
+    if (!body || chatSending.value) return
+    chatError.value = ''
+    chatSending.value = true
+    try {
+        const r = await postJson(route('call.chat.store', props.callId), { body })
+        chatInput.value = ''
+        // Aparece já deste lado; o broadcast de volta é deduplicado por id.
+        if (r.message) appendMessage(r.message)
+    } catch (e) {
+        chatError.value = e.data?.message ?? 'Não foi possível enviar a mensagem.'
+    } finally {
+        chatSending.value = false
+    }
+}
+
+function scrollChatSoon() {
+    nextTick(() => { const el = chatLog.value; if (el) el.scrollTop = el.scrollHeight })
+}
+
 // Mostra UMA reação por vez por ~3,2s (a nova substitui a anterior). Sem fila: na
 // chamada 1:1 o volume é baixo; a simplicidade vale mais que a coreografia da live.
 function showReaction(reaction) {
@@ -369,14 +449,22 @@ function stopBillingTimers() {
 async function teardown() {
     stopBillingTimers()
     unsubscribeReactions()
+    unsubscribeChat()
     if (clockTimer) { clearInterval(clockTimer); clockTimer = null }
     if (goodbyeTimer) { clearTimeout(goodbyeTimer); goodbyeTimer = null }
     if (reactionTimer) { clearTimeout(reactionTimer); reactionTimer = null }
     if (room) { await room.disconnect(); room = null }
 }
 
+// Na chamada agendada a performer entra antes de o call_id existir; ele chega por
+// broadcast e o pai atualiza a prop. Quando mudar, (re)assina o canal do chat.
+watch(() => props.callId, (id, old) => {
+    if (id && id !== old) { unsubscribeChat(); subscribeChat() }
+})
+
 onMounted(async () => {
     subscribeReactions()
+    subscribeChat()
     try {
         await connect()
     } catch (e) {
@@ -458,6 +546,55 @@ onBeforeUnmount(teardown)
                     @close="showBuyPanel = false"
                 />
             </div>
+
+            <!-- Chat de texto SOBRE o vídeo: painel recolhível que NÃO cobre o vídeo
+                 inteiro. Mobile: faixa inferior; desktop: coluna à direita. Começa
+                 fechado (o botão "Chat" nos controles abre). -->
+            <div
+                v-if="showChat"
+                class="absolute inset-x-2 bottom-2 flex max-h-[72%] flex-col overflow-hidden rounded-xl border border-frame bg-black/85 text-white backdrop-blur sm:inset-x-auto sm:right-2 sm:top-2 sm:bottom-2 sm:w-72"
+            >
+                <div class="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                    <span class="text-sm font-medium">Chat</span>
+                    <button type="button" class="text-white/70 hover:text-white" title="Fechar chat" @click="showChat = false">✕</button>
+                </div>
+                <div ref="chatLog" class="flex-1 space-y-2 overflow-y-auto px-3 py-2">
+                    <p v-if="chatMessages.length === 0" class="py-6 text-center text-xs text-white/50">
+                        Nenhuma mensagem ainda. Diga um oi.
+                    </p>
+                    <div v-for="m in chatMessages" :key="m.id" :class="isMine(m) ? 'text-right' : 'text-left'">
+                        <span
+                            :class="[
+                                'inline-block max-w-[85%] rounded-2xl px-3 py-1.5 text-left text-sm',
+                                isMine(m) ? 'bg-gold/90 text-background' : 'bg-white/10 text-white',
+                            ]"
+                        >
+                            <span class="block text-[10px] uppercase tracking-wide opacity-70">{{ isMine(m) ? 'Você' : m.label }}</span>
+                            <span class="whitespace-pre-wrap break-words">{{ m.body }}</span>
+                        </span>
+                    </div>
+                </div>
+                <form class="border-t border-white/10 p-2" @submit.prevent="sendChat">
+                    <p v-if="chatError" class="px-1 pb-1 text-xs text-danger">{{ chatError }}</p>
+                    <div class="flex items-end gap-2">
+                        <textarea
+                            v-model="chatInput"
+                            rows="1"
+                            maxlength="500"
+                            placeholder="Mensagem…"
+                            class="min-h-[38px] max-h-24 flex-1 resize-none rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-gold focus:outline-none"
+                            @keydown.enter.exact.prevent="sendChat"
+                        />
+                        <button
+                            type="submit"
+                            :disabled="chatSending || !chatInput.trim()"
+                            class="shrink-0 rounded-lg bg-gold px-3 py-2 text-sm font-semibold text-background hover:bg-gold/90 disabled:opacity-50"
+                        >
+                            Enviar
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <!-- Banner de saldo — SÓ o membro. `critical` (não cobre o próximo minuto) é o
@@ -527,6 +664,25 @@ onBeforeUnmount(teardown)
                 @click="endCall"
             >
                 Encerrar
+            </button>
+            <button
+                type="button"
+                :title="showChat ? 'Fechar chat' : 'Abrir chat'"
+                :class="[
+                    'relative rounded-lg border px-4 py-2 font-medium transition-colors',
+                    showChat ? 'border-gold bg-gold/10 text-gold' : 'border-frame hover:bg-neutral-50',
+                ]"
+                @click="toggleChat"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+                </svg>
+                <span
+                    v-if="hasUnseen && !showChat"
+                    class="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-gold ring-2 ring-background"
+                    aria-hidden="true"
+                />
+                <span class="sr-only">{{ showChat ? 'Fechar chat' : 'Abrir chat' }}</span>
             </button>
             <button
                 v-if="canSendGifts"
