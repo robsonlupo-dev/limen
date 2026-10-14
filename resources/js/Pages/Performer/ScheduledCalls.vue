@@ -56,6 +56,10 @@ async function act(item, routeName) {
         router.reload({ only: ['reservations'] })
     } catch (e) {
         error.value = e?.data?.message ?? 'Ação indisponível.'
+        // A reserva pode ter mudado de estado por baixo (o membro cancelou, ou a
+        // janela venceu) — recarrega a lista para o card refletir a verdade em vez de
+        // deixar um "Confirmar" morto que só devolve 410.
+        router.reload({ only: ['reservations'] })
     } finally {
         busyId.value = null
     }
@@ -71,6 +75,7 @@ async function enter(item) {
         listenForCallStart(item.id)
     } catch (e) {
         error.value = e?.data?.message ?? 'Não foi possível entrar.'
+        router.reload({ only: ['reservations'] })
     } finally {
         busyId.value = null
     }
