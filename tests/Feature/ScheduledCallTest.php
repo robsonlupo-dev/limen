@@ -232,6 +232,18 @@ it('performer confirma a própria reserva pending', function () {
         ->and($reservation->fresh()->confirmed_at)->not->toBeNull();
 });
 
+it('a fila da performer recarrega a lista quando uma ação falha (card não fica preso)', function () {
+    // Um card "pending" obsoleto (o membro já cancelou por baixo) devolvia 410 no
+    // Confirmar e ficava preso — a performer via "não consigo confirmar". A tela passa
+    // a recarregar a lista no catch, então o card se corrige para o estado real.
+    $src = file_get_contents(resource_path('js/Pages/Performer/ScheduledCalls.vue'));
+
+    // Tanto no sucesso quanto no erro: reload da lista (2 no act + 1 no enter).
+    expect(substr_count($src, "router.reload({ only: ['reservations'] })"))->toBeGreaterThanOrEqual(3);
+    // O reload do erro vem logo após setar a mensagem.
+    expect($src)->toContain("error.value = e?.data?.message ?? 'Ação indisponível.'");
+});
+
 it('confirmar reserva de OUTRA performer → 404 (anti-oráculo)', function () {
     schedKit();
     $performer = schedPerformer(price: 10);
