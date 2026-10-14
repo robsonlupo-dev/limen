@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\CallReactionReceived;
 use App\Exceptions\GiftException;
 use App\Support\TokenMath;
 use App\Exceptions\InsufficientBalanceException;
@@ -57,6 +58,16 @@ class GiftService
             // Pós-commit — a doSend já retornou com a transação comitada.
             if ($giftSend->wasRecentlyCreated) {
                 app(LiveOverlayService::class)->gift($performerProfile, $member, $gift);
+
+                // Reação na chamada 1:1 (feat/in-call-reaction): avisa a performer
+                // pelo canal pessoal. Só o <PrivateCall> consome `.call.reaction`;
+                // fora de uma chamada é inócuo. Payload não-sensível (tipo + presente),
+                // do servidor — nunca member_id/saldo/tier (M.13.10).
+                CallReactionReceived::dispatch($performerProfile->user_id, [
+                    'type' => 'gift',
+                    'gift_slug' => $gift->slug,
+                    'gift_name' => $gift->name,
+                ]);
 
                 // Presente pelo PERFIL (fora da live): registra a entrega no chat do
                 // par (feat/gift-from-profile). Só num envio NOVO (não num retorno
