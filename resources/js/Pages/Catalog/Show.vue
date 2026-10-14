@@ -381,18 +381,24 @@ const avatarPhotos = computed(() => (props.performer.avatar_url
         <!-- Destaques (roadmap social, Onda 1a) -->
         <HighlightViewer v-if="openHighlight" :collection="openHighlight" @close="openHighlight = null" />
 
-        <!-- Sala da chamada 1:1 aceita (PR #140): cobre a tela. -->
-        <div v-if="activeCall" class="fixed inset-0 z-50 bg-black">
-            <PrivateCall
-                :call-id="activeCall.callId"
-                :token="activeCall.token"
-                :ws-url="activeCall.wsUrl"
-                role="member"
-                :price-per-minute="activeCall.pricePerMinute"
-                :performer-slug="performer.slug"
-                :performer-name="performer.stage_name"
-                @ended="onCallEnded"
-            />
+        <!-- Sala da chamada 1:1 aceita (PR #140): cobre a tela. O container interno
+             (mesmo do lado da performer) prende a largura e dá padding, senão o vídeo
+             aspect-video estica na tela inteira e empurra os controles para fora da
+             área visível — o membro ficava sem botão até a performer desligar. A
+             rolagem vertical garante os controles alcançáveis em tela baixa/paisagem. -->
+        <div v-if="activeCall" class="fixed inset-0 z-50 overflow-y-auto bg-black">
+            <div class="mx-auto flex min-h-full max-w-3xl flex-col justify-center p-3 sm:p-4">
+                <PrivateCall
+                    :call-id="activeCall.callId"
+                    :token="activeCall.token"
+                    :ws-url="activeCall.wsUrl"
+                    role="member"
+                    :price-per-minute="activeCall.pricePerMinute"
+                    :performer-slug="performer.slug"
+                    :performer-name="performer.stage_name"
+                    @ended="onCallEnded"
+                />
+            </div>
         </div>
     </AppLayout>
 </template>
