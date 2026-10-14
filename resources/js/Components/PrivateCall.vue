@@ -3,6 +3,10 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { postJson } from '@/lib/http'
 import InCallBuyPanel from '@/Components/InCallBuyPanel.vue'
+import TipModal from '@/Components/TipModal.vue'
+import GiftModal from '@/Components/GiftModal.vue'
+import GiftIcon from '@/Components/GiftIcon.vue'
+import TokenCoin from '@/Components/TokenCoin.vue'
 
 /**
  * Chamada privada 1:1 (Sprint 15) — sala de vídeo bidirecional. Os dois lados
@@ -32,6 +36,11 @@ const props = defineProps({
     // uso da chamada agendada.
     tokenPackages: { type: Array, default: () => [] },
     needsCpf: { type: Boolean, default: false },
+    // Gorjeta/presente DENTRO da chamada (feat/in-call-gift-tip). Só o MEMBRO envia;
+    // sem slug os botões não aparecem (ex.: lado da performer, que não envia). O
+    // nome é só rótulo dos modais.
+    performerSlug: { type: String, default: '' },
+    performerName: { type: String, default: '' },
 })
 
 const emit = defineEmits(['ended', 'recharge'])
@@ -53,6 +62,15 @@ const camOn = ref(true)
 
 const isMember = computed(() => props.role === 'member')
 const canBuyInCall = computed(() => isMember.value && props.tokenPackages.length > 0)
+// Gorjeta/presente na chamada: só o membro, e só com o slug da performer em mãos.
+const canSendGifts = computed(() => isMember.value && !!props.performerSlug)
+const showTipModal = ref(false)
+const showGiftModal = ref(false)
+// Reação cosmética na tela (gorjeta/presente). O movimento de token é 100%
+// servidor (Tip/GiftService); isto é só o "oba" visual. O membro vê a própria no
+// envio; a performer vê a dela pelo canal de dados do LiveKit — payload
+// NÃO-sensível (tipo + valor/presente), nunca member_id/saldo/tier (M.13.10).
+const callReaction = ref(null) // { kind:'tip'|'gift', amount?, giftSlug?, label }
 // Segundos até o próximo minuto ser cobrado — quando o saldo não cobre o próximo
 // minuto (minutesLeft==0), é a contagem regressiva até a chamada encerrar.
 const secondsToBoundary = computed(() => 60 - (elapsedSeconds.value % 60))
@@ -62,6 +80,7 @@ let heartbeatTimer = null
 let refreshTimer = null
 let clockTimer = null
 let goodbyeTimer = null
+let reactionTimer = null
 // finish() só pode rodar uma vez — vários caminhos (Encerrar, saldo, a outra
 // pessoa sai, sala fechada, botão Fechar) podem convergir aqui; sem a trava o
 // 'ended' seria emitido mais de uma vez para o pai.
@@ -128,6 +147,11 @@ function attach(track, participantIsLocal) {
 async function connect() {
     room = new Room()
     room.on(RoomEvent.TrackSubscribed, (track) => attach(track, false))
+    // Reação (gorjeta/presente) da outra ponta: a performer recebe o sinal que o
+    // membro publicou e anima na tela. Só leitura cosmética; decodifica com cuidado
+    // e ignora qualquer coisa fora do formato (payload de terceiro não é confiável
+    // para nada além de disparar a animação).
+    room.on(RoomEvent.DataReceived, (payload) => onDataReceived(payload))
     // A OUTRA pessoa saiu da sala: encerra graciosamente deste lado também, para
     // ninguém ficar preso numa tela preta esperando uma contraparte que já foi.
     room.on(RoomEvent.ParticipantDisconnected, () => {
@@ -277,6 +301,62 @@ async function toggleCam() {
     } catch (e) { /* mantém o estado atual */ }
 }
 
+// --- Gorjeta / presente na chamada -------------------------------------------
+// O modal já fez o POST (Tip/GiftService, débito+crédito+split no servidor) e
+// devolve o novo saldo. Atualiza o saldo local NA HORA (o banner de minutos não
+// fica defasado até o próximo heartbeat), anima deste lado e avisa a outra ponta.
+function onTipSent(data) {
+    if (data && typeof data.new_balance === 'number') {
+        balance.value = data.new_balance
+        recomputeMinutesLeft()
+    }
+    const amount = Number(data?.amount) || 0
+    showReaction({ kind: 'tip', amount, label: `Gorjeta · ${amount} tokens` })
+    publishReaction({ t: 'reaction', kind: 'tip', amount })
+}
+
+function onGiftSent(data) {
+    if (data && typeof data.new_balance === 'number') {
+        balance.value = data.new_balance
+        recomputeMinutesLeft()
+    }
+    const giftSlug = data?.gift_slug || ''
+    const name = data?.gift_name || 'Presente'
+    showReaction({ kind: 'gift', giftSlug, label: `Presente · ${name}` })
+    publishReaction({ t: 'reaction', kind: 'gift', giftSlug, name })
+}
+
+// Publica o sinal cosmético para a outra ponta (entrega confiável). Falha em
+// silêncio — a animação local e o crédito no servidor não dependem disto.
+function publishReaction(payload) {
+    if (!room) return
+    try {
+        const bytes = new TextEncoder().encode(JSON.stringify(payload))
+        room.localParticipant.publishData(bytes, { reliable: true })
+    } catch (e) { /* cosmético — ignora */ }
+}
+
+function onDataReceived(payload) {
+    try {
+        const msg = JSON.parse(new TextDecoder().decode(payload))
+        if (!msg || msg.t !== 'reaction') return
+        if (msg.kind === 'tip') {
+            const amount = Number(msg.amount) || 0
+            showReaction({ kind: 'tip', amount, label: `Gorjeta · ${amount} tokens` })
+        } else if (msg.kind === 'gift') {
+            showReaction({ kind: 'gift', giftSlug: String(msg.giftSlug || ''), label: `Presente · ${String(msg.name || 'Presente')}` })
+        }
+    } catch (e) { /* payload inválido — ignora */ }
+}
+
+// Mostra UMA reação por vez por ~3,2s (a nova substitui a anterior). Sem fila: na
+// chamada 1:1 o volume é baixo; a simplicidade vale mais que a coreografia da live.
+function showReaction(reaction) {
+    callReaction.value = reaction
+    if (reactionTimer) clearTimeout(reactionTimer)
+    reactionTimer = setTimeout(() => { callReaction.value = null; reactionTimer = null }, 3200)
+}
+
 function stopBillingTimers() {
     if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null }
@@ -286,6 +366,7 @@ async function teardown() {
     stopBillingTimers()
     if (clockTimer) { clearInterval(clockTimer); clockTimer = null }
     if (goodbyeTimer) { clearTimeout(goodbyeTimer); goodbyeTimer = null }
+    if (reactionTimer) { clearTimeout(reactionTimer); reactionTimer = null }
     if (room) { await room.disconnect(); room = null }
 }
 
@@ -320,6 +401,24 @@ onBeforeUnmount(teardown)
             <!-- Timer sempre visível. -->
             <div class="absolute top-3 left-3 rounded-full bg-black/60 px-3 py-1 text-sm font-medium text-white tabular-nums">
                 {{ timerLabel }}
+            </div>
+
+            <!-- Reação de gorjeta/presente (cosmética). Centralizada, sem capturar
+                 clique; some sozinha. Os dois lados veem (membro no envio, performer
+                 pelo canal de dados). -->
+            <div
+                v-if="callReaction"
+                class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"
+            >
+                <span class="call-reaction-pop inline-block h-24 w-24 text-gold drop-shadow-lg">
+                    <GiftIcon v-if="callReaction.kind === 'gift'" :slug="callReaction.giftSlug" />
+                    <span v-else class="grid h-full w-full place-items-center text-gold">
+                        <TokenCoin class="h-[85%] w-[85%]" />
+                    </span>
+                </span>
+                <span class="rounded-full bg-black/60 px-3 py-1 text-sm font-medium text-white">
+                    {{ callReaction.label }}
+                </span>
             </div>
 
             <!-- Despedida / encerramento. Sempre com um botão Fechar: mesmo que o
@@ -424,6 +523,36 @@ onBeforeUnmount(teardown)
                 Encerrar
             </button>
             <button
+                v-if="canSendGifts"
+                type="button"
+                title="Enviar gorjeta"
+                class="rounded-lg border border-frame px-4 py-2 font-medium hover:bg-neutral-50"
+                @click="showTipModal = true"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M14.5 9.5a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.9 2.5 2-1.1 2-2.5 2a2.5 2.5 0 0 1-2.5-1.5" />
+                    <line x1="12" y1="6.5" x2="12" y2="8" />
+                    <line x1="12" y1="16" x2="12" y2="17.5" />
+                </svg>
+                <span class="sr-only">Enviar gorjeta</span>
+            </button>
+            <button
+                v-if="canSendGifts"
+                type="button"
+                title="Enviar presente"
+                class="rounded-lg border border-frame px-4 py-2 font-medium hover:bg-neutral-50"
+                @click="showGiftModal = true"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true">
+                    <rect x="3" y="8" width="18" height="4" rx="1" />
+                    <path d="M5 12v9h14v-9" />
+                    <line x1="12" y1="8" x2="12" y2="21" />
+                    <path d="M12 8S10.5 3.5 8 4.5 9 8 12 8zM12 8s1.5-4.5 4-3.5S15 8 12 8z" />
+                </svg>
+                <span class="sr-only">Enviar presente</span>
+            </button>
+            <button
                 v-if="isMember"
                 type="button"
                 class="rounded-lg border border-frame px-4 py-2 font-medium hover:bg-neutral-50"
@@ -432,5 +561,48 @@ onBeforeUnmount(teardown)
                 Comprar tokens
             </button>
         </div>
+
+        <!-- Modais de gorjeta/presente (só o membro). Autocontidos: fazem o POST,
+             idempotência e o fluxo de saldo insuficiente. No 'sent' animamos e
+             avisamos a performer. -->
+        <template v-if="canSendGifts">
+            <TipModal
+                :show="showTipModal"
+                :performer-slug="performerSlug"
+                :performer-name="performerName"
+                @close="showTipModal = false"
+                @sent="onTipSent"
+            />
+            <GiftModal
+                :show="showGiftModal"
+                :performer-slug="performerSlug"
+                :performer-name="performerName"
+                @close="showGiftModal = false"
+                @sent="onGiftSent"
+            />
+        </template>
     </div>
 </template>
+
+<style scoped>
+/* Reação da chamada: entra com um "pop", sustenta e sai — tudo em CSS, sem lib
+   (ExternalAssetPolicyTest). Quem pede menos movimento vê só o fade. */
+.call-reaction-pop {
+    animation: call-reaction-pop 3.2s ease-out forwards;
+}
+@keyframes call-reaction-pop {
+    0% { opacity: 0; transform: scale(0.6); }
+    10% { opacity: 1; transform: scale(1.18); }
+    22% { transform: scale(1); }
+    82% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.04) translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .call-reaction-pop { animation: call-reaction-fade 3.2s ease-out forwards; }
+    @keyframes call-reaction-fade {
+        0%, 10% { opacity: 0; }
+        12%, 82% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+}
+</style>
