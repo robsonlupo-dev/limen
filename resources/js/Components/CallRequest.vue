@@ -81,9 +81,11 @@ onBeforeUnmount(leaveChannel)
 
 <template>
     <div>
+        <!-- `bg-brand` não existe no tema (ficava sem fundo); estilo primário do
+             design system (gold sobre background), alvo ≥44px. -->
         <button
             type="button"
-            class="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 font-medium text-white hover:opacity-90"
+            class="mi-press inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-gold px-4 font-semibold text-background transition-colors hover:bg-gold/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
             @click="open"
         >
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -97,37 +99,45 @@ onBeforeUnmount(leaveChannel)
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             @click.self="close"
         >
-            <div class="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <!-- Tema ESCURO do app (antes era bg-white: o <h2> sem cor herdava o
+                 texto claro do tema e sumia no branco, e os botões ficavam sem
+                 contraste/espaço — "FecharSolicitar". Mesma correção já feita no
+                 CallIncoming). Cores explícitas, alvos ≥44px (mobile first). -->
+            <div class="w-full max-w-sm space-y-4 rounded-2xl border border-gold/30 bg-surface p-6 text-cream shadow-xl shadow-black/40">
                 <header>
-                    <h2 class="text-lg font-semibold">Chamada privada 1:1</h2>
-                    <p class="mt-1 text-sm text-neutral-600">
+                    <h2 class="font-serif text-xl text-cream">Chamada privada 1:1</h2>
+                    <p class="mt-1 text-sm text-muted">
                         {{ pricePerMinute }} tokens por minuto
-                        <span v-if="priceBrlLabel" class="text-neutral-400">{{ priceBrlLabel }}</span>
+                        <span v-if="priceBrlLabel" class="text-muted/70">{{ priceBrlLabel }}</span>
                     </p>
                 </header>
 
-                <p class="text-sm text-neutral-500">
+                <p class="text-sm text-muted">
                     O primeiro minuto é cobrado ao ser aceita. Você pode encerrar a qualquer
                     momento — só paga pelos minutos usados.
                 </p>
 
-                <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
+                <p v-if="error" class="text-sm text-danger">{{ error }}</p>
 
-                <div v-if="state === 'waiting'" class="rounded-lg bg-neutral-100 px-4 py-3 text-sm text-neutral-700">
+                <div v-if="state === 'waiting'" class="rounded-lg border border-frame bg-background/40 px-4 py-3 text-sm text-cream/80">
                     Aguardando a performer aceitar…
                 </div>
-                <div v-else-if="state === 'declined'" class="rounded-lg bg-neutral-100 px-4 py-3 text-sm text-neutral-700">
+                <div v-else-if="state === 'declined'" class="rounded-lg border border-frame bg-background/40 px-4 py-3 text-sm text-cream/80">
                     A performer não pôde atender agora.
                 </div>
 
                 <div class="flex justify-end gap-3">
-                    <button type="button" class="rounded-lg px-4 py-2 text-sm hover:bg-neutral-100" @click="close">
+                    <button
+                        type="button"
+                        class="mi-press min-h-[44px] rounded-lg border border-frame px-4 text-sm font-medium text-cream transition-colors hover:border-gold/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+                        @click="close"
+                    >
                         Fechar
                     </button>
                     <button
                         v-if="state === 'idle' || state === 'error'"
                         type="button"
-                        class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                        class="mi-press min-h-[44px] rounded-lg bg-gold px-4 text-sm font-semibold text-background transition-colors hover:bg-gold/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
                         @click="requestCall"
                     >
                         Solicitar
@@ -136,7 +146,7 @@ onBeforeUnmount(leaveChannel)
                         v-else-if="state === 'requesting'"
                         type="button"
                         disabled
-                        class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-60"
+                        class="min-h-[44px] rounded-lg bg-gold px-4 text-sm font-semibold text-background opacity-60"
                     >
                         Enviando…
                     </button>
