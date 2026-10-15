@@ -65,6 +65,13 @@ async function act(item, routeName) {
     }
 }
 
+// Desmarcar uma CONFIRMADA: confirma a intenção (o membro é avisado e estornado;
+// em cima da hora gera strike). Reusa act() → recarrega a lista no fim.
+function cancelConfirmed(item) {
+    if (!window.confirm('Desmarcar esta chamada confirmada? O membro é avisado e recebe o estorno. Desmarcar em cima da hora (menos de 2h antes) gera um strike.')) return
+    act(item, 'performer.reservations.cancel')
+}
+
 async function enter(item) {
     if (busyId.value) return
     busyId.value = item.id
@@ -167,6 +174,15 @@ onBeforeUnmount(leaveChannel)
                                 @click="act(item, 'performer.reservations.decline')"
                             >
                                 Recusar
+                            </button>
+                            <button
+                                v-if="item.can_cancel"
+                                type="button"
+                                :disabled="busyId === item.id"
+                                class="rounded-lg border border-frame/60 px-3 py-1.5 text-sm text-muted hover:bg-frame/20 disabled:opacity-60"
+                                @click="cancelConfirmed(item)"
+                            >
+                                Desmarcar
                             </button>
                         </template>
                     </div>

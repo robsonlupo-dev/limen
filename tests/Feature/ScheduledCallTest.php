@@ -276,6 +276,71 @@ it('performer recusa → refund integral ao membro, sem strike', function () {
     ]);
 });
 
+it('performer desmarca uma CONFIRMADA cedo → refund integral, SEM strike', function () {
+    schedKit();
+    $performer = schedPerformer(price: 10);
+    $member = schedMember(balance: 100);
+    $reservation = reserveVia($member, $performer, now()->addHours(3)); // deadline T-2h = +1h
+    app(CallReservationService::class)->confirm($performer, $reservation);
+
+    // Cancela AGORA (bem antes do compromisso) → sem strike.
+    app(CallReservationService::class)->performerCancel($performer, $reservation);
+
+    expect($reservation->fresh()->status)->toBe('cancelled')
+        ->and(app(TokenService::class)->balance($member))->toBe(100)
+        ->and($performer->performerProfile->fresh()->noshow_strike_count)->toBe(0);
+    $this->assertDatabaseHas('token_ledger', [
+        'entry_type' => 'call_reservation_refund',
+        'amount' => 10,
+    ]);
+});
+
+it('performer desmarca uma CONFIRMADA em cima da hora (<2h) → refund + strike', function () {
+    schedKit();
+    $performer = schedPerformer(price: 10);
+    $member = schedMember(balance: 100);
+    $reservation = reserveVia($member, $performer, now()->addHours(3));
+    app(CallReservationService::class)->confirm($performer, $reservation);
+
+    Carbon::setTestNow(now()->addHours(1)->addMinutes(30)); // passou do compromisso (T-2h)
+    app(CallReservationService::class)->performerCancel($performer, $reservation);
+
+    expect($reservation->fresh()->status)->toBe('cancelled')
+        ->and(app(TokenService::class)->balance($member))->toBe(100)
+        ->and($performer->performerProfile->fresh()->noshow_strike_count)->toBe(1);
+});
+
+it('performer NÃO desmarca uma pending (é recusar) → gone', function () {
+    schedKit();
+    $performer = schedPerformer(price: 10);
+    $member = schedMember(balance: 100);
+    $reservation = reserveVia($member, $performer, now()->addHours(3)); // pending, sem confirmar
+
+    try {
+        app(CallReservationService::class)->performerCancel($performer, $reservation);
+        $this->fail('esperava gone');
+    } catch (CallReservationException $e) {
+        expect($e->reason)->toBe(CallReservationException::GONE);
+    }
+    expect($reservation->fresh()->status)->toBe('pending');
+});
+
+it('performer NÃO desmarca confirmada de OUTRA performer → 404', function () {
+    schedKit();
+    $performer = schedPerformer(price: 10);
+    $other = schedPerformer(price: 10);
+    $member = schedMember(balance: 100);
+    $reservation = reserveVia($member, $performer, now()->addHours(3));
+    app(CallReservationService::class)->confirm($performer, $reservation);
+
+    try {
+        app(CallReservationService::class)->performerCancel($other, $reservation);
+        $this->fail('esperava not_found');
+    } catch (CallReservationException $e) {
+        expect($e->reason)->toBe(CallReservationException::NOT_FOUND);
+    }
+});
+
 // ── Cancelamento pelo membro ──────────────────────────────────────────────────
 
 it('membro cancela pending → refund grátis', function () {

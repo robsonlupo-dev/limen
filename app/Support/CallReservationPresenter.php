@@ -60,6 +60,9 @@ class CallReservationPresenter
             'can_confirm' => $reservation->isPending() && ! $reservation->confirmWindowPassed(),
             'can_decline' => $reservation->isPending(),
             'can_enter' => $reservation->isConfirmed() && $reservation->performerEntryWindowOpen(),
+            // Desmarcar uma CONFIRMADA (a performer confirmou mas não vai conseguir).
+            // Some durante a janela de entrada — aí a ação é "Entrar", não desmarcar.
+            'can_cancel' => $reservation->isConfirmed() && ! $reservation->performerEntryWindowOpen(),
         ];
     }
 

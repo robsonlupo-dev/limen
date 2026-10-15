@@ -1933,6 +1933,12 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->name('performer.reservations.decline')
                 ->can('performer-active');
 
+            Route::post('/performer/agendamentos/{reservation}/desmarcar', [PerformerCallReservationController::class, 'cancel'])
+                ->middleware('throttle:20,1')
+                ->whereNumber('reservation')
+                ->name('performer.reservations.cancel')
+                ->can('performer-active');
+
             Route::post('/performer/agendamentos/{reservation}/entrar', [PerformerCallReservationController::class, 'enter'])
                 ->middleware('throttle:20,1')
                 ->whereNumber('reservation')
