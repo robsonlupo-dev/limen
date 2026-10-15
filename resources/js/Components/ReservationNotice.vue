@@ -34,6 +34,7 @@ const RESOLVED_TEXT = {
     refunded_no_show_performer: 'A performer não compareceu. Seu saldo foi liberado.',
     no_show_member: 'O membro não compareceu ao agendamento. O depósito é seu.',
     cancelled: 'Agendamento cancelado. Saldo devolvido.',
+    cancelled_by_performer: 'A performer precisou desmarcar a chamada. Seu saldo foi devolvido.',
 }
 
 let seq = 0

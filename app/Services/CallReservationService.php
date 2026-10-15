@@ -182,6 +182,30 @@ class CallReservationService
         CallReservationResolved::dispatch($memberId, $reservation->id, 'refunded_not_confirmed');
     }
 
+    /**
+     * A performer DESMARCA uma reserva que ELA JÁ CONFIRMOU (não é no-show: ela avisa
+     * antes). Refund integral ao membro. Strike SÓ se for em cima da hora — depois do
+     * compromisso (T-2h, ou T-30min no short-lead), o mesmo marco do cancelamento
+     * grátis do membro. Cancelar com antecedência não penaliza (decisão do PO).
+     * Idempotente (settleRefund só age com deposit_settled=false).
+     */
+    public function performerCancel(User $performerUser, CallReservation $reservation): void
+    {
+        $memberId = DB::transaction(function () use ($performerUser, $reservation) {
+            $locked = $this->lockOwnedByPerformer($reservation->id, $performerUser);
+            // Só CONFIRMADA: pending usa decline; terminal/concluída não desmarca.
+            if (! $locked->isConfirmed()) {
+                throw CallReservationException::gone();
+            }
+            $lastMinute = now()->greaterThan($locked->commitmentDeadline());
+            $this->settleRefund($locked, CallReservation::STATUS_CANCELLED, strike: $lastMinute);
+
+            return $locked->member_id;
+        });
+
+        CallReservationResolved::dispatch($memberId, $reservation->id, 'cancelled_by_performer');
+    }
+
     // ── Cancelamento (membro) ─────────────────────────────────────────────────────
 
     /**

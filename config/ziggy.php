@@ -310,6 +310,7 @@ return [
         'performer.reservations.index',
         'performer.reservations.confirm',
         'performer.reservations.decline',
+        'performer.reservations.cancel',
         'performer.reservations.enter',
 
         // Consumer interests (Interesse Controlado)

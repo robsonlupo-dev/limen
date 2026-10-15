@@ -69,6 +69,18 @@ class CallReservationController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /** Performer desmarca uma reserva que ela já confirmou (refund ao membro). */
+    public function cancel(Request $request, CallReservation $reservation): JsonResponse
+    {
+        try {
+            $this->reservations->performerCancel($request->user(), $reservation);
+        } catch (CallReservationException $e) {
+            return $this->fail($e);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     /** Performer entra primeiro (abre a sala) → devolve o JWT dela. */
     public function enter(Request $request, CallReservation $reservation): JsonResponse
     {
