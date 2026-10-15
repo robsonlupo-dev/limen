@@ -122,6 +122,21 @@ it('bloqueia ameaça explícita', function () {
         ->and(F::categoryOf('sei onde você mora'))->toBe(F::CONDUCT);
 });
 
+it('bloqueia a ameaça na ordem SVO ("vou matar você/vc")', function () {
+    // A forma mais natural de falar escapava: a lista só tinha "vou te matar".
+    expect(F::categoryOf('vou matar você'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('vou matar vc'))->toBe(F::CONDUCT)
+        ->and(F::categoryOf('se você contar eu vou matar você'))->toBe(F::CONDUCT);
+});
+
+it('não barra idioma com "matar" sem alvo', function () {
+    // 'vou matar' é DIRECIONADO de propósito — o idioma brasileiro usa "matar"
+    // sem ameaça nenhuma, e barrá-lo solto mataria conversa legítima.
+    expect(F::blocks('vou matar a saudade quando te ver'))->toBeFalse()
+        ->and(F::blocks('to afim de matar o tempo'))->toBeFalse()
+        ->and(F::blocks('matei a aula hoje'))->toBeFalse();
+});
+
 it('bloqueia sextorsão', function () {
     // O vetor de ameaça mais próprio desta plataforma.
     expect(F::categoryOf('vou vazar suas fotos'))->toBe(F::CONDUCT)
