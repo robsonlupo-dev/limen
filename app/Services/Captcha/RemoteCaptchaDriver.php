@@ -87,6 +87,20 @@ abstract class RemoteCaptchaDriver implements CaptchaDriver
             return true;
         }
 
-        return $response->json('success') === true;
+        if ($response->json('success') === true) {
+            return true;
+        }
+
+        // Token RECUSADO (siteverify 200 com success:false). Loga SÓ os error-codes
+        // do provedor (ex.: hostname-mismatch, timeout-or-duplicate,
+        // invalid-input-response), que dizem o PORQUÊ da recusa — NUNCA o token (é
+        // credencial de uso único) nem o segredo. Sem isto, uma recusa era uma
+        // caixa-preta: o login barrava e nada aparecia no log.
+        Log::warning('captcha verify rejected', [
+            'provider' => $this->provider(),
+            'error_codes' => $response->json('error-codes', []),
+        ]);
+
+        return false;
     }
 }
