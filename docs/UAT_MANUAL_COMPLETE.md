@@ -29,6 +29,55 @@ tire print e anote a URL. Continue por outro caminho.
 
 ---
 
+## TRIAGEM DE COBERTURA AUTOMATIZADA — 2026-10-15
+
+Cruzamento do roteiro manual contra a suíte Pest (~2807 testes, verde no CI). O que
+está **✅ COBERTO por teste automatizado** pode ser dado como passado sem clique; o que
+sobra é a **lista de clique manual** no fim desta seção (UI, tempo real, visual, captcha
+real, vídeo). Isto NÃO apaga as tabelas abaixo — elas ficam como referência histórica.
+
+**Fases 9–12 (Live/Chamada/Agendamento):** ✅ cobertas — `CallServiceTest`,
+`PrivateCallTest`, `ScheduledCallTest`, `ScheduledCallPickerTest`, `InCallGiftTipTest`,
+`CallReactionDispatchTest`, `CallChatTest`. (Inclui o picker reservável e o
+"performer desmarca confirmada", 14/10.) Live/chamada AO VIVO dependem de LiveKit atrás
+de flag (`FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED`) e sobem desligados.
+
+| Fase | Feature | Cobertura | Abertos (clique manual) |
+|---|---|---|---|
+| 13 | Visitas bidirecionais | ✅ COBERTA (`BidirectionalVisitTest`) | — |
+| 14 | Intro de voz | ✅ COBERTA (`VoiceIntroTest`) | #145 🟡 (ícone no card) |
+| 15 | Filtro de cidade | 🟡 PARCIAL (`CityFilterTest`, `PerformerLocationTest`) | **#155 🔴** + #150/#151 🟡 (widget IBGE) |
+| 16 | Captcha + badges | 🟡 PARCIAL (`CaptchaTest`, `ActivityBadgesTest`) | **#158.1 🔴 (login Turnstile real)** + #161 🟡 |
+| 17 | Landing pré-lançamento | 🟡 PARCIAL (`LandingCinematicTest`, `WaitlistTest`) | **#164 🔴, #168 🔴** (testar de casa) + #163/#170 🟡 |
+| 18 | Moderação / T&S | ✅ COBERTA (`Moderation/*`) | — |
+| 19 | Chat tempo real/voz/desfazer | 🟡 PARCIAL (`ChatVoiceMessageTest`, `ChatUnsendMessageTest`) | **#199 🔴 (Reverb 2 navegadores)** + #200/#201 🟡 |
+| 20 | Mensagens de catálogo | 🟡 PARCIAL (`CatalogMessageTemplatesTest`) | **#208 🔴** + #210 🟡 |
+| 21 | Anel avatar + story/foto | 🔴 MANUAL (só UI, sem teste) | **#216 🔴** + #214/#215/#217/#218 🟡 |
+| 22 | Responder story → chat | ✅ COBERTA (`StoryReplyToChatTest`) | #219/#221 🟡 (só rótulo) |
+| 23 | Destaques | ✅ COBERTA (`StoryHighlightTest`) | — |
+| 24 | Stories VIP por tier | ✅ COBERTA (`StoryEndpointsTest`, `StoryCatalogTest`) | — |
+| 25 | Reações a stories | ✅ COBERTA (`StoryReactionsTest`) | — |
+| 26 | Enquete no story | ✅ COBERTA (`StoryPollsTest`) | — |
+| 27 | Canal de transmissão | ✅ COBERTA (`BroadcastChannelTest`) | — |
+| 28 | Modo efêmero (timer) | ✅ COBERTA (`EphemeralChatTest`) | — |
+| 29 | Fixar conteúdo | ✅ COBERTA (`PinContentTest`) | — |
+| 30 | Salvos do membro | ✅ COBERTA (`ContentSaveTest`) | — |
+| 31 | Fã-clube | ✅ COBERTA (`FanclubTest`, `FanclubPerformerTest`, `FanclubMemberTest`) | — |
+| 32 | Onda 4 (PPV/meta/encomenda/watermark) | ✅ COBERTA / 🟡 vídeo (`PpvMessageTest`, `TipGoalTest`, `CustomOrderTest`, `WatermarkTest`) | #292 🟡 (watermark de VÍDEO) |
+
+### Lista de CLIQUE MANUAL (ordem de prioridade)
+
+1. **Fase 16 · #158.1 🔴** — login de conta válida (`pobre@`) contra o **Turnstile real** (o teste usa provedor dublê; blocker conhecido).
+2. **Fase 19 · #199 🔴** — chat em **tempo real (Reverb)**: 2 navegadores, mensagem chega na hora. + sumiço ao vivo do desfazer (#204) e do efêmero (#257).
+3. **Fase 21 · #216 🔴** (+214/215/217/218 🟡) — anel do avatar, menu "Ver story/foto", viewer em tela cheia com barra de progresso, lightbox sem contar view. Fase 100% UI.
+4. **Fase 17 · #164 🔴, #168 🔴** — landing: imagens carregam (não fundo preto) + aviso de spam pós-envio. **Testar de casa/4G** (Zscaler bloqueia).
+5. **Fase 15 · #155 🔴** — catálogo de MEMBROS sem filtro de cidade (privacidade do membro).
+6. **Fase 20 · #208 🔴** — alcance ao catálogo só com picker de modelos (sem texto livre).
+7. **Fase 32 · #292 🟡** — marca d'água em **vídeo**: `php artisan custom-orders:watermark-selftest` + entrega real de foto E vídeo antes de ligar `custom_order.watermark.enabled` (nasce OFF).
+8. **Visuais soltos 🟡** — #145 (ícone "tem áudio"), #161 (hover/pop microinterações), #219/#221 (rótulos "responder story").
+
+---
+
 ## FASE 1 — JORNADA DA PERFORMER (Browser B)
 
 ### 1.1 — Onboarding da Performer (usar conta ana@uat.limen.test)
@@ -460,6 +509,8 @@ Preencha DEPOIS de todos os testes:
 
 ## FASE 15 — FILTRO DE CIDADE CONSENTIDO
 
+> 🟡 **Triagem 2026-10-15:** lógica ✅ coberta (`CityFilterTest`, `PerformerLocationTest`). **Aberto manual:** #155 🔴 (catálogo de MEMBROS sem filtro de cidade) + #150/#151 🟡 (widget IBGE).
+
 > A cidade da performer é PRIVADA por padrão (só UF é pública). A performer pode
 > optar por ser "encontrável por cidade" (default OFF).
 
@@ -475,6 +526,8 @@ Preencha DEPOIS de todos os testes:
 ---
 
 ## FASE 16 — CAPTCHA (Cloudflare Turnstile) + BADGES + MICROINTERAÇÕES
+
+> 🟡 **Triagem 2026-10-15:** ✅ coberto (`CaptchaTest`, `ActivityBadgesTest`, `MicroInteractionsTest`) — o teste usa provedor dublê. **Aberto manual:** #158.1 🔴 (login de conta válida contra o Turnstile REAL — blocker conhecido) + #161 🟡 (hover/pop).
 
 ### 16.1 — Turnstile
 
@@ -497,6 +550,8 @@ Preencha DEPOIS de todos os testes:
 ---
 
 ## FASE 17 — LANDING DE PRÉ-LANÇAMENTO (thelimen.com.br)
+
+> 🟡 **Triagem 2026-10-15:** ✅ coberto (`LandingCinematicTest`, `WaitlistTest`, `LandingCinematicAssetsTest`) — mas o render é visual. **Aberto manual:** #164 🔴 (imagens carregam, não fundo preto) + #168 🔴 (aviso de spam pós-envio). **Testar de casa/4G** — Zscaler bloqueia. (+ #163/#170 🟡.)
 
 > A raiz do thelimen.com.br é a landing cinematográfica de pré-lançamento.
 > Teste de casa/4G (a empresa bloqueia via Zscaler).
@@ -597,6 +652,8 @@ Preencha DEPOIS de todos os testes:
 
 ## FASE 19 — CHAT 1:1: TEMPO REAL, VOZ, ENVIO OTIMISTA, DESFAZER ENVIO
 
+> 🟡 **Triagem 2026-10-15:** voz/desfazer/retenção ✅ cobertos (`ChatVoiceMessageTest`, `ChatUnsendMessageTest`, `ChatAudioRetentionTest`). **Aberto manual:** #199 🔴 (tempo real Reverb, 2 navegadores) + o sumiço AO VIVO do desfazer (#204)/efêmero (#257). (+ #200/#201 🟡 visuais.)
+
 > Chat 1:1 pago (a janela já aberta entre free@ e ana@). PRs #267 (envio
 > otimista), #268 (voz), #270 (balão sutil), #271 (desfazer envio).
 
@@ -616,6 +673,8 @@ Preencha DEPOIS de todos os testes:
 
 ## FASE 20 — MENSAGENS DE CATÁLOGO PRÉ-CADASTRADAS (anti-fuga)
 
+> 🟡 **Triagem 2026-10-15:** modelos/{nome}/gate-admin ✅ cobertos (`CatalogMessageTemplatesTest`). **Aberto manual:** #208 🔴 (superfície de alcance só com picker, sem texto livre) + #210 🟡 (franquia 15/dia).
+
 > As 15 mensagens grátis diárias da performer (alcance ao catálogo de membros)
 > deixaram de ser **texto livre** e viraram **escolha de modelo**. No chat **JÁ
 > PAGO** o texto segue livre (contato liberado lá). Editáveis pelo admin. PR #274.
@@ -632,6 +691,8 @@ Preencha DEPOIS de todos os testes:
 ---
 
 ## FASE 21 — PERFIL: ANEL DO AVATAR + STORY/FOTO (lightbox)
+
+> 🔴 **Triagem 2026-10-15:** fase **100% UI — SEM teste automatizado** (o backend "stories vivos no perfil com cadeado" está em `StoryCatalogTest`). **Tudo manual:** #216 🔴 (viewer tela cheia + barra de progresso) + #214/#215/#217/#218 🟡.
 
 > Tocar no avatar da performer no perfil abre um menu "Ver story / Ver foto de
 > perfil". PR #276.
@@ -839,6 +900,8 @@ Preencha DEPOIS de todos os testes:
 | 287 | Idempotência | Assine, e tente **assinar de novo** sem desvincular | Não cobra 2×; continua uma assinatura | 🔴 | | |
 
 ## FASE 32 — DEMAIS ONDA 4 (follow-ups de monetização, PRs #296/#298/#299)
+
+> ✅/🟡 **Triagem 2026-10-15:** PPV, meta de gorjeta, encomenda/escrow ✅ cobertos (`PpvMessageTest`, `TipGoalTest`, `CustomOrderTest`) e watermark de **foto** (`WatermarkTest`). **Aberto manual:** #292 🟡 — watermark de **VÍDEO** fora da suíte: rode `php artisan custom-orders:watermark-selftest` + entrega real de foto E vídeo antes de ligar `custom_order.watermark.enabled` (nasce OFF).
 
 > Features da Onda 4 que subiram ANTES do fã-clube e ainda não tinham roteiro de UAT.
 > Teste rápido de cada uma. **Dinheiro = 🔴.**
