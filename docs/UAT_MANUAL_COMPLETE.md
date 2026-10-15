@@ -36,21 +36,32 @@ está **✅ COBERTO por teste automatizado** pode ser dado como passado sem cliq
 sobra é a **lista de clique manual** no fim desta seção (UI, tempo real, visual, captcha
 real, vídeo). Isto NÃO apaga as tabelas abaixo — elas ficam como referência histórica.
 
-**Fases 9–12 (Live/Chamada/Agendamento):** ✅ cobertas — `CallServiceTest`,
-`PrivateCallTest`, `ScheduledCallTest`, `ScheduledCallPickerTest`, `InCallGiftTipTest`,
-`CallReactionDispatchTest`, `CallChatTest`. (Inclui o picker reservável e o
-"performer desmarca confirmada", 14/10.) Live/chamada AO VIVO dependem de LiveKit atrás
-de flag (`FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED`) e sobem desligados.
+**Fases 1–12 (jornadas, economia, payout, moderação, live/chamada/agendamento):**
+
+| Fase | Feature | Cobertura | Abertos (clique manual) |
+|---|---|---|---|
+| 1 | Onboarding performer | 🟡 PARCIAL (`PerformerProfileEditTest`, `PermanentContentTest` (piso de preço), `UatPhase1*Test`) | #3/#4/#5/#6 🟡 (publicar foto/slug→404) + #12 🟡 (texto "R$0,60 no saque") |
+| 2 | Membro free (chat/conteúdo/gorjeta/presente) | ✅ COBERTA (`ChatEconomyV2Test`, `PermanentContentTest`, `PremiumAlaCarteTest`, `TipPhase6Test`, `VirtualGiftTest`) | 🟡 visuais #26 blur, #31.1 portrait, #33.1 extrato · ⚠️ #29 DESATUALIZADO (Premium virou compra avulsa — free COMPRA) |
+| 3 | Cenários negativos | ✅ COBERTA (gate/tier/saldo insuficiente) | #58 🔴 (performer→rota de membro — SEM teste dedicado) |
+| 4 | Privacidade/segurança | ✅ COBERTA (`FanAliasTest`, `PrivacyPerksTest`, `ReportSystemTest`) | #63 🟡 (redirect real do Botão de Pânico) |
+| 5 | Economia/ledger | ✅ COBERTA (`FractionalTokenLedgerTest`, `ReconcileWalletsTest`, `TokenEconomyInvariantsTest`) | — |
+| 6 | Payout | ✅ COBERTA (`PayoutTest`, `MonthlyPayoutTest`) | — |
+| 7 | Admin/moderação | ✅ COBERTA (`Admin/UserBanTest`, `KycPhase5Test`, `Moderation/*`) | — |
+| 8 | Hard delete/LGPD | ✅ COBERTA (`AccountDeletionTest`) | — |
+| 9 | Live e chamada (flag) | 🟡 PARCIAL (`PrivateCallTest`, `PublicLiveTest`, `CallChatTest`) | #92/#95 🔴 vídeo real LiveKit (economia coberta; mídia não) |
+| 10 | Edge cases | ✅ COBERTA | #101 🟡 (URL direta de conteúdo por guest anônimo) |
+| 11 | Catálogo membros + coração/mensagem | ✅ COBERTA (`MemberCatalogTest`, `MemberEngagementTest`, `MessagePreviewTeaserTest`) | — |
+| 12 | Agendamento (flag) | ✅ COBERTA (`ScheduledCallTest`, `ScheduledCallPickerTest`) | #128/#131 🔴 sala LiveKit real (lógica/economia coberta) |
 
 | Fase | Feature | Cobertura | Abertos (clique manual) |
 |---|---|---|---|
 | 13 | Visitas bidirecionais | ✅ COBERTA (`BidirectionalVisitTest`) | — |
 | 14 | Intro de voz | ✅ COBERTA (`VoiceIntroTest`) | #145 🟡 (ícone no card) |
 | 15 | Filtro de cidade | 🟡 PARCIAL (`CityFilterTest`, `PerformerLocationTest`) | **#155 🔴** + #150/#151 🟡 (widget IBGE) |
-| 16 | Captcha + badges | 🟡 PARCIAL (`CaptchaTest`, `ActivityBadgesTest`) | **#158.1 🔴 (login Turnstile real)** + #161 🟡 |
+| 16 | Captcha + badges | 🟡 PARCIAL (`CaptchaTest`, `ActivityBadgesTest`) | ~~#158.1~~ ✅ **RESOLVIDO 15/10** (login válido entra pelo Turnstile real) + #161 🟡 |
 | 17 | Landing pré-lançamento | 🟡 PARCIAL (`LandingCinematicTest`, `WaitlistTest`) | **#164 🔴, #168 🔴** (testar de casa) + #163/#170 🟡 |
 | 18 | Moderação / T&S | ✅ COBERTA (`Moderation/*`) | — |
-| 19 | Chat tempo real/voz/desfazer | 🟡 PARCIAL (`ChatVoiceMessageTest`, `ChatUnsendMessageTest`) | **#199 🔴 (Reverb 2 navegadores)** + #200/#201 🟡 |
+| 19 | Chat tempo real/voz/desfazer | 🟡 PARCIAL (`ChatVoiceMessageTest`, `ChatUnsendMessageTest`) | ~~#199~~ ✅ **RESOLVIDO 15/10** (Reverb sincroniza 2 navegadores; desfazer #204 e áudio ao vivo ok) + #200/#201 🟡 |
 | 20 | Mensagens de catálogo | 🟡 PARCIAL (`CatalogMessageTemplatesTest`) | **#208 🔴** + #210 🟡 |
 | 21 | Anel avatar + story/foto | 🔴 MANUAL (só UI, sem teste) | **#216 🔴** + #214/#215/#217/#218 🟡 |
 | 22 | Responder story → chat | ✅ COBERTA (`StoryReplyToChatTest`) | #219/#221 🟡 (só rótulo) |
@@ -67,14 +78,22 @@ de flag (`FEATURE_LIVE_ENABLED`/`FEATURE_CALL_ENABLED`) e sobem desligados.
 
 ### Lista de CLIQUE MANUAL (ordem de prioridade)
 
-1. **Fase 16 · #158.1 🔴** — login de conta válida (`pobre@`) contra o **Turnstile real** (o teste usa provedor dublê; blocker conhecido).
-2. **Fase 19 · #199 🔴** — chat em **tempo real (Reverb)**: 2 navegadores, mensagem chega na hora. + sumiço ao vivo do desfazer (#204) e do efêmero (#257).
-3. **Fase 21 · #216 🔴** (+214/215/217/218 🟡) — anel do avatar, menu "Ver story/foto", viewer em tela cheia com barra de progresso, lightbox sem contar view. Fase 100% UI.
-4. **Fase 17 · #164 🔴, #168 🔴** — landing: imagens carregam (não fundo preto) + aviso de spam pós-envio. **Testar de casa/4G** (Zscaler bloqueia).
-5. **Fase 15 · #155 🔴** — catálogo de MEMBROS sem filtro de cidade (privacidade do membro).
-6. **Fase 20 · #208 🔴** — alcance ao catálogo só com picker de modelos (sem texto livre).
-7. **Fase 32 · #292 🟡** — marca d'água em **vídeo**: `php artisan custom-orders:watermark-selftest` + entrega real de foto E vídeo antes de ligar `custom_order.watermark.enabled` (nasce OFF).
-8. **Visuais soltos 🟡** — #145 (ícone "tem áudio"), #161 (hover/pop microinterações), #219/#221 (rótulos "responder story").
+**Já verificados nesta rodada (15/10):** ✅ #158.1 (login Turnstile) · ✅ #199 (chat tempo real) · ✅ #204 (desfazer ao vivo) · ✅ mensagem de voz nas duas pontas.
+
+Resta (quase tudo é UI / infra real / visual — a lógica está coberta por teste):
+
+1. **Fase 21 · #216 🔴** (+214/215/217/218 🟡) — anel do avatar, menu "Ver story/foto", viewer em tela cheia com barra de progresso, lightbox sem contar view. Fase 100% UI.
+2. **Fase 9 · #92/#95 🔴 + Fase 12 · #128/#131 🔴** — chamada/live/agendamento com **sala LiveKit REAL** (vídeo bidirecional, 1º minuto, contador, encerramento). Economia/estados já cobertos; falta a experiência de sala. Só com a flag ligada em staging.
+3. **Fase 17 · #164 🔴, #168 🔴** — landing: imagens carregam (não fundo preto) + aviso de spam pós-envio. **Testar de casa/4G** (Zscaler bloqueia).
+4. **Fase 15 · #155 🔴** — catálogo de MEMBROS sem filtro de cidade (privacidade do membro).
+5. **Fase 20 · #208 🔴** — alcance ao catálogo só com picker de modelos (sem texto livre).
+6. **Fase 3 · #58 🔴** — performer acessando rota de membro → 403/redirect (SEM teste dedicado).
+7. **Fase 10 · #101 🟡** — URL direta de conteúdo por **guest deslogado** → 401/redirect (bytes já protegidos por teste; falta o caso anônimo).
+8. **Fase 1 · #12 🟡** — conferir o TEXTO "Cada token vale R$0,60 no saque" na tela da performer (o valor já é coberto no backend).
+9. **Fase 32 · #292 🟡** — marca d'água em **vídeo**: `php artisan custom-orders:watermark-selftest` + entrega real de foto E vídeo antes de ligar `custom_order.watermark.enabled` (nasce OFF).
+10. **Visuais soltos 🟡** — #26 blur, #31.1 portrait, #33.1 extrato, #63 redirect do Pânico, #145 ícone "tem áudio", #161 microinterações, #219/#221 rótulos story.
+
+**Ajuste de roteiro (não é bug):** Fase 2 **#29** pede "Premium bloqueado para free", mas Premium virou **compra avulsa** (21/08/2026) — o free COMPRA Premium. Atualizar o passo, não o código.
 
 ---
 
