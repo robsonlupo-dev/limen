@@ -5,7 +5,8 @@ Este arquivo é o cérebro do projeto. O Claude Code deve segui-lo em toda sess�
 
 ## Stack (resumo — detalhe em `docs/ARQUITETURA.md`)
 
-PHP 8.4.24 + Laravel 13 · MySQL 8.4 (Docker) · Redis (cache/filas) · front **Inertia
+PHP 8.4.24 + Laravel 13 · MySQL 8.4 (serviço **nativo/systemd** `mysql`, NÃO Docker —
+corrigido 15/10/2026) · Redis (cache/filas) · front **Inertia
 + Vue 3 + Tailwind v4** (+ Ziggy) · pagamento **Asaas/PIX** · realtime **Laravel
 Reverb** (chat em tempo real **LIGADO em produção** desde 25/09/2026 — processo
 `limen-reverb` no supervisor, driver `reverb`, WSS via nginx `/app`; ver
@@ -588,6 +589,12 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   `/etc/fstab`, `vm.swappiness=10` em `/etc/sysctl.d/99-swappiness.conf`). Implicação:
   cargas pesadas de mídia (ex.: transcrição de voz com whisper) **não cabem aqui** —
   ver a análise em `docs/PENDENCIAS_JURIDICAS.md` (transcrição) e o §7 (retenção de áudio).
+- **Atualização de infra (15/10/2026):** a máquina agora tem **7,6 GB de RAM** (não
+  mais 3,7 GB — foi upgradada) + os mesmos 4 GB de swap. **MySQL roda como serviço
+  NATIVO (`systemctl … mysql`), não em Docker.** Reboot validado nesta data (kernel
+  `6.8.0-147-generic`); no boot sobem sozinhos: nginx, php8.4-fpm, redis-server, mysql e
+  o supervisor (`limen-reverb` + `limen-worker:*`). Verificação pós-reboot e runbook de
+  reinício ficam na memória operacional desta janela.
 - **Token do GitHub do servidor (`Hetzner deploy`, clássico) tem escopo `workflow`**
   desde 25/09 — push que toca `.github/workflows/*` funciona (antes era barrado).
 
