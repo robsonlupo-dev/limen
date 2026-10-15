@@ -80,6 +80,12 @@ it('o modal escolhe DIA e HORA em campos separados com um OK', function () {
     // Guarda de janela no cliente (não deixa só o 422 cru falar).
     expect($src)->toContain('tooSoon');
     expect($src)->toContain('tooFar');
+    // Folga sobre o corte do servidor (now+min_lead ao segundo): o horário oferecido
+    // precisa ser reservável de verdade, senão volta 422 "fora da janela" por corrida
+    // de relógio. E revalida contra o relógio ATUAL no envio (cobre demora no modal).
+    expect($src)->toContain('SAFETY_MS');
+    expect($src)->toContain('earliestBookable');
+    expect($src)->toContain('const liveEarliest = earliestBookable()');
     // Mostra o intervalo permitido e a prévia do que foi escolhido.
     expect($src)->toContain('earliestLabel');
     expect($src)->toContain('chosenLabel');

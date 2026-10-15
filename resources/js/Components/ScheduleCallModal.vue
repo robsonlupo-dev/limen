@@ -100,13 +100,24 @@ const chosenLabel = computed(() => {
 const tooSoon = computed(() => chosenStr.value && chosenStr.value < earliestStr.value)
 const tooFar = computed(() => chosenStr.value && chosenStr.value > latestStr.value)
 
-// Arredonda "HH:mm" para o próximo múltiplo de 5 min (default amigável).
-function roundUp5(time) {
-    let [h, m] = time.split(':').map(Number)
-    const r = m % 5
-    if (r !== 0) m += 5 - r
-    if (m >= 60) { m -= 60; h = (h + 1) % 24 }
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+// Folga sobre o corte do servidor. O servidor recusa com 422 se o horário for <
+// now()+min_lead AO SEGUNDO; o picker trabalha em minutos. Sem folga, o horário
+// exato (now+45) é recusado porque o relógio do servidor avança entre abrir o modal,
+// clicar e a requisição chegar. A folga cobre latência + um tempo de uso do modal.
+const SAFETY_MS = 90 * 1000
+
+// Arredonda um instante (ms) para CIMA até o próximo múltiplo de 5 min. Como o fuso
+// de exibição tem offset de horas inteiras, o múltiplo de 5 min no epoch cai num
+// :X0/:X5 de parede — então o horário mostrado fica "redondo".
+function ceilTo5MinMs(ms) {
+    const step = 5 * 60 * 1000
+    return Math.ceil(ms / step) * step
+}
+
+// O mais cedo RESERVÁVEL agora (com folga), como {date, time} no fuso de exibição.
+function earliestBookable() {
+    const ms = ceilTo5MinMs(Date.now() + minLead.value * 60 * 1000 + SAFETY_MS)
+    return wallClock(ms)
 }
 
 function open() {
@@ -115,16 +126,13 @@ function open() {
 
     const now = Date.now()
     todayDate.value = wallClock(now).date
-    earliest.value = wallClock(now + minLead.value * 60 * 1000)
+    // Abre já no mais cedo RESERVÁVEL (com folga sobre os 45 min) — assim o horário
+    // oferecido nunca volta como "fora da janela" por corrida de relógio.
+    earliest.value = earliestBookable()
     latest.value = wallClock(now + maxLeadDays.value * 24 * 60 * 60 * 1000)
 
-    // Abre já num horário VÁLIDO: o mais cedo possível, hora arredondada p/ 5 min.
-    // Se o arredondamento cruzar a meia-noite (ex.: earliest 23:58 → 00:00), o
-    // arredondado ficaria ANTES do earliest no mesmo dia; aí usa o earliest exato
-    // para não abrir com o OK desabilitado.
     dateVal.value = earliest.value.date
-    const rounded = roundUp5(earliest.value.time)
-    timeVal.value = rounded >= earliest.value.time ? rounded : earliest.value.time
+    timeVal.value = earliest.value.time
 
     showModal.value = true
 }
@@ -138,7 +146,12 @@ async function submit() {
         error.value = 'Escolha o dia e a hora.'
         return
     }
-    if (tooSoon.value) {
+    // Revalida contra o relógio AGORA (não o de quando o modal abriu): se a pessoa
+    // demorou no modal, o mais cedo reservável pode ter avançado. Atualiza o limite
+    // e a dica para o horário atual, evitando o 422 "fora da janela" do servidor.
+    const liveEarliest = earliestBookable()
+    earliest.value = liveEarliest
+    if (chosenStr.value < `${liveEarliest.date}T${liveEarliest.time}`) {
         error.value = `O horário mais próximo que você pode agendar é ${earliestLabel.value}.`
         return
     }
