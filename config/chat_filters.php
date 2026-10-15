@@ -150,6 +150,13 @@ return [
         'threats' => [
             'te mato',
             'vou te matar',
+            // Mesma ameaça na ordem SVO ("vou matar você/vc"), a forma mais
+            // natural de falar — escapava porque a lista é de frases fechadas e
+            // só tinha "vou te matar". DIRECIONADAS de propósito: 'vou matar'
+            // solto pegaria idioma legítimo ("vou matar a saudade / o tempo / a
+            // aula"); com o alvo ('voce'/'vc') colado não há colisão.
+            'vou matar voce',
+            'vou matar vc',
             'vou te bater',
             'vou te machucar',
             'vou acabar com voce',
