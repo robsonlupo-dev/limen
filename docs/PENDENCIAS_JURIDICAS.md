@@ -316,3 +316,88 @@ construir:
 Engenharia: viável, porém é uma **feature à parte** (pipeline de STT no `ProcessChatAudio`,
 dependência do whisper.cpp + modelo, custo de CPU, nova coluna `transcript`). Não bloqueia o
 GC acima — o GC já resolve o storage hoje. Fica registrado aqui aguardando o parecer.
+
+## 8. Parecer Liguria Advisory (Andreas Monteiro Seiler) — versão de 15/10/2026
+
+Advogado: **Andreas Monteiro Seiler**, OAB/SP 542483, Partner | Monteseiler & Liguria
+Advisory. Versão REVISADA do memorando estratégico e parecer jurídico-preliminar (corrige
+imprecisões das anteriores e acrescenta escala de prioridades). Honorários acompanham a
+tabela da OAB; proposta de acompanhar toda a jornada de implementação, não processo avulso.
+Natureza: **análise preliminar** condicionada à verificação documental (o `LEGAL_GAP_ANALYSIS`
++ contratos de PSP + instrumento restritivo da esposa precisam ser enviados).
+
+**4 frentes, escopo e honorários:**
+- **F1 — Risco penal e pagamentos** · R$ 5.500 · urgência 🔴 **CRÍTICA** (pré-requisito pra
+  validar o modelo antes do go-live). Parecer sobre **Art. 228 CP** (favorecimento — mera
+  facilitação, independe de proveito; ≠ Art. 230) e tipos correlatos + análise dos fluxos
+  financeiros. Argumentos defensáveis: Limen como intermediária tecnológica (não define
+  preço/condições/roteiro/metas), autonomia das performers, conteúdo gravado/live vs
+  presencial, moderação+KYC+denúncias — mas nenhum afasta isoladamente; o parecer definitivo
+  examina a operação concreta. NÃO inclui análise tributária conclusiva.
+- **F2 — Documentos da plataforma** · R$ 7.500 · 🔴 **CRÍTICA** (exigência legal: Marco Civil,
+  LGPD, ECA). ToS Membros, ToS Performers, Política de Privacidade, Política de Conteúdo
+  Proibido. 1 rodada de ajustes incluída; condicionado ao `LEGAL_GAP_ANALYSIS`.
+- **F3 — Estrutura societária, IP e vesting** · R$ 7.500 · 🔴 **CRÍTICA** (CNPJ é pré-requisito
+  técnico pra ativar conta de pagamento em produção — Efí/Woovi). Contrato Social, IP
+  Assignment (precedido de mapeamento de titulares — não há transferência automática de código
+  pré-constituição), Regulamento de Vesting, análise do **instrumento restritivo da esposa** e
+  solução societária. Alerta: em LTDA, serviço NÃO integraliza capital (CC art. 1.055 §2º) —
+  vesting via quotas já integralizadas c/ recompra, call options ou SCP. Nota ética: não
+  estruturar pra ocultar participação de terceiro/empregador.
+- **F4 — Marca (INPI)** · R$ 4.000 · 🟢 **POSTERGÁVEL** (não é pré-requisito de go-live). Busca
+  de anterioridade + depósito em 3 classes. A **busca é urgente** (evitar conflito), mas o
+  **depósito pode esperar 3–6 meses**. Taxas do INPI (GRU) NÃO inclusas.
+
+**Opções de contratação:**
+- **Opção A — pacote completo (recomendada):** F1+F2+F3+F4 = R$ 24.500 − 15% = **R$ 20.825**.
+  50% no aceite / 50% na entrega da F2 e F3.
+- **Opção B — essencial:** F1+F2+F3 = R$ 20.500 − 15% = **R$ 17.425**. F4 depois (R$ 4.000
+  cheio, 100% no aceite, até 6 meses pós go-live). Economia imediata ~R$ 3.400 (16%). Se o
+  caixa apertar: Opção B + **busca de anterioridade avulsa** (R$ 800–1.200, sem depósito) —
+  lança sem risco de conflito de marca, só adia o depósito.
+- Incluído: até 2 reuniões de kick-off por frente, 1 rodada de ajustes nos docs da F2, revisão
+  de até 2 contratos de PSP. Excluído: tributário conclusivo, negociação extensa de PSPs,
+  rodadas extras F2, contador, compliance mensal pós-go-live.
+
+**Pontos que o parecer ainda vai examinar (dependem de doc/decisão do Robson):**
+- Natureza dos tokens: cláusula "créditos não resgatáveis, sem equivalência" é recomendável,
+  mas NÃO afasta sozinha o enquadramento como instituição de pagamento / moeda eletrônica
+  (Lei 12.865/2013) se a operação real configurar isso. Prescrição quinquenal (CC 206 §5º).
+- Efí/MCC: atendimento da Efí = boa-fé, mas não é autorização Bacen, não garante continuidade,
+  e MCC só vale pro trilho de cartão (não PIX).
+- Tributário: recebimento antecipado como passivo (receita diferida) é defensável; depende de
+  Limen ser agente vs principal, retenção na fonte, base de ISS/PIS/COFINS/IRPJ/CSLL (comissão
+  vs volume). Exige contador.
+- **Divisão societária:** 66% + 33% = 99% (falta 1%). Confirmar **66,67/33,33** ou 67/33.
+
+**Próximos passos (responsável = Robson, salvo indicado):** (i) enviar `LEGAL_GAP_ANALYSIS` +
+contratos de PSP + instrumento restritivo da esposa; (ii) confirmar a divisão societária;
+(iii) escolher Opção A ou B; (iv) "DE ACORDO" → (v) Andreas envia minuta de honorários; (vi)
+sinal 50% + kick-off; (vii) início F3 (doc) e F1 (parecer penal); (viii) workflows da F2 pelo
+Gap Analysis; (ix) busca de marca.
+
+> Comparar com as outras propostas (Campos Thomaz, Opice Blum, etc.) no doc "Propostas
+> Jurídicas — Limen". PDF original arquivado por Robson (confidencial, reprodução proibida).
+
+## 9. Detecção de AGENCIAMENTO no chat (proposta, pós-UAT 15/10/2026)
+
+Liga-se ao §1 (filtro do chat) e à frente **F1** do parecer acima (Art. 228 — favorecimento).
+No chat JÁ PAGO o texto é livre e o contato é liberado (decisão de produto), mas convém
+detectar **intermediação/agenciamento de terceiros** (ex.: "tenho outras meninas", "eu marco
+por você", "minha amiga também faz") para **flagar à moderação** — tanto por segurança quanto
+porque reforça o argumento de F1 de que a Limen não facilita prostituição presencial.
+
+Dois níveis (decisão de produto + jurídico antes de construir):
+- **Nível 1 — heurística de CONTEXTO (recomendado começar aqui):** em vez de 1 palavra,
+  pontuar **combinações de sinais acumulados** na conversa (menção a terceiro + preço + local +
+  intermediação + recorrência). Determinístico, roda local e inline, SEM mandar a conversa a
+  terceiros, SEM custo. Evolui o `ChatContentFilter` atual (que já faz fuzzy/anti-evasão) com
+  uma camada de co-ocorrência/acúmulo. Flaga pra moderação (não bloqueia de cara).
+- **Nível 2 — semântico (onda futura):** classificador/LLM lendo a conversa pra pegar
+  intenção/paráfrase sem gatilho óbvio. Possível, mas 3 custos: **privacidade/LGPD** (um modelo
+  EXTERNO lendo chat íntimo = novo SUBPROCESSADOR — mesma gravidade da ressalva do captcha;
+  modelo local evita, mas o servidor 2 vCPU não roda LLM grande inline), **latência/custo**
+  (natural rodar assíncrono e flagar, não bloquear) e **falsos positivos** (exige revisão
+  humana). Toca o jurídico (Art. 228/229) — registrar pro advogado antes de construir.
+
+Status: **não construir agora** (estamos em UAT). Decisão de onda + pergunta ao jurídico.
