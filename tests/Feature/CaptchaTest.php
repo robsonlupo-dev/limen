@@ -9,6 +9,7 @@ use App\Services\Captcha\TurnstileDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -408,6 +409,28 @@ it('distingue provedor fora do ar de token recusado', function () {
 
     expect(app(CaptchaManager::class)->verify('t'))->toBeTrue()
         ->and(app(CaptchaManager::class)->verify('t'))->toBeFalse();
+});
+
+it('loga os error-codes quando o token e recusado (success:false), nunca o token', function () {
+    capEnable('turnstile');
+    Log::spy();
+
+    Http::fake([
+        'challenges.cloudflare.com/*' => Http::response(
+            ['success' => false, 'error-codes' => ['hostname-mismatch']],
+            200,
+        ),
+    ]);
+
+    expect(app(CaptchaManager::class)->verify('token-secreto-de-uso-unico'))->toBeFalse();
+
+    Log::shouldHaveReceived('warning')->withArgs(function ($msg, $ctx) {
+        return $msg === 'captcha verify rejected'
+            && ($ctx['error_codes'] ?? null) === ['hostname-mismatch']
+            && ($ctx['provider'] ?? null) === 'turnstile'
+            // o token (credencial de uso único) NUNCA pode aparecer no log
+            && ! str_contains(json_encode($ctx), 'token-secreto');
+    })->once();
 });
 
 // ─── Onde o captcha NÃO entra ───────────────────────────────────────────────
