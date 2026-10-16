@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\CallReservation;
 use App\Models\CustomOrder;
+use App\Models\MemberPhotoAccess;
+use App\Models\PhotoGrant;
 use App\Models\User;
 
 /**
@@ -33,7 +36,7 @@ class NavBadgeService
     ) {}
 
     /**
-     * @return array{messages: int, hearts: int, channels: int, custom_orders: int}
+     * @return array{messages: int, hearts: int, channels: int, custom_orders: int, access_requests: int, received_photos: int, reservations: int}
      */
     public function for(User $user): array
     {
@@ -53,7 +56,78 @@ class NavBadgeService
             // vê os pedidos novos (requested, precisa aceitar/recusar); o membro vê as
             // entregas (delivered, precisa aprovar/relatar). CONTAGEM, nunca carimbo.
             'custom_orders' => $this->pendingCustomOrders($user),
+            // Pendências do PAINEL da performer (reorg do Painel, UAT Fase 21): o
+            // que pede AÇÃO dela e ficava enterrado no fim da rolagem. A nav soma as
+            // três no badge do "Painel"; "Pessoas" mostra só as solicitações. Cada
+            // contagem reusa a regra que já tem dona (as MESMAS queries do painel e
+            // do PhotoAccessService), só que como count — nunca o conteúdo.
+            'access_requests' => $this->pendingAccessRequests($user),
+            'received_photos' => $this->unseenReceivedPhotos($user),
+            'reservations' => $this->pendingReservations($user),
         ];
+    }
+
+    /**
+     * Pedidos PENDENTES para as fotos PRIVADAS dela — a contagem do que
+     * `PhotoAccessService::pendingRequestsFor()` lista. Só performer.
+     */
+    private function pendingAccessRequests(User $user): int
+    {
+        $profileId = $this->performerProfileId($user);
+
+        return $profileId === null
+            ? 0
+            : PhotoGrant::pending()
+                ->whereHas('photo', fn ($q) => $q
+                    ->where('performer_profile_id', $profileId)
+                    ->where('is_private', true))
+                ->count();
+    }
+
+    /**
+     * Fotos que membros compartilharam com ela, dentro do prazo e que ela AINDA
+     * NÃO abriu (`viewed_at` nulo) — é isso que "precisa dela". Mesma regra de
+     * "ativa" do painel (`expires_at` futuro e a foto ainda existe).
+     */
+    private function unseenReceivedPhotos(User $user): int
+    {
+        $profileId = $this->performerProfileId($user);
+
+        return $profileId === null
+            ? 0
+            : MemberPhotoAccess::query()
+                ->where('performer_profile_id', $profileId)
+                ->where('expires_at', '>', now())
+                ->whereNull('viewed_at')
+                ->whereHas('photo')
+                ->count();
+    }
+
+    /**
+     * Agendamentos aguardando a CONFIRMAÇÃO dela. Só conta com a flag de chamada
+     * ligada (dark launch): com ela desligada a tela de agendamentos nem existe, e
+     * um badge apontando para o nada seria pior que nenhum.
+     */
+    private function pendingReservations(User $user): int
+    {
+        if (! config('features.call_enabled')) {
+            return 0;
+        }
+
+        $profileId = $this->performerProfileId($user);
+
+        return $profileId === null
+            ? 0
+            : CallReservation::query()
+                ->where('performer_profile_id', $profileId)
+                ->where('status', CallReservation::STATUS_PENDING)
+                ->count();
+    }
+
+    /** Id do perfil se o usuário é performer com perfil; null para os demais papéis. */
+    private function performerProfileId(User $user): ?int
+    {
+        return $user->role === 'performer' ? $user->performerProfile?->id : null;
     }
 
     /** Encomendas que aguardam ação do usuário (por papel). 0 para admin/moderador. */

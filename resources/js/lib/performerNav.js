@@ -18,6 +18,11 @@ export const PERFORMER_SECTIONS = [
         label: 'Painel',
         route: 'performer.dashboard',
         match: ['performer.dashboard', 'performer.insights'],
+        // Pendências que pedem AÇÃO dela (reorg do Painel, UAT Fase 21): pedidos de
+        // acesso às fotos + fotos recebidas ainda não vistas + agendamentos a
+        // confirmar. Somadas no topo, como Mensagens faz; cada uma vem de
+        // nav_counts (NavBadgeService). Antes ficavam escondidas no fim da rolagem.
+        badges: ['access_requests', 'received_photos', 'reservations'],
         children: [
             { label: 'Resumo', route: 'performer.dashboard' },
             // Insights (roadmap social, Onda 3 §3.2): visão geral, funil, horários,
@@ -56,6 +61,9 @@ export const PERFORMER_SECTIONS = [
         label: 'Pessoas',
         route: 'performer.followers',
         match: ['performer.followers', 'performer.members'],
+        // Pessoas é a casa de "gente": o pedido de acesso de um fã acende aqui
+        // também (é onde ele será aprovado/recusado na reorg do Painel).
+        badges: ['access_requests'],
         children: [
             { label: 'Seguidores', route: 'performer.followers' },
             { label: 'Membros', route: 'performer.members' },

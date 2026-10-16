@@ -1,12 +1,18 @@
 <?php
 
 use App\Http\Resources\PerformerPublicResource;
+use App\Models\CallReservation;
 use App\Models\ChatAccess;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\PerformerHeart;
+use App\Models\PhotoGrant;
 use App\Models\User;
+use App\Services\MemberPhotoService;
+use App\Services\MemberPhotoStore;
 use App\Support\NewBadge;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -236,4 +242,97 @@ it('minha própria mensagem não conta como não-lida para mim', function () {
     $this->actingAs($performer)
         ->get(route('performer.members'))
         ->assertInertia(fn (Assert $page) => $page->where('nav_counts.messages', 0));
+});
+
+// ─── Pendências do Painel (reorg do Painel, UAT Fase 21) ─────────────────────
+// O badge de "Painel" soma pedidos de acesso + fotos recebidas não vistas +
+// agendamentos a confirmar; "Pessoas" mostra só os pedidos. Cada um é CONTAGEM
+// da mesma regra que o painel já usa — e nunca sai para o membro.
+
+/** JPEG mínimo para a foto efêmera do membro (GD), com nome próprio deste arquivo. */
+function abJpeg(): string
+{
+    $img = imagecreatetruecolor(40, 30);
+    imagefilledrectangle($img, 0, 0, 39, 29, imagecolorallocate($img, 120, 80, 60));
+    ob_start();
+    imagejpeg($img, null, 90);
+    $bytes = ob_get_clean();
+    imagedestroy($img);
+
+    return $bytes;
+}
+
+it('pedido de acesso a foto PRIVADA conta no badge da performer; foto pública e o membro não', function () {
+    $performer = abPerformer();
+    $member = abMember();
+    $profile = $performer->performerProfile;
+
+    $privada = $profile->photos()->create(['path' => $profile->id.'/'.Str::random(12).'.jpg', 'position' => 0]);
+    $privada->is_private = true; // fora do $fillable, como o service faz
+    $privada->save();
+    $publica = $profile->photos()->create(['path' => $profile->id.'/'.Str::random(12).'.jpg', 'position' => 1]);
+
+    foreach ([$privada, $publica] as $photo) {
+        $grant = new PhotoGrant;
+        $grant->performer_photo_id = $photo->id;
+        $grant->user_id = $member->id;
+        $grant->save(); // granted_at nulo = pendente
+    }
+
+    // Só o pedido sobre a foto PRIVADA é um pedido de verdade (mesma regra do
+    // PhotoAccessService::pendingRequestsFor).
+    $this->actingAs($performer)
+        ->get(route('performer.dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->where('nav_counts.access_requests', 1));
+
+    // O membro nunca carrega a contagem da performer.
+    $this->actingAs($member)
+        ->get(route('catalog'))
+        ->assertInertia(fn (Assert $page) => $page->where('nav_counts.access_requests', 0));
+});
+
+it('foto recebida conta só enquanto NÃO vista e dentro do prazo', function () {
+    Storage::fake(MemberPhotoStore::DISK);
+
+    $performer = abPerformer();
+    $member = abMember();
+    $service = app(MemberPhotoService::class);
+
+    $photo = $service->create($member, UploadedFile::fake()->createWithContent('foto.jpg', abJpeg()), 24);
+    $access = $service->grantTo($member, $photo, $performer->performerProfile, 24);
+
+    $this->actingAs($performer)
+        ->get(route('performer.dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->where('nav_counts.received_photos', 1));
+
+    // Abriu: deixa de "precisar dela".
+    $access->markViewed();
+
+    $this->actingAs($performer->fresh())
+        ->get(route('performer.dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->where('nav_counts.received_photos', 0));
+});
+
+it('agendamento pendente conta só com a flag de chamada ligada', function () {
+    $performer = abPerformer();
+    $member = abMember();
+
+    CallReservation::create([
+        'member_id' => $member->id,
+        'performer_profile_id' => $performer->performerProfile->id,
+        'scheduled_at' => now()->addHours(3),
+        'slot_minutes' => 15,
+        'deposit_tokens' => 10,
+        'price_per_min_locked' => 10,
+    ]); // status default = pending
+
+    config(['features.call_enabled' => false]);
+    $this->actingAs($performer)
+        ->get(route('performer.dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->where('nav_counts.reservations', 0));
+
+    config(['features.call_enabled' => true]);
+    $this->actingAs($performer->fresh())
+        ->get(route('performer.dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->where('nav_counts.reservations', 1));
 });
