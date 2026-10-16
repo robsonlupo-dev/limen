@@ -648,6 +648,7 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   só o go-live depende disso, testes/dev seguem em paralelo).
 - **Histórico de sprints (auditoria):** `docs/HISTORICO_SPRINTS.md`.
 - **Arquitetura detalhada e features/serviços:** `docs/ARQUITETURA.md`.
+- **Roadmap Fatal Model (estratégia CEO/CTO, ondas A/B/C):** `docs/ROADMAP_FATAL_MODEL.md`.
 - **Handoff mestre:** `docs/MASTER_HANDOFF_FINAL.md` (ler antes de pegar tarefa nova).
 - **Segurança/achados:** `docs/SECURITY_ISSUES.md`.
 - **Runbooks operacionais:** `docs/runbooks/` — Reverb (`REVERB_ATIVACAO.md`) e
