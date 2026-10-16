@@ -36,6 +36,9 @@ const props = defineProps({
     // Campos do perfil para a barra de completude (Sprint 10). A % é derivada no
     // componente; ele vira selo discreto ao chegar a 100%.
     profileProgress: { type: Object, required: true },
+    // Checklist de crescimento (roadmap Fatal Model, Onda A): {items, done, total}.
+    // Só-leitura, derivado no servidor; gamifica os sinais do ranking.
+    growthChecklist: { type: Object, default: () => ({ items: [], done: 0, total: 0 }) },
     // A performer PENDENTE alcança o painel, mas publicar exige performer-active.
     // A tela não é o guard — só evita oferecer um botão que responderia 403.
     canPublishStories: { type: Boolean, default: false },
@@ -250,6 +253,40 @@ async function toggleVisibility() {
 
             <!-- Completude do perfil (Sprint 10): vira selo discreto a 100%. -->
             <ProfileProgress :profile="profileProgress" />
+
+            <!-- Checklist de crescimento (roadmap Fatal Model, Onda A): gamifica os
+                 sinais que o ranking usa. Some quando tudo está feito. -->
+            <section
+                v-if="growthChecklist.total && growthChecklist.done < growthChecklist.total"
+                aria-labelledby="crescimento"
+                class="rounded-xl border border-frame bg-surface p-5 space-y-4"
+            >
+                <div class="flex items-baseline justify-between gap-3">
+                    <h2 id="crescimento" class="font-serif text-xl text-cream">Faça seu perfil crescer</h2>
+                    <span class="text-xs text-muted tabular-nums shrink-0">{{ growthChecklist.done }}/{{ growthChecklist.total }}</span>
+                </div>
+                <ul class="space-y-2.5">
+                    <li
+                        v-for="item in growthChecklist.items"
+                        :key="item.key"
+                        class="flex items-start gap-3"
+                    >
+                        <span
+                            class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border"
+                            :class="item.done ? 'border-gold bg-gold/15 text-gold' : 'border-frame text-muted'"
+                            aria-hidden="true"
+                        >
+                            <svg v-if="item.done" class="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 10.5l3 3 7-7.5" />
+                            </svg>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-sm" :class="item.done ? 'text-muted line-through' : 'text-cream'">{{ item.label }}</p>
+                            <p v-if="!item.done" class="text-xs text-muted">{{ item.hint }}</p>
+                        </div>
+                    </li>
+                </ul>
+            </section>
 
             <!-- Indicadores -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
