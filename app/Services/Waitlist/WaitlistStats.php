@@ -2,6 +2,7 @@
 
 namespace App\Services\Waitlist;
 
+use App\Models\WaitlistEmailLog;
 use App\Models\WaitlistEntry;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -56,12 +57,25 @@ class WaitlistStats
     {
         $total = WaitlistEntry::count();
         $confirmed = WaitlistEntry::whereNotNull('confirmed_at')->count();
+        $unconfirmed = $total - $confirmed;
+        // Pendentes elegíveis ao lembrete de 24h (não confirmados, criados há
+        // mais de 24h e há menos de 7 dias) e quantos já receberam o lembrete —
+        // só contagem agregada, nunca a lista de e-mails.
+        $reminderCfg = config('waitlist.confirm_reminder', []);
+        $pendingOver24h = WaitlistEntry::whereNull('confirmed_at')
+            ->where('created_at', '<=', Carbon::now()->subHours((int) ($reminderCfg['after_hours'] ?? 24)))
+            ->where('created_at', '>=', Carbon::now()->subDays((int) ($reminderCfg['max_age_days'] ?? 7)))
+            ->count();
+        $reminded = WaitlistEmailLog::where('email_key', $reminderCfg['key'] ?? 'confirm_reminder')->count();
         $confirmedReferrals = WaitlistEntry::whereNotNull('referred_by')
             ->whereNotNull('confirmed_at')->count();
 
         return [
             'total' => $total,
             'confirmed' => $confirmed,
+            'unconfirmed' => $unconfirmed,
+            'pending_over_24h' => $pendingOver24h,
+            'reminders_sent' => $reminded,
             'by_role' => [
                 'member' => WaitlistEntry::where('role', 'member')->count(),
                 'performer' => WaitlistEntry::where('role', 'performer')->count(),

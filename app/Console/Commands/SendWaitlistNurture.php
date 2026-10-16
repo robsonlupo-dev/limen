@@ -9,12 +9,13 @@ class SendWaitlistNurture extends Command
 {
     protected $signature = 'waitlist:send-nurture';
 
-    protected $description = 'Dispatch any due Founding Members nurturing emails to confirmed waitlist entries (idempotent)';
+    protected $description = 'Dispatch due Founding Members nurturing emails (confirmed) and 24h confirmation reminders (unconfirmed) — idempotent';
 
     public function handle(WaitlistNurtureService $service): int
     {
-        $sent = $service->dispatchDue();
-        $this->info("Waitlist nurturing: {$sent} email(s) queued.");
+        $nurtured = $service->dispatchDue();
+        $reminded = $service->dispatchConfirmationReminders();
+        $this->info("Waitlist: {$nurtured} nurturing + {$reminded} confirmation reminder(s) queued.");
 
         return self::SUCCESS;
     }

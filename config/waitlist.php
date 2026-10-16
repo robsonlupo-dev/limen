@@ -131,6 +131,27 @@ return [
     // null = no cap.
     'nurture_max_per_run' => env('WAITLIST_NURTURE_MAX_PER_RUN', 200),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Lembrete de confirmação (double opt-in)
+    |--------------------------------------------------------------------------
+    |
+    | O drip acima só alcança quem JÁ confirmou. Quem se inscreveu e não clicou
+    | no link de confirmação fica fora de tudo — e é justamente o lead que o
+    | e-mail caiu no spam. Este passo manda UM lembrete para entradas NÃO
+    | confirmadas: criadas há mais de `after_hours` e há menos de `max_age_days`
+    | (não adianta cutucar quem se inscreveu há meses). Idempotente pela chave
+    | `confirm_reminder` no waitlist_email_log — exatamente um por entrada.
+    | Unsubscribe apaga a entrada e o log, tirando-a da seleção.
+    |
+    */
+    'confirm_reminder' => [
+        'enabled' => env('WAITLIST_CONFIRM_REMINDER_ENABLED', true),
+        'after_hours' => (int) env('WAITLIST_CONFIRM_REMINDER_AFTER_HOURS', 24),
+        'max_age_days' => (int) env('WAITLIST_CONFIRM_REMINDER_MAX_AGE_DAYS', 7),
+        'key' => 'confirm_reminder',
+    ],
+
     'nurture' => [
         ['key' => 'nurture_1', 'after_days' => 1,  'enabled' => true],
         ['key' => 'nurture_2', 'after_days' => 3,  'enabled' => true],

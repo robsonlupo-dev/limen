@@ -744,6 +744,9 @@ onBeforeUnmount(() => {
                                     Fique de olho no seu e-mail — e <strong>confira a caixa de spam</strong>. Marque nossa
                                     mensagem como <span class="lc-gold">“não é spam”</span> para não perder o aviso de lançamento.
                                 </p>
+                                <p class="fund-done-p" style="margin-top:0.75rem; font-size:0.9rem;">
+                                    Não recebeu? <a :href="route('waitlist.resend.show')" class="lc-gold" style="text-decoration:underline;">Reenviar o e-mail de confirmação</a>.
+                                </p>
                             </div>
                         </template>
 

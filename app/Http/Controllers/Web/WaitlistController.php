@@ -72,6 +72,45 @@ class WaitlistController extends Controller
     }
 
     /**
+     * Formulário público "reenviar e-mail de confirmação", para quem se
+     * inscreveu e não recebeu (caiu no spam, apagou sem querer). Página standalone
+     * em blade (sem Inertia), no mesmo padrão do unsubscribe. GET é inócuo.
+     */
+    public function resendForm(): View
+    {
+        return view('waitlist.resend');
+    }
+
+    /**
+     * Reenvia o e-mail de confirmação para uma inscrição NÃO confirmada. Resposta
+     * SEMPRE neutra — nunca revela se o e-mail está ou não na lista (anti-oráculo
+     * de enumeração), igual ao unsubscribe. Honeypot + throttle na rota cobrem o
+     * abuso; só reenvia para entradas ainda não confirmadas (confirmada não
+     * precisa). Pode haver duas entradas (membro e performer) no mesmo e-mail:
+     * reenvia para cada uma não confirmada.
+     */
+    public function resend(Request $request): RedirectResponse
+    {
+        $neutral = 'Se houver uma inscrição não confirmada com esse e-mail, reenviamos o link de confirmação.';
+
+        // Honeypot: campo oculto que humano nenhum preenche.
+        if (filled($request->input('website'))) {
+            return redirect()->route('landing')->with('success', $neutral);
+        }
+
+        $email = mb_strtolower(trim((string) $request->input('email')));
+
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            WaitlistEntry::where('email', $email)
+                ->whereNull('confirmed_at')
+                ->get()
+                ->each(fn (WaitlistEntry $entry) => Mail::to($entry->email)->send(new WaitlistConfirmationMail($entry)));
+        }
+
+        return redirect()->route('landing')->with('success', $neutral);
+    }
+
+    /**
      * Landing of the unsubscribe flow. A GET must be side-effect-free (email
      * clients/scanners pre-fetch links), so it only renders a confirmation page;
      * the removal happens on the CSRF-protected POST below. The token is the

@@ -2,6 +2,7 @@
 
 namespace App\Services\Waitlist;
 
+use App\Mail\WaitlistConfirmationMail;
 use App\Mail\WaitlistNurtureMail;
 use App\Models\WaitlistEmailLog;
 use App\Models\WaitlistEntry;
@@ -34,6 +35,64 @@ class WaitlistNurtureService
             }
 
             $sent += $this->dispatchStep($step['key'], (int) $step['after_days']);
+        }
+
+        return $sent;
+    }
+
+    /**
+     * UM lembrete de confirmação para entradas NÃO confirmadas, criadas entre
+     * `after_hours` atrás e `max_age_days` atrás. Mesma disciplina claim-then-send
+     * do drip: insertOrIgnore na chave `confirm_reminder` garante exatamente um
+     * por entrada, mesmo com execuções concorrentes. Reusa o e-mail de
+     * confirmação (flag de lembrete só troca o assunto/intro).
+     */
+    public function dispatchConfirmationReminders(): int
+    {
+        $cfg = config('waitlist.confirm_reminder', []);
+
+        if (! ($cfg['enabled'] ?? false)) {
+            return 0;
+        }
+
+        $key = $cfg['key'] ?? 'confirm_reminder';
+        $olderThan = Carbon::now()->subHours((int) ($cfg['after_hours'] ?? 24));
+        $youngerThan = Carbon::now()->subDays((int) ($cfg['max_age_days'] ?? 7));
+        $maxPerRun = config('waitlist.nurture_max_per_run');
+        $sent = 0;
+
+        $query = WaitlistEntry::query()
+            ->whereNull('confirmed_at')
+            ->where('created_at', '<=', $olderThan)
+            ->where('created_at', '>=', $youngerThan)
+            ->whereDoesntHave('emailLog', fn ($q) => $q->where('email_key', $key));
+
+        $run = function (WaitlistEntry $entry) use ($key) {
+            $claimed = WaitlistEmailLog::insertOrIgnore([
+                'waitlist_entry_id' => $entry->id,
+                'email_key' => $key,
+                'sent_at' => Carbon::now(),
+            ]);
+
+            if ($claimed !== 1) {
+                return 0;
+            }
+
+            Mail::to($entry->email)->send(new WaitlistConfirmationMail($entry, reminder: true));
+
+            return 1;
+        };
+
+        if ($maxPerRun !== null) {
+            foreach ($query->orderBy('id')->limit((int) $maxPerRun)->get() as $entry) {
+                $sent += $run($entry);
+            }
+        } else {
+            $query->chunkById(200, function ($entries) use ($run, &$sent) {
+                foreach ($entries as $entry) {
+                    $sent += $run($entry);
+                }
+            });
         }
 
         return $sent;

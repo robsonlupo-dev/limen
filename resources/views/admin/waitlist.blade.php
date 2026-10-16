@@ -40,7 +40,10 @@
         <div class="grid">
             <div class="stat"><div class="n">{{ number_format($summary['total'], 0, ',', '.') }}</div><div class="l">Inscritos</div></div>
             <div class="stat"><div class="n">{{ number_format($summary['confirmed'], 0, ',', '.') }}</div><div class="l">Confirmados</div></div>
+            <div class="stat"><div class="n">{{ number_format($summary['unconfirmed'], 0, ',', '.') }}</div><div class="l">Não confirmados</div></div>
             <div class="stat"><div class="n">{{ $summary['confirmation_rate'] }}%</div><div class="l">Taxa de confirmação</div></div>
+            <div class="stat"><div class="n">{{ number_format($summary['pending_over_24h'], 0, ',', '.') }}</div><div class="l">Pendentes +24h (lembrete)</div></div>
+            <div class="stat"><div class="n">{{ number_format($summary['reminders_sent'], 0, ',', '.') }}</div><div class="l">Lembretes enviados</div></div>
             <div class="stat"><div class="n">{{ $summary['viral_coefficient'] }}</div><div class="l">Coeficiente viral (K)</div></div>
             <div class="stat"><div class="n">{{ number_format($summary['by_role']['member'], 0, ',', '.') }}</div><div class="l">Membros</div></div>
             <div class="stat"><div class="n">{{ number_format($summary['by_role']['performer'], 0, ',', '.') }}</div><div class="l">Performers</div></div>

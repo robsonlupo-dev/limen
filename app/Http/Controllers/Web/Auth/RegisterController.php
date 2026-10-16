@@ -7,6 +7,7 @@ use App\Exceptions\ImageProcessingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\RegisterWebRequest;
 use App\Services\AuthService;
+use App\Services\DocumentAcceptanceService;
 use App\Services\MemberAvatarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -52,7 +53,13 @@ class RegisterController extends Controller
 
     public function store(RegisterWebRequest $request, AuthService $authService, MemberAvatarService $avatars)
     {
-        $data = array_merge($request->validated(), ['terms_version' => '1.0']);
+        // Versão REAL dos Termos (antes era a constante morta '1.0'). users.
+        // terms_version passa a apontar para o texto vigente de fato; o aceite
+        // detalhado (Termos + Privacidade, com versão e fingerprint) é gravado
+        // em document_acceptances logo após criar o usuário, via recordConsent.
+        $data = array_merge($request->validated(), [
+            'terms_version' => \App\Models\DocumentAcceptance::currentVersion('terms'),
+        ]);
 
         // Programa de indicação: o código digitado no formulário tem prioridade
         // ('code'); se vazio, cai no cookie do link ('link'). Um código inválido
@@ -65,6 +72,12 @@ class RegisterController extends Controller
         if (($data['role'] ?? 'consumer') === 'performer') {
             $user = $authService->registerPerformer($data, $request);
 
+            // Prova do aceite de Termos + Privacidade no cadastro (append-only,
+            // com versão e fingerprint). A performer ainda aceitará o Contrato e
+            // a Política de Conteúdo na tela de aceite dedicada — isto aqui é o
+            // consentimento dos documentos gerais, igual ao do membro.
+            app(DocumentAcceptanceService::class)->recordConsent($user, ['terms', 'privacy'], $request);
+
             Auth::login($user);
             $request->session()->regenerate();
 
@@ -72,6 +85,10 @@ class RegisterController extends Controller
         }
 
         $user = $authService->registerConsumer($data);
+
+        // Prova do aceite de Termos + Privacidade no cadastro do membro
+        // (append-only, com versão e fingerprint) — ver DocumentAcceptanceService.
+        app(DocumentAcceptanceService::class)->recordConsent($user, ['terms', 'privacy'], $request);
 
         // Foto de perfil OPCIONAL do cadastro (fix/member-photo-and-crop). O membro
         // já existe aqui, então a foto passa pelo MESMO pipeline (sanitização +
