@@ -1671,6 +1671,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->whereNumber('story')
             ->name('stories.image');
 
+        // Registra a view — separada do GET da imagem (feat/story-viewer-preload):
+        // o GET virou idempotente para o cliente pré-carregar o próximo story sem
+        // marcá-lo como visto, e a contagem passou para este POST, disparado quando
+        // o story aparece de fato. 204 sempre; os guards (§ 2.7/paywall) vivem no
+        // service.
+        Route::post('/stories/{story}/visto', [ConsumerStoryController::class, 'markViewed'])
+            ->middleware('throttle:120,1')
+            ->whereNumber('story')
+            ->name('stories.view');
+
         // Responder ao story → chat (feat/story-reply-to-chat). Estilo Insta: a
         // resposta do membro ao story vira a 1ª mensagem do chat e ABRE/PAGA a
         // janela (mesma economia do chat.start). `documents.accepted` explícito

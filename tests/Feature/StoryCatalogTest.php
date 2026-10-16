@@ -118,9 +118,10 @@ it('acende o pontinho quando há story que o membro pode ver e ainda não viu', 
 
     expect(scCard(scCatalogCards($member), $performer)['has_unseen_stories'])->toBeTrue();
 
-    // Depois de abrir, apaga. `seen` sai de story_views filtrada pelo id DELE —
-    // é dado do próprio membro, não da performer.
-    $this->actingAs($member)->get(route('stories.image', $story->id))->assertOk();
+    // Depois de VER (o POST da view; o GET da imagem virou idempotente —
+    // feat/story-viewer-preload), apaga. `seen` sai de story_views filtrada pelo id
+    // DELE — é dado do próprio membro, não da performer.
+    $this->actingAs($member)->post(route('stories.view', $story->id))->assertNoContent();
 
     expect(scCard(scCatalogCards($member), $performer)['has_unseen_stories'])->toBeFalse();
 });
@@ -292,7 +293,9 @@ it('mantém o pontinho aceso para quem tem Ghost Mode', function () {
     scFollow($member, $performer);
     $member->forceFill(['ghost_mode' => true])->save();
 
-    $this->actingAs($member->fresh())->get(route('stories.image', $story->id))->assertOk();
+    // O POST da view é no-op para o Ghost (o GET da imagem já não conta —
+    // feat/story-viewer-preload).
+    $this->actingAs($member->fresh())->post(route('stories.view', $story->id))->assertNoContent();
 
     // Consequência ACEITA do perk (§ 2.7): a view não é gravada, então o
     // pontinho nunca apaga. A alternativa seria gravar a linha, que é
@@ -430,7 +433,9 @@ it('não expõe id de membro nem caminho de disco nas props do perfil', function
     $story = scStory($performer, 'public');
     $member = scMember();
     scFollow($member, $performer);
-    $this->actingAs($member->fresh())->get(route('stories.image', $story->id))->assertOk();
+    // Semeia uma view (via POST; o GET da imagem virou idempotente —
+    // feat/story-viewer-preload) para exercitar o ramo da faixa.
+    $this->actingAs($member->fresh())->post(route('stories.view', $story->id))->assertNoContent();
 
     $content = $this->actingAs($member->fresh())
         ->get(route('catalog.show', $performer->slug))

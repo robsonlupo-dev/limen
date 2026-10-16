@@ -18,9 +18,11 @@ const { promptToBuy } = useInsufficientBalance()
 // exceção é a corrida: um story que venceu/saiu entre o feed e a abertura devolve
 // 404/403 na imagem, e aí a tela mostra "indisponível" e segue em frente.
 //
-// Ver o story É o que registra a view: carregar `stories.image` grava a linha no
-// servidor (com os guards de Ghost Mode). O pai recarrega o feed ao fechar, então
-// o anel dourado→cinza reflete o SERVIDOR — para Ghost Mode ele nunca apaga.
+// Servir e CONTAR foram SEPARADOS (feat/story-viewer-preload): o GET de
+// `stories.image` virou idempotente (dá para pré-carregar o próximo story sem
+// marcá-lo como visto) e a view passou para um POST `stories.view`, disparado
+// quando o story APARECE de fato. O pai recarrega o feed ao fechar, então o anel
+// dourado→cinza reflete o SERVIDOR — para Ghost Mode ele nunca apaga.
 const props = defineProps({
     groups: { type: Array, required: true },
     startGroupIndex: { type: Number, default: 0 },
@@ -47,9 +49,55 @@ const LEVEL_BADGE = {
 }
 const levelBadge = computed(() => LEVEL_BADGE[currentStory.value?.visibility_level] ?? null)
 
-const imageUrl = computed(() =>
-    currentStory.value ? route('stories.image', currentStory.value.id) : null,
-)
+// ── Preload do próximo story + registro da view (feat/story-viewer-preload) ───
+// Os bytes do story são `no-store` DE PROPÓSITO (um Nível 3 de 24h num cache
+// sobreviveria ao TTL — ServesPhotoBytes), então não dá para pré-carregar pelo
+// cache do browser. Em vez disso seguramos o próximo story EM MEMÓRIA (um
+// objectURL, revogado ao fechar): é a MESMA retenção da imagem já exibida, só que
+// uma à frente, e nada vai para disco nem proxy.
+const blobUrls = ref({}) // story.id -> objectURL em memória
+const inflight = new Map() // story.id -> Promise (dedup do fetch)
+const viewed = new Set() // story.id -> view já registrada nesta sessão
+
+// A fonte prefere o blob pré-carregado (troca instantânea); sem ele, cai na URL
+// direta, que busca e mostra o LoadingBar como antes. Só o PRÓXIMO story vira
+// blob — o atual nunca troca de src no meio da exibição.
+const currentSrc = computed(() => {
+    if (!currentStory.value) return null
+    return blobUrls.value[currentStory.value.id] ?? route('stories.image', currentStory.value.id)
+})
+
+async function fetchIntoMemory(id) {
+    if (!id || blobUrls.value[id] || inflight.has(id)) return
+    const p = fetch(route('stories.image', id), { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.blob() : null))
+        .then((blob) => {
+            if (blob) blobUrls.value = { ...blobUrls.value, [id]: URL.createObjectURL(blob) }
+        })
+        .catch(() => {})
+        .finally(() => inflight.delete(id))
+    inflight.set(id, p)
+    return p
+}
+
+// O id do PRÓXIMO story a aparecer: o próximo do grupo, ou o 1º não-visto do
+// próximo grupo — a mesma ordem que nextStory/nextGroup seguem.
+function nextStoryId() {
+    const g = currentGroup.value
+    if (!g) return null
+    if (storyIndex.value < g.stories.length - 1) return g.stories[storyIndex.value + 1].id
+    const ng = props.groups[groupIndex.value + 1]
+    return ng ? (ng.stories[firstUnseen(ng)]?.id ?? null) : null
+}
+
+// Registra a view quando o story APARECE (não ao pré-carregar). Best-effort: o
+// anel é derivado do servidor quando o pai recarrega o feed ao fechar, então uma
+// falha aqui só não conta ESTA abertura. Dedup por sessão do viewer.
+function recordView(story) {
+    if (!story || viewed.has(story.id)) return
+    viewed.add(story.id)
+    postJson(route('stories.view', story.id), {}).catch(() => viewed.delete(story.id))
+}
 
 function firstUnseen(group) {
     const i = group.stories.findIndex((s) => !s.seen)
@@ -66,6 +114,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
     document.body.style.overflow = ''
     if (timer) clearInterval(timer)
+    // Libera os bytes pré-carregados: nada de story sobrevive ao viewer (honra o
+    // `no-store` — a retenção acaba quando a tela fecha).
+    Object.values(blobUrls.value).forEach((u) => URL.revokeObjectURL(u))
 })
 
 let timer = null
@@ -91,6 +142,9 @@ watch(currentStory, () => {
 function onImageLoad() {
     imageError.value = false
     imageLoaded.value = true
+    // O story apareceu: conta a view (o preload NÃO conta) e já aquece o próximo.
+    recordView(currentStory.value)
+    fetchIntoMemory(nextStoryId())
 }
 
 function onImageError() {
@@ -357,11 +411,12 @@ async function sendReply() {
                     </button>
                 </div>
 
-                <!-- Imagem em tela cheia. Carregá-la registra a view no servidor. -->
+                <!-- Imagem em tela cheia. `currentSrc` prefere o blob pré-carregado
+                     (troca instantânea); o POST da view sai no @load, não aqui. -->
                 <div class="flex h-full w-full items-center justify-center">
                     <img
                         v-show="imageLoaded && !imageError"
-                        :src="imageUrl"
+                        :src="currentSrc"
                         :alt="`Story de ${currentGroup.performer.stage_name}`"
                         class="max-h-full max-w-full object-contain"
                         draggable="false"

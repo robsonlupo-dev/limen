@@ -154,8 +154,9 @@ it('o feed nunca carrega id de membro nem caminho de disco', function () {
     $story = sfStory($performer, 'public');
     $member = chatMember();
     sfFollow($member, $performer);
-    // Marca uma view para exercitar o ramo `seen`.
-    test()->actingAs($member)->get(route('stories.image', $story->id))->assertOk();
+    // Marca uma view para exercitar o ramo `seen` (via POST; o GET da imagem virou
+    // idempotente — feat/story-viewer-preload).
+    test()->actingAs($member)->post(route('stories.view', $story->id))->assertNoContent();
 
     $feed = sfFeed($member->fresh());
 

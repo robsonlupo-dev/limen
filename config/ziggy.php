@@ -332,6 +332,10 @@ return [
         // Não há versão assinada destas rotas de propósito — § 2.3.
         'stories.feed',
         'stories.image',
+        // Registra a view (feat/story-viewer-preload): o StoryViewer posta aqui
+        // quando o story aparece de fato — separado do GET da imagem, que virou
+        // idempotente para o preload do próximo story não contar como visto.
+        'stories.view',
         // Responder ao story → chat (feat/story-reply-to-chat): o compositor no
         // StoryViewer posta aqui; abre/paga a janela como o chat.start.
         'stories.reply',
