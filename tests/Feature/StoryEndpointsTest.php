@@ -8,6 +8,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\PerformerStoryService;
 use App\Services\PerformerStoryStore;
+use App\Services\StoryVisibilityService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
@@ -723,6 +724,45 @@ it('marca como visto o story que o membro já abriu', function () {
     // expõe ninguém.
     expect($groups[0]['stories'][0]['seen'])->toBeTrue()
         ->and($groups[0]['has_unseen'])->toBeFalse();
+});
+
+it('expõe o tier mínimo e a hora de publicação do story — dado da performer, não do membro', function () {
+    $performer = chatPerformer();
+    // VIP a partir de Prestige: é o que o viewer rotula "Prestige+" no lugar do
+    // genérico "Assinantes", e o "há 14 h" vem do created_at (UAT Fase 21).
+    $story = stStory($performer, 'subscribers', 'prestige');
+    $member = stMember('prestige');
+    // O feed só traz quem o membro SEGUE (Público sem follow é só para Black+).
+    stFollow($member, $performer);
+
+    $item = $this->actingAs($member->fresh())
+        ->getJson(route('stories.feed'))
+        ->assertOk()
+        ->json('performers.0.stories.0');
+
+    expect($item['min_tier'])->toBe('prestige')
+        ->and($item['created_at'])->not->toBeNull()
+        ->and($item)->not->toHaveKey('user_id');
+
+    // A faixa do perfil carrega os mesmos campos no story que o membro ALCANÇA
+    // (rotula o que ele já vê)…
+    $aberto = collect(app(StoryVisibilityService::class)->profileStripFor($performer, $member->fresh()))
+        ->firstWhere('id', $story->id);
+
+    expect($aberto['locked'])->toBeFalse()
+        ->and($aberto['min_tier'])->toBe('prestige')
+        ->and($aberto['created_at'])->not->toBeNull();
+
+    // …e NÃO os carrega no story FECHADO: o tier exigido é dado dela, não sinal
+    // para o membro do que lhe falta (decisão já guardada pelo teste do catálogo).
+    $abaixo = stMember('insider');
+    $fechado = collect(app(StoryVisibilityService::class)->profileStripFor($performer, $abaixo->fresh()))
+        ->firstWhere('id', $story->id);
+
+    expect($fechado['locked'])->toBeTrue()
+        ->and($fechado)->not->toHaveKey('min_tier')
+        ->and($fechado)->not->toHaveKey('created_at')
+        ->and($fechado['image_url'])->toBeNull();
 });
 
 it('mostra ao Black os stories públicos de quem ele não segue', function () {

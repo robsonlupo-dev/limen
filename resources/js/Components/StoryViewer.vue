@@ -46,7 +46,33 @@ const LEVEL_BADGE = {
     subscribers: 'Assinantes',
     exclusive: 'Exclusivo',
 }
-const levelBadge = computed(() => LEVEL_BADGE[currentStory.value?.visibility_level] ?? null)
+// Story VIP: rotula pelo tier mínimo ("Insider+", "Prestige+") em vez do genérico
+// "Assinantes", como o "Exclusivo" já faz — a maioria dos stories de assinante tem
+// tier e o rótulo genérico escondia isso (UAT Fase 21). Sem tier, segue "Assinantes".
+const TIER_LABEL = {
+    insider: 'Insider+',
+    prestige: 'Prestige+',
+    black: 'Black+',
+}
+const levelBadge = computed(() => {
+    const s = currentStory.value
+    if (!s) return null
+    if (s.visibility_level === 'subscribers' && s.min_tier && TIER_LABEL[s.min_tier]) {
+        return TIER_LABEL[s.min_tier]
+    }
+    return LEVEL_BADGE[s.visibility_level] ?? null
+})
+
+// "há 14 h" ao lado do nome, como o Instagram. Relativo ao relógio do cliente;
+// é só leitura, então um desvio de minutos não muda nada.
+const postedAgo = computed(() => {
+    const iso = currentStory.value?.created_at
+    if (!iso) return null
+    const diffMin = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000))
+    if (diffMin < 1) return 'agora'
+    if (diffMin < 60) return `${diffMin} min`
+    return `${Math.floor(diffMin / 60)} h`
+})
 
 // ── Preload do próximo story + registro da view (feat/story-viewer-preload) ───
 // Os bytes do story são `no-store` DE PROPÓSITO (um Nível 3 de 24h num cache
@@ -419,6 +445,7 @@ async function sendReply() {
                 <div class="absolute inset-x-0 top-0 z-20 flex items-center gap-3 px-4 pt-6" @pointerdown.stop @pointerup.stop>
                     <p class="flex-1 truncate text-sm font-medium text-white drop-shadow">
                         {{ currentGroup.performer.stage_name }}
+                        <span v-if="postedAgo" class="ml-1.5 font-normal text-white/60">{{ postedAgo }}</span>
                     </p>
                     <span v-if="levelBadge" class="inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[11px] text-white">
                         <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>

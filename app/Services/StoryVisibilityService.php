@@ -373,6 +373,13 @@ class StoryVisibilityService
                     ->map(fn (PerformerStory $story) => [
                         'id' => $story->id,
                         'visibility_level' => $story->visibility_level,
+                        // Tier mínimo do Story VIP e hora de publicação (UAT Fase 21):
+                        // o viewer rotula "Insider+"/"Prestige+" em vez do genérico
+                        // "Assinantes" e mostra "há 14 h" como o Instagram. São dados
+                        // da PUBLICAÇÃO da performer (ela mesma os escolhe/exibe no
+                        // painel), não de nenhum membro — nada de audiência atravessa.
+                        'min_tier' => $story->min_tier,
+                        'created_at' => $story->created_at?->toIso8601String(),
                         'seen' => in_array($story->id, $seenIds, true),
                         'is_invite' => $story->is_invite && ! $alreadyChatting,
                         // A reação do próprio membro, ou null. Onda 1b.
@@ -602,6 +609,15 @@ class StoryVisibilityService
                 'visibility_level' => $story->visibility_level,
                 'locked' => $locked,
                 'seen' => in_array($story->id, $seenIds, true),
+                // Tier mínimo e hora de publicação SÓ no story que o membro ALCANÇA:
+                // rotulam o que ele já vê ("Prestige+", "há 14 h") — mesmos campos
+                // do feed, que só traz o alcançável. No story FECHADO não saem: o
+                // tier exigido é dado dela sobre a própria publicação, não sinal
+                // para o membro do que lhe falta (o teste do catálogo garante).
+                ...($locked ? [] : [
+                    'min_tier' => $story->min_tier,
+                    'created_at' => $story->created_at?->toIso8601String(),
+                ]),
                 // Ver o docblock: fechado não recebe URL.
                 'image_url' => $locked ? null : route('stories.image', $story->id),
                 // Reação do próprio membro, ou null. Story fechado nunca reage (o
