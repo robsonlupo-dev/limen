@@ -288,6 +288,16 @@ onBeforeUnmount(stopPreview)
                     <span v-else class="font-serif text-sm text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
                 </span>
             </Link>
+            <!-- Selo "Teste" (disciplina de UAT): conta sintética num ambiente
+                 compartilhado. VERDE (nunca dourado/limen-live) para destoar dos
+                 selos de produto e só existir enquanto há UAT. BOOLEANO derivado
+                 (is_test); some sozinho no go-live. -->
+            <span
+                v-if="performer.is_test"
+                class="rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-success ring-1 ring-success/60 backdrop-blur-sm"
+            >
+                Teste
+            </span>
             <!-- Selo "Nova": entrada recente (≤7 dias), BOOLEANO derivado do
                  servidor (is_new), nunca a data. Dourado e discreto, empilhado
                  abaixo do sinal de tempo real. -->

@@ -174,6 +174,15 @@ const presence = computed(() => {
                         <VerifiedBadge :category="performer.category" />
                     </button>
                     <CurationSeal :tier="performer.tier" />
+                    <!-- Selo "Teste" (disciplina de UAT): conta sintética num
+                         ambiente compartilhado. VERDE, BOOLEANO derivado
+                         (is_test); some sozinho no go-live. -->
+                    <span
+                        v-if="performer.is_test"
+                        class="rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-success ring-1 ring-success/60"
+                    >
+                        Teste
+                    </span>
                 </div>
 
                 <!-- Frase de destaque (roadmap Fatal Model): tagline da performer,
