@@ -789,6 +789,13 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->middleware('role:performer')
             ->name('performer.dashboard');
 
+        // Painel › Ajustes (reorg do Painel, UAT Fase 21): sons, destaque no
+        // catálogo, atalhos. Mesmo gate do Resumo — pendente (KYC) também entra;
+        // o corte por status vive no controller.
+        Route::get('/performer/painel/ajustes', [\App\Http\Controllers\Web\Performer\PanelController::class, 'settings'])
+            ->middleware('role:performer')
+            ->name('performer.panel.settings');
+
         // "Disponível para conversa" (Sprint 11) — o Caminho 3 do Interesse
         // Expandido. Já dentro do grupo `documents.accepted`, que por sua vez
         // está sob `auth`+`2fa`: a rota nasce nos dois gates, como manda o
@@ -910,6 +917,14 @@ Route::middleware(['auth', '2fa'])->group(function () {
         Route::get('/performer/seguidores', [FollowersController::class, 'index'])
             ->middleware('throttle:60,1')
             ->name('performer.followers')
+            ->can('performer-active');
+
+        // Pessoas › Solicitações (reorg do Painel, UAT Fase 21): pedidos de acesso
+        // às fotos privadas (aprovar/recusar), fotos recebidas e visitantes — o
+        // que é "gente" e pede ação dela. O badge de "Pessoas" aponta para cá.
+        Route::get('/performer/pessoas/solicitacoes', [\App\Http\Controllers\Web\Performer\PeopleRequestsController::class, 'index'])
+            ->middleware('throttle:60,1')
+            ->name('performer.people.requests')
             ->can('performer-active');
 
         // Notas privadas da performer sobre membros (Sprint 11). A performer
@@ -1153,6 +1168,19 @@ Route::middleware(['auth', '2fa'])->group(function () {
             Route::get('/performer/insights', [InsightsController::class, 'page'])
                 ->middleware('throttle:60,1')
                 ->name('performer.insights')
+                ->can('performer-active');
+
+            // Painel › Stories e › Canal (reorg do Painel, UAT Fase 21): o uso
+            // diário sai do fim da rolagem do Resumo e ganha aba própria. Mesmo
+            // gate das rotas de story/broadcast que elas acionam (performer-active).
+            Route::get('/performer/painel/stories', [\App\Http\Controllers\Web\Performer\PanelController::class, 'stories'])
+                ->middleware('throttle:60,1')
+                ->name('performer.panel.stories')
+                ->can('performer-active');
+
+            Route::get('/performer/painel/canal', [\App\Http\Controllers\Web\Performer\PanelController::class, 'channel'])
+                ->middleware('throttle:60,1')
+                ->name('performer.panel.channel')
                 ->can('performer-active');
 
             Route::get('/performer/conteudo', [PerformerContentController::class, 'index'])

@@ -17,17 +17,29 @@ export const PERFORMER_SECTIONS = [
         key: 'painel',
         label: 'Painel',
         route: 'performer.dashboard',
-        match: ['performer.dashboard', 'performer.insights'],
+        match: [
+            'performer.dashboard',
+            'performer.panel.stories',
+            'performer.panel.channel',
+            'performer.insights',
+            'performer.panel.settings',
+        ],
         // Pendências que pedem AÇÃO dela (reorg do Painel, UAT Fase 21): pedidos de
         // acesso às fotos + fotos recebidas ainda não vistas + agendamentos a
         // confirmar. Somadas no topo, como Mensagens faz; cada uma vem de
         // nav_counts (NavBadgeService). Antes ficavam escondidas no fim da rolagem.
         badges: ['access_requests', 'received_photos', 'reservations'],
+        // Abas do Painel (reorg, UAT Fase 21): o Resumo é "o que fazer agora"; o
+        // uso diário (Stories, Canal) e o que se configura uma vez (Ajustes) têm
+        // aba própria em vez de viver no fim de uma rolagem única.
         children: [
             { label: 'Resumo', route: 'performer.dashboard' },
+            { label: 'Stories', route: 'performer.panel.stories' },
+            { label: 'Canal', route: 'performer.panel.channel' },
             // Insights (roadmap social, Onda 3 §3.2): visão geral, funil, horários,
             // evolução de ganhos — tudo agregado.
             { label: 'Insights', route: 'performer.insights' },
+            { label: 'Ajustes', route: 'performer.panel.settings' },
         ],
     },
     {
@@ -60,13 +72,16 @@ export const PERFORMER_SECTIONS = [
         key: 'pessoas',
         label: 'Pessoas',
         route: 'performer.followers',
-        match: ['performer.followers', 'performer.members'],
+        match: ['performer.followers', 'performer.members', 'performer.people.requests'],
         // Pessoas é a casa de "gente": o pedido de acesso de um fã acende aqui
-        // também (é onde ele será aprovado/recusado na reorg do Painel).
+        // também — e é na aba Solicitações que ele é aprovado/recusado.
         badges: ['access_requests'],
         children: [
             { label: 'Seguidores', route: 'performer.followers' },
             { label: 'Membros', route: 'performer.members' },
+            // Solicitações (reorg do Painel, UAT Fase 21): pedidos de acesso às
+            // fotos privadas, fotos recebidas e visitantes — saíram do Resumo.
+            { label: 'Solicitações', route: 'performer.people.requests', badge: 'access_requests' },
         ],
     },
     {

@@ -6,133 +6,83 @@ import Button from '@/Components/Button.vue'
 import ComingSoon from '@/Components/ComingSoon.vue'
 import { formatTokens } from '@/lib/tokens'
 import KycPendingBanner from '@/Components/KycPendingBanner.vue'
-import NotificationSoundSettings from '@/Components/NotificationSoundSettings.vue'
 import ProfileProgress from '@/Components/ProfileProgress.vue'
-import ReportModal from '@/Components/ReportModal.vue'
-import StoryPanel from '@/Components/StoryPanel.vue'
-import BroadcastPanel from '@/Components/BroadcastPanel.vue'
-import { deleteJson, patchJson, postJson } from '@/lib/http'
+import { patchJson } from '@/lib/http'
 
+// Painel › Resumo (reorg do Painel, UAT Fase 21): "o que fazer agora".
+//
+// O que SAIU daqui e ganhou aba própria — Stories e Canal (uso diário), Ajustes
+// (sons + destaque no catálogo), e Pessoas › Solicitações (pedidos de acesso,
+// fotos recebidas, visitantes). Antes tudo vivia numa rolagem única e o uso
+// diário ficava no fim. O que fica: ações rápidas, pendências com número, os
+// indicadores, as últimas gorjetas e atalhos.
+//
+// Transição: o controller ainda devolve as props das seções que saíram (os
+// testes de contrato apontam para cá); esta tela simplesmente não as declara.
 const props = defineProps({
     wallet: { type: Number, required: true },
     totalEarned: { type: Number, required: true },
     tips: { type: Array, required: true },
     // Encomendas sob medida aguardando ação dela (novos + a entregar). Aviso no topo.
     customOrdersPending: { type: Number, default: 0 },
-    // Faixa ("Menos de 5", "10+", ou o número exato a partir de 500), não Number:
-    // o contador preciso de um perfil pequeno identifica quem seguiu e quando.
+    // Faixa ("Menos de 5", "10+"…), não Number: o contador exato de um perfil
+    // pequeno identifica quem seguiu e quando.
     followers: { type: String, required: true },
     kycStatus: { type: String, required: true },
     isLive: { type: Boolean, required: true },
-    // Visibilidade no catálogo (fix/panel-polish-v1): a presença "online" agora
-    // deriva da sessão; o painel controla só o OPT-OUT. `isVisible` = ! appear_offline
-    // (default: visível). Ver DashboardController.
+    // Visibilidade no catálogo: a presença "online" deriva da sessão; o painel
+    // controla só o OPT-OUT. `isVisible` = ! appear_offline.
     isVisible: { type: Boolean, default: true },
-    // Visitantes já pseudonimizados (FanAlias) pelo servidor — o id do membro
-    // não chega aqui, como nas gorjetas.
-    visitors: { type: Array, default: () => [] },
-    // Falso enquanto o Piso de Anonimato não destravar. Não é "lista vazia":
-    // vazio e escondido são estados diferentes, e a tela explica cada um.
-    visitorsVisible: { type: Boolean, default: false },
-    visitorsWindowHours: { type: Number, default: 24 },
-    anonymityFloor: { type: Number, default: 5 },
-    // Só performer verificada envia interesse pelo painel (regra do PO). A tela
-    // esconde o botão; quem recusa de fato é o Form Request.
-    canSendVisitorInterest: { type: Boolean, default: false },
-    visitorInterestRemaining: { type: Number, default: 0 },
-    // Fotos que membros compartilharam com ela. Já chegam pseudonimizadas
-    // (FanAlias) e com a faixa de tempo — nunca o id do membro nem relógio.
-    receivedPhotos: { type: Array, default: () => [] },
-    // Pedidos de acesso às fotos privadas da galeria (Sprint 13). Cada item já
-    // vem pseudonimizado: { photo_id, photo_url, fan, member_handle } — nunca o
-    // id do membro. Ver PhotoAccessService::pendingRequestsFor.
-    photoAccessRequests: { type: Array, default: () => [] },
-    // Stories vivos dela. `view_count` já vem em FAIXA (ou null no exclusivo) —
-    // o número cru não trafega nas props, que é o caminho do DevTools.
-    stories: { type: Array, default: () => [] },
-    storyVisibilityLevels: { type: Array, default: () => [] },
-    storySubscriberMinTiers: { type: Array, default: () => [] },
-    storyInviteLimit: { type: Number, default: 2 },
-    broadcastMaxLength: { type: Number, default: 1000 },
-    canPublishStories: { type: Boolean, default: false },
-    // Campos do perfil para a barra de completude (Sprint 10). Só presença de
-    // foto + os campos de "Sobre mim" — nada é persistido, a % é derivada no
-    // componente. Ver ProfileProgress.vue.
+    // Campos do perfil para a barra de completude (Sprint 10). A % é derivada no
+    // componente; ele vira selo discreto ao chegar a 100%.
     profileProgress: { type: Object, required: true },
-    // Boost pago (Sprint 11): estado do destaque + custo/vagas. Booleano +
-    // faixa de tempo, nunca o carimbo `boosted_until`. Ver DashboardController.
-    boost: {
-        type: Object,
-        default: () => ({
-            is_boosted: false,
-            remaining_label: null,
-            cost: 0,
-            duration_hours: 0,
-            available_slots: 0,
-            max_slots: 0,
-            eligible: false,
-        }),
-    },
+    // A performer PENDENTE alcança o painel, mas publicar exige performer-active.
+    // A tela não é o guard — só evita oferecer um botão que responderia 403.
+    canPublishStories: { type: Boolean, default: false },
 })
 
-// A foto abre em overlay, servida inline pelo endpoint. Não há botão de baixar:
-// o download não é impedível (nenhum cabeçalho impede), mas a tela não o
-// oferece — e a copy não promete o que o TTL não entrega.
-const openPhoto = ref(null)
+const page = usePage()
+const liveEnabled = computed(() => !!page.props.features?.live_enabled)
+const callEnabled = computed(() => !!page.props.features?.call_enabled)
 
-// A foto que está sendo denunciada (o modal lê o access_id dela).
-const reporting = ref(null)
-
-// Interesse a partir do painel de visitantes. Mesmo fluxo do botão da tela de
-// Seguidores: manda o member_handle (16 hex do FanAlias), nunca um id.
-const visitorQuota = ref(props.visitorInterestRemaining)
-const justSent = ref({})
-const sendingHandle = ref(null)
-const errorFor = ref({})
-const toastMessage = ref('')
-
-function canSendTo(visit) {
-    return (
-        props.canSendVisitorInterest &&
-        visitorQuota.value > 0 &&
-        !justSent.value[visit.member_handle] &&
-        sendingHandle.value === null
-    )
-}
-
-async function sendVisitorInterest(visit) {
-    if (!canSendTo(visit)) return
-
-    errorFor.value = { ...errorFor.value, [visit.member_handle]: '' }
-    sendingHandle.value = visit.member_handle
-
-    try {
-        await postJson(route('performer.interests.send-visitor'), {
-            member_handle: visit.member_handle,
+// Pendências (NavBadgeService): o mesmo número que acende o badge de "Painel" na
+// nav, aberto aqui em cards que levam para o lugar da ação. Só os que têm algo.
+const navCounts = computed(() => page.props.nav_counts ?? {})
+const pending = computed(() => {
+    const n = navCounts.value
+    const items = []
+    if (Number(n.access_requests ?? 0) > 0) {
+        items.push({
+            key: 'access',
+            count: Number(n.access_requests),
+            title: Number(n.access_requests) === 1 ? 'Solicitação de acesso' : 'Solicitações de acesso',
+            hint: 'Fã quer ver suas fotos privadas',
+            route: 'performer.people.requests',
+            cta: 'Responder',
         })
-
-        justSent.value[visit.member_handle] = true
-        visitorQuota.value = Math.max(0, visitorQuota.value - 1)
-        toastMessage.value = 'Interesse enviado'
-        setTimeout(() => (toastMessage.value = ''), 4000)
-    } catch (error) {
-        // 404 aqui NÃO significa "erro do sistema": o alvo pode ter saído do
-        // painel entre o render e o clique (janela de 24h, k-anonimato, conta
-        // encerrada). A copy é deliberadamente a mesma para todos os casos —
-        // distinguir "não existe" de "existe mas saiu da lista" devolveria à
-        // performer o sinal que os pisos e o k removem.
-        const message =
-            error.status === 429
-                ? 'Muitos envios em pouco tempo. Aguarde um instante.'
-                : error.status === 404
-                  ? 'Este visitante não está mais disponível no painel.'
-                  : (error.data?.message ?? 'Não foi possível enviar. Tente novamente.')
-
-        errorFor.value = { ...errorFor.value, [visit.member_handle]: message }
-    } finally {
-        sendingHandle.value = null
     }
-}
+    if (Number(n.received_photos ?? 0) > 0) {
+        items.push({
+            key: 'photos',
+            count: Number(n.received_photos),
+            title: Number(n.received_photos) === 1 ? 'Foto recebida' : 'Fotos recebidas',
+            hint: 'Ainda não vista',
+            route: 'performer.people.requests',
+            cta: 'Ver',
+        })
+    }
+    if (callEnabled.value && Number(n.reservations ?? 0) > 0) {
+        items.push({
+            key: 'reservations',
+            count: Number(n.reservations),
+            title: Number(n.reservations) === 1 ? 'Agendamento para confirmar' : 'Agendamentos para confirmar',
+            hint: 'A chamada só acontece se você confirmar',
+            route: 'performer.reservations.index',
+            cta: 'Confirmar',
+        })
+    }
+    return items
+})
 
 const kycBadge = computed(() => {
     return {
@@ -144,15 +94,10 @@ const kycBadge = computed(() => {
 
 const canGoLive = computed(() => props.kycStatus === 'active')
 
-// Feature flags (Sprint 15). Off em produção → placeholders "Em breve" no lugar
-// de "Ir ao vivo" e "Definir preço de chamada".
-const page = usePage()
-const liveEnabled = computed(() => !!page.props.features?.live_enabled)
-const callEnabled = computed(() => !!page.props.features?.call_enabled)
+const toastMessage = ref('')
 
-// Visibilidade no catálogo (fix/panel-polish-v1). A presença "online" é
-// automática (deriva da sessão) — este toggle controla só o OPT-OUT "aparecer
-// offline". Estado local otimista: o servidor devolve o booleano `visible`.
+// Visibilidade no catálogo (fix/panel-polish-v1): toggle do OPT-OUT "aparecer
+// offline". Estado local otimista; o servidor devolve o booleano `visible`.
 const visible = ref(props.isVisible)
 const togglingVisibility = ref(false)
 
@@ -160,9 +105,7 @@ async function toggleVisibility() {
     if (togglingVisibility.value) return
     togglingVisibility.value = true
     try {
-        const data = await patchJson(route('performer.availability.toggle'), {
-            visible: !visible.value,
-        })
+        const data = await patchJson(route('performer.availability.toggle'), { visible: !visible.value })
         visible.value = data.visible
     } catch (error) {
         toastMessage.value =
@@ -172,75 +115,6 @@ async function toggleVisibility() {
         setTimeout(() => (toastMessage.value = ''), 4000)
     } finally {
         togglingVisibility.value = false
-    }
-}
-
-// Boost pago (Sprint 11). Estado local otimista sobre a resposta: o servidor
-// devolve o booleano derivado + a faixa de tempo + saldo e vagas atualizados —
-// nunca o carimbo `boosted_until`.
-const boostState = ref({ ...props.boost })
-const walletBalance = ref(props.wallet)
-const boosting = ref(false)
-
-// Sem tokens suficientes: a tela troca o botão pelo aviso "precisa de N tokens"
-// com link de comprar. O servidor recusa de qualquer forma (o botão não é o
-// guard) — isto só evita oferecer um clique que responderia 422.
-const canAffordBoost = computed(() => walletBalance.value >= boostState.value.cost)
-
-async function activateBoost() {
-    if (boosting.value || boostState.value.is_boosted) return
-    boosting.value = true
-    try {
-        const data = await postJson(route('performer.boost'))
-        boostState.value = {
-            ...boostState.value,
-            is_boosted: data.is_boosted,
-            remaining_label: data.remaining_label,
-            available_slots: data.available_slots,
-        }
-        walletBalance.value = data.wallet
-        toastMessage.value = 'Perfil em destaque!'
-        setTimeout(() => (toastMessage.value = ''), 4000)
-    } catch (error) {
-        toastMessage.value =
-            error.status === 429
-                ? 'Muitas tentativas em pouco tempo. Aguarde um instante.'
-                : (error.data?.message ?? 'Não foi possível destacar. Tente novamente.')
-        setTimeout(() => (toastMessage.value = ''), 5000)
-    } finally {
-        boosting.value = false
-    }
-}
-
-// Pedidos de acesso a fotos privadas (Sprint 13). Estado local; cada ação
-// devolve a fila atualizada do servidor (fonte da verdade). A performer só vê o
-// FanAlias — aprova/revoga pelo `member_handle`, nunca por id.
-const accessRequests = ref([...props.photoAccessRequests])
-const decidingKey = ref(null)
-
-function requestKey(req) {
-    return `${req.photo_id}:${req.member_handle}`
-}
-
-async function decideAccess(req, approve) {
-    const key = requestKey(req)
-    if (decidingKey.value !== null) return
-    decidingKey.value = key
-    try {
-        const data = approve
-            ? await postJson(route('performer.gallery.grant', [req.photo_id, req.member_handle]))
-            : await deleteJson(route('performer.gallery.revoke', [req.photo_id, req.member_handle]))
-        accessRequests.value = data.requests
-        toastMessage.value = approve ? 'Acesso concedido' : 'Pedido recusado'
-        setTimeout(() => (toastMessage.value = ''), 4000)
-    } catch (error) {
-        toastMessage.value =
-            error.status === 429
-                ? 'Muitas ações em pouco tempo. Aguarde um instante.'
-                : 'Não foi possível concluir. Tente novamente.'
-        setTimeout(() => (toastMessage.value = ''), 4000)
-    } finally {
-        decidingKey.value = null
     }
 }
 </script>
@@ -268,18 +142,11 @@ async function decideAccess(req, approve) {
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div class="space-y-1">
                     <h1 class="font-serif text-4xl text-cream">Painel</h1>
-                    <p class="text-muted text-sm">Visão geral dos seus ganhos e atividade.</p>
+                    <p class="text-muted text-sm">O que fazer agora — e como você está.</p>
                 </div>
-                <!-- Live (Sprint 15): flag off em produção → placeholder "Em breve".
-                     Ligada → link real para o estúdio de transmissão (zero deploy
-                     quando a flag virar). Antes do KYC aprovado o botão fica travado. -->
+                <!-- Live (Sprint 15): flag off → "Em breve"; ligada → o estúdio. -->
                 <div class="flex flex-wrap items-center gap-3">
-                    <ComingSoon
-                        v-if="!liveEnabled"
-                        icon="camera"
-                        label="Ir ao vivo"
-                        hint="Live estará disponível em breve"
-                    />
+                    <ComingSoon v-if="!liveEnabled" icon="camera" label="Ir ao vivo" hint="Live estará disponível em breve" />
                     <Link
                         v-else-if="canGoLive"
                         :href="route('performer.live')"
@@ -287,32 +154,14 @@ async function decideAccess(req, approve) {
                     >
                         Ir ao vivo
                     </Link>
-                    <Button
-                        v-else
-                        variant="primary"
-                        :disabled="true"
-                        title="Disponível somente após verificação KYC aprovada"
-                    >
+                    <Button v-else variant="primary" :disabled="true" title="Disponível somente após verificação KYC aprovada">
                         Ir ao vivo
                     </Button>
-
-                    <!-- Chamada privada (Sprint 15): sem página de configuração de
-                         preço hoje, então só o placeholder quando a flag está off. -->
-                    <ComingSoon
-                        v-if="!callEnabled"
-                        icon="phone"
-                        label="Definir preço de chamada"
-                    />
+                    <ComingSoon v-if="!callEnabled" icon="phone" label="Definir preço de chamada" />
                 </div>
             </div>
 
-            <!-- Presença no catálogo (fix/panel-polish-v1): a performer fica
-                 ONLINE automaticamente enquanto tem sessão ativa — não há botão de
-                 "ficar disponível". Este toggle é o OPT-OUT: ligá-lo para invisível
-                 a esconde do catálogo (sem online, sem faixa de atividade), mas ela
-                 CONTINUA recebendo mensagens. Só para performer verificada (mesma
-                 condição do "Ir ao vivo") — quem ainda está em KYC não aparece no
-                 catálogo. O switch LIGADO = visível/online; desligado = invisível. -->
+            <!-- Presença no catálogo: toggle do OPT-OUT. Só performer verificada. -->
             <div
                 v-if="canGoLive"
                 class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border p-5"
@@ -320,19 +169,11 @@ async function decideAccess(req, approve) {
             >
                 <div class="space-y-1">
                     <p class="text-sm text-cream flex items-center gap-2">
-                        <span
-                            aria-hidden="true"
-                            class="inline-block h-2.5 w-2.5 rounded-full"
-                            :class="visible ? 'bg-success' : 'bg-muted'"
-                        />
+                        <span aria-hidden="true" class="inline-block h-2.5 w-2.5 rounded-full" :class="visible ? 'bg-success' : 'bg-muted'" />
                         {{ visible ? 'Aparecendo como online' : 'Invisível no catálogo' }}
                     </p>
-                    <p v-if="visible" class="text-xs text-muted">
-                        Você aparece como online para quem está procurando agora.
-                    </p>
-                    <p v-else class="text-xs text-muted">
-                        Você está invisível no catálogo. Continua recebendo mensagens normalmente.
-                    </p>
+                    <p v-if="visible" class="text-xs text-muted">Você aparece como online para quem está procurando agora.</p>
+                    <p v-else class="text-xs text-muted">Você está invisível no catálogo. Continua recebendo mensagens normalmente.</p>
                 </div>
                 <button
                     type="button"
@@ -344,84 +185,80 @@ async function decideAccess(req, approve) {
                     :class="visible ? 'bg-success' : 'bg-frame'"
                     @click="toggleVisibility"
                 >
-                    <span
-                        class="inline-block h-5 w-5 transform rounded-full bg-background transition-transform"
-                        :class="visible ? 'translate-x-6' : 'translate-x-1'"
-                    />
+                    <span class="inline-block h-5 w-5 transform rounded-full bg-background transition-transform" :class="visible ? 'translate-x-6' : 'translate-x-1'" />
                 </button>
             </div>
+            <p v-if="toastMessage" class="text-xs text-success">{{ toastMessage }}</p>
 
-            <!-- Boost pago (Sprint 11): seção "Destaque". Três estados —
-                 boostada (faixa de tempo), pode boostar (botão + custo + vagas),
-                 ou sem tokens (aviso + link de comprar). Só para performer
-                 elegível (verificada e ativa): quem ainda está em KYC não está no
-                 catálogo, então destacar seria no-op (o servidor recusa de
-                 qualquer forma). -->
-            <div
-                v-if="boost.eligible"
-                class="rounded-xl border p-5 space-y-3"
-                :class="boostState.is_boosted ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface'"
-            >
-                <div class="flex items-center justify-between gap-3">
-                    <p class="text-sm text-cream flex items-center gap-2">
-                        <svg class="h-4 w-4 text-gold" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z" /></svg> Destaque no catálogo
-                    </p>
-                    <span v-if="!boostState.is_boosted" class="text-xs text-muted">
-                        {{ boostState.available_slots }} de {{ boostState.max_slots }} vagas
-                    </span>
-                </div>
-
-                <!-- Boostada agora: faixa de tempo restante, nunca um relógio. -->
-                <template v-if="boostState.is_boosted">
-                    <p class="text-xs text-gold">
-                        Seu perfil está no topo do catálogo{{ boostState.remaining_label ? ` — ${boostState.remaining_label}` : '' }}.
-                    </p>
-                </template>
-
-                <!-- Pode boostar: botão + custo. -->
-                <template v-else-if="canAffordBoost">
-                    <p class="text-xs text-muted">
-                        Apareça no topo do catálogo por {{ boostState.duration_hours }} horas. Custa
-                        <span class="text-gold">{{ boostState.cost }} tokens</span>.
-                    </p>
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        :loading="boosting"
-                        :disabled="boostState.available_slots <= 0"
-                        :title="boostState.available_slots <= 0 ? 'Todas as vagas de destaque estão ocupadas agora' : undefined"
-                        @click="activateBoost"
+            <!-- Ações rápidas: os gestos diários, sempre no topo. Só performer
+                 ativa — as abas de Stories/Canal exigem performer-active. -->
+            <section v-if="canPublishStories" aria-labelledby="acoes" class="space-y-3">
+                <h2 id="acoes" class="font-serif text-xl text-cream">Ações rápidas</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Link
+                        :href="route('performer.panel.stories')"
+                        class="flex items-center gap-4 rounded-xl border border-gold/40 bg-surface p-5 no-underline hover:border-gold transition-colors"
                     >
-                        Destacar meu perfil
-                    </Button>
-                </template>
-
-                <!-- Sem tokens: aviso + link de comprar. -->
-                <template v-else>
-                    <p class="text-xs text-muted">
-                        Você precisa de <span class="text-gold">{{ boostState.cost }} tokens</span> para destacar seu perfil.
-                        Você tem {{ formatTokens(walletBalance) }}.
-                    </p>
-                    <Link :href="route('wallet.index')" class="text-sm text-gold hover:text-gold-light transition-colors no-underline">
-                        Comprar tokens &rarr;
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gold text-background">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                        </span>
+                        <span>
+                            <span class="block text-sm font-medium text-cream">Publicar story</span>
+                            <span class="block text-xs text-muted mt-0.5">Foto, câmera, enquete</span>
+                        </span>
                     </Link>
-                </template>
-            </div>
+                    <Link
+                        :href="route('performer.panel.channel')"
+                        class="flex items-center gap-4 rounded-xl border border-frame bg-surface p-5 no-underline hover:border-gold/40 transition-colors"
+                    >
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-gold">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l18-6v14L3 13z" /><path d="M7 13v5a2 2 0 0 0 2 2h1" /></svg>
+                        </span>
+                        <span>
+                            <span class="block text-sm font-medium text-cream">Transmitir</span>
+                            <span class="block text-xs text-muted mt-0.5">Uma mensagem a quem te segue</span>
+                        </span>
+                    </Link>
+                </div>
+            </section>
 
-            <!-- Completude do perfil (Sprint 10): topo do painel, antes dos
-                 demais. Some (vira selo discreto) quando chega a 100%. -->
+            <!-- Precisa de você: só aparece quando há algo pendente. É daqui que
+                 sai o número do badge de "Painel" na nav. -->
+            <section v-if="pending.length" aria-labelledby="pend" class="space-y-3">
+                <div class="flex items-baseline justify-between gap-4">
+                    <h2 id="pend" class="font-serif text-xl text-cream">Precisa de você</h2>
+                    <span class="text-xs text-muted">some quando não há pendência</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Link
+                        v-for="item in pending"
+                        :key="item.key"
+                        :href="route(item.route)"
+                        class="flex items-center gap-4 rounded-xl border border-gold/40 bg-surface p-5 no-underline hover:border-gold transition-colors"
+                    >
+                        <span class="flex h-10 min-w-[2.5rem] shrink-0 items-center justify-center rounded-full bg-gold px-2 font-semibold text-background">
+                            {{ item.count }}
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-medium text-cream">{{ item.title }}</span>
+                            <span class="block text-xs text-muted mt-0.5">{{ item.hint }}</span>
+                        </span>
+                        <span class="shrink-0 text-sm text-gold">{{ item.cta }} →</span>
+                    </Link>
+                </div>
+            </section>
+
+            <!-- Completude do perfil (Sprint 10): vira selo discreto a 100%. -->
             <ProfileProgress :profile="profileProgress" />
 
-            <!-- Cards -->
+            <!-- Indicadores -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 <Link
                     :href="route('performer.payouts.index')"
                     class="rounded-xl border border-frame bg-surface p-5 space-y-1 block no-underline hover:border-gold/40 transition-colors"
                 >
                     <p class="text-xs text-muted uppercase tracking-wide">Saldo</p>
-                    <!-- walletBalance (local) e não a prop: o boost debita tokens
-                         e o card precisa refletir sem recarregar a página. -->
-                    <p class="font-serif text-3xl text-gold">{{ formatTokens(walletBalance) }}</p>
+                    <p class="font-serif text-3xl text-gold">{{ formatTokens(wallet) }}</p>
                     <p class="text-xs text-gold/70">Sacar &rarr;</p>
                 </Link>
 
@@ -442,45 +279,13 @@ async function decideAccess(req, approve) {
 
                 <div class="rounded-xl border border-frame bg-surface p-5 space-y-2">
                     <p class="text-xs text-muted uppercase tracking-wide">Status KYC</p>
-                    <span
-                        class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
-                        :class="kycBadge.class"
-                    >
+                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium" :class="kycBadge.class">
                         {{ kycBadge.label }}
                     </span>
                 </div>
             </div>
 
-            <!-- Conteúdo permanente (UAT fix): acesso claro à publicação de peças
-                 pagas. Só para performer ativa — a rota exige performer-active. -->
-            <Link
-                v-if="canPublishStories"
-                :href="route('performer.content')"
-                class="flex items-center justify-between rounded-xl border border-frame bg-surface p-5 no-underline hover:border-gold/40 transition-colors"
-            >
-                <div class="space-y-1">
-                    <p class="font-serif text-lg text-cream">Conteúdo permanente</p>
-                    <p class="text-sm text-muted">Publique fotos pagas (Aberto, Premium, Exclusivo ou FC Only).</p>
-                </div>
-                <span class="shrink-0 text-sm text-gold">Gerenciar &rarr;</span>
-            </Link>
-
-            <!-- Intro de voz (feat/voice-intro): grava uma mensagem curta para o
-                 perfil. Só performer ativa — a rota exige performer-active. Passa
-                 por análise antes de ir ao ar. -->
-            <Link
-                v-if="canPublishStories"
-                :href="route('performer.voice-intro.edit')"
-                class="flex items-center justify-between rounded-xl border border-frame bg-surface p-5 no-underline hover:border-gold/40 transition-colors"
-            >
-                <div class="space-y-1">
-                    <p class="font-serif text-lg text-cream">Apresentação de voz</p>
-                    <p class="text-sm text-muted">Grave uma mensagem curta (até 20s) para atrair quem visita seu perfil.</p>
-                </div>
-                <span class="shrink-0 text-sm text-gold">Gerenciar &rarr;</span>
-            </Link>
-
-            <!-- Tips table -->
+            <!-- Últimas gorjetas -->
             <div class="space-y-3">
                 <h2 class="font-serif text-xl text-cream">Últimas gorjetas</h2>
 
@@ -498,17 +303,9 @@ async function decideAccess(req, approve) {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr
-                                v-for="(tip, i) in tips"
-                                :key="i"
-                                class="border-b border-frame/50 last:border-b-0"
-                            >
-                                <!-- Apelido em destaque, FanAlias ao lado (o
-                                     identificador estável). Sem apelido, só o alias.
-                                     Depois, o Estilo de Vida do membro se ele
-                                     declarou: sem faixa não sai nada — um "não
-                                     informou" entregaria que ele viu o formulário e
-                                     recusou. Ver App\Support\LifestyleTier. -->
+                            <tr v-for="(tip, i) in tips" :key="i" class="border-b border-frame/50 last:border-b-0">
+                                <!-- Apelido em destaque, FanAlias ao lado; depois o Estilo
+                                     de Vida se declarado (sem faixa não sai nada). -->
                                 <td class="px-5 py-3 text-cream">
                                     <template v-if="tip.nickname">
                                         {{ tip.nickname }}<span class="text-muted"> · {{ tip.fan }}</span>
@@ -523,244 +320,29 @@ async function decideAccess(req, approve) {
                 </div>
             </div>
 
-            <!-- Visitantes recentes -->
-            <div class="space-y-3">
-                <div class="flex items-baseline justify-between gap-4">
-                    <h2 class="font-serif text-xl text-cream">Visitantes recentes</h2>
-                    <span class="text-xs text-muted">últimas {{ visitorsWindowHours }}h</span>
-                </div>
-
-                <!-- Piso de Anonimato: mesma regra da tela de seguidores. A tela
-                     diz POR QUE está vazia — sem isso a performer lê como
-                     "ninguém veio" e conclui coisa errada sobre o próprio perfil. -->
-                <div v-if="!visitorsVisible" class="rounded-xl border border-frame bg-surface p-8 text-center space-y-1">
-                    <p class="text-cream text-sm">Ainda não é possível mostrar os visitantes</p>
-                    <p class="text-muted text-xs">
-                        Para preservar o anonimato de quem visita, a lista aparece a partir de
-                        {{ anonymityFloor }} visitantes — e depende do mesmo piso da sua lista de seguidores.
-                    </p>
-                </div>
-
-                <!-- Copy DELIBERADAMENTE ambígua: este estado cobre tanto "não
-                     houve visita" quanto "houve, mas nenhuma faixa reuniu
-                     visitantes suficientes ainda" (k-anonimato). Distinguir os
-                     dois casos devolveria à performer exatamente o sinal que o k
-                     remove — ela saberia que ALGUÉM passou. Não afirmar zero. -->
-                <div v-else-if="visitors.length === 0" class="rounded-xl border border-frame bg-surface p-8 text-center text-muted text-sm">
-                    Nada a mostrar nas últimas {{ visitorsWindowHours }} horas.
-                </div>
-
-                <div v-else class="rounded-xl border border-frame bg-surface overflow-hidden">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="border-b border-frame text-left text-xs text-muted uppercase tracking-wide">
-                                <th class="px-5 py-3 font-medium">Fã</th>
-                                <th class="px-5 py-3 font-medium">Visita</th>
-                                <th v-if="canSendVisitorInterest" class="px-5 py-3 font-medium text-right">Interesse</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr
-                                v-for="(visit, i) in visitors"
-                                :key="i"
-                                class="border-b border-frame/50 last:border-b-0"
-                            >
-                                <td class="px-5 py-3 text-cream">
-                                    {{ visit.fan }}<span v-if="visit.lifestyle" class="text-muted"> · {{ visit.lifestyle }}</span>
-                                </td>
-                                <!-- Faixa do dia, nunca relógio: horário exato deixava
-                                     a performer casar um envio de link com o alias que
-                                     aparece logo depois. Ver ProfileVisitService::slot(). -->
-                                <td class="px-5 py-3 text-muted">{{ visit.visited_slot }}</td>
-                                <td v-if="canSendVisitorInterest" class="px-5 py-3 text-right">
-                                    <span v-if="justSent[visit.member_handle]" class="text-xs text-success">
-                                        Enviado
-                                    </span>
-                                    <template v-else>
-                                        <button
-                                            type="button"
-                                            :disabled="!canSendTo(visit)"
-                                            class="rounded-lg border border-gold px-3 py-1.5 text-xs text-gold hover:bg-gold/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                            @click="sendVisitorInterest(visit)"
-                                        >
-                                            {{ sendingHandle === visit.member_handle ? 'Enviando...' : 'Demonstrar' }}
-                                        </button>
-                                        <p v-if="errorFor[visit.member_handle]" class="pt-1 text-xs text-danger">
-                                            {{ errorFor[visit.member_handle] }}
-                                        </p>
-                                    </template>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <p v-if="visitorsVisible && canSendVisitorInterest" class="text-xs text-muted">
-                    Você pode demonstrar interesse para {{ visitorQuota }}
-                    {{ visitorQuota === 1 ? 'visitante' : 'visitantes' }} hoje. O sinal não leva
-                    texto — quem recebe decide se quer revelar quem é você.
-                </p>
-
-                <p v-if="toastMessage" class="text-xs text-success">{{ toastMessage }}</p>
-
-                <!-- Nem toda visita aparece aqui, e a tela diz isso: sem o aviso,
-                     a lista vazia se lê como "ninguém veio", e a performer tira
-                     conclusão de um dado que nunca foi completo. -->
-                <p v-if="visitorsVisible" class="text-xs text-muted">
-                    Membros com Ghost Mode navegam sem registrar visita — esta lista é parcial por
-                    definição.
-                </p>
-            </div>
-
-            <!-- Meus Stories (Sprint 9C). A faixa e o `null` do nível exclusivo
-                 vêm resolvidos do servidor — o componente não decide nada. Some
-                 para a performer ainda em KYC: as rotas exigem
-                 `can('performer-active')`, e oferecer o botão seria oferecer 403. -->
-            <StoryPanel
-                v-if="canPublishStories"
-                :stories="stories"
-                :visibility-levels="storyVisibilityLevels"
-                :subscriber-min-tiers="storySubscriberMinTiers"
-                :invite-limit="storyInviteLimit"
-            />
-
-            <!-- Canal de transmissão (Onda 2): mesmo gate do StoryPanel — a rota
-                 exige `can('performer-active')`. -->
-            <BroadcastPanel v-if="canPublishStories" :max-length="broadcastMaxLength" />
-
-            <!-- Fotos recebidas (Sprint 9B) -->
-            <div class="space-y-4">
-                <div class="flex items-baseline justify-between">
-                    <h2 class="font-serif text-2xl text-cream">Fotos recebidas</h2>
-                    <span class="text-xs text-muted">{{ receivedPhotos.length }} ativa(s)</span>
-                </div>
-
-                <p v-if="!receivedPhotos.length" class="text-sm text-muted">
-                    Nenhuma foto compartilhada com você no momento.
-                </p>
-
-                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <button
-                        v-for="photo in receivedPhotos"
-                        :key="photo.access_id"
-                        type="button"
-                        class="rounded-xl border border-frame bg-surface p-4 text-left hover:border-gold/40 transition-colors"
-                        @click="openPhoto = photo"
-                    >
-                        <p class="text-sm text-cream">{{ photo.fan }}</p>
-                        <p class="text-xs text-muted">{{ photo.expires_slot }}</p>
-                        <p class="pt-2 text-xs text-gold/70">Ver foto</p>
-                    </button>
-                </div>
-
-                <!-- Sem instrumento NOMEADO, e isso é decisão, não vagueza.
-                     O Contrato de Performance é placeholder (aguardando Opice
-                     Blum): afirmar que um comportamento viola cláusula de um
-                     texto que ninguém pode ler é a mesma falha de linguagem que
-                     o § 1.1 existe para evitar. E "Termos de Uso" seria pior —
-                     não há rota para eles neste app (o link do rodapé é `#`),
-                     então a atribuição seria a um documento que ela nunca
-                     aceitou e não consegue abrir.
-                     A regra da plataforma vale por si e é o que a performer de
-                     fato aceitou; quando o texto definitivo entrar, esta frase
-                     pode voltar a citá-lo pelo nome. -->
-                <p v-if="receivedPhotos.length" class="text-xs text-muted">
-                    As fotos somem do servidor quando o prazo acaba. Guardar, reproduzir ou
-                    repassar o conteúdo é proibido pelas regras da plataforma e pode levar à
-                    suspensão da conta.
-                </p>
-            </div>
-
-            <!-- Solicitações de acesso às fotos privadas (Sprint 13). Cada pedido
-                 é mostrado por FanAlias — a performer NUNCA vê o id nem o nome real
-                 de quem pediu. Aprovar concede acesso permanente àquela foto;
-                 recusar apaga o pedido. -->
-            <div class="space-y-4">
-                <div class="flex items-baseline justify-between">
-                    <h2 class="font-serif text-2xl text-cream">Solicitações de acesso</h2>
-                    <span class="text-xs text-muted">{{ accessRequests.length }} pendente(s)</span>
-                </div>
-
-                <p v-if="!accessRequests.length" class="text-sm text-muted">
-                    Nenhum pedido de acesso às suas fotos privadas no momento.
-                </p>
-
-                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div
-                        v-for="req in accessRequests"
-                        :key="requestKey(req)"
-                        class="flex items-center gap-3 rounded-xl border border-frame bg-surface p-4"
-                    >
-                        <img
-                            :src="req.photo_url"
-                            alt="Foto privada"
-                            class="h-14 w-14 shrink-0 rounded-lg border border-frame object-cover"
-                        />
-                        <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm text-cream">{{ req.fan }}</p>
-                            <div class="mt-1 flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    :disabled="decidingKey !== null"
-                                    class="rounded-md bg-gold px-3 py-1 text-xs text-background transition-colors hover:bg-gold-light disabled:opacity-50"
-                                    @click="decideAccess(req, true)"
-                                >
-                                    Aprovar
-                                </button>
-                                <button
-                                    type="button"
-                                    :disabled="decidingKey !== null"
-                                    class="rounded-md border border-frame px-3 py-1 text-xs text-muted transition-colors hover:text-cream hover:border-danger/50 disabled:opacity-50"
-                                    @click="decideAccess(req, false)"
-                                >
-                                    Recusar
-                                </button>
-                            </div>
-                        </div>
+            <!-- Atalhos de conteúdo: a casa deles é a seção Conteúdo da nav. -->
+            <div v-if="canPublishStories" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Link
+                    :href="route('performer.content')"
+                    class="flex items-center justify-between rounded-xl border border-frame bg-surface p-5 no-underline hover:border-gold/40 transition-colors"
+                >
+                    <div class="space-y-1">
+                        <p class="font-serif text-lg text-cream">Conteúdo permanente</p>
+                        <p class="text-sm text-muted">Fotos pagas: Aberto, Premium, Exclusivo ou FC Only.</p>
                     </div>
-                </div>
-            </div>
-
-            <NotificationSoundSettings />
-        </div>
-
-        <!-- Visualização inline. Sem botão de download e sem link direto: o
-             endpoint responde com Content-Disposition: inline e no-store. -->
-        <div
-            v-if="openPhoto"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-6"
-            @click="openPhoto = null"
-        >
-            <div class="max-w-lg space-y-3 text-center" @click.stop>
-                <img
-                    :src="route('performer.photos.image', openPhoto.access_id)"
-                    alt="Foto recebida"
-                    class="max-h-[70vh] w-auto rounded-xl border border-frame"
-                />
-                <p class="text-sm text-cream">{{ openPhoto.fan }} · {{ openPhoto.expires_slot }}</p>
-                <div class="flex items-center justify-center gap-4">
-                    <button class="text-xs text-muted hover:text-cream" @click="openPhoto = null">Fechar</button>
-                    <!-- O handle é o access_id, NUNCA o id da foto: aquele é comum
-                         às performers com quem o mesmo membro compartilhou, e
-                         trafegá-lo aqui daria um identificador correlacionável
-                         entre perfis — o que o FanAlias existe para impedir. -->
-                    <button class="text-xs text-danger hover:underline" @click="reporting = openPhoto">
-                        Denunciar foto
-                    </button>
-                </div>
+                    <span class="shrink-0 text-sm text-gold">Gerenciar &rarr;</span>
+                </Link>
+                <Link
+                    :href="route('performer.voice-intro.edit')"
+                    class="flex items-center justify-between rounded-xl border border-frame bg-surface p-5 no-underline hover:border-gold/40 transition-colors"
+                >
+                    <div class="space-y-1">
+                        <p class="font-serif text-lg text-cream">Apresentação de voz</p>
+                        <p class="text-sm text-muted">Mensagem curta (até 20s) para quem visita seu perfil.</p>
+                    </div>
+                    <span class="shrink-0 text-sm text-gold">Gerenciar &rarr;</span>
+                </Link>
             </div>
         </div>
-
-        <!-- Denúncia da foto recebida. Mesma porta (/reportar) e mesmo modal dos
-             outros alvos: o dedup por janela, o lock anti-duplo-submit e a
-             resposta uniforme já vivem lá. Denunciar CONGELA o GC e o revoke
-             daquela foto — sem isso a denúncia chegaria para um arquivo que o
-             titular já apagou. -->
-        <ReportModal
-            :show="reporting !== null"
-            reportable-type="member_photo"
-            :reportable-id="reporting?.access_id ?? 0"
-            @close="reporting = null"
-        />
     </AppLayout>
 </template>

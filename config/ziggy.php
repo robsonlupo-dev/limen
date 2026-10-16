@@ -77,6 +77,14 @@ return [
 
         // Performer area (all performer.* web routes)
         'performer.dashboard',
+        // Abas do Painel (reorg do Painel, UAT Fase 21) — pílulas da subnav e
+        // ações rápidas do Resumo apontam para elas.
+        'performer.panel.stories',
+        'performer.panel.channel',
+        'performer.panel.settings',
+        // Pessoas › Solicitações: destino do badge de "Pessoas" e dos cards de
+        // pendência do Resumo.
+        'performer.people.requests',
         'performer.onboarding',
         'performer.onboarding.profile',
         'performer.onboarding.avatar',
