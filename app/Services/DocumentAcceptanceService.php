@@ -53,6 +53,39 @@ class DocumentAcceptanceService
     }
 
     /**
+     * Grava o aceite dos documentos informados (ex.: ['terms', 'privacy']) na
+     * versão vigente, com o mesmo rastro append-only + fingerprint do aceite da
+     * performer. É o aceite do MEMBRO no cadastro: antes o cadastro só gravava
+     * users.terms_version='1.0' (constante morta) e um timestamp de LGPD — sem
+     * versão real, sem prova de "sob qual texto ele aceitou", sem IP/UA. Agora
+     * cada cadastro deixa uma linha por documento, como evidência.
+     *
+     * Reusa o unique (user, type, version): idempotente (re-chamar não empilha)
+     * e o accepted_at preservado é o do primeiro aceite daquela versão. Os tipos
+     * aqui (terms/privacy) NÃO entram em REQUIRED, então não gateiam ninguém no
+     * middleware — são só evidência.
+     *
+     * @param  list<string>  $types  chaves de config('documents.versions.*')
+     * @return list<DocumentAcceptance>
+     */
+    public function recordConsent(User $user, array $types, Request $request): array
+    {
+        $fingerprint = ClientFingerprint::of($request);
+
+        return DB::transaction(fn () => array_map(
+            fn (string $type) => DocumentAcceptance::firstOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'document_type' => $type,
+                    'document_version' => DocumentAcceptance::currentVersion($type),
+                ],
+                ['accepted_at' => now()] + $fingerprint,
+            ),
+            $types,
+        ));
+    }
+
+    /**
      * Grava o aceite da versão vigente de todos os documentos exigidos.
      *
      * Tudo ou nada, numa transação: aceite pela metade deixaria a performer

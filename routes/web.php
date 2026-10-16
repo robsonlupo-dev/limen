@@ -147,6 +147,15 @@ Route::get('/waitlist/confirmar', [WaitlistController::class, 'confirm'])
     ->middleware('throttle:20,1')
     ->name('waitlist.confirm');
 
+// Reenviar o e-mail de confirmação (quem não recebeu / caiu no spam). GET mostra
+// o formulário; POST reenvia, com resposta neutra (anti-oráculo) e throttle baixo.
+Route::get('/waitlist/reenviar', [WaitlistController::class, 'resendForm'])
+    ->middleware('throttle:30,1')
+    ->name('waitlist.resend.show');
+Route::post('/waitlist/reenviar', [WaitlistController::class, 'resend'])
+    ->middleware('throttle:5,10')
+    ->name('waitlist.resend');
+
 // Unsubscribe from the waitlist email. GET only shows a confirmation page (safe
 // against link pre-fetch); the POST performs the delete (CSRF-protected). The
 // token is opaque and carries the email — no PII in the URL/access log.

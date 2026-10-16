@@ -25,13 +25,22 @@ class WaitlistConfirmationMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public WaitlistEntry $entry) {}
+    /**
+     * @param  bool  $reminder  quando true, é o lembrete de 24h para quem ainda
+     *                          não confirmou — muda só o assunto e um aviso no
+     *                          topo; o link e o resto do e-mail são idênticos.
+     */
+    public function __construct(public WaitlistEntry $entry, public bool $reminder = false) {}
 
     public function envelope(): Envelope
     {
-        $subject = $this->entry->isPerformer()
-            ? 'Confirme sua reserva — Limen Founding Members'
-            : 'Confirme seu lugar — Limen Founding Members';
+        if ($this->reminder) {
+            $subject = 'Ainda dá tempo — confirme seu lugar na Limen';
+        } else {
+            $subject = $this->entry->isPerformer()
+                ? 'Confirme sua reserva — Limen Founding Members'
+                : 'Confirme seu lugar — Limen Founding Members';
+        }
 
         return new Envelope(subject: $subject);
     }
@@ -43,6 +52,7 @@ class WaitlistConfirmationMail extends Mailable implements ShouldQueue
             with: [
                 // First name only — never the full/composite name.
                 'firstName' => Str::of($this->entry->name)->trim()->explode(' ')->first(),
+                'isReminder' => $this->reminder,
                 'isPerformer' => $this->entry->isPerformer(),
                 'founderTitle' => $this->entry->founderTitle(),
                 'confirmUrl' => URL::route('waitlist.confirm', ['t' => $this->entry->invite_token]),

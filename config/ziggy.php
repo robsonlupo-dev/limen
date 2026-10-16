@@ -7,6 +7,7 @@ return [
         'entrada',
         'links',
         'waitlist.store',
+        'waitlist.resend.show',
 
         // Textos jurídicos (públicos)
         'legal.content-policy',

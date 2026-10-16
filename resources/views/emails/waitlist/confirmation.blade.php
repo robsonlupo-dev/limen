@@ -38,6 +38,18 @@
                         </td>
                     </tr>
 
+                    @if (!empty($isReminder))
+                    {{-- Lembrete de 24h: mesmo e-mail, aviso no topo de que ainda falta confirmar. --}}
+                    <tr>
+                        <td align="center" style="padding:16px 40px 0 40px;">
+                            <p style="margin:0; font-size:15px; line-height:1.6; color:#C9A84C;">
+                                Você entrou na lista, mas ainda não confirmou seu e-mail. Falta só um clique —
+                                e, se não achar nossa primeira mensagem, confira a caixa de spam.
+                            </p>
+                        </td>
+                    </tr>
+                    @endif
+
                     {{-- Headline --}}
                     <tr>
                         <td align="center" style="padding:10px 40px 0 40px;">
