@@ -176,78 +176,9 @@ async function remove(story) {
             Some sozinho em 24 horas. Você vê quantas pessoas viram, em faixa — nunca quem viu.
         </p>
 
-        <!-- Lista -->
-        <ul v-if="stories.length" class="mt-5 space-y-3">
-            <li
-                v-for="story in stories"
-                :key="story.id"
-                class="flex flex-col gap-2 rounded-xl border border-frame/60 bg-background/40 p-3"
-            >
-              <div class="flex items-center gap-4">
-                <!-- Thumbnail pela rota autenticada por sessão. Nunca URL
-                     assinada (§ 2.3) — nem aqui, onde o viewer é ela mesma. -->
-                <img
-                    :src="story.image_url"
-                    alt="Story"
-                    class="h-16 w-16 shrink-0 rounded-lg object-cover"
-                />
-                <div class="min-w-0 flex-1">
-                    <p class="text-sm text-cream">
-                        {{ cardLabel(story) }}
-                        <!-- Convite (Sprint 12): tag na publicação DELA. Novos
-                             seguidores sem chat veem este story com destaque. -->
-                        <span
-                            v-if="story.is_invite"
-                            class="ml-1 inline-flex items-center gap-1 rounded-full bg-gold/10 px-2 py-0.5 text-[10px] text-gold"
-                            title="Enviado como convite: novos seguidores sem chat veem com destaque"
-                        >
-                            <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
-                            Convite
-                        </span>
-                    </p>
-                    <p class="text-xs text-muted">
-                        Expira em {{ story.expires_in_hours }}h ·
-                        <span v-if="story.view_count !== null">{{ story.view_count }} viram</span>
-                        <!-- Ausência, não zero: no nível exclusivo a pergunta
-                             simplesmente não é respondida. -->
-                        <span v-else title="Stories exclusivos não exibem contador">—</span>
-                    </p>
-                    <!-- Reações (Onda 1b): AGREGADO — quais emojis (SVG) + a faixa de
-                         quem reagiu. Nunca "quem reagiu". Ausente (null) no exclusivo
-                         ou quando ninguém reagiu ainda. -->
-                    <p v-if="story.reactions" class="mt-0.5 flex items-center gap-1 text-xs text-muted">
-                        <ReactionIcon
-                            v-for="kind in story.reactions.kinds"
-                            :key="kind"
-                            :slug="kind"
-                            filled
-                            class="!h-3.5 !w-3.5 text-gold"
-                        />
-                        <span class="ml-0.5">{{ story.reactions.label }} reagiram</span>
-                    </p>
-                </div>
-                <button
-                    class="shrink-0 text-xs text-danger hover:underline disabled:opacity-50"
-                    :disabled="deleting === story.id"
-                    @click="remove(story)"
-                >
-                    {{ deleting === story.id ? 'Apagando…' : 'Apagar' }}
-                </button>
-              </div>
-
-              <!-- Enquete (Onda 1b): criar/remover + ver a distribuição (agregado).
-                   Exclusivo não tem enquete (o servidor recusa; a UI nem oferece). -->
-              <StoryPollEditor
-                  :story-id="story.id"
-                  :poll="story.poll ?? null"
-                  :can-poll="story.visibility_level !== 'exclusive'"
-              />
-            </li>
-        </ul>
-        <p v-else class="mt-5 text-sm text-muted">Você não tem stories ativos.</p>
-
-        <!-- Publicar -->
-        <div class="mt-6 border-t border-frame/60 pt-5 space-y-3">
+        <!-- Publicar — no TOPO (reorg do Painel, UAT Fase 21): é o gesto diário;
+             a lista vem depois. -->
+        <div class="mt-5 border-b border-frame/60 pb-5 space-y-3">
             <input
                 ref="fileInput"
                 type="file"
@@ -345,5 +276,75 @@ async function remove(story) {
             </p>
             <p v-if="error" class="text-xs text-danger">{{ error }}</p>
         </div>
+
+        <!-- Lista -->
+        <ul v-if="stories.length" class="mt-5 space-y-3">
+            <li
+                v-for="story in stories"
+                :key="story.id"
+                class="flex flex-col gap-2 rounded-xl border border-frame/60 bg-background/40 p-3"
+            >
+              <div class="flex items-center gap-4">
+                <!-- Thumbnail pela rota autenticada por sessão. Nunca URL
+                     assinada (§ 2.3) — nem aqui, onde o viewer é ela mesma. -->
+                <img
+                    :src="story.image_url"
+                    alt="Story"
+                    class="h-16 w-16 shrink-0 rounded-lg object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm text-cream">
+                        {{ cardLabel(story) }}
+                        <!-- Convite (Sprint 12): tag na publicação DELA. Novos
+                             seguidores sem chat veem este story com destaque. -->
+                        <span
+                            v-if="story.is_invite"
+                            class="ml-1 inline-flex items-center gap-1 rounded-full bg-gold/10 px-2 py-0.5 text-[10px] text-gold"
+                            title="Enviado como convite: novos seguidores sem chat veem com destaque"
+                        >
+                            <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+                            Convite
+                        </span>
+                    </p>
+                    <p class="text-xs text-muted">
+                        Expira em {{ story.expires_in_hours }}h ·
+                        <span v-if="story.view_count !== null">{{ story.view_count }} viram</span>
+                        <!-- Ausência, não zero: no nível exclusivo a pergunta
+                             simplesmente não é respondida. -->
+                        <span v-else title="Stories exclusivos não exibem contador">—</span>
+                    </p>
+                    <!-- Reações (Onda 1b): AGREGADO — quais emojis (SVG) + a faixa de
+                         quem reagiu. Nunca "quem reagiu". Ausente (null) no exclusivo
+                         ou quando ninguém reagiu ainda. -->
+                    <p v-if="story.reactions" class="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                        <ReactionIcon
+                            v-for="kind in story.reactions.kinds"
+                            :key="kind"
+                            :slug="kind"
+                            filled
+                            class="!h-3.5 !w-3.5 text-gold"
+                        />
+                        <span class="ml-0.5">{{ story.reactions.label }} reagiram</span>
+                    </p>
+                </div>
+                <button
+                    class="shrink-0 text-xs text-danger hover:underline disabled:opacity-50"
+                    :disabled="deleting === story.id"
+                    @click="remove(story)"
+                >
+                    {{ deleting === story.id ? 'Apagando…' : 'Apagar' }}
+                </button>
+              </div>
+
+              <!-- Enquete (Onda 1b): criar/remover + ver a distribuição (agregado).
+                   Exclusivo não tem enquete (o servidor recusa; a UI nem oferece). -->
+              <StoryPollEditor
+                  :story-id="story.id"
+                  :poll="story.poll ?? null"
+                  :can-poll="story.visibility_level !== 'exclusive'"
+              />
+            </li>
+        </ul>
+        <p v-else class="mt-5 text-sm text-muted">Você não tem stories ativos.</p>
     </section>
 </template>

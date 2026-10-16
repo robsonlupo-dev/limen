@@ -55,6 +55,13 @@ class DashboardController extends Controller
         }
         $visitorPanel = $this->visits->panelFor($profile);
 
+        // ── Transição da reorg do Painel (UAT Fase 21) ──────────────────────
+        // Stories, Canal, destaque/sons e as seções de "gente" (pedidos de acesso,
+        // fotos recebidas, visitantes) SAÍRAM desta tela e ganharam aba própria
+        // (PanelController / PeopleRequestsController). As props delas continuam
+        // saindo daqui por ora porque os testes de contrato apontam para esta
+        // rota; a "dieta de props" do Resumo é um PR próprio, depois que esses
+        // testes migrarem para as abas. A tela não as declara mais.
         return Inertia::render('Performer/Dashboard', [
             // Completude do perfil (Sprint 10). Barra de incentivo, 100%
             // frontend: nada é persistido — o componente DERIVA a porcentagem
