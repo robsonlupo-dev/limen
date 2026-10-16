@@ -15,8 +15,17 @@
 return [
 
     'versions' => [
-        'content_policy' => env('DOC_VERSION_CONTENT_POLICY', '2026-07-20'),
-        'performance_contract' => env('DOC_VERSION_PERFORMANCE_CONTRACT', '2026-07-20'),
+        // 2026-10-16: texto real (minuta pré-lançamento) substitui o placeholder de
+        // 2026-07-20 — bump deliberado, força o re-aceite das Performers.
+        'content_policy' => env('DOC_VERSION_CONTENT_POLICY', '2026-10-16'),
+        'performance_contract' => env('DOC_VERSION_PERFORMANCE_CONTRACT', '2026-10-16'),
+
+        // Documentos públicos SEM aceite registrado (não entram em
+        // DocumentAcceptance::REQUIRED): a versão só rotula a página. Mudar estes
+        // NÃO derruba ninguém na tela de aceite.
+        'terms' => env('DOC_VERSION_TERMS', '2026-10-16'),
+        'privacy' => env('DOC_VERSION_PRIVACY', '2026-10-16'),
+        'age_verification' => env('DOC_VERSION_AGE_VERIFICATION', '2026-10-16'),
     ],
 
 ];

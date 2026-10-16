@@ -232,7 +232,7 @@ it('mantém o aceite antigo como histórico ao aceitar a versão nova', function
         ->all();
 
     expect($versions)->toHaveCount(2)
-        ->and($versions)->toContain('2026-07-20')
+        ->and($versions)->toContain('2026-10-16')
         ->and($versions)->toContain('2026-09-01');
 });
 
@@ -247,7 +247,7 @@ it('não deixa o cliente escolher a versão aceita', function () {
     ]);
 
     expect($performer->documentAcceptances()->pluck('document_version')->unique()->all())
-        ->toBe(['2026-07-20']);
+        ->toBe(['2026-10-16']);
 });
 
 it('a tela de aceite é alcançável mesmo sem aceite (senão o redirect dá loop)', function () {

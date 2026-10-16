@@ -165,6 +165,15 @@ Route::get('/politica-de-conteudo', [LegalDocumentsController::class, 'contentPo
 Route::get('/contrato-de-performance', [LegalDocumentsController::class, 'performanceContract'])
     ->middleware('throttle:60,1')
     ->name('legal.performance-contract');
+Route::get('/termos', [LegalDocumentsController::class, 'terms'])
+    ->middleware('throttle:60,1')
+    ->name('legal.terms');
+Route::get('/privacidade', [LegalDocumentsController::class, 'privacy'])
+    ->middleware('throttle:60,1')
+    ->name('legal.privacy');
+Route::get('/verificacao-etaria', [LegalDocumentsController::class, 'ageVerification'])
+    ->middleware('throttle:60,1')
+    ->name('legal.age-verification');
 
 // Confirmação, pelo e-mail, do pedido de exclusão de conta (LGPD art. 18, VI).
 // Sem auth de propósito: o link chega na caixa e o titular pode abri-lo em

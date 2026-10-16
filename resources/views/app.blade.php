@@ -26,6 +26,11 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <meta name="description" content="{{ $metaDescription }}">
     <meta name="theme-color" content="#0A0A0A">
+    {{-- Sinaliza conteúdo ADULTO para filtros de controle parental e buscadores
+         (rótulo RTA + rating). Parte da proteção de menores — ver
+         resources/legal/verificacao-etaria.md. --}}
+    <meta name="rating" content="adult">
+    <meta name="rating" content="RTA-5042-1996-1400-1577-RTA">
     @if ($canonical)<link rel="canonical" href="{{ $canonical }}">@endif
     <meta property="og:site_name" content="Limen">
     <meta property="og:title" content="{{ $ogTitle }}">

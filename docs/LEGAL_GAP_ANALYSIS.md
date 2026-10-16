@@ -13,6 +13,13 @@ Data: 09/10/2026 | Auditor: Claude Code (varredura de código) | HEAD auditado: 
 > stub, está desligado por flag, ou depende de configuração externa não verificável no
 > código, está dito em voz alta.
 
+> **Atualização 16/10/2026:** o texto dos documentos **deixou de ser placeholder** — há
+> minutas pré-lançamento publicadas em `/termos`, `/privacidade`, `/politica-de-conteudo`,
+> `/contrato-de-performance` e `/verificacao-etaria` (fonte `resources/legal/*.md`; pacote
+> interno em `docs/juridico/`). Continuam **minutas sem revisão de advogado**: os itens 🔴
+> de "texto real" abaixo passam a 🟡 até a revisão; os demais gaps (CSAM, geobloqueio,
+> cifra de mensagem, etc.) **não mudaram**.
+
 Legenda: ✅ EXISTE · 🟡 PARCIAL · 🔴 FALTA
 
 > **Nota transversal — o que mudou desde julho (reverte a premissa central da auditoria
