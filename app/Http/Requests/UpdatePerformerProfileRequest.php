@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\PerformerProfile;
 use App\Rules\NoProhibitedOffer;
+use App\Rules\SafeProfileText;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,6 +30,11 @@ class UpdatePerformerProfileRequest extends FormRequest
             // perfil (edição web, onboarding e a API v1) — colocar a regra numa
             // só teria deixado as outras duas abertas.
             'bio' => ['sometimes', 'nullable', 'string', 'max:5000', new NoProhibitedOffer],
+            // Frase de destaque (roadmap Fatal Model): tagline curta no card e no
+            // perfil. É rótulo PÚBLICO e permanente — classe do apelido, não da
+            // bio —, então SafeProfileText (barra contato), não só NoProhibitedOffer.
+            // Teto 40: cabe num card sem quebrar o layout.
+            'headline' => ['sometimes', 'nullable', 'string', 'max:40', new SafeProfileText],
             // Multi-worlds: a performer pode pertencer a mais de um mundo. Se
             // `worlds` vier, ele é a fonte da verdade e `category` é DERIVADA de
             // worlds[0] no servidor (controller) — nunca do request. `min:1`

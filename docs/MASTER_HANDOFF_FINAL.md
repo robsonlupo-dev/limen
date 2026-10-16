@@ -5509,3 +5509,11 @@ Fase 1 do funil de validação (pré-lançamento). Cinco coisas, um PR:
 - **Admin.** `WaitlistStats::adminSummary` passou a expor `unconfirmed`, `pending_over_24h` e `reminders_sent` (só agregado, nunca lista e-mails); a tela `/admin/waitlist` ganhou os cartões.
 - **Entregabilidade.** Runbook `docs/runbooks/EMAIL_DELIVERABILITY.md` (SPF/DKIM/DMARC no Resend + `dig` + checklist pré-divulgação). O remetente já é `noreply@thelimen.com.br`; o `LEGAL_CONTACT_EMAIL` (contato jurídico) é coisa separada e não afeta spam.
 - Testes: `MemberDocumentConsentTest`, `WaitlistConfirmationReminderTest`.
+
+## Frase de destaque + selo "Voltou" (16/10/2026, `feat/frase-destaque-selo-voltou`)
+
+Roadmap Fatal Model, Onda A (itens 1 e 2 do card). Duas adições de baixo risco:
+
+- **Frase de destaque (`performer_profiles.headline`):** tagline curta PÚBLICA (teto 40) que a performer escreve na aba "Sobre mim" (campo novo, acima da bio). Exibida no card do catálogo (`PerformerCard` autenticado **e** `PublicPerformerCard`) abaixo do nome e no `ProfileHero`. Validada por **SafeProfileText** (classe do apelido — barra contato), não só `NoProhibitedOffer`, porque é rótulo público permanente. Fillable; passa pelo `UpdatePerformerProfileRequest` (as 3 portas: web/onboarding/API) e pelo filtro de `$data` do `ProfileController`.
+- **Selo "Voltou" (`users.returned_at`):** performer que reaparece após **> 30 dias** inativa. O `TrackPerformerActivity` carimba `returned_at` quando o `last_active_at` ANTERIOR é mais velho que `RETURN_GAP_DAYS` (30) — decidido antes de sobrescrever. `ReturnedBadge::isReturned` (espelha `NewBadge`, janela 7 dias) deriva o BOOLEANO `is_returned` no `PerformerPublicResource`. ⚠️ **Mesma disciplina de privacidade do `last_active_at`:** `returned_at` é `$hidden` (nunca sai como timestamp), suprimido sob `appear_offline` na mesma porta do `activity_label`, e o middleware **nem carimba** para Ghost/Invisível (retorna cedo). Conta nova (sem `last_active_at`) é "Nova", nunca "Voltou" — e o card nunca mostra os dois juntos.
+- Migration `2026_10_16_190000_add_headline_and_returned_at`. Testes: `HeadlineAndReturnedBadgeTest` (janela do badge, save + SafeProfileText + max 40, exposição/supressão no resource, carimbo do middleware em retorno/novo/ausência curta/ghost).

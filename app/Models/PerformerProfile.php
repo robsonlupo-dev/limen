@@ -135,7 +135,7 @@ class PerformerProfile extends Model
         'stage_name', 'slug', 'bio', 'category', 'worlds', 'work_modes',
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
         'is_live', 'is_verified', 'avatar_path', 'cover_path',
-        'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',
+        'languages', 'drinks', 'smokes', 'height_cm', 'looking_for', 'headline',
         // Localização opt-in. `city` é fillable porque a performer a escreve na
         // própria tela — o que a mantém interna é não sair em resource nenhum,
         // não a ausência daqui. Ver PerformerPublicResource.

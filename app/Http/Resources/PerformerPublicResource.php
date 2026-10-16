@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Support\ActivitySlot;
 use App\Support\NewBadge;
+use App\Support\ReturnedBadge;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\URL;
@@ -15,6 +16,7 @@ class PerformerPublicResource extends JsonResource
         return [
             'slug' => $this->slug,
             'stage_name' => $this->stage_name,
+            'headline' => $this->headline,
             'bio' => $this->bio,
             'category' => $this->category,
             // Lista completa de mundos. `category` continua sendo o principal
@@ -94,6 +96,14 @@ class PerformerPublicResource extends JsonResource
             // dias" ≈ está na vitrine há pouco. NewBadge é a dona única da janela;
             // o selo apaga sozinho na leitura ao vencer os 7 dias.
             'is_new' => NewBadge::isNew($this->created_at),
+            // Selo "Voltou" (roadmap Fatal Model): performer que reapareceu após
+            // > 30 dias. BOOLEANO derivado do `users.returned_at`, nunca a data.
+            // Suprimido sob `appear_offline` na MESMA porta do activity_label —
+            // é sinal de presença (e, na origem, o middleware nem carimba para
+            // Ghost/Invisível).
+            'is_returned' => $this->appear_offline
+                ? false
+                : ReturnedBadge::isReturned($this->user?->returned_at),
             // Intro de voz aprovada (feat/voice-intro): BOOLEANO derivado, nunca o
             // status cru. O card mostra um ícone discreto "tem áudio"; a URL de
             // serving NÃO entra aqui (é injetada só nas telas de perfil pelos

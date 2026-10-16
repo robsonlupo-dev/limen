@@ -124,6 +124,7 @@ const WORLDS = [
 
 const profileForm = useForm({
     stage_name: props.profile.stage_name ?? '',
+    headline: props.profile.headline ?? '',
     bio: props.profile.bio ?? '',
     // Pré-seleção: `worlds` é a fonte da verdade; perfil legado (worlds null)
     // cai no único mundo da `category`.
@@ -666,6 +667,23 @@ function save() {
                     required
                     :error="profileForm.errors.stage_name"
                 />
+
+                <div class="flex flex-col gap-1.5">
+                    <label for="headline" class="text-sm font-medium text-cream">Frase de destaque</label>
+                    <input
+                        id="headline"
+                        v-model="profileForm.headline"
+                        type="text"
+                        maxlength="40"
+                        placeholder="Uma frase curta que aparece no seu card"
+                        class="rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream placeholder:text-muted focus:border-gold focus:outline-none"
+                    />
+                    <div class="flex items-baseline justify-between gap-3">
+                        <p class="text-xs text-muted">Aparece abaixo do seu nome no catálogo e no perfil. Sem telefone, @ ou link.</p>
+                        <span class="text-xs text-muted tabular-nums shrink-0">{{ (profileForm.headline || '').length }}/40</span>
+                    </div>
+                    <p v-if="profileForm.errors.headline" class="text-xs text-danger">{{ profileForm.errors.headline }}</p>
+                </div>
 
                 <div class="flex flex-col gap-1.5">
                     <label for="bio" class="text-sm font-medium text-cream">Bio</label>

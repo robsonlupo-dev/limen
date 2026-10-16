@@ -57,6 +57,15 @@ const isSelect = computed(() => props.performer.tier === 'select')
             >
                 Nova
             </span>
+            <!-- Selo "Voltou" (roadmap Fatal Model): performer que reapareceu após
+                 longa ausência. BOOLEANO derivado (is_returned). Nunca aparece
+                 junto do "Nova" (conta nova não tem retorno). -->
+            <span
+                v-if="performer.is_returned && !performer.is_new"
+                class="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-limen-gold ring-1 ring-limen-gold/50 backdrop-blur-sm"
+            >
+                Voltou
+            </span>
             <!-- "Tem áudio" (feat/voice-intro): ícone discreto para intro de voz
                  APROVADA. Dourado, nunca limen-live. -->
             <span
@@ -110,6 +119,11 @@ const isSelect = computed(() => props.performer.tier === 'select')
                     <path v-if="!(isMaison || isSelect)" d="M6.7 10.2l2.1 2.1 4.5-4.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
             </div>
+            <!-- Frase de destaque (roadmap Fatal Model): tagline curta que a
+                 performer escreve. Uma linha, truncada, dourada discreta. -->
+            <p v-if="performer.headline" class="mt-0.5 text-[11px] text-limen-gold/90 truncate">
+                {{ performer.headline }}
+            </p>
             <p v-if="performer.activity_label && !performer.is_live" class="mt-0.5 text-[11px] text-limen-ink-mute">
                 {{ performer.activity_label }}
             </p>

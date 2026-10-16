@@ -86,6 +86,10 @@ class User extends Authenticatable implements MustVerifyEmail
         // não revelar (mesma disciplina do painel de visitantes). Fora do
         // $fillable também: quem escreve é só o TrackPerformerActivity.
         'last_active_at',
+        // Carimbo de "Voltou" (roadmap Fatal Model). Mesma disciplina do
+        // last_active_at: nunca sai como timestamp — o público só vê o booleano
+        // derivado (ReturnedBadge); fora do $fillable (só o TrackPerformerActivity).
+        'returned_at',
         // Watermark de "corações vistos" (feat/activity-badges). Nunca sai como
         // timestamp — só o CONTADOR de não-vistos derivado dele (nav_counts.hearts).
         // Fora do $fillable: quem escreve é só o PerformerHeartService ao abrir a
@@ -133,6 +137,8 @@ class User extends Authenticatable implements MustVerifyEmail
             // "Última atividade" (Sprint 10). Datetime para o ActivitySlot
             // comparar janelas; nunca serializado (é $hidden).
             'last_active_at' => 'datetime',
+            // "Voltou": comparado com janelas (ReturnedBadge); nunca serializado (é $hidden).
+            'returned_at' => 'datetime',
             // Watermark de "corações vistos" (feat/activity-badges). Datetime para
             // comparar com o created_at do coração; nunca serializado (é $hidden).
             'hearts_seen_at' => 'datetime',
