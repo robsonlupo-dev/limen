@@ -5484,3 +5484,17 @@ rodada sobre ele. Números do snapshot conferidos contra `git log`, `route:list`
 o filesystem e a suíte rodada de ponta a ponta (**1268 verdes, 6520 asserts**,
 ~165 s). Onde este doc e o código divergirem no futuro, o código vence — e a
 divergência deve ser registrada aqui ou no CLAUDE.md.*
+
+## Textos jurídicos públicos — minutas pré-lançamento no ar (16/10/2026, `feat/textos-juridicos-pre-lancamento`)
+
+**O que mudou.** Os dois documentos que eram placeholder (`[CONTEÚDO JURÍDICO — aguardando Opice Blum]`) passaram a ter **texto real**, e entraram três páginas públicas novas. Tudo é **MINUTA pré-lançamento redigida pela engenharia/PO** para o advogado revisar e adaptar (reduz o custo de contratar) — **não é parecer**. Decisão do PO (16/10): validar demanda até jan/2027 antes do pacote jurídico completo (`PENDENCIAS_JURIDICAS.md` §10).
+
+- **Fonte dos textos:** `resources/legal/*.md` (Markdown, revisável em diff), renderizado no servidor por `LegalDocumentsController` (`Str::markdown`, `html_input=strip`, `allow_unsafe_links=false`) e exibido por `Legal/Document.vue` (`v-html` — conteúdo NOSSO, nunca input de usuário).
+- **Rotas públicas:** `/termos` (`legal.terms`), `/privacidade` (`legal.privacy`), `/politica-de-conteudo`, `/contrato-de-performance`, `/verificacao-etaria` (`legal.age-verification`). Todas no allowlist do Ziggy. Links no rodapé do `GuestLayout`, no rodapé e no checkbox da lista de espera da `Landing`, no cadastro (termos + LGPD) e no age gate.
+- **Config:** `config/legal.php` — `LEGAL_DRAFT` (default `true`: mostra a faixa "versão pré-lançamento, em revisão jurídica"; desligar só após revisão por advogado) e `LEGAL_CONTACT_EMAIL` (substitui `{{CONTATO}}` nos textos; vazio → frase neutra, nunca e-mail inventado). **Configurar o e-mail no `.env` antes de divulgar.**
+- **Versões:** `content_policy` e `performance_contract` foram **bumpadas para `2026-10-16`** (bump deliberado: texto real substitui placeholder → **re-aceite das Performers**). `terms`/`privacy`/`age_verification` têm versão só de rótulo (não entram em `DocumentAcceptance::REQUIRED`; mudar não derruba ninguém).
+- **Sinalização de conteúdo adulto:** `<meta name="rating">` (`adult` + rótulo RTA) no `app.blade.php` — proteção de menores / controle parental.
+- **Pacote interno (NÃO publicado):** `docs/juridico/` — `00` leia-me para o advogado (decisões por documento e divergências), `01` MoU/pré-acordo de sócios com vesting, `02` cessão de propriedade intelectual, `03` análise jurídica do modelo e risco penal, `04` enquadramento regulatório dos tokens.
+- **Honestidade (regra para quem editar os textos):** os textos públicos **não prometem** o que o sistema não faz hoje — CSAM é MVP (lista vazia, só imagem, fail-open), geobloqueio inerte, idade autodeclarada + CPF estrutural + KYC por provedor, marca d'água desligada. Teste `LegalDocumentsTest` guarda algumas dessas fronteiras. Não afirmar "termos validados por advogado" antes da revisão.
+- **Lacuna conhecida:** o aceite do **Membro** (`accept_terms`, `lgpd_consent`) não grava a versão aceita — registrar versão do aceite do Membro é backlog (o da Performer já é append-only).
+- Testes: `tests/Feature/LegalDocumentsTest.php` (mecânica, token de contato, versões, afirmações do contrato/termos, RTA); `PerformerDocumentAcceptanceTest` ajustado para a versão nova.

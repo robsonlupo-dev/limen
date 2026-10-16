@@ -57,7 +57,8 @@ function decline() {
 
                     <p class="text-xs text-muted">
                         Ao entrar, você confirma ser maior de idade e aceita os
-                        <a href="/termos" class="text-gold underline">termos de uso</a>.
+                        <a href="/termos" class="text-gold underline">termos de uso</a>
+                        e a <a href="/privacidade" class="text-gold underline">política de privacidade</a>.
                     </p>
                 </div>
             </div>

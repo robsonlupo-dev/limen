@@ -482,3 +482,28 @@ vesting → termos de uso → go-live.
   performers confirmadas, com ≥ 10 "quentes" (responderam / mandaram portfólio) · taxa
   de confirmação de e-mail ≥ 60% · custo por lead acompanhado. Abaixo disso em
   dez/2026: revisar proposta de valor antes de gastar com jurídico.
+
+
+---
+
+## 11. Minutas pré-lançamento publicadas (16/10/2026)
+
+Para não depender de contratar o pacote completo antes de validar demanda (§10), a
+engenharia redigiu **minutas** dos textos que o escritório faria na frente F2/F3, e as
+publicou no site com faixa de "versão pré-lançamento" (`LEGAL_DRAFT`). O advogado, em
+jan/2027, **revisa e adapta** em vez de criar do zero. **Não é parecer** e não substitui
+a revisão — nenhum documento deve ser descrito como "validado por advogado" até lá.
+
+- **No ar (públicos):** Termos de Uso (Membros) · Contrato de Performer · Política de
+  Privacidade (LGPD, inclui lista de espera e prospecção de Performers) · Política de
+  Conteúdo Proibido e Moderação · Verificação Etária e Proteção de Menores. Fonte:
+  `resources/legal/*.md`.
+- **Internos (`docs/juridico/`):** leia-me para o advogado com as decisões por documento ·
+  MoU/pré-acordo de sócios com vesting · cessão de PI · análise jurídica do modelo e
+  risco penal · enquadramento regulatório dos tokens.
+- **Efeito sobre o que o escritório ainda precisa fazer:** F2 vira **revisão** (menos
+  horas); F3 parte dos rascunhos de MoU e cessão; F1/ratificação do parecer de Art. 228
+  continua sendo trabalho de advogado (a análise `03` é só ponto de partida).
+- **Decisões abertas do PO antes de divulgar:** `LEGAL_CONTACT_EMAIL` (e-mail do
+  encarregado/denúncias); divisão societária (66/34 × 66/33 × 50/50); se o vesting vale
+  para os dois sócios; nome/CNPJ quando existir.

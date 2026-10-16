@@ -301,7 +301,7 @@ function submit() {
                                 />
                                 <span class="text-sm text-muted">
                                     Li e aceito os
-                                    <a href="#" class="text-gold underline">termos de uso</a>
+                                    <a :href="route('legal.terms')" target="_blank" rel="noopener" class="text-gold underline">termos de uso</a>
                                 </span>
                             </label>
                             <p v-if="form.errors.accept_terms" class="text-xs text-danger ml-7">{{ form.errors.accept_terms }}</p>
@@ -314,7 +314,7 @@ function submit() {
                                 />
                                 <span class="text-sm text-muted">
                                     Consinto com o
-                                    <a href="#" class="text-gold underline">tratamento de dados (LGPD)</a>
+                                    <a :href="route('legal.privacy')" target="_blank" rel="noopener" class="text-gold underline">tratamento de dados (LGPD)</a>
                                 </span>
                             </label>
                             <p v-if="form.errors.lgpd_consent" class="text-xs text-danger ml-7">{{ form.errors.lgpd_consent }}</p>

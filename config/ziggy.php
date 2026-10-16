@@ -11,6 +11,9 @@ return [
         // Textos jurídicos (públicos)
         'legal.content-policy',
         'legal.performance-contract',
+        'legal.terms',
+        'legal.privacy',
+        'legal.age-verification',
 
         // Public performer catalog (no auth)
         'performers.public',

@@ -750,7 +750,7 @@ onBeforeUnmount(() => {
                                     <div>
                                         <label class="f-check">
                                             <input v-model="form.age_confirmed" type="checkbox" />
-                                            <span>Confirmo que tenho <strong>18 anos ou mais</strong> e concordo em receber o convite de lançamento por e-mail.</span>
+                                            <span>Confirmo que tenho <strong>18 anos ou mais</strong> e concordo em receber o convite de lançamento por e-mail. Li a <a :href="route('legal.privacy')" target="_blank" rel="noopener">Política de Privacidade</a>.</span>
                                         </label>
                                         <p v-if="form.errors.age_confirmed" class="f-err">{{ form.errors.age_confirmed }}</p>
                                     </div>
@@ -847,6 +847,12 @@ onBeforeUnmount(() => {
                     <div class="lc-foot-mark">LIMEN</div>
                     <nav class="lc-foot-nav" aria-label="Navegação da landing">
                         <a v-for="l in footerLinks" :key="l.href" :href="l.href">{{ l.label }}</a>
+                    </nav>
+                    <nav class="lc-foot-nav" aria-label="Documentos legais">
+                        <a :href="route('legal.terms')">Termos de uso</a>
+                        <a :href="route('legal.privacy')">Privacidade</a>
+                        <a :href="route('legal.content-policy')">Conteúdo e moderação</a>
+                        <a :href="route('legal.age-verification')">Conformidade 18+</a>
                     </nav>
                     <!-- AJUSTE de copy (ponto de atenção nº 3): imagens/vídeos do topo são
                          arte de ambiente gerada por IA, sem pessoas reais. -->
@@ -1363,6 +1369,7 @@ onBeforeUnmount(() => {
 .f-check { display: flex; align-items: flex-start; gap: 0.7rem; cursor: pointer; font-size: 0.85rem; color: var(--muted); }
 .f-check input { margin-top: 0.15rem; width: 1rem; height: 1rem; accent-color: var(--gold); flex-shrink: 0; }
 .f-check strong { color: var(--ink); }
+.f-check a { color: var(--gold); text-decoration: underline; }
 
 .role-toggle, .world-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
 .world-sub { margin-top: 1rem; }
