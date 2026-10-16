@@ -20,6 +20,7 @@ use App\Services\InterestService;
 use App\Services\PerformerStoryService;
 use App\Services\ProfileVisitService;
 use App\Support\FanAlias;
+use App\Support\PerformerGrowthChecklist;
 use App\Support\LifestyleTier;
 use App\Support\MemberDisplayName;
 use App\Support\StoryPresenter;
@@ -85,6 +86,9 @@ class DashboardController extends Controller
                 'state' => $profile->state,
                 'city' => $profile->city,
             ],
+            // Checklist de crescimento (roadmap Fatal Model, Onda A): só-leitura,
+            // derivado (perfil + stories + live). Gamifica os sinais do ranking.
+            'growthChecklist' => PerformerGrowthChecklist::for($profile),
             'wallet' => $this->walletBalance($user),
             'totalEarned' => $this->totalEarned($user),
             'tips' => $this->recentTips($profile),
