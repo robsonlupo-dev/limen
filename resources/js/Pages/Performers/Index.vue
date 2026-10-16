@@ -44,7 +44,9 @@ const activeFilterParams = computed(() => {
         has_photo: f.has_photo ? 1 : undefined,
         level: f.level || undefined,
         tier: f.tier || undefined,
-        sort: f.sort && f.sort !== 'rating_avg' ? f.sort : undefined,
+        // Ordenação transparente (Onda A): omite o padrão ('ativas') e o legado
+        // 'rating_avg' ao trocar de mundo — o servidor mapeia o resto.
+        sort: f.sort && !['ativas', 'rating_avg'].includes(f.sort) ? f.sort : undefined,
         tags: f.tags?.length ? f.tags : undefined,
         languages: f.languages?.length ? f.languages : undefined,
         drinks: f.drinks || undefined,
