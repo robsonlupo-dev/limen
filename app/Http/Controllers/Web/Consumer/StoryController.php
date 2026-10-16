@@ -69,11 +69,30 @@ class StoryController extends Controller
     public function image(Request $request, PerformerStory $story): Response
     {
         try {
-            $bytes = $this->stories->readForMember($request->user(), $story);
+            $bytes = $this->stories->bytesForMember($request->user(), $story);
         } catch (StoryException $e) {
             abort($e->reason === StoryException::FORBIDDEN ? 403 : 404);
         }
 
         return $this->photoResponse($bytes, 'story.jpg');
+    }
+
+    /**
+     * Registra a view do story — a contrapartida do `image()`, separada dele
+     * (feat/story-viewer-preload).
+     *
+     * O cliente dispara isto quando o story APARECE de fato, não ao pré-carregar
+     * a imagem do próximo. Por isso o GET de `image()` ficou idempotente (dá para
+     * pré-carregar sem inflar a audiência) e a contagem passou para cá.
+     *
+     * Sempre 204, SEM corpo: a resposta não revela se a linha foi gravada (Ghost
+     * Mode/§ 2.7) nem se o membro alcança o story — a decisão e os guards vivem no
+     * `recordMemberView()`. Mesmo cuidado de indistinguibilidade do serving.
+     */
+    public function markViewed(Request $request, PerformerStory $story): Response
+    {
+        $this->stories->recordMemberView($request->user(), $story);
+
+        return response()->noContent();
     }
 }

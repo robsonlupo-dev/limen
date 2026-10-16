@@ -143,7 +143,7 @@ class PerformerStoryService
      *
      * @throws StoryException vencido/destruído (404) ou nível insuficiente (403)
      */
-    public function readForMember(User $member, PerformerStory $story): string
+    public function bytesForMember(User $member, PerformerStory $story): string
     {
         // O MOTIVO vem da regra, não daqui: 404 para vencido/fora do ar e 403 para
         // nível insuficiente são respostas diferentes, e escolher entre elas neste
@@ -158,11 +158,32 @@ class PerformerStoryService
             throw StoryException::forbidden();
         }
 
-        $bytes = $this->store->retrieve($story->media_path);
+        // Servir e CONTAR foram SEPARADOS (feat/story-viewer-preload). Antes, um
+        // GET da imagem gravava a view — então pré-carregar o próximo story a
+        // marcaria como visto antes da hora (anel apagando story pulado, faixa de
+        // audiência inflada). Agora a imagem é IDEMPOTENTE: o cliente pré-carrega o
+        // próximo sem efeito colateral, e a view é gravada por `recordMemberView()`
+        // quando o story REALMENTE aparece. O paywall continua AQUI, a cada request
+        // (§ 2.3) — quem não alcança não recebe bytes nem consegue gravar view.
+        return $this->store->retrieve($story->media_path);
+    }
+
+    /**
+     * Grava a view do membro — a contrapartida de `bytesForMember()`.
+     *
+     * Reavalia a MESMA porta do serving: quem não alcança o story não gera linha
+     * (um preload nunca vira view, e um POST forjado para story bloqueado é no-op).
+     * O guard de Ghost Mode/Modo Discreto e a deduplicação por (membro, story)
+     * vivem em `viewStory()`. Silencioso de propósito: o endpoint responde o mesmo
+     * tenha a view sido gravada ou não (§ 2.7) — como já era o próprio serving.
+     */
+    public function recordMemberView(User $member, PerformerStory $story): void
+    {
+        if ($this->visibility->denialFor($story, $member) !== null) {
+            return;
+        }
 
         $this->viewStory($story, $member);
-
-        return $bytes;
     }
 
     /**

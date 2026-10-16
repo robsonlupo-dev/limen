@@ -398,8 +398,17 @@ it('serve o story público a quem segue e recusa a quem não segue', function ()
         ->get(route('stories.image', $story->id))
         ->assertOk();
 
+    // O GET serve os bytes mas NÃO conta a view (feat/story-viewer-preload): o
+    // mesmo GET é usado para pré-carregar o próximo story. Quem conta é o POST,
+    // disparado quando o story aparece de fato.
     expect($response->headers->get('Content-Type'))->toBe('image/jpeg')
-        ->and(StoryView::where('performer_story_id', $story->id)->where('user_id', $member->id)->count())->toBe(1);
+        ->and(StoryView::count())->toBe(0);
+
+    $this->actingAs($member->fresh())
+        ->post(route('stories.view', $story->id))
+        ->assertNoContent();
+
+    expect(StoryView::where('performer_story_id', $story->id)->where('user_id', $member->id)->count())->toBe(1);
 });
 
 it('serve o story de assinantes a quem tem Círculo ativo, de qualquer tier', function () {
@@ -549,6 +558,12 @@ it('deixa Black ver story público de performer que ele não segue', function ()
     // vale para profile_visits. Consequência de produto que vale registrar: quem
     // paga o tier mais alto não aparece em contador nenhum, nem agregado — o que
     // é exatamente o rationale da decisão nº 3, aqui alcançando também o Nível 1.
+    // O POST da view é NO-OP para o Ghost — e responde 204 igual, para não ser
+    // detectável de fora.
+    $this->actingAs($member->fresh())
+        ->post(route('stories.view', $story->id))
+        ->assertNoContent();
+
     expect(StoryView::count())->toBe(0);
 });
 
@@ -595,12 +610,13 @@ it('conta o membro uma vez por story, mesmo reabrindo', function () {
     $member = stMember();
     stFollow($member, $performer);
 
-    $this->actingAs($member->fresh())->get(route('stories.image', $story->id))->assertOk();
-    $this->actingAs($member->fresh())->get(route('stories.image', $story->id))->assertOk();
-    $this->actingAs($member->fresh())->get(route('stories.image', $story->id))->assertOk();
+    // Reabrir dispara o POST da view a cada vez; a dedup por (membro, story)
+    // mantém UMA linha. Faixar aberturas devolveria comportamento do membro em vez
+    // de audiência (decisão nº 1: DISTINCT antes da faixa).
+    $this->actingAs($member->fresh())->post(route('stories.view', $story->id))->assertNoContent();
+    $this->actingAs($member->fresh())->post(route('stories.view', $story->id))->assertNoContent();
+    $this->actingAs($member->fresh())->post(route('stories.view', $story->id))->assertNoContent();
 
-    // Faixar aberturas devolveria comportamento do membro em vez de audiência
-    // (decisão nº 1: DISTINCT antes da faixa).
     expect(StoryView::where('performer_story_id', $story->id)->count())->toBe(1)
         ->and(app(PerformerStoryService::class)->viewCount($story->fresh()))->toBe('Menos de 5');
 });
@@ -612,17 +628,46 @@ it('serve normalmente sem registrar view de quem tem Ghost Mode ou Modo Discreto
     stFollow($member, $performer);
     $member->forceFill([$flag => true])->save();
 
-    // A resposta é IDÊNTICA à de quem é contado: se diferisse, o perk seria
-    // detectável de fora (mesmo cuidado do ProfileVisitService::record()).
+    // A resposta é IDÊNTICA à de quem é contado, nas DUAS portas: o GET sempre
+    // entrega os bytes e o POST da view sempre responde 204 — gravando a linha ou
+    // não. Se qualquer uma diferisse, o perk seria detectável de fora (mesmo
+    // cuidado do ProfileVisitService::record()).
     $this->actingAs($member->fresh())
         ->get(route('stories.image', $story->id))
         ->assertOk();
+
+    $this->actingAs($member->fresh())
+        ->post(route('stories.view', $story->id))
+        ->assertNoContent();
 
     // E a AUSÊNCIA de linha é o produto (§ 2.7): não existe view marcada como
     // oculta para filtrar depois.
     expect(StoryView::count())->toBe(0)
         ->and(app(PerformerStoryService::class)->viewCount($story->fresh()))->toBe('Menos de 5');
 })->with(['ghost_mode', 'discrete_mode']);
+
+it('o GET da imagem serve sem gravar view; só o POST stories.view conta', function () {
+    $performer = chatPerformer();
+    $story = stStory($performer, 'public');
+    $member = stMember();
+    stFollow($member, $performer);
+
+    // Servir/pré-carregar a imagem NÃO conta (o cliente usa o mesmo GET para o
+    // preload do próximo story — contar aqui marcaria story pulado como visto).
+    $this->actingAs($member->fresh())->get(route('stories.image', $story->id))->assertOk();
+    expect(StoryView::count())->toBe(0);
+
+    // Só o POST, disparado quando o story aparece, grava a linha.
+    $this->actingAs($member->fresh())->post(route('stories.view', $story->id))->assertNoContent();
+    expect(StoryView::where('performer_story_id', $story->id)->where('user_id', $member->id)->count())->toBe(1);
+
+    // E o POST respeita o paywall: quem não alcança o story não grava view, e
+    // responde 204 igual (sem oráculo do que ele não pode ver).
+    $outro = stMember();
+    $exclusivo = stStory($performer, 'exclusive');
+    $this->actingAs($outro->fresh())->post(route('stories.view', $exclusivo->id))->assertNoContent();
+    expect(StoryView::where('performer_story_id', $exclusivo->id)->count())->toBe(0);
+});
 
 // ─── Membro: feed ────────────────────────────────────────────────────────────
 
@@ -665,7 +710,9 @@ it('marca como visto o story que o membro já abriu', function () {
     $member = stMember();
     stFollow($member, $performer);
 
-    $this->actingAs($member->fresh())->get(route('stories.image', $story->id))->assertOk();
+    // Ver = o POST da view (o GET da imagem virou idempotente —
+    // feat/story-viewer-preload).
+    $this->actingAs($member->fresh())->post(route('stories.view', $story->id))->assertNoContent();
 
     $groups = $this->actingAs($member->fresh())
         ->getJson(route('stories.feed'))

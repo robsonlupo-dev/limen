@@ -258,7 +258,9 @@ it('apaga stories e views quando a performer encerra a conta', function () {
     $story = modStory($performer);
     $viewer = modViewer($performer);
 
-    $this->actingAs($viewer)->get(route('stories.image', $story->id))->assertOk();
+    // A view é gravada pelo POST (o GET da imagem virou idempotente —
+    // feat/story-viewer-preload).
+    $this->actingAs($viewer)->post(route('stories.view', $story->id))->assertNoContent();
     expect(StoryView::where('performer_story_id', $story->id)->count())->toBe(1);
 
     $path = $story->media_path;
@@ -277,7 +279,7 @@ it('preserva a linha do story DENUNCIADO quando a performer encerra — sem os b
     $performer = modPerformer();
     $story = modStory($performer);
     $viewer = modViewer($performer);
-    $this->actingAs($viewer)->get(route('stories.image', $story->id))->assertOk();
+    $this->actingAs($viewer)->post(route('stories.view', $story->id))->assertNoContent();
     modReport($viewer, $story);
 
     $path = $story->media_path;
@@ -307,7 +309,7 @@ it('apaga as views que o MEMBRO gerou quando ele encerra a conta', function () {
     $story = modStory($performer);
     $member = modViewer($performer);
 
-    $this->actingAs($member)->get(route('stories.image', $story->id))->assertOk();
+    $this->actingAs($member)->post(route('stories.view', $story->id))->assertNoContent();
     expect(StoryView::where('user_id', $member->id)->count())->toBe(1);
 
     app(DeletionService::class)->executeDeletion($member->fresh());
