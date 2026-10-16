@@ -261,6 +261,35 @@ const footerLinks = [
     { label: 'Lista de fundadores', href: '#fundadores' },
 ]
 
+// Redes oficiais (@limenoficial). Ícone é SVG (regra do projeto: nunca emoji).
+// WhatsApp NÃO entra aqui de propósito: a política de comércio da Meta proíbe
+// conteúdo adulto e um link público do número corre risco de ban/denúncia — o
+// contato por WhatsApp fica só no fluxo 1:1 do CRM, não exposto na porta pública.
+// Instagram/TikTok são contas SFW ("O Portal"), seguras como link de saída.
+// `d` é o path do ícone (viewBox 0 0 24 24). Corrija aqui qualquer handle.
+const socialLinks = [
+    {
+        label: 'Telegram',
+        href: 'https://t.me/limenoficial',
+        d: 'M21.9 4.3 18.5 20.1c-.25 1.13-.92 1.41-1.86.88l-5.16-3.8-2.49 2.4c-.28.27-.5.5-1.02.5l.36-5.18 9.44-8.53c.41-.36-.09-.57-.63-.21L5.9 13.35.86 11.77c-1.1-.34-1.12-1.1.23-1.63l19.68-7.59c.91-.34 1.71.21 1.42 1.59z',
+    },
+    {
+        label: 'Instagram',
+        href: 'https://instagram.com/limenoficial',
+        d: 'M12 2.2c3.2 0 3.58 0 4.85.07 1.17.05 1.8.25 2.22.42.56.22.96.48 1.38.9.42.42.68.82.9 1.38.17.42.37 1.05.42 2.22.06 1.27.07 1.65.07 4.85s0 3.58-.07 4.85c-.05 1.17-.25 1.8-.42 2.22a3.7 3.7 0 0 1-.9 1.38c-.42.42-.82.68-1.38.9-.42.17-1.05.37-2.22.42-1.27.06-1.65.07-4.85.07s-3.58 0-4.85-.07c-1.17-.05-1.8-.25-2.22-.42a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.17-.42-.37-1.05-.42-2.22C2.21 15.58 2.2 15.2 2.2 12s0-3.58.07-4.85c.05-1.17.25-1.8.42-2.22.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.17 1.05-.37 2.22-.42C8.42 2.21 8.8 2.2 12 2.2zm0 1.8c-3.14 0-3.5.01-4.74.07-.9.04-1.38.19-1.7.32-.43.16-.74.36-1.06.68-.32.32-.52.63-.68 1.06-.13.32-.28.8-.32 1.7C3.44 9.07 3.43 9.43 3.43 12s.01 2.93.07 4.17c.04.9.19 1.38.32 1.7.16.43.36.74.68 1.06.32.32.63.52 1.06.68.32.13.8.28 1.7.32 1.24.06 1.6.07 4.74.07s3.5-.01 4.74-.07c.9-.04 1.38-.19 1.7-.32.43-.16.74-.36 1.06-.68.32-.32.52-.63.68-1.06.13-.32.28-.8.32-1.7.06-1.24.07-1.6.07-4.17s-.01-2.93-.07-4.17c-.04-.9-.19-1.38-.32-1.7a2.85 2.85 0 0 0-.68-1.06 2.85 2.85 0 0 0-1.06-.68c-.32-.13-.8-.28-1.7-.32C15.5 4.01 15.14 4 12 4zm0 3.07a4.93 4.93 0 1 1 0 9.86 4.93 4.93 0 0 1 0-9.86zm0 1.8a3.13 3.13 0 1 0 0 6.26 3.13 3.13 0 0 0 0-6.26zm5.14-.3a1.15 1.15 0 1 1-2.3 0 1.15 1.15 0 0 1 2.3 0z',
+    },
+    {
+        label: 'TikTok',
+        href: 'https://tiktok.com/@limenoficial',
+        d: 'M16.5 3c.4 2.3 1.7 3.7 3.9 3.85v2.53c-1.28.12-2.4-.29-3.7-1.07v4.73c0 6-6.56 7.9-9.2 3.58-1.7-2.79-.65-7.68 4.8-7.88v2.67c-.42.07-.86.17-1.27.31-1.23.42-1.92 1.2-1.73 2.57.37 2.63 5.18 3.4 4.78-1.73V3h2.42z',
+    },
+    {
+        label: 'X',
+        href: 'https://x.com/limenoficial',
+        d: 'M17.53 3h3.1l-6.77 7.74L21.83 21h-6.23l-4.88-6.38L5.14 21H2.03l7.24-8.28L2.17 3h6.39l4.41 5.83L17.53 3zm-1.09 16.13h1.72L7.64 4.78H5.8l10.64 14.35z',
+    },
+]
+
 // ── Lista de espera (ÚNICO CTA) ──────────────────────────────────────────────
 // Wizard de 2 passos: passo 1 comum (papel + e-mail + 18+), passo 2 ramifica por
 // papel. Um único POST no fim; o servidor re-valida por papel.
@@ -854,6 +883,21 @@ onBeforeUnmount(() => {
                         <a :href="route('legal.content-policy')">Conteúdo e moderação</a>
                         <a :href="route('legal.age-verification')">Conformidade 18+</a>
                     </nav>
+                    <nav class="lc-foot-social" aria-label="Redes sociais">
+                        <a
+                            v-for="s in socialLinks"
+                            :key="s.label"
+                            :href="s.href"
+                            target="_blank"
+                            rel="noopener"
+                            :aria-label="s.label"
+                            :title="s.label"
+                        >
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+                                <path :d="s.d" />
+                            </svg>
+                        </a>
+                    </nav>
                     <!-- AJUSTE de copy (ponto de atenção nº 3): imagens/vídeos do topo são
                          arte de ambiente gerada por IA, sem pessoas reais. -->
                     <p class="lc-foot-ai">
@@ -1408,6 +1452,9 @@ onBeforeUnmount(() => {
 .lc-foot-nav { margin-top: 2.5rem; display: flex; flex-wrap: wrap; gap: 0.8rem 2rem; }
 .lc-foot-nav a { font-size: 0.9rem; color: var(--gold-soft); text-decoration: none; }
 .lc-foot-nav a:hover { color: var(--gold); }
+.lc-foot-social { margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 1.25rem; }
+.lc-foot-social a { color: var(--gold-soft); display: inline-flex; transition: color .2s, transform .2s; }
+.lc-foot-social a:hover { color: var(--gold); transform: translateY(-2px); }
 .lc-foot-ai { margin: 1.4rem 0 0; max-width: 52ch; font-size: 0.75rem; line-height: 1.6; color: var(--faint); }
 .lc-foot-copy { margin: 0.6rem 0 0; padding-top: 1.2rem; border-top: 1px solid rgba(243, 201, 126, 0.18); font-size: 0.72rem; color: var(--faint); }
 
