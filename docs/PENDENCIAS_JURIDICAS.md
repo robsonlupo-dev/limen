@@ -401,3 +401,84 @@ Dois níveis (decisão de produto + jurídico antes de construir):
   humana). Toca o jurídico (Art. 228/229) — registrar pro advogado antes de construir.
 
 Status: **não construir agora** (estamos em UAT). Decisão de onda + pergunta ao jurídico.
+
+---
+
+## 10. Propostas de honorários — quadro COMPLETO e decisão de estratégia (16/10/2026)
+
+> Todas as propostas pedidas chegaram. Registro aqui o quadro final (o doc vivo
+> "Propostas Jurídicas — Limen" no Claude pode espelhar) e a **decisão do PO**:
+> validar demanda antes de contratar o pacote completo.
+
+### 10.1 As propostas (mesmo escopo-base: penal + documentos + societário)
+
+| Escritório | Perfil | Penal / análise | Documentos | Societário (CNPJ, vesting, IP) | Marca | **Total** | Pagamento | Obs. |
+|---|---|---|---|---|---|---|---|---|
+| **Liguria / Andreas Monteiro Seiler** (OAB/SP 542483) | solo, digital/startup | F1 R$ 5.500 (penal + pagamentos) | F2 R$ 7.500 | F3 R$ 7.500 | F4 R$ 4.000 (postergável) | **A: R$ 20.825** (tudo, −15%) · **B: R$ 17.425** (sem marca) | 5x (a confirmar na minuta) | "acompanha toda a jornada"; valores pela tabela OAB; INPI não imediato. Ver §8. |
+| **Felipe Ornaghi** (Claudio Felipe Ornaghi Poppi, solo) — proposta de 15/10, **validade 15 dias (até 30/10)** | solo | I R$ 9.500 (Art. 228/230 + parecer escrito + reunião) | II R$ 12.000 (ToS membros, ToS performer, LGPD, conteúdo/moderação) | III R$ 13.500 (constituição + Junta + cessão IP + acordo de sócios c/ vesting) | IV R$ 6.300 (busca + 3 classes 9/38/41) | **R$ 41.300** cheio · **R$ 39.300** tudo junto · **R$ 35.000** sem marca | 5x ou por escopo | Exclui: defesa judicial/PF/MP/ANPD, tributário/trabalhista, auditoria técnica, credenciamento de pagamento, recorrente. |
+| **Campos Thomaz** (Alan Campos Elias Thomaz) — proposta de 14/10 | boutique direito digital (Chambers) | Bloco 2 R$ 29.000 (modelo + penal 15.000 · tokens/BACEN 8.000 · verificação etária + **ECA Digital Lei 15.211/2025** 6.000) | Bloco 3 R$ 30.000 (ToS 7.000 · performer 8.000 · LGPD 8.000 · conteúdo/CSAM c/ Disque 100 + PF 7.000) | Bloco 1 R$ 17.000 (constituição 5.000 · vesting 8.500 · cessão IP 3.500) | — | **R$ 76.000** cheio · **R$ 60.800** tudo junto (−20%) · **~R$ 47.000** sem Bloco 2 | 3x por bloco; item isolado 50/50 | Recorrente opcional **R$ 9.900/mês** (15h). Prazos 7–15 dias úteis por item. |
+| **Opice Blum** | referência nacional digital/LGPD | **Só parecer** (Art. 228, token, ECA) | — | — | — | **R$ 14.450** à vista | — | Não entrega documentos. |
+| Veirano · Assis e Mendes · Schiefler | — | — | — | — | — | sem valor | — | contatados, sem proposta. |
+
+**Leitura de preço (escopo comparável penal+docs+societário):** Andreas R$ 17.425 ·
+Ornaghi R$ 35.000 · Campos R$ 47.000–60.800. Amplitude de **~3,5×** entre o mais barato e
+o mais caro para o mesmo trabalho. Campos cobra marca/assurance de boutique; Ornaghi é o
+meio; Andreas é a faixa realista para pré-receita.
+
+**Não pagar duas vezes pelo Art. 228:** já existe parecer que validou a tese do token
+como passivo circulante. Bloco 2 da Campos (R$ 29k), I do Ornaghi (R$ 9,5k) e F1 do
+Andreas (R$ 5,5k) se sobrepõem a ele. Pedir **ratificação/atualização** (em especial pela
+**ECA Digital — Lei 15.211/2025**, que é nova) em vez de refazer. ⚠️ Lacuna a confirmar:
+o parecer existente é da Opice Blum ou do Andreas? (define o quanto o Bloco 2 pode ser
+pulado).
+
+### 10.2 Decisão do PO (16/10/2026): validar demanda ANTES do pacote completo
+
+Preocupação legítima: "não investir no escuro — não sei se o site sai do zero". Plano:
+**marketing + lista de espera + CRM de performers até jan/2027**; em dez/2026 ter uma base
+medida de membros/performers cadastradas; **só então** escolher o escritório → CNPJ →
+vesting → termos de uso → go-live.
+
+**Estratégia acordada (engenharia + PO):**
+
+1. **Mínimo jurídico que NÃO espera (barato, ~R$ 3–5k, pedir ao Andreas como
+   mini-escopo "pré-lançamento" — também testa a relação antes do contrato grande):**
+   - **Política de Privacidade + termos da lista de espera (LGPD).** Já estamos coletando
+     e-mail/nome/papel/mundo + contatos de performers no CRM (contexto adulto = sensível).
+     Sem base legal/opt-out claros, a prospecção é a parte mais exposta HOJE.
+   - **MoU/pré-acordo com o Bruno** (intenção de vesting, divisão, destino do IP).
+     50/50 sem acordo é o risco clássico de impasse — e protege a relação, não só a
+     empresa. Pré-CNPJ é possível.
+2. **O resto espera o sinal de demanda** (jan/2027): parecer (ratificação), ToS/performer/
+   CSAM, constituição + cessão de IP + vesting formal, marca (postergável, por decisão de
+   todos os escritórios).
+3. **Base de decisão em jan/2027:** Andreas Opção B (R$ 17,4k) como piso; Ornaghi se
+   quiser escopo mais encorpado (negociar ~R$ 25–30k, a validade de 30/10 expira — pedir
+   extensão); Campos só se o objetivo for documento "grau investidor"/marca de boutique.
+   Critérios além do preço: experiência real com Art. 228/230 **e** com pagamentos de
+   adulto (Asaas vetou; Transfeera/Efí vão pedir os documentos), protocolo CSAM
+   (Disque 100/PF), disponibilidade pós-entrega.
+
+### 10.3 Funil de validação (out/2026 → jan/2027) — o que medir
+
+- **Canal primário = e-mail (já double opt-in via Resend).** O cadastro fica salvo com
+  `confirmed_at` nulo — **o lead não se perde** se o e-mail cair em spam. Melhorias de
+  engenharia (a construir): (a) conferir SPF/DKIM/DMARC do domínio no Resend; (b) botão
+  "reenviar e-mail de confirmação"; (c) **1 lembrete automático** em 24h para não
+  confirmados (pediram o cadastro — LGPD ok); (d) visão admin dos pendentes com contagem.
+- **WhatsApp — cautela.** A política de comércio/negócios da Meta **proíbe conteúdo e
+  serviços adultos**: conta Business da Limen corre risco de banimento, e lista de
+  transmissão em número pessoal expõe o telefone do fundador e cai por denúncia. Telefone
+  é dado pessoal (consentimento + finalidade). **Alternativa recomendada: canal no
+  Telegram** (só admin posta, permite adulto, link na landing) + e-mail como principal.
+  Se insistir no WhatsApp: número Business dedicado, só "novidades da lista de espera",
+  zero conteúdo explícito, e tratar os telefones como dado pessoal.
+- **Redes sociais — duas pistas.** Instagram/TikTok/YouTube banem adulto: usar ali a
+  marca **SFW** (estética "O Portal", luxo, mistério) com link na bio — a conta é ativo
+  da marca, não arriscar. **X/Twitter, Reddit e Telegram** permitem adulto (com
+  rotulagem) e são onde a comunidade de criadoras está — recrutamento de performer vai
+  por aí + CRM 1:1 (limen_crm.db / crm.py).
+- **Metas de go/no-go (proposta, PO ajusta):** ≥ 300 membros confirmados · ≥ 30
+  performers confirmadas, com ≥ 10 "quentes" (responderam / mandaram portfólio) · taxa
+  de confirmação de e-mail ≥ 60% · custo por lead acompanhado. Abaixo disso em
+  dez/2026: revisar proposta de valor antes de gastar com jurídico.
