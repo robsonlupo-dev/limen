@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\PerformerProfile;
 use App\Models\PerformerProfilePreviousSlug;
+use App\Models\User;
 use App\Support\BrazilianCities;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,6 +18,16 @@ class PerformerCatalogService
      * so a card never renders a world the UI has no label/icon for.
      */
     public const PUBLIC_WORLDS = PerformerProfile::WORLDS;
+
+    /**
+     * Critérios de ordenação transparente oferecidos ao membro (roadmap Fatal
+     * Model, Onda A). A tela (FilterPanel.vue) espelha estes valores. NUNCA
+     * inclui avaliação — ver applySort().
+     */
+    public const SORTS = ['ativas', 'novas', 'ao_vivo', 'seguidas'];
+
+    /** Padrão quando o membro não escolheu: mais ativas. */
+    public const DEFAULT_SORT = 'ativas';
 
     /**
      * Regras de validação dos filtros do catálogo (Sprint 9).
@@ -38,7 +49,11 @@ class PerformerCatalogService
     {
         return [
             'search' => ['nullable', 'string', 'max:100'],
-            'sort' => ['nullable', 'in:rating_avg,followers_count,newest'],
+            // Ordenação transparente (Onda A): os canônicos de self::SORTS. Os
+            // três legados (rating_avg/followers_count/newest) seguem ACEITOS
+            // para não dar 422 em link compartilhado ou busca salva antiga —
+            // applySort() os mapeia (e rating_avg cai no padrão, nunca ordena).
+            'sort' => ['nullable', 'in:ativas,novas,ao_vivo,seguidas,rating_avg,followers_count,newest'],
             'level' => ['nullable', 'in:iniciante,estrela,premium,vip'],
             'is_live' => ['nullable', 'boolean'],
             // "Online agora" (fix/panel-polish-v1): filtra por quem tem sessão
@@ -224,6 +239,65 @@ class PerformerCatalogService
     }
 
     /**
+     * Ordenação transparente (roadmap Fatal Model, Onda A) — dona ÚNICA das
+     * duas vitrines (pública e autenticada).
+     *
+     * Quatro critérios que o membro entende e escolhe: mais ATIVAS (padrão),
+     * NOVAS, AO VIVO e mais SEGUIDAS. **Nunca por avaliação** — a nota saiu do
+     * conjunto de propósito (ordenar por estrela premia quem já está no topo e
+     * pune quem começou). Valores legados (rating_avg/followers_count/newest)
+     * de links e buscas salvas antigas são MAPEADOS para os canônicos, então
+     * nada quebra e o `rating_avg` cai no padrão — nunca mais ordena.
+     *
+     * Não mexe no boost nem no "ao vivo" PRIMÁRIOS do scopePublicCatalog: isto
+     * é só o desempate DENTRO de cada grupo. Toda cláusula termina no `id` para
+     * a paginação ser determinística.
+     *
+     * @param  Builder<PerformerProfile>  $query
+     * @return Builder<PerformerProfile>
+     */
+    private function applySort(Builder $query, ?string $sort): Builder
+    {
+        $sort = match ($sort) {
+            'ativas', 'novas', 'ao_vivo', 'seguidas' => $sort,
+            'followers_count' => 'seguidas',
+            'newest' => 'novas',
+            default => self::DEFAULT_SORT, // inclui 'rating_avg' e o nulo
+        };
+
+        // Atividade real: `users.last_active_at` por subquery correlacionada —
+        // não um JOIN, que colidiria com o `whereNotNull('slug')` do escopo e
+        // tornaria a coluna `id` ambígua. NULL (quem nunca teve atividade)
+        // afunda sozinho: DESC põe NULL por último (MySQL e SQLite concordam).
+        $lastActive = User::query()
+            ->select('last_active_at')
+            ->whereColumn('users.id', 'performer_profiles.user_id');
+
+        return match ($sort) {
+            'novas' => $query
+                ->orderByDesc('performer_profiles.created_at')
+                ->orderByDesc('performer_profiles.id'),
+            'seguidas' => $query
+                ->orderByDesc('performer_profiles.followers_count')
+                ->orderBy($lastActive, 'desc')
+                ->orderByDesc('performer_profiles.id'),
+            // 'ativas' e 'ao_vivo': o is_live já é PRIMÁRIO no escopo, então
+            // "ao vivo" desempata pelas mais ativas dentro de cada grupo — igual
+            // a "ativas". Mantê-los como opções distintas é transparência na
+            // tela, não duas ordenações diferentes.
+            //
+            // Seguidores é o DESEMPATE da atividade (e não o id): no pré-
+            // lançamento a maioria ainda tem `last_active_at` nulo — sem este
+            // desempate a vitrine colapsaria para ordem de id. Com ele, quem não
+            // tem atividade registrada é ordenado por alcance, como antes.
+            default => $query
+                ->orderBy($lastActive, 'desc')
+                ->orderByDesc('performer_profiles.followers_count')
+                ->orderByDesc('performer_profiles.id'),
+        };
+    }
+
+    /**
      * Public (no-auth) catalog listing. Unlike search(), it does not force a
      * single world: with no filter it shows every public world; an optional
      * world narrows to one. Only active + verified performers, never pending.
@@ -249,14 +323,10 @@ class PerformerCatalogService
 
         $this->applyFilters($query, $filters);
 
-        // A ordenação do público é própria (seguidores primeiro, é vitrine) e
-        // não vem do `sort` do membro — mas o `sort` continua valendo quando
-        // vem explícito, para o link compartilhado abrir igual.
-        match ($filters['sort'] ?? null) {
-            'newest' => $query->orderByDesc('created_at'),
-            'rating_avg' => $query->orderByDesc('rating_avg'),
-            default => $query->orderByDesc('followers_count')->orderByDesc('rating_avg'),
-        };
+        // Ordenação transparente (Onda A): o membro escolhe e entende o
+        // critério, e nunca se ordena por avaliação. Boost e "ao vivo" seguem
+        // flutuando como primários (scopePublicCatalog); applySort é o desempate.
+        $this->applySort($query, $filters['sort'] ?? null);
 
         return $query->paginate(24)->withQueryString();
     }
@@ -288,11 +358,8 @@ class PerformerCatalogService
         // viviam aqui) passaram para applyFilters — ver filterRules().
         $this->applyFilters($query, $filters);
 
-        match ($filters['sort'] ?? 'rating_avg') {
-            'followers_count' => $query->orderByDesc('followers_count'),
-            'newest' => $query->orderByDesc('created_at'),
-            default => $query->orderByDesc('rating_avg'),
-        };
+        // Mesma ordenação transparente da vitrine pública (dona única).
+        $this->applySort($query, $filters['sort'] ?? null);
 
         return $query->paginate(20)->withQueryString();
     }

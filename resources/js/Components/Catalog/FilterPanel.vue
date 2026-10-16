@@ -44,11 +44,26 @@ const levels = [
     { value: 'vip', label: 'VIP' },
 ]
 
+// Ordenação transparente (roadmap Fatal Model, Onda A): critérios que o membro
+// entende, NUNCA por avaliação. 'ativas' é o padrão. Espelha
+// PerformerCatalogService::SORTS.
 const sorts = [
-    { value: 'rating_avg', label: 'Mais bem avaliados' },
-    { value: 'followers_count', label: 'Mais seguidos' },
-    { value: 'newest', label: 'Mais recentes' },
+    { value: 'ativas', label: 'Mais ativas' },
+    { value: 'novas', label: 'Novas' },
+    { value: 'ao_vivo', label: 'Ao vivo primeiro' },
+    { value: 'seguidas', label: 'Mais seguidas' },
 ]
+const SORT_DEFAULT = 'ativas'
+
+// Link compartilhado / busca salva antiga pode trazer um valor legado
+// (rating_avg/followers_count/newest). Mapeia para o canônico — o servidor faz
+// o mesmo — então o controle abre coerente e 'rating_avg' nunca reaparece.
+function normalizeSort(v) {
+    return {
+        ativas: 'ativas', novas: 'novas', ao_vivo: 'ao_vivo', seguidas: 'seguidas',
+        followers_count: 'seguidas', newest: 'novas', rating_avg: 'ativas',
+    }[v] ?? SORT_DEFAULT
+}
 
 const form = reactive({
     search: props.filters.search || '',
@@ -61,7 +76,7 @@ const form = reactive({
     // Cidade (item 4): só filtra quem consentiu (findable_by_city no backend).
     // Nome livre por baixo; o autocomplete sugere valores canônicos do IBGE.
     city: props.filters.city || '',
-    sort: props.filters.sort || 'rating_avg',
+    sort: normalizeSort(props.filters.sort),
     tags: [...(props.filters.tags ?? [])],
     languages: [...(props.filters.languages ?? [])],
     drinks: props.filters.drinks || '',
@@ -114,7 +129,7 @@ function apply() {
             // dentro do scopeInCity. Ver PerformerCatalogService::applyFilters.
             state: form.state || undefined,
             city: form.city || undefined,
-            sort: form.sort !== 'rating_avg' ? form.sort : undefined,
+            sort: form.sort !== SORT_DEFAULT ? form.sort : undefined,
             tags: form.tags.length ? form.tags : undefined,
             languages: form.languages.length ? form.languages : undefined,
             drinks: form.drinks || undefined,
@@ -170,7 +185,7 @@ function clearFilters() {
         tier: '',
         state: '',
         city: '',
-        sort: 'rating_avg',
+        sort: SORT_DEFAULT,
         tags: [],
         languages: [],
         drinks: '',
@@ -218,7 +233,7 @@ const activeCount = computed(() => {
     // como UMA faceta de localização, não duas.
     if (form.city) n++
     else if (form.state) n++
-    if (form.sort !== 'rating_avg') n++
+    if (form.sort !== SORT_DEFAULT) n++
     if (form.drinks) n++
     if (form.smokes) n++
     if (heightNarrowed.value) n++
@@ -248,7 +263,7 @@ function activeFilters() {
     if (form.tier) f.tier = form.tier
     if (form.state) f.state = form.state
     if (form.city) f.city = form.city
-    if (form.sort !== 'rating_avg') f.sort = form.sort
+    if (form.sort !== SORT_DEFAULT) f.sort = form.sort
     if (form.tags.length) f.tags = [...form.tags]
     if (form.languages.length) f.languages = [...form.languages]
     if (form.drinks) f.drinks = form.drinks
@@ -295,7 +310,7 @@ function applySaved(filters) {
         tier: filters.tier || '',
         state: filters.state || '',
         city: filters.city || '',
-        sort: filters.sort || 'rating_avg',
+        sort: normalizeSort(filters.sort),
         tags: [...(filters.tags ?? [])],
         languages: [...(filters.languages ?? [])],
         drinks: filters.drinks || '',
