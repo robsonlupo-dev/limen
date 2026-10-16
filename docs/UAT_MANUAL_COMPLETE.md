@@ -63,7 +63,7 @@ real, vídeo). Isto NÃO apaga as tabelas abaixo — elas ficam como referência
 | 18 | Moderação / T&S | ✅ COBERTA (`Moderation/*`) | — |
 | 19 | Chat tempo real/voz/desfazer | 🟡 PARCIAL (`ChatVoiceMessageTest`, `ChatUnsendMessageTest`) | ~~#199~~ ✅ **RESOLVIDO 15/10** (Reverb sincroniza 2 navegadores; desfazer #204 e áudio ao vivo ok) + #200/#201 🟡 |
 | 20 | Mensagens de catálogo | 🟡 PARCIAL (`CatalogMessageTemplatesTest`) | **#208 🔴** + #210 🟡 |
-| 21 | Anel avatar + story/foto | 🔴 MANUAL (só UI, sem teste) | **#216 🔴** + #214/#215/#217/#218 🟡 |
+| 21 | Anel avatar + story/foto | ✅ APROVADO 16/10 (#214–#218) + melhorias UX (#344/#345/spinner) | — |
 | 22 | Responder story → chat | ✅ COBERTA (`StoryReplyToChatTest`) | #219/#221 🟡 (só rótulo) |
 | 23 | Destaques | ✅ COBERTA (`StoryHighlightTest`) | — |
 | 24 | Stories VIP por tier | ✅ COBERTA (`StoryEndpointsTest`, `StoryCatalogTest`) | — |
@@ -82,7 +82,7 @@ real, vídeo). Isto NÃO apaga as tabelas abaixo — elas ficam como referência
 
 Resta (quase tudo é UI / infra real / visual — a lógica está coberta por teste):
 
-1. **Fase 21 · #216 🔴** (+214/215/217/218 🟡) — anel do avatar, menu "Ver story/foto", viewer em tela cheia com barra de progresso, lightbox sem contar view. Fase 100% UI.
+1. ✅ ~~**Fase 21 · #216** (+214/215/217/218)~~ — **APROVADO 16/10** (desktop + mobile). Anel, menu "Ver story/foto", viewer tela cheia, lightbox sem contar view: todos OK. Entregues na rodada: preload (#344), setas + "tirar foto" (#345), spinner de loading.
 2. **Fase 9 · #92/#95 🔴 + Fase 12 · #128/#131 🔴** — chamada/live/agendamento com **sala LiveKit REAL** (vídeo bidirecional, 1º minuto, contador, encerramento). Economia/estados já cobertos; falta a experiência de sala. Só com a flag ligada em staging.
 3. **Fase 17 · #164 🔴, #168 🔴** — landing: imagens carregam (não fundo preto) + aviso de spam pós-envio. **Testar de casa/4G** (Zscaler bloqueia).
 4. **Fase 15 · #155 🔴** — catálogo de MEMBROS sem filtro de cidade (privacidade do membro).
@@ -711,18 +711,35 @@ Preencha DEPOIS de todos os testes:
 
 ## FASE 21 — PERFIL: ANEL DO AVATAR + STORY/FOTO (lightbox)
 
-> 🔴 **Triagem 2026-10-15:** fase **100% UI — SEM teste automatizado** (o backend "stories vivos no perfil com cadeado" está em `StoryCatalogTest`). **Tudo manual:** #216 🔴 (viewer tela cheia + barra de progresso) + #214/#215/#217/#218 🟡.
+> ✅ **FASE 21 TESTADA E APROVADA — 2026-10-16.** Os cinco cenários (#214–#218)
+> passaram no `limen.dev.br` (produção), desktop e mobile 360–390px. Triagem
+> original (100% UI — sem teste automatizado; backend em `StoryCatalogTest`)
+> confirmada em clique manual.
+>
+> **Melhorias de UX entregues na mesma rodada** (observações do PO no teste):
+> - **Preload do próximo story** (transição instantânea) — PR #344 (desacople
+>   servir/contar view: GET idempotente + POST `stories.view`; preload em memória,
+>   respeita o `no-store`). No ar.
+> - **Setas ‹ › no viewer** (desktop) + **"Tirar foto"** (câmera direta no mobile,
+>   `capture`) — PR #345. No ar.
+> - **Spinner central enquanto a imagem carrega** (estilo Instagram) — PR aberto,
+>   aguardando merge.
+>
+> Comportamentos CONFIRMADOS como intencionais (não-bug): anel só apaga após ver
+> TODOS os stories; voto da enquete imutável; enquete não atualiza em tempo real
+> para a performer (v1, vê no refresh); trilha de stories é cross-mundo (segue o
+> follow-graph, como o Instagram — decisão do PO: deixar como está).
 
 > Tocar no avatar da performer no perfil abre um menu "Ver story / Ver foto de
 > perfil". PR #276.
 
 | # | Passo | Ação | Esperado | Crit. | Result. | Notas |
 |---|---|---|---|---|---|---|
-| 214 | Anel quando há story | Veja o perfil de uma performer COM story ativo, depois de uma SEM | Com story: **anel** dourado no avatar. Sem story: sem anel | 🟡 | | |
-| 215 | Menu do avatar | Toque no avatar de quem tem story | Abre "Ver story" e "Ver foto de perfil" | 🟡 | | |
-| 216 | Ver story | Toque em "Ver story" | Abre o viewer em tela cheia (barra de progresso, tap navega) | 🔴 | | |
-| 217 | Ver foto de perfil | Toque em "Ver foto de perfil" | Abre a foto no lightbox; **não** conta como view do story | 🟡 | | |
-| 218 | Sem story = só a foto | Toque no avatar de performer SEM story | Abre a foto direto no lightbox (sem passo de story) | 🟢 | | |
+| 214 | Anel quando há story | Veja o perfil de uma performer COM story ativo, depois de uma SEM | Com story: **anel** dourado no avatar. Sem story: sem anel | 🟡 | ✅ | 16/10 |
+| 215 | Menu do avatar | Toque no avatar de quem tem story | Abre "Ver story" e "Ver foto de perfil" | 🟡 | ✅ | 16/10 |
+| 216 | Ver story | Toque em "Ver story" | Abre o viewer em tela cheia (barra de progresso, tap navega) | 🔴 | ✅ | 16/10 + setas ‹ › (#345) |
+| 217 | Ver foto de perfil | Toque em "Ver foto de perfil" | Abre a foto no lightbox; **não** conta como view do story | 🟡 | ✅ | 16/10 |
+| 218 | Sem story = só a foto | Toque no avatar de performer SEM story | Abre a foto direto no lightbox (sem passo de story) | 🟢 | ✅ | 16/10 (Bella) |
 
 ---
 
@@ -984,7 +1001,7 @@ Preencha DEPOIS de todos os testes:
 |---|---|
 | 19 Chat tempo real/voz/desfazer | #199–#207 |
 | 20 Modelos de catálogo | #208–#213 |
-| 21 Anel do avatar + story/foto | #214–#218 |
+| 21 Anel do avatar + story/foto | #214–#218 — ✅ APROVADO 16/10 |
 | 22 Responder ao story → chat | #219–#227 |
 | 23 Destaques (Highlights) | #228–#231 |
 | 24 Stories VIP por tier | #232–#235 |
