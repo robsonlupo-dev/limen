@@ -380,6 +380,30 @@ async function sendReply() {
             @pointerup="onPointerUp"
         >
             <div class="relative flex h-full w-full max-w-md flex-col">
+                <!-- Setas de navegação (desktop): no mobile o toque nas laterais já
+                     navega, então ficam escondidas lá para não cobrir o conteúdo.
+                     `pointerdown/up.stop` para o clique não virar tap de navegação. -->
+                <button
+                    type="button"
+                    aria-label="Story anterior"
+                    class="absolute left-1 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white/90 backdrop-blur transition-colors hover:bg-black/60 hover:text-white sm:flex"
+                    @pointerdown.stop
+                    @pointerup.stop
+                    @click.stop="prevStory"
+                >
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+                </button>
+                <button
+                    type="button"
+                    aria-label="Próximo story"
+                    class="absolute right-1 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white/90 backdrop-blur transition-colors hover:bg-black/60 hover:text-white sm:flex"
+                    @pointerdown.stop
+                    @pointerup.stop
+                    @click.stop="nextStory"
+                >
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                </button>
+
                 <!-- Barra de progresso: um segmento por story do grupo. -->
                 <div class="absolute inset-x-0 top-0 z-20 flex gap-1 p-3">
                     <div
