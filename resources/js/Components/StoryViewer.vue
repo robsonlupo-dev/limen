@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
-import LoadingBar from '@/Components/LoadingBar.vue'
 import ReactionIcon from '@/Components/ReactionIcon.vue'
 import { postJson, errorMessage, isInsufficientBalance } from '@/lib/http'
 import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
@@ -60,7 +59,7 @@ const inflight = new Map() // story.id -> Promise (dedup do fetch)
 const viewed = new Set() // story.id -> view já registrada nesta sessão
 
 // A fonte prefere o blob pré-carregado (troca instantânea); sem ele, cai na URL
-// direta, que busca e mostra o LoadingBar como antes. Só o PRÓXIMO story vira
+// direta, que busca e mostra o spinner como antes. Só o PRÓXIMO story vira
 // blob — o atual nunca troca de src no meio da exibição.
 const currentSrc = computed(() => {
     if (!currentStory.value) return null
@@ -448,7 +447,21 @@ async function sendReply() {
                         @error="onImageError"
                     />
 
-                    <LoadingBar v-if="!imageLoaded && !imageError" width="6rem" />
+                    <!-- Spinner central enquanto a imagem carrega (estilo Insta).
+                         Com o preload só aparece no 1º story ou num cache miss; os
+                         pré-carregados trocam na hora. `motion-reduce` honra quem
+                         pediu menos movimento (fica um anel estático). -->
+                    <svg
+                        v-if="!imageLoaded && !imageError"
+                        class="h-10 w-10 animate-spin text-white/70 motion-reduce:animate-none"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        role="status"
+                        aria-label="Carregando"
+                    >
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+                        <path class="opacity-90" d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                    </svg>
 
                     <div v-if="imageError" class="px-8 text-center text-sm text-white/70">
                         Este story não está mais disponível.
