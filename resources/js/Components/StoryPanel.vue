@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Button from '@/Components/Button.vue'
 import ReactionIcon from '@/Components/ReactionIcon.vue'
@@ -50,6 +50,19 @@ const TIER_LABELS = {
 
 const file = ref(null)
 const fileInput = ref(null)
+const cameraInput = ref(null)
+const canCapture = ref(false)
+
+onMounted(() => {
+    // "Tirar foto" (captura direta) só aparece onde há câmera acoplada ao toque:
+    // no desktop o atributo `capture` é ignorado e o botão viraria um segundo
+    // seletor de arquivo confuso. Guard para ambiente sem matchMedia.
+    try {
+        canCapture.value = window.matchMedia?.('(pointer: coarse)')?.matches ?? false
+    } catch {
+        canCapture.value = false
+    }
+})
 const level = ref(props.visibilityLevels[0] ?? 'public')
 // null = "qualquer Círculo" (comportamento de hoje). Só vai ao servidor quando o
 // nível é `subscribers` e a performer escolhe um tier.
@@ -126,6 +139,7 @@ async function publish() {
         sendAsInvite.value = false
         minTier.value = null
         if (fileInput.value) fileInput.value.value = ''
+        if (cameraInput.value) cameraInput.value.value = ''
         router.reload({ only: ['stories'] })
     } catch (e) {
         error.value = e.data?.message ?? 'Não foi possível publicar o story.'
@@ -241,6 +255,32 @@ async function remove(story) {
                 class="block w-full text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-gold/10 file:px-4 file:py-2 file:text-xs file:text-gold hover:file:bg-gold/20"
                 @change="pick"
             />
+
+            <!-- Tirar foto na hora (só em dispositivo de toque). Input de câmera
+                 escondido, acionado pelo botão; o `capture` manda o celular abrir a
+                 câmera em vez da galeria. Reusa o MESMO `pick`. -->
+            <input
+                v-if="canCapture"
+                ref="cameraInput"
+                type="file"
+                accept="image/jpeg,image/png"
+                capture="environment"
+                class="hidden"
+                @change="pick"
+            />
+            <button
+                v-if="canCapture"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg bg-gold/10 px-4 py-2 text-xs text-gold transition-colors hover:bg-gold/20"
+                @click="cameraInput?.click()"
+            >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                Tirar foto
+            </button>
+
+            <p v-if="file" class="text-xs text-gold">
+                Foto pronta: {{ file.name || 'captura da câmera' }}
+            </p>
             <div class="flex flex-wrap items-center gap-3">
                 <label class="text-xs text-muted">
                     Quem vê
