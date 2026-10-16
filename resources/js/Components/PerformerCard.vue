@@ -297,6 +297,14 @@ onBeforeUnmount(stopPreview)
             >
                 Nova
             </span>
+            <!-- Selo "Voltou" (roadmap Fatal Model): reapareceu após longa
+                 ausência. BOOLEANO derivado (is_returned); nunca junto do "Nova". -->
+            <span
+                v-if="performer.is_returned && !performer.is_new"
+                class="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-limen-gold ring-1 ring-limen-gold/50 backdrop-blur-sm"
+            >
+                Voltou
+            </span>
             <!-- "Tem áudio" (feat/voice-intro): ícone discreto para quem tem intro
                  de voz APROVADA (has_voice_intro, BOOLEANO derivado). Dourado como
                  os demais selos, nunca limen-live. Empilha abaixo do "Nova". -->
@@ -404,6 +412,11 @@ onBeforeUnmount(stopPreview)
                          `appear_offline` (item 8). Sem presença online, cai na faixa
                          de atividade ("Ativa hoje"). Some quando is_live (a badge AO
                          VIVO já diz "agora"). Nunca cidade nem horário ao minuto. -->
+                    <!-- Frase de destaque (roadmap Fatal Model): tagline da
+                         performer, uma linha truncada. -->
+                    <p v-if="performer.headline" class="mt-0.5 text-[11px] text-limen-gold/90 truncate">
+                        {{ performer.headline }}
+                    </p>
                     <p v-if="performer.is_available && !showLive" class="mt-0.5 flex items-center gap-1.5 text-[11px] text-limen-ink">
                         <span aria-hidden="true" class="inline-block h-1.5 w-1.5 rounded-full bg-success" />
                         Online agora

@@ -41,6 +41,14 @@ class TrackPerformerActivity
     /** Janela mínima entre dois carimbos. Não é relógio exposto — só espaça o write. */
     public const THROTTLE_MINUTES = 5;
 
+    /**
+     * Inatividade mínima para o retorno contar como "Voltou". Se o carimbo
+     * anterior for mais velho que isto, gravamos `returned_at` junto — é o que
+     * acende o selo (ReturnedBadge). Grosso de propósito: uma ausência de poucos
+     * dias é rotina, não um retorno a celebrar.
+     */
+    public const RETURN_GAP_DAYS = 30;
+
     public function handle(Request $request, Closure $next): Response
     {
         $this->touch($request->user());
@@ -66,9 +74,16 @@ class TrackPerformerActivity
             return;
         }
 
-        // Grava só a coluna, sem bumpar `updated_at` nem disparar observers: é um
-        // heartbeat, não uma mutação de domínio. `saveQuietly` evita eventos de
-        // model; `timestamps = false` mantém o `updated_at` livre desse ruído.
+        // "Voltou": só quando HÁ um carimbo anterior (não é conta nova — essa é
+        // "Nova", não "Voltou") E ele é mais velho que RETURN_GAP_DAYS. Decidido
+        // ANTES de sobrescrever o last_active_at, com o valor antigo.
+        if ($last !== null && $last->lessThan(now()->subDays(self::RETURN_GAP_DAYS))) {
+            $user->returned_at = now();
+        }
+
+        // Grava só a(s) coluna(s), sem bumpar `updated_at` nem disparar observers:
+        // é um heartbeat, não uma mutação de domínio. `saveQuietly` evita eventos
+        // de model; `timestamps = false` mantém o `updated_at` livre desse ruído.
         $user->last_active_at = now();
         $user->timestamps = false;
         $user->saveQuietly();

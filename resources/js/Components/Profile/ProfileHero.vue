@@ -176,6 +176,10 @@ const presence = computed(() => {
                     <CurationSeal :tier="performer.tier" />
                 </div>
 
+                <!-- Frase de destaque (roadmap Fatal Model): tagline da performer,
+                     logo abaixo do nome. Só aparece quando preenchida. -->
+                <p v-if="performer.headline" class="mt-1 text-base italic text-limen-gold/90">{{ performer.headline }}</p>
+
                 <!-- Presença + gorjetas: a prova social compacta, na mesma unidade
                      do nome. Cada parte só aparece quando existe. -->
                 <div v-if="presence || showTips" class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-limen-ink-mute">

@@ -73,6 +73,7 @@ class ProfileController extends Controller
             'profile' => [
                 'stage_name' => $profile->stage_name,
                 'bio' => $profile->bio,
+                'headline' => $profile->headline,
                 'slug' => $profile->slug,
                 // `worlds` pode ser null (linha anterior ao multi-worlds); a
                 // tela usa `worlds ?? [category]` para pré-selecionar. Mando os
@@ -149,7 +150,7 @@ class ProfileController extends Controller
         // crua — sejam alteradas por um POST forjado a partir de uma tela que
         // não as oferece.
         $data = array_intersect_key($validated, array_flip([
-            'stage_name', 'bio',
+            'stage_name', 'bio', 'headline',
             // "Sobre mim" (Sprint 9). `tags` NÃO entra aqui: não é coluna, vai
             // pela junção logo abaixo.
             'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',
