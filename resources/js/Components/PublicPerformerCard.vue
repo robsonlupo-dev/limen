@@ -49,6 +49,15 @@ const isSelect = computed(() => props.performer.tier === 'select')
                     <span v-else class="font-serif text-sm text-limen-gold">{{ performer.stage_name?.charAt(0) }}</span>
                 </span>
             </span>
+            <!-- Selo "Teste" (disciplina de UAT): conta sintética num ambiente
+                 compartilhado. VERDE para destoar dos selos de produto; BOOLEANO
+                 derivado (is_test), some sozinho no go-live. -->
+            <span
+                v-if="performer.is_test"
+                class="rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-success ring-1 ring-success/60 backdrop-blur-sm"
+            >
+                Teste
+            </span>
             <!-- Selo "Nova" (feat/activity-badges): entrada recente, BOOLEANO
                  derivado (is_new), nunca a data. Dourado, empilhado abaixo. -->
             <span

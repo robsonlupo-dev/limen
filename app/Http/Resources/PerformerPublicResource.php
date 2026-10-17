@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Support\ActivitySlot;
 use App\Support\NewBadge;
 use App\Support\ReturnedBadge;
+use App\Support\TestAccount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\URL;
@@ -104,6 +105,11 @@ class PerformerPublicResource extends JsonResource
             'is_returned' => $this->appear_offline
                 ? false
                 : ReturnedBadge::isReturned($this->user?->returned_at),
+            // Selo "Teste" (disciplina de UAT): conta sintética num ambiente
+            // compartilhado. BOOLEANO derivado do e-mail (TestAccount), nunca o
+            // e-mail em si; some sozinho no go-live. NÃO é sinal de presença, por
+            // isso não é suprimido por appear_offline.
+            'is_test' => TestAccount::isTest($this->user),
             // Intro de voz aprovada (feat/voice-intro): BOOLEANO derivado, nunca o
             // status cru. O card mostra um ícone discreto "tem áudio"; a URL de
             // serving NÃO entra aqui (é injetada só nas telas de perfil pelos
