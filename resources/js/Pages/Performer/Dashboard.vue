@@ -266,24 +266,39 @@ async function toggleVisibility() {
                     <span class="text-xs text-muted tabular-nums shrink-0">{{ growthChecklist.done }}/{{ growthChecklist.total }}</span>
                 </div>
                 <ul class="space-y-2.5">
+                    <!-- Item pendente é LINK para a tela onde se completa (href do
+                         servidor); item feito é texto estático (não há ação). -->
                     <li
                         v-for="item in growthChecklist.items"
                         :key="item.key"
-                        class="flex items-start gap-3"
                     >
-                        <span
-                            class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border"
-                            :class="item.done ? 'border-gold bg-gold/15 text-gold' : 'border-frame text-muted'"
-                            aria-hidden="true"
+                        <component
+                            :is="item.done ? 'div' : Link"
+                            v-bind="item.done ? {} : { href: item.href }"
+                            class="group -mx-2 flex items-start gap-3 rounded-lg px-2 py-1.5 no-underline"
+                            :class="item.done ? '' : 'hover:bg-gold/5 transition-colors'"
                         >
-                            <svg v-if="item.done" class="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M5 10.5l3 3 7-7.5" />
+                            <span
+                                class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border"
+                                :class="item.done ? 'border-gold bg-gold/15 text-gold' : 'border-frame text-muted group-hover:border-gold/50'"
+                                aria-hidden="true"
+                            >
+                                <svg v-if="item.done" class="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M5 10.5l3 3 7-7.5" />
+                                </svg>
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm" :class="item.done ? 'text-muted line-through' : 'text-cream'">{{ item.label }}</p>
+                                <p v-if="!item.done" class="text-xs text-muted">{{ item.hint }}</p>
+                            </div>
+                            <svg
+                                v-if="!item.done"
+                                class="mt-0.5 h-4 w-4 shrink-0 text-muted transition-colors group-hover:text-gold"
+                                viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                            >
+                                <path d="M7 4l6 6-6 6" />
                             </svg>
-                        </span>
-                        <div class="min-w-0">
-                            <p class="text-sm" :class="item.done ? 'text-muted line-through' : 'text-cream'">{{ item.label }}</p>
-                            <p v-if="!item.done" class="text-xs text-muted">{{ item.hint }}</p>
-                        </div>
+                        </component>
                     </li>
                 </ul>
             </section>
