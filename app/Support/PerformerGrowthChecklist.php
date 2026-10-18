@@ -64,7 +64,10 @@ class PerformerGrowthChecklist
                 'label' => 'Publique '.self::STORIES_PER_WEEK.' stories esta semana',
                 'done' => $storiesThisWeek >= self::STORIES_PER_WEEK,
                 'hint' => "Você publicou {$storiesThisWeek} nos últimos 7 dias. Stories te mantêm no topo da trilha.",
-                'href' => route('performer.stories.index'),
+                // panel.stories é a PÁGINA (Inertia) de gerenciar stories; a
+                // stories.index é o endpoint JSON que o painel consome — mandar o
+                // Link do checklist para lá quebra o Inertia ("plain JSON response").
+                'href' => route('performer.panel.stories'),
             ],
         ];
 

@@ -137,3 +137,13 @@ it('todo item traz um href para a tela onde se completa', function () {
             ->and($item['href'])->not->toBeEmpty();
     }
 });
+
+it('o item de stories aponta para a PÁGINA do painel, não o endpoint JSON', function () {
+    // Regressão: stories.index devolve JSON e quebra o Link do Inertia; o
+    // destino certo é a página panel.stories.
+    $items = gcByKey(PerformerGrowthChecklist::for(gcPerformer()));
+
+    expect($items['stories_semana']['href'])
+        ->toBe(route('performer.panel.stories'))
+        ->not->toBe(route('performer.stories.index'));
+});
