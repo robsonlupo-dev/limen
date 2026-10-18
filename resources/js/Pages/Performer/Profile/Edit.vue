@@ -68,7 +68,22 @@ const statusForm = useForm({
     countdown_label: props.status?.countdown_label ?? '',
 })
 
+// `min` do seletor = agora (hora local), para o relógio não deixar escolher um
+// horário já passado. Recalculado ao focar, já que a página pode ficar aberta.
+const minCountdown = ref(isoToLocalInput(new Date().toISOString()))
+function refreshMinCountdown() {
+    minCountdown.value = isoToLocalInput(new Date().toISOString())
+}
+
 function saveStatus() {
+    // Espelha a regra do servidor (`after:now`) ANTES de enviar, com uma
+    // mensagem que orienta — em vez de deixar o erro aparecer só depois.
+    statusForm.clearErrors('countdown_at')
+    if (statusForm.countdown_at && new Date(statusForm.countdown_at).getTime() <= Date.now()) {
+        statusForm.setError('countdown_at', 'A contagem precisa ser mais tarde que agora — ou deixe em branco.')
+        return
+    }
+
     statusForm
         .transform((data) => ({
             ...data,
@@ -423,9 +438,12 @@ function save() {
                             id="status_countdown_at"
                             v-model="statusForm.countdown_at"
                             type="datetime-local"
+                            :min="minCountdown"
                             class="mt-2 w-full rounded-lg border border-frame bg-surface-2 px-3 py-2 text-sm text-cream"
+                            @focus="refreshMinCountdown"
                         />
                         <p v-if="statusForm.errors.countdown_at" class="mt-1 text-xs text-danger">{{ statusForm.errors.countdown_at }}</p>
+                        <p v-else class="mt-1 text-xs text-muted">Deixe em branco para um status sem relógio. Se preencher, escolha um horário mais tarde que agora.</p>
                     </div>
                     <div>
                         <Input
