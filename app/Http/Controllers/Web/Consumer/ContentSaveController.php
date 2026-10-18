@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Web\Consumer;
 
 use App\Exceptions\ContentException;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\PerformerPublicResource;
 use App\Models\PerformerContent;
 use App\Services\ContentSaveService;
+use App\Services\PerformerRecommendationService;
 use App\Support\ContentPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +24,10 @@ use Inertia\Response;
  */
 class ContentSaveController extends Controller
 {
-    public function __construct(private ContentSaveService $saves) {}
+    public function __construct(
+        private ContentSaveService $saves,
+        private PerformerRecommendationService $recommendations,
+    ) {}
 
     /**
      * A lista salva pelo membro (todas as performers). Mesmo item do feed de
@@ -48,6 +53,12 @@ class ContentSaveController extends Controller
                 'last_page' => $paginator->lastPage(),
                 'has_more' => $paginator->hasMorePages(),
             ],
+            // "Parecidas com quem você salvou" (Onda A): performers por afinidade
+            // (mundo + tags) com o que ele salvou/favoritou. Vazio quando não há
+            // sementes — a seção só aparece quando há o que recomendar.
+            'recommendations' => PerformerPublicResource::collection(
+                $this->recommendations->similarToSaved($viewer)
+            )->resolve($request),
         ]);
     }
 

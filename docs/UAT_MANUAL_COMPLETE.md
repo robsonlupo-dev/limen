@@ -1170,3 +1170,19 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
 - **Auto:** `PerformerGrowthChecklistTest` ✅ (todo item traz `href` para a tela de ação).
 - **Manual** ⬜: Painel → item PENDENTE (seta → à direita) leva à tela certa (frase/capa →
   Editar perfil, voz → gravar voz, stories → stories, ao vivo → live). Item ✓ não é clicável.
+
+## FASE 39 — Filtro "Com voz" · PR #361 (feat/filtro-com-voz)
+- **Auto:** `CatalogVoiceFilterTest` ✅ (só intro APROVADA entra; processando/pendente/rejeitada não; aceita o filtro sem erro).
+- **Manual** ⬜: Catálogo → filtros → marcar "Com voz" → só performers com áudio aprovado.
+
+## FASE 40 — Fix: item de stories do checklist abria JSON · PR #362 (fix/checklist-stories-link)
+- **Auto:** `PerformerGrowthChecklistTest` ✅ (href de stories = página panel.stories, nunca o endpoint JSON).
+- **Manual** ⬜: Painel → item "Publique 3 stories" → abre a página de stories (sem o erro "plain JSON response").
+
+## FASE 41 — Status do dia: contagem no passado bloqueada · PR #363 (fix/status-countdown-ux)
+- **Auto:** suíte completa verde (mudança de front, sem teste dedicado).
+- **Manual** ⬜: Editar perfil → Status do dia → tentar contagem com horário passado → avisa na hora, sem erro seco; campo deixa claro que é opcional.
+
+## FASE 42 — Parecidas com quem você salvou · PR feat/parecidas-salvos
+- **Auto:** `PerformerRecommendationTest` ✅ (afinidade por tag e mundo; exclui sementes e outro mundo; sem semente → vazio; dona de peça salva vira semente; anônimo → vazio; a página entrega as recomendações).
+- **Manual** ⬜: como membro, favoritar/salvar algumas performers → Descobrir → Salvos → ver a seção "Parecidas com quem você salvou" com performers do mesmo mundo/tags. Sem nada salvo/favoritado, a seção não aparece.
