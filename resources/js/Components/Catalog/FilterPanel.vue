@@ -70,6 +70,7 @@ const form = reactive({
     is_live: !!props.filters.is_live,
     available: !!props.filters.available,
     has_photo: !!props.filters.has_photo,
+    has_voice: !!props.filters.has_voice,
     level: props.filters.level || '',
     tier: props.filters.tier || '',
     state: props.filters.state || '',
@@ -121,6 +122,7 @@ function apply() {
             is_live: form.is_live ? 1 : undefined,
             available: form.available ? 1 : undefined,
             has_photo: form.has_photo ? 1 : undefined,
+            has_voice: form.has_voice ? 1 : undefined,
             level: form.level || undefined,
             tier: form.tier || undefined,
             // UF sempre. CIDADE (item 4) só alcança quem consentiu ser
@@ -181,6 +183,7 @@ function clearFilters() {
         is_live: false,
         available: false,
         has_photo: false,
+        has_voice: false,
         level: '',
         tier: '',
         state: '',
@@ -227,6 +230,7 @@ const activeCount = computed(() => {
     if (form.is_live) n++
     if (form.available) n++
     if (form.has_photo) n++
+    if (form.has_voice) n++
     if (form.level) n++
     if (form.tier) n++
     // Cidade IMPLICA a UF (ela vem com a UF do município escolhido), então conta
@@ -259,6 +263,7 @@ function activeFilters() {
     if (form.is_live) f.is_live = true
     if (form.available) f.available = true
     if (form.has_photo) f.has_photo = true
+    if (form.has_voice) f.has_voice = true
     if (form.level) f.level = form.level
     if (form.tier) f.tier = form.tier
     if (form.state) f.state = form.state
@@ -306,6 +311,7 @@ function applySaved(filters) {
         is_live: !!filters.is_live,
         available: !!filters.available,
         has_photo: !!filters.has_photo,
+        has_voice: !!filters.has_voice,
         level: filters.level || '',
         tier: filters.tier || '',
         state: filters.state || '',
@@ -452,6 +458,14 @@ async function deleteSaved(id) {
                         <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
                             <input v-model="form.has_photo" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />
                             ▣ Com foto de perfil
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
+                            <input v-model="form.has_voice" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />
+                            <svg class="h-3.5 w-3.5 shrink-0 text-gold" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
+                                <path d="M17 11a1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 0 0 10 0z" />
+                            </svg>
+                            Com voz
                         </label>
                     </div>
                 </section>
