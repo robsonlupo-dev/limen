@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\PerformerProfile;
 use App\Models\PerformerProfilePreviousSlug;
+use App\Models\PerformerVoiceIntro;
 use App\Models\User;
 use App\Support\BrazilianCities;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -76,6 +77,9 @@ class PerformerCatalogService
             'smokes' => ['nullable', Rule::in(PerformerProfile::SMOKES)],
             'tier' => ['nullable', Rule::in(PerformerProfile::TIERS)],
             'has_photo' => ['nullable', 'boolean'],
+            // "Com voz" (roadmap Fatal Model, Onda A): só quem tem intro de voz
+            // APROVADA. Deriva do mesmo sinal do selo "tem áudio" do card.
+            'has_voice' => ['nullable', 'boolean'],
 
             // Localização: filtra por UF sempre; por CIDADE só quando a performer
             // consentiu (opt-in `findable_by_city`, item 4 da fila). O filtro de
@@ -139,6 +143,13 @@ class PerformerCatalogService
         // que existe performer não verificada na listagem. Ver o README do PR.
         if (! empty($filters['has_photo'])) {
             $query->whereNotNull('avatar_path');
+        }
+
+        // "Com voz" (Onda A): intro de voz APROVADA. É whereHas (filtro pela
+        // relação) e não o `voice_intro_approved_count` do scopePublicCatalog —
+        // aquele é uma subquery do SELECT, não serve de condição no WHERE.
+        if (! empty($filters['has_voice'])) {
+            $query->whereHas('voiceIntro', fn (Builder $q) => $q->where('status', PerformerVoiceIntro::STATUS_APPROVED));
         }
 
         // Tags em AND: a performer precisa ter TODAS as escolhidas.
