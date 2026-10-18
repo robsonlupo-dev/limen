@@ -125,3 +125,15 @@ it('done/total refletem o progresso', function () {
     expect($c['total'])->toBe(4)   // voz, capa, frase, stories (sem live)
         ->and($c['done'])->toBe(2); // capa + frase
 });
+
+it('todo item traz um href para a tela onde se completa', function () {
+    config(['features.live_enabled' => true]);
+    $items = PerformerGrowthChecklist::for(gcPerformer())['items'];
+
+    expect($items)->not->toBeEmpty();
+    foreach ($items as $item) {
+        expect($item)->toHaveKey('href')
+            ->and($item['href'])->toBeString()
+            ->and($item['href'])->not->toBeEmpty();
+    }
+});

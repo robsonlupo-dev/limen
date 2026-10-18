@@ -25,7 +25,11 @@ class PerformerGrowthChecklist
     public const STORIES_PER_WEEK = 3;
 
     /**
-     * @return array{items: list<array{key: string, label: string, done: bool, hint: string}>, done: int, total: int}
+     * O `href` leva direto à tela onde se completa o item (gerado no servidor
+     * com route(), para não depender do allowlist do Ziggy). O painel usa só os
+     * pendentes como link — item feito não precisa de ação.
+     *
+     * @return array{items: list<array{key: string, label: string, done: bool, hint: string, href: string}>, done: int, total: int}
      */
     public static function for(PerformerProfile $profile): array
     {
@@ -39,24 +43,28 @@ class PerformerGrowthChecklist
                 'label' => 'Grave sua apresentação de voz',
                 'done' => $profile->hasApprovedVoiceIntro(),
                 'hint' => 'Perfis com voz convertem mais — é a sua assinatura.',
+                'href' => route('performer.voice-intro.edit'),
             ],
             [
                 'key' => 'capa',
                 'label' => 'Adicione uma foto de capa',
                 'done' => (bool) $profile->cover_path,
                 'hint' => 'A capa é a primeira impressão no seu perfil.',
+                'href' => route('performer.profile.edit'),
             ],
             [
                 'key' => 'frase',
                 'label' => 'Escreva sua frase de destaque',
                 'done' => filled($profile->headline),
                 'hint' => 'Uma frase curta que aparece no seu card no catálogo.',
+                'href' => route('performer.profile.edit'),
             ],
             [
                 'key' => 'stories_semana',
                 'label' => 'Publique '.self::STORIES_PER_WEEK.' stories esta semana',
                 'done' => $storiesThisWeek >= self::STORIES_PER_WEEK,
                 'hint' => "Você publicou {$storiesThisWeek} nos últimos 7 dias. Stories te mantêm no topo da trilha.",
+                'href' => route('performer.stories.index'),
             ],
         ];
 
@@ -73,6 +81,7 @@ class PerformerGrowthChecklist
                 'label' => 'Faça uma transmissão ao vivo este mês',
                 'done' => $liveThisMonth > 0,
                 'hint' => 'O "Agora" (ao vivo) é o topo do catálogo em tempo real.',
+                'href' => route('performer.live'),
             ];
         }
 

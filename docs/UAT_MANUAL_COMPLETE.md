@@ -1124,3 +1124,49 @@ active, consumer, verified). Provável causa: Turnstile captcha no formulário d
 ## Prompt 3: fix/uat-extrato-performer-pills
 
 Filter pills do extrato da performer precisam de layout wrap (não scroll).
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# PARTE 5 — ONDA A (roadmap Fatal Model) · adicionada 2026-10-16
+# ═══════════════════════════════════════════════════════════════
+
+Descoberta barata e sinais que o ranking usa. Cada feature traz a COBERTURA
+automatizada (Pest, verde no servidor a cada ship) e o ROTEIRO manual.
+Status: ✅ passou · ⬜ a conferir (manual) · ⏳ bloqueado.
+Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@teste.limen.local`.
+
+## FASE 33 — Frase de destaque (headline) · PR #356
+- **Auto:** `HeadlineAndReturnedBadgeTest` ✅ (salva, aparece no resource, barra contato/>40).
+- **Manual** ⬜: Perfil → rolar até "Frase de destaque" (máx 40) → salvar "Curadoria e
+  discrição" → aparece no perfil (dourado sob o nome) e no card (truncada). "@x" e 41
+  caracteres → recusa. Apagar → some.
+
+## FASE 34 — Selo "Voltou" · PR #356
+- **Auto:** `HeadlineAndReturnedBadgeTest` ✅ (janela 7d, carimbo 30d, supressão appear_offline, nunca junto de "Nova").
+- **Manual** ⬜: conta nova NÃO mostra "Voltou"; onde há "Nova" não aparece. Caso positivo
+  (30+ dias inativa) só via SQL numa conta descartável — pedir snippet ao Claude.
+
+## FASE 35 — Checklist de crescimento · PR #357
+- **Auto:** `PerformerGrowthChecklistTest` ✅ (itens, capa+frase, limiar stories, janela 7d, gate live, done/total).
+- **Manual** ⬜: Painel → card "Faça seu perfil crescer" (abaixo da completude). Completar
+  itens → viram ✓ e o contador sobe. "Ao vivo este mês" só com live ligada (ligada no UAT).
+  Tudo ✓ → card some.
+
+## FASE 36 — Ordenação transparente do catálogo · PR #358
+- **Auto:** `CatalogTransparentSortTest` ✅ (padrão por atividade, seguidas, novas, NUNCA por
+  avaliação, legados mapeados, sem 422, sort inválido rejeitado). `PerformerPresenceTest`/`BoostTest`/`PublicLiveTest` verdes.
+- **Manual** ⬜: Catálogo → filtros → "Ordenar": Mais ativas / Novas / Ao vivo primeiro /
+  Mais seguidas (sumiu "Mais bem avaliados"). Trocar reflete; boost e ao vivo seguem no topo.
+
+## FASE 37 — Selo "Teste" (contas de UAT) · PR #359
+- **Auto:** `TestAccountBadgeTest` ✅ (domínios dos seeders marcam, domínio real não, is_test no
+  resource, allowlist de e-mails, interruptor global, e-mail ausente/malformado).
+- **Manual** ⬜ (JÁ ATIVO no ar): catálogo → contas `@uat.limen.test` mostram selo verde
+  **Teste** no card; no perfil, ao lado do nome. E-mail avulso de teste: `TEST_ACCOUNT_EMAILS`
+  no `.env` + `config:cache`.
+
+## FASE 38 — Checklist clicável · PR feat/checklist-itens-clicaveis
+- **Auto:** `PerformerGrowthChecklistTest` ✅ (todo item traz `href` para a tela de ação).
+- **Manual** ⬜: Painel → item PENDENTE (seta → à direita) leva à tela certa (frase/capa →
+  Editar perfil, voz → gravar voz, stories → stories, ao vivo → live). Item ✓ não é clicável.
