@@ -4,6 +4,7 @@ import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Button from '@/Components/Button.vue'
+import PerformerCard from '@/Components/PerformerCard.vue'
 import { postJson, isInsufficientBalance } from '@/lib/http'
 import { useInsufficientBalance } from '@/composables/useInsufficientBalance'
 
@@ -14,6 +15,9 @@ const { promptToBuy } = useInsufficientBalance()
 // para ESTE membro (ContentPresenter::feedItem) + saved:true.
 const props = defineProps({
     saved: { type: Object, required: true },
+    // "Parecidas com quem você salvou" (Onda A): recomendação por afinidade,
+    // derivada do que o membro salvou/favoritou. Vazio = seção não aparece.
+    recommendations: { type: Array, default: () => [] },
 })
 
 const LEVEL_LABELS = {
@@ -129,6 +133,19 @@ async function confirmUnlock() {
                     <h1 class="font-serif text-4xl text-limen-ink">Salvos</h1>
                     <p class="text-limen-ink-mute text-sm">Conteúdo que você guardou para ver depois. Só você vê esta lista.</p>
                 </div>
+
+                <!-- Parecidas com quem você salvou (roadmap Fatal Model, Onda A):
+                     recomendação por afinidade. Só aparece quando há sugestões. -->
+                <section v-if="recommendations.length" class="space-y-3">
+                    <h2 class="font-serif text-xl text-limen-ink">Parecidas com quem você salvou</h2>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <PerformerCard
+                            v-for="rec in recommendations"
+                            :key="rec.slug"
+                            :performer="rec"
+                        />
+                    </div>
+                </section>
 
                 <div
                     v-if="!items.length"
