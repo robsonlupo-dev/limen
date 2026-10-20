@@ -136,6 +136,9 @@ class PerformerProfile extends Model
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
         'is_live', 'is_verified', 'avatar_path', 'cover_path',
         'languages', 'drinks', 'smokes', 'height_cm', 'looking_for', 'headline',
+        // Marca de origem (Onda B §4): escolha "Limen" vs "Limen · @slug". A
+        // performer edita no próprio Editar perfil, então é fillable.
+        'origin_mark_handle',
         // Localização opt-in. `city` é fillable porque a performer a escreve na
         // própria tela — o que a mantém interna é não sair em resource nenhum,
         // não a ausência daqui. Ver PerformerPublicResource.
@@ -184,6 +187,7 @@ class PerformerProfile extends Model
             'available_for_chat_at' => 'datetime',
             'boosted_until' => 'datetime',
             'is_verified' => 'boolean',
+            'origin_mark_handle' => 'boolean',
             'rating_avg' => 'decimal:2',
             'split_pct' => 'integer',
             'rate_public' => 'integer',

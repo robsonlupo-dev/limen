@@ -140,6 +140,8 @@ const WORLDS = [
 const profileForm = useForm({
     stage_name: props.profile.stage_name ?? '',
     headline: props.profile.headline ?? '',
+    // Marca de origem (Onda B §4): true = "Limen · @slug", false = só "Limen".
+    origin_mark_handle: props.profile.origin_mark_handle ?? true,
     bio: props.profile.bio ?? '',
     // Pré-seleção: `worlds` é a fonte da verdade; perfil legado (worlds null)
     // cai no único mundo da `category`.
@@ -701,6 +703,41 @@ function save() {
                         <span class="text-xs text-muted tabular-nums shrink-0">{{ (profileForm.headline || '').length }}/40</span>
                     </div>
                     <p v-if="profileForm.errors.headline" class="text-xs text-danger">{{ profileForm.errors.headline }}</p>
+                </div>
+
+                <!-- Marca de origem (Onda B §4). Branding discreto queimado nas suas
+                     fotos. Você escolhe o que aparece: só "Limen", ou "Limen · @seu-nome"
+                     (divulga seu perfil junto). A marca é sutil, em diagonal, como no
+                     Fatal Model. O @nome já é público (vai no link do seu perfil). -->
+                <div
+                    class="flex items-start justify-between gap-4 rounded-lg border px-4 py-3"
+                    :class="profileForm.origin_mark_handle ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface-2'"
+                >
+                    <div class="space-y-1">
+                        <p class="text-sm font-medium text-cream">Incluir seu @ na marca das fotos</p>
+                        <p class="text-xs leading-relaxed text-muted">
+                            Toda foto sua leva uma marca discreta de origem. Ligado, a marca mostra
+                            <span class="text-cream">Limen · @{{ profile.slug }}</span> — divulga seu perfil se a foto circular.
+                            Desligado, mostra só <span class="text-cream">Limen</span>.
+                        </p>
+                        <p class="text-xs text-gold/90">
+                            Vai aparecer nas fotos: “{{ profileForm.origin_mark_handle ? 'Limen · @' + profile.slug : 'Limen' }}”
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="profileForm.origin_mark_handle"
+                        aria-label="Incluir seu @ na marca das fotos"
+                        class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
+                        :class="profileForm.origin_mark_handle ? 'bg-gold' : 'bg-frame'"
+                        @click="profileForm.origin_mark_handle = !profileForm.origin_mark_handle"
+                    >
+                        <span
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                            :class="profileForm.origin_mark_handle ? 'translate-x-6' : 'translate-x-1'"
+                        />
+                    </button>
                 </div>
 
                 <div class="flex flex-col gap-1.5">

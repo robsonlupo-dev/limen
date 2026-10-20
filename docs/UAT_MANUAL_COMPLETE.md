@@ -1198,3 +1198,16 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   2. Como membro/visitante → Catálogo → filtros → marcar "Com rosto" → a performer aparece.
   3. Publicar peça SEM marcar o rosto → ela não entra no filtro.
 - **Nota:** base da Onda B (sem IA; a performer declara). As próximas peças usam o `shows_face`: política de rosto pago, prévia borrada e "revelar rosto".
+
+## FASE 44 — Marca de origem na foto (branding "Limen" / "Limen · @nome") · PR feat/origin-mark-foto
+- **Auto:** `OriginMarkTest` ✅ (textFor com/sem @; fallback no default do config quando a coluna é nula; `enabled` false com config off; `enabled` false quando a fonte não existe — fail-open de branding; `enabled` true com fonte presente; `textIfEnabled` null/texto; cast booleano persistido). `WatermarkTest` e `CustomOrderTest` seguem ✅ (o gate forense da encomenda saiu do store para o `deliverCustomPiece` sem mudar o comportamento com o kill-switch OFF). Suíte de conteúdo (`PermanentContentTest`, `ContentBlurPreviewTest`, `PinContentTest`) ✅ — a marca preserva dimensão e formato JPEG; a prévia borrada segue ≤96px.
+- **Manual** ⬜ (DEIXAR EXEMPLO VIVO no ar — `limen.dev.br`):
+  1. Como performer → Editar perfil → aba "Sobre" → achar o toggle **"Incluir seu @ na marca das fotos"**. Ligado mostra o preview *"Limen · @seu-slug"*; desligado, *"Limen"*. Salvar.
+  2. Como performer → Conteúdo → publicar uma FOTO nova. Abrir a foto publicada e conferir a marca diagonal discreta (opacidade ~0.11, como o Fatal Model). Com o toggle ligado deve ler "Limen · @slug"; desligado, só "Limen".
+  3. Repetir publicando no Fã-Clube — a marca de origem também entra lá (não é entrega de encomenda, mas é foto dela).
+  4. Conferir que uma foto publicada ANTES da feature (ou com a marca desligada no config) continua servindo normalmente.
+- **Notas:**
+  - **Só FOTO.** Vídeo (rodapé estilo OnlyFans, overlay por frame via ffmpeg) fica na peça 2c, em PR próprio e **desligado** até o go-live (custo de CPU no servidor 2 vCPU).
+  - **Não há marca forense por espectador (Fã #NNNN) nesta onda** — a de origem é igual para todos e carimbada no upload (divulgação/atribuição), não identifica quem vazou.
+  - **Custo:** é um passo GD **uma vez por upload** (não por exibição), em uma única imagem — barato. Kill-switch `ORIGIN_MARK_ENABLED` no `.env` (nasce ON); o estilo (diagonal, opacidade) é o mesmo motor do `custom_order.watermark.*`.
+  - **Default do toggle:** LIGADO ("Limen · @slug"), como o Fatal Model; o @slug já é público (vai na URL do perfil). A performer troca para só "Limen" quando quiser.

@@ -10,6 +10,7 @@ use App\Models\PerformerProfile;
 use App\Models\Report;
 use App\Support\Audit;
 use App\Support\FanAlias;
+use App\Support\OriginMark;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 
@@ -44,7 +45,9 @@ class PerformerContentService
             throw ContentException::invalidPrice();
         }
 
-        $stored = $this->store->store($file, $profile->id, $profile->user);
+        // Marca de ORIGEM (Onda B §4): branding discreto queimado na foto no upload.
+        // null quando desligada/sem fonte — aí o store grava sem marca.
+        $stored = $this->store->store($file, $profile->id, $profile->user, OriginMark::textIfEnabled($profile));
 
         try {
             $content = new PerformerContent;
@@ -175,8 +178,12 @@ class PerformerContentService
         }
 
         // Foto: higieniza + grava (CSAM antes de escrever), pronta na hora. A marca
-        // d'água (§4.3) é queimada no store, depois do scan (fail-closed quando ligada).
-        $stored = $this->store->store($file, $profile->id, $profile->user, $watermarkText);
+        // FORENSE (§4.3, Fã #NNNN) é queimada no store, depois do scan (fail-closed
+        // quando ligada). O gate do forense mora AQUI (antes o store o aplicava): o
+        // texto só vai quando `custom_order.watermark.enabled` — senão a entrega sai
+        // sem marca forense, como no comportamento original (kill-switch OFF).
+        $forensicText = (bool) config('custom_order.watermark.enabled') ? $watermarkText : null;
+        $stored = $this->store->store($file, $profile->id, $profile->user, $forensicText);
 
         try {
             $content = new PerformerContent;
@@ -209,8 +216,9 @@ class PerformerContentService
      * FORA da vitrine e do painel de conteúdo (galleryFor/forOwner filtram), NÃO é
      * desbloqueável por peça (denialForUnlock), e o acesso é só por ASSINATURA ativa
      * (ContentVisibilityService::canView). `access_level` exclusivo e `price_tokens=0`
-     * (o preço é a assinatura do clube, não a peça). SEM marca d'água (é do cofre dela,
-     * não entrega de encomenda). Foto nasce READY; vídeo nasce PROCESSING (job ffmpeg).
+     * (o preço é a assinatura do clube, não a peça). SEM marca FORENSE (não é entrega
+     * de encomenda), mas COM marca de ORIGEM (Onda B §4: é foto dela, leva o branding).
+     * Foto nasce READY; vídeo nasce PROCESSING (job ffmpeg).
      *
      * @throws ContentException|VideoProcessingException
      */
@@ -243,7 +251,9 @@ class PerformerContentService
             return $content;
         }
 
-        $stored = $this->store->store($file, $profile->id, $profile->user);
+        // Marca de ORIGEM (Onda B §4) também no set de fã-clube — é foto dela, leva
+        // o branding como qualquer outra. (O forense por espectador não se aplica aqui.)
+        $stored = $this->store->store($file, $profile->id, $profile->user, OriginMark::textIfEnabled($profile));
 
         try {
             $content = new PerformerContent;

@@ -35,6 +35,8 @@ class UpdatePerformerProfileRequest extends FormRequest
             // bio —, então SafeProfileText (barra contato), não só NoProhibitedOffer.
             // Teto 40: cabe num card sem quebrar o layout.
             'headline' => ['sometimes', 'nullable', 'string', 'max:40', new SafeProfileText],
+            // Marca de origem (Onda B §4): true = "Limen · @slug", false = só "Limen".
+            'origin_mark_handle' => ['sometimes', 'boolean'],
             // Multi-worlds: a performer pode pertencer a mais de um mundo. Se
             // `worlds` vier, ele é a fonte da verdade e `category` é DERIVADA de
             // worlds[0] no servidor (controller) — nunca do request. `min:1`
