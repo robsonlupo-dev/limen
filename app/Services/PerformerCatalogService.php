@@ -80,6 +80,9 @@ class PerformerCatalogService
             // "Com voz" (roadmap Fatal Model, Onda A): só quem tem intro de voz
             // APROVADA. Deriva do mesmo sinal do selo "tem áudio" do card.
             'has_voice' => ['nullable', 'boolean'],
+            // "Com rosto" (roadmap Fatal Model, Onda B §4.1): tem ao menos uma
+            // peça PRONTA marcada com rosto — mesmo paga. Não é "rosto público".
+            'has_face' => ['nullable', 'boolean'],
 
             // Localização: filtra por UF sempre; por CIDADE só quando a performer
             // consentiu (opt-in `findable_by_city`, item 4 da fila). O filtro de
@@ -150,6 +153,19 @@ class PerformerCatalogService
         // aquele é uma subquery do SELECT, não serve de condição no WHERE.
         if (! empty($filters['has_voice'])) {
             $query->whereHas('voiceIntro', fn (Builder $q) => $q->where('status', PerformerVoiceIntro::STATUS_APPROVED));
+        }
+
+        // "Com rosto" (Onda B §4.1): tem peça PRONTA marcada com rosto. É um
+        // whereExists direto (não há relação `content` nomeada no perfil); exclui
+        // a peça de ENCOMENDA (custom_order_id), que nunca é da vitrine pública.
+        if (! empty($filters['has_face'])) {
+            $query->whereExists(fn ($q) => $q
+                ->selectRaw('1')
+                ->from('performer_content')
+                ->whereColumn('performer_content.performer_profile_id', 'performer_profiles.id')
+                ->where('performer_content.shows_face', true)
+                ->where('performer_content.status', 'ready')
+                ->whereNull('performer_content.custom_order_id'));
         }
 
         // Tags em AND: a performer precisa ter TODAS as escolhidas.

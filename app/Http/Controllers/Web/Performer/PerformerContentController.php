@@ -66,12 +66,14 @@ class PerformerContentController extends Controller
         $file = $request->file('arquivo');
         $level = $request->validated('nivel');
         $price = (int) $request->validated('preco');
+        // "Com rosto" (Onda B): a performer declara se a peça mostra o rosto.
+        $showsFace = $request->boolean('com_rosto');
 
         try {
             // Vídeo → pipeline assíncrono (ffmpeg); foto → síncrono (GD).
             $piece = $request->isVideoUpload()
-                ? $this->content->publishVideo($profile, $file, $level, $price)
-                : $this->content->publish($profile, $file, $level, $price);
+                ? $this->content->publishVideo($profile, $file, $level, $price, $showsFace)
+                : $this->content->publish($profile, $file, $level, $price, $showsFace);
         } catch (ContentException $e) {
             return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], 422);
         } catch (ImageProcessingException $e) {

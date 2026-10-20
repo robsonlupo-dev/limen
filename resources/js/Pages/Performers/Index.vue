@@ -43,6 +43,7 @@ const activeFilterParams = computed(() => {
         available: f.available ? 1 : undefined,
         has_photo: f.has_photo ? 1 : undefined,
         has_voice: f.has_voice ? 1 : undefined,
+        has_face: f.has_face ? 1 : undefined,
         level: f.level || undefined,
         tier: f.tier || undefined,
         // Ordenação transparente (Onda A): omite o padrão ('ativas') e o legado

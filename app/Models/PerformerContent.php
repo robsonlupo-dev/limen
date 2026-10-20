@@ -57,6 +57,7 @@ class PerformerContent extends Model
             'duration_seconds' => 'integer',
             'pinned_at' => 'datetime',
             'fanclub' => 'boolean',
+            'shows_face' => 'boolean',
         ];
     }
 

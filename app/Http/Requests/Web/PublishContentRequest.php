@@ -46,6 +46,9 @@ class PublishContentRequest extends FormRequest
             'nivel' => ['required', 'string', Rule::in(PerformerContent::LEVELS)],
             // min 5 + múltiplo de 5 (M.4); a dona da regra é TokenCreditPolicy.
             'preco' => ['required', 'integer', 'min:5', 'max:100000'],
+            // "Com rosto" (Onda B): declaração da performer de que a peça mostra
+            // o rosto dela. Opcional; ausente = não.
+            'com_rosto' => ['nullable', 'boolean'],
         ];
     }
 

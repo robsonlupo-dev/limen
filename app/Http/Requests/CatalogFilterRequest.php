@@ -55,6 +55,7 @@ class CatalogFilterRequest extends FormRequest
             'available' => $this->boolean('available'),
             'has_photo' => $this->boolean('has_photo'),
             'has_voice' => $this->boolean('has_voice'),
+            'has_face' => $this->boolean('has_face'),
             'tier' => $this->input('tier'),
             // UF, validada por Rule::in(STATES) nas rules(). A CIDADE (item 4)
             // entra como texto e só filtra quem consentiu (findable_by_city) —

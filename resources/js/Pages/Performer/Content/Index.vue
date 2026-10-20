@@ -53,6 +53,9 @@ const file = ref(null)
 const filePreview = ref(null)
 const nivel = ref(props.levels[0] ?? 'open')
 const preco = ref(props.minPrice)
+// "Com rosto" (roadmap Fatal Model, Onda B): a performer declara se a peça
+// mostra o rosto dela. Alimenta o filtro "Com rosto" do catálogo.
+const showsFace = ref(false)
 const publishing = ref(false)
 // Progresso do upload (0–100). Vídeo até 500 MB subia sem feedback — parecia travado.
 const uploadPct = ref(0)
@@ -89,6 +92,7 @@ async function publish() {
     form.append('arquivo', file.value)
     form.append('nivel', nivel.value)
     form.append('preco', String(preco.value))
+    form.append('com_rosto', showsFace.value ? '1' : '0')
 
     uploadPct.value = 0
     try {
@@ -102,6 +106,7 @@ async function publish() {
         filePreview.value = null
         preco.value = props.minPrice
         nivel.value = props.levels[0] ?? 'open'
+        showsFace.value = false
         await refresh()
     } catch (e) {
         error.value = e.data?.message ?? 'Não foi possível publicar. Tente novamente.'
@@ -208,6 +213,16 @@ async function remove(piece) {
                         <span class="text-xs text-muted">Mínimo {{ minPrice }} tokens, em múltiplos de 5.</span>
                     </label>
                 </div>
+
+                <!-- "Com rosto" (roadmap Fatal Model, Onda B): declaração da
+                     performer. Entra no filtro "Com rosto" do catálogo. -->
+                <label class="flex items-start gap-2 cursor-pointer">
+                    <input v-model="showsFace" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-frame bg-surface-2 accent-gold" />
+                    <span class="space-y-0.5">
+                        <span class="block text-sm text-cream">Esta peça mostra meu rosto</span>
+                        <span class="block text-xs text-muted">Aparece no filtro "Com rosto" do catálogo. Você escolhe — nada é detectado automaticamente.</span>
+                    </span>
+                </label>
 
                 <button
                     type="button"
