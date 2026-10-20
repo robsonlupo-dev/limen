@@ -142,6 +142,8 @@ const profileForm = useForm({
     headline: props.profile.headline ?? '',
     // Marca de origem (Onda B §4): true = "Limen · @slug", false = só "Limen".
     origin_mark_handle: props.profile.origin_mark_handle ?? true,
+    // Rosto borrado (Onda B §4): botão global "borrar meu rosto em tudo" (default p/ uploads novos).
+    blur_face_default: props.profile.blur_face_default ?? false,
     bio: props.profile.bio ?? '',
     // Pré-seleção: `worlds` é a fonte da verdade; perfil legado (worlds null)
     // cai no único mundo da `category`.
@@ -736,6 +738,37 @@ function save() {
                         <span
                             class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
                             :class="profileForm.origin_mark_handle ? 'translate-x-6' : 'translate-x-1'"
+                        />
+                    </button>
+                </div>
+
+                <!-- Rosto borrado (Onda B §4) — botão global. Padrão DESLIGADO: a foto vem
+                     desbloqueada e a performer escolhe. Ligado, novas fotos já vêm com a
+                     opção de borrar marcada (ela ainda posiciona o oval ao publicar). Não
+                     mexe no que já está publicado. -->
+                <div
+                    class="flex items-start justify-between gap-4 rounded-lg border px-4 py-3"
+                    :class="profileForm.blur_face_default ? 'border-gold/40 bg-gold/5' : 'border-frame bg-surface-2'"
+                >
+                    <div class="space-y-1">
+                        <p class="text-sm font-medium text-cream">Borrar meu rosto por padrão</p>
+                        <p class="text-xs leading-relaxed text-muted">
+                            Liga o borrão de rosto já marcado nas suas <span class="text-cream">próximas</span> fotos (você
+                            posiciona o oval ao publicar). Não altera o que já está no ar. Desligado, cada foto vem sem borrão.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="profileForm.blur_face_default"
+                        aria-label="Borrar meu rosto por padrão"
+                        class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
+                        :class="profileForm.blur_face_default ? 'bg-gold' : 'bg-frame'"
+                        @click="profileForm.blur_face_default = !profileForm.blur_face_default"
+                    >
+                        <span
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                            :class="profileForm.blur_face_default ? 'translate-x-6' : 'translate-x-1'"
                         />
                     </button>
                 </div>

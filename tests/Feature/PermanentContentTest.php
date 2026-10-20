@@ -269,10 +269,14 @@ it('unlockers usam FanAlias e nunca vazam member_id; fc_only revela FC', functio
     $premUnlockers = $svc->unlockersFor($profile, $premiumContent);
 
     // FanAlias, nunca id do membro.
+    // A invariante real: o membro só aparece pelos derivados OPACOS do FanAlias
+    // (label de exibição + handle HMAC), nunca pela chave/valor do user_id. Checar
+    // por substring do id no JSON era frágil — o handle é 16 hex e contém os dígitos
+    // de um id pequeno por acaso (não é vazamento: o handle é derivado, não o id).
     expect($fcUnlockers[0])->toHaveKeys(['fan', 'member_handle'])
         ->and($fcUnlockers[0])->not->toHaveKey('user_id')
         ->and($fcUnlockers[0]['fan'])->toBe(FanAlias::label($profile->id, $fc->id))
-        ->and(json_encode($fcUnlockers))->not->toContain((string) $fc->id);
+        ->and($fcUnlockers[0]['member_handle'])->toBe(FanAlias::handle($profile->id, $fc->id));
 
     // fc_only revela FC; premium NÃO revela tier.
     expect($fcUnlockers[0]['tier_revealed'])->toBe('founders_circle')

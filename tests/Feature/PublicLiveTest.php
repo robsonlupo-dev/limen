@@ -273,8 +273,10 @@ it('o JWT do membro leva identity opaca (sem member_id) e a sala não vaza nas p
 
     // Decodifica o token embutido nas props e confere a identity opaca.
     $claims = JWT::decode($res->inertiaProps('token'), new Key(config('livekit.api_secret'), 'HS256'));
-    expect($claims->sub)->toMatch('/^lv_[0-9a-f]{16}$/')
-        ->and($claims->sub)->not->toContain((string) $member->id);
+    // O match estrutural (lv_ + 16 hex) já PROVA que o sub é o handle opaco, não o
+    // id decimal — checar substring do id além disso era frágil (o hex contém dígitos
+    // de um id pequeno por acaso, sem ser vazamento).
+    expect($claims->sub)->toMatch('/^lv_[0-9a-f]{16}$/');
 
     // O room_name NÃO aparece nas props (só dentro do JWT, base64).
     expect(json_encode($res->inertiaPage()['props']))->not->toContain($session->room_name);

@@ -35,7 +35,7 @@ class PerformerContentService
      * bytes ANTES de criar a linha; nível/preço/path/hash entram por atribuição
      * direta ($fillable vazio).
      */
-    public function publish(PerformerProfile $profile, UploadedFile $file, string $level, int $price, bool $showsFace = false): PerformerContent
+    public function publish(PerformerProfile $profile, UploadedFile $file, string $level, int $price, bool $showsFace = false, ?array $faceBlur = null): PerformerContent
     {
         if (! in_array($level, PerformerContent::LEVELS, true)) {
             throw ContentException::forbidden();
@@ -46,8 +46,9 @@ class PerformerContentService
         }
 
         // Marca de ORIGEM (Onda B §4): branding discreto queimado na foto no upload.
-        // null quando desligada/sem fonte — aí o store grava sem marca.
-        $stored = $this->store->store($file, $profile->id, $profile->user, OriginMark::textIfEnabled($profile));
+        // null quando desligada/sem fonte — aí o store grava sem marca. O rosto borrado
+        // (§4), quando pedido, é queimado ANTES da marca (ver ContentStore::store).
+        $stored = $this->store->store($file, $profile->id, $profile->user, OriginMark::textIfEnabled($profile), $faceBlur);
 
         try {
             $content = new PerformerContent;
@@ -61,6 +62,8 @@ class PerformerContentService
             $content->price_tokens = $price;
             // "Com rosto" (Onda B): marca declarada pela performer, sem IA.
             $content->shows_face = $showsFace;
+            // Rosto borrado (Onda B): metadado de que o oval foi queimado nesta peça.
+            $content->face_blurred = $faceBlur !== null;
             $content->path = $stored['path'];
             $content->content_hash = $stored['hash'];
             $content->save();

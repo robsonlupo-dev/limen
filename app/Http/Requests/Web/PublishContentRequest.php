@@ -49,6 +49,15 @@ class PublishContentRequest extends FormRequest
             // "Com rosto" (Onda B): declaração da performer de que a peça mostra
             // o rosto dela. Opcional; ausente = não.
             'com_rosto' => ['nullable', 'boolean'],
+            // Rosto borrado (Onda B): a performer pede para borrar um OVAL que ela
+            // posicionou (só foto; vídeo ignora). As coordenadas são normalizadas 0..1
+            // e só importam quando `borrar_rosto` está ligado — o controller as ignora
+            // senão. Faixas largas (o servidor ainda faz clamp no FaceBlurService).
+            'borrar_rosto' => ['nullable', 'boolean'],
+            'rosto_cx' => ['nullable', 'numeric', 'between:0,1'],
+            'rosto_cy' => ['nullable', 'numeric', 'between:0,1'],
+            'rosto_rx' => ['nullable', 'numeric', 'between:0.02,1'],
+            'rosto_ry' => ['nullable', 'numeric', 'between:0.02,1'],
         ];
     }
 

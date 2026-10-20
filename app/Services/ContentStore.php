@@ -34,6 +34,7 @@ class ContentStore
         private ImageProcessingService $images,
         private CsamScanService $csam,
         private WatermarkService $watermark,
+        private FaceBlurService $faceBlur,
     ) {}
 
     /**
@@ -51,7 +52,7 @@ class ContentStore
      * @throws ImageProcessingException entrada recusada ou indecodificável
      * @throws \App\Exceptions\CsamDetectedException imagem bate na lista de CSAM
      */
-    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null, ?string $watermarkText = null): array
+    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null, ?string $watermarkText = null, ?array $faceBlur = null): array
     {
         $processed = $this->images->process($file);
 
@@ -66,6 +67,13 @@ class ContentStore
             // bloqueia (nada é gravado). content_id ainda não existe (a linha nasce
             // depois do store); o par context+user identifica a trilha.
             $this->csam->scanBytes($bytes, 'content', $uploader);
+
+            // Rosto borrado (Onda B §4): oval localizado queimado DEPOIS do scan (o scan
+            // viu o rosto real) e antes da marca/gravação — o hash e a prévia já saem
+            // borrados. null = a performer não pediu blur nesta peça.
+            if ($faceBlur !== null) {
+                $bytes = $this->faceBlur->applyToJpegBytes($bytes, $faceBlur);
+            }
 
             // Marca d'água (depois do scan, no conteúdo real): o caller já decidiu
             // ligar/desligar e qual texto — aqui basta ter texto. null = sem marca.
