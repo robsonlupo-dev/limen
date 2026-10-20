@@ -46,6 +46,65 @@ class WatermarkService
     }
 
     /**
+     * Overlay de RODAPÉ (Onda B §4, peça 2c) — a marca de ORIGEM no vídeo, estilo OnlyFans:
+     * uma única linha centralizada perto da base, não o ladrilho diagonal. PNG transparente
+     * WxH para o ffmpeg esticar com scale2ref (como o overlay diagonal) — construído na
+     * proporção do vídeo, o rodapé fica proporcional depois do stretch. Estilo em
+     * `config/origin_mark.video.*`.
+     */
+    public function buildFooterOverlayPng(int $width, int $height, string $text, string $destPath): void
+    {
+        $w = max(1, $width);
+        $h = max(1, $height);
+        $canvas = $this->manager()->create($w, $h);
+        $this->stampFooter($canvas, $w, $h, $text);
+        $canvas->toPng()->save($destPath);
+
+        if (! is_file($destPath) || filesize($destPath) === 0) {
+            throw new RuntimeException('Falha ao gerar o overlay de rodapé da marca de origem.');
+        }
+    }
+
+    /** Uma linha centralizada perto da base: sombra escura + texto branco, sem rotação. */
+    private function stampFooter(ImageInterface $image, int $w, int $h, string $text): void
+    {
+        $font = (string) config('custom_order.watermark.font');
+        if (! is_file($font)) {
+            throw new RuntimeException("Fonte da marca não encontrada: {$font}");
+        }
+
+        $size = max(12, (int) round(min($w, $h) * (float) config('origin_mark.video.size_ratio', 0.030)));
+        $opacity = (float) config('origin_mark.video.opacity', 0.50);
+        $shadowOpacity = (float) config('origin_mark.video.shadow_opacity', 0.45);
+        $shadowOffset = max(0, (int) config('origin_mark.video.shadow_offset', 2));
+        $margin = (int) round($h * (float) config('origin_mark.video.margin_ratio', 0.045));
+
+        $white = sprintf('rgba(255, 255, 255, %.3f)', max(0.0, min(1.0, $opacity)));
+        $shadow = sprintf('rgba(0, 0, 0, %.3f)', max(0.0, min(1.0, $shadowOpacity)));
+
+        $x = intdiv($w, 2);           // centralizado na horizontal
+        $y = max(0, $h - $margin);    // perto da base
+
+        $base = function ($f) use ($font, $size) {
+            $f->filename($font);
+            $f->size($size);
+            $f->align('center');
+            $f->valign('bottom');
+        };
+
+        if ($shadowOffset > 0) {
+            $image->text($text, $x + $shadowOffset, $y + $shadowOffset, function ($f) use ($base, $shadow) {
+                $base($f);
+                $f->color($shadow);
+            });
+        }
+        $image->text($text, $x, $y, function ($f) use ($base, $white) {
+            $base($f);
+            $f->color($white);
+        });
+    }
+
+    /**
      * Desenha o texto em diagonal, repetido num ladrilho que cobre toda a mídia. Linhas
      * alternadas são desencontradas para não deixar "corredores" fáceis de cortar.
      *

@@ -34,6 +34,30 @@ return [
 
     'enabled' => (bool) env('ORIGIN_MARK_ENABLED', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Marca de origem no VÍDEO (Onda B §4, peça 2c) — DESLIGADA por padrão
+    |--------------------------------------------------------------------------
+    |
+    | Vídeo é o caminho CARO (overlay por frame via ffmpeg no `ProcessVideoContent`,
+    | fila de 2 vCPU). A infra fica pronta e testável (`php artisan
+    | origin-mark:video-selftest`), mas o interruptor nasce OFF: liga só no go-live,
+    | depois do self-test, para não arriscar o servidor antes da hora. Estilo de
+    | RODAPÉ (como o OnlyFans), não o ladrilho diagonal da foto — uma linha discreta
+    | na base do vídeo. Fail-OPEN: se o overlay falhar, o vídeo publica sem marca (é
+    | branding, não entrega paga — diferente da marca forense da encomenda, fail-closed).
+    |
+    */
+    'video_enabled' => (bool) env('ORIGIN_MARK_VIDEO', false),
+
+    'video' => [
+        'opacity' => 0.50,        // 0..1 — texto branco do rodapé (mais visível que a foto: é "selo")
+        'shadow_opacity' => 0.45, // sombra escura atrás (legível em fundo claro)
+        'shadow_offset' => 2,     // px
+        'size_ratio' => 0.030,    // fração do MENOR lado do vídeo (escala com a resolução)
+        'margin_ratio' => 0.045,  // distância da linha até a base, fração da ALTURA
+    ],
+
     // Default do toggle por performer quando a coluna ainda não foi escrita:
     // `true` = "Limen · @slug" (divulgação, padrão do Fatal Model); a performer
     // pode trocar para só "Limen" no Editar perfil. O @slug já é público (vai na

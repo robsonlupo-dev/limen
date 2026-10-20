@@ -1224,3 +1224,18 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   - **Avatar, capa e story são FOTO.** Vídeo (story em vídeo, se/quando existir; e o rodapé de vídeo da peça 2c) fica fora — PR própria, desligada até o go-live.
   - **Retroativo:** só vale para uploads NOVOS; avatar/capa/stories já no ar antes da feature seguem sem marca (re-marcar o acervo seria caro/arriscado — fica como follow-up se você quiser).
   - Custo: uma passada GD por upload (não por exibição).
+
+## FASE 46 — Marca de origem no VÍDEO (rodapé estilo OnlyFans) · PR feat/origin-mark-video — DESLIGADA por padrão
+- **Auto:** `OriginMarkVideoTest` ✅ (gate `videoEnabled()`: OFF por padrão mesmo com fonte; false sem fonte; true quando ligado+fonte; `buildFooterOverlayPng` gera PNG transparente no tamanho pedido). O caminho de ffmpeg em si **não é coberto pela suíte** (dev==prod) — validado pelo self-test abaixo.
+- **Self-test headless (SEM UI/login), rodar no servidor ANTES de ligar:**
+  ```bash
+  php artisan origin-mark:video-selftest
+  php artisan origin-mark:video-selftest --text="Limen · @teste" --size=720x1280 --out=/tmp
+  ```
+  Gera `/tmp/origin-video-marked.mp4`. Abra: se o rodapé "Limen · @nome" aparecer discreto e legível na base, o caminho ffmpeg está ok.
+- **Para LIGAR no go-live (só depois do self-test ok):** `ORIGIN_MARK_VIDEO=true` no `.env` de `/var/www/limen` + `php artisan config:cache` + reload php-fpm.
+- **Manual (depois de ligar)** ⬜: como performer, publicar um VÍDEO no cofre e no Fã-Clube → ao terminar o processamento, o vídeo mostra o rodapé "Limen"/"Limen · @slug" (respeita o mesmo toggle da foto). Encomenda sob medida NÃO recebe o rodapé de origem (ela tem a marca forense própria).
+- **Notas:**
+  - **Interruptor PRÓPRIO e OFF** (`ORIGIN_MARK_VIDEO`), separado do da foto (`ORIGIN_MARK_ENABLED`, ON): vídeo é o caminho caro (overlay por frame na fila de 2 vCPU), então fica pronto e testado mas desligado até o go-live.
+  - **Fail-OPEN:** se o overlay de rodapé falhar, o vídeo publica SEM marca (é branding, não entrega paga) — nunca derruba o upload nem marca a peça como FAILED. A marca forense da encomenda segue fail-closed (inalterada).
+  - Reaproveita o mesmo `scale2ref` já testado da marca forense; só muda o estilo (rodapé em vez de diagonal) e o texto (origem em vez de Fã #NNNN).
