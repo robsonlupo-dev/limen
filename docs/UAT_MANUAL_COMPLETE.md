@@ -1186,3 +1186,15 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
 ## FASE 42 — Parecidas com quem você salvou · PR feat/parecidas-salvos
 - **Auto:** `PerformerRecommendationTest` ✅ (afinidade por tag e mundo; exclui sementes e outro mundo; sem semente → vazio; dona de peça salva vira semente; anônimo → vazio; a página entrega as recomendações).
 - **Manual** ⬜: como membro, favoritar/salvar algumas performers → Descobrir → Salvos → ver a seção "Parecidas com quem você salvou" com performers do mesmo mundo/tags. Sem nada salvo/favoritado, a seção não aparece.
+
+# ═══════════════════════════════════════════════════════════════
+# PARTE 6 — ONDA B (rosto pago · diferencial) · iniciada 2026-10-20
+# ═══════════════════════════════════════════════════════════════
+
+## FASE 43 — "Com rosto": marca na peça + filtro no catálogo · PR feat/shows-face-filtro-rosto
+- **Auto:** `CatalogFaceFilterTest` ✅ (só peça PRONTA marcada com rosto entra; sem rosto e em processamento não; aceita o filtro sem erro).
+- **Manual** ⬜:
+  1. Como performer → Conteúdo → publicar uma foto marcando "Esta peça mostra meu rosto".
+  2. Como membro/visitante → Catálogo → filtros → marcar "Com rosto" → a performer aparece.
+  3. Publicar peça SEM marcar o rosto → ela não entra no filtro.
+- **Nota:** base da Onda B (sem IA; a performer declara). As próximas peças usam o `shows_face`: política de rosto pago, prévia borrada e "revelar rosto".

@@ -34,7 +34,7 @@ class PerformerContentService
      * bytes ANTES de criar a linha; nível/preço/path/hash entram por atribuição
      * direta ($fillable vazio).
      */
-    public function publish(PerformerProfile $profile, UploadedFile $file, string $level, int $price): PerformerContent
+    public function publish(PerformerProfile $profile, UploadedFile $file, string $level, int $price, bool $showsFace = false): PerformerContent
     {
         if (! in_array($level, PerformerContent::LEVELS, true)) {
             throw ContentException::forbidden();
@@ -56,6 +56,8 @@ class PerformerContentService
             $content->status = PerformerContent::STATUS_READY;
             $content->access_level = $level;
             $content->price_tokens = $price;
+            // "Com rosto" (Onda B): marca declarada pela performer, sem IA.
+            $content->shows_face = $showsFace;
             $content->path = $stored['path'];
             $content->content_hash = $stored['hash'];
             $content->save();
@@ -88,7 +90,7 @@ class PerformerContentService
      *
      * @throws ContentException|VideoProcessingException
      */
-    public function publishVideo(PerformerProfile $profile, UploadedFile $file, string $level, int $price): PerformerContent
+    public function publishVideo(PerformerProfile $profile, UploadedFile $file, string $level, int $price, bool $showsFace = false): PerformerContent
     {
         if (! in_array($level, PerformerContent::LEVELS, true)) {
             throw ContentException::forbidden();
@@ -116,6 +118,7 @@ class PerformerContentService
         $content->status = PerformerContent::STATUS_PROCESSING;
         $content->access_level = $level;
         $content->price_tokens = $price;
+        $content->shows_face = $showsFace; // "Com rosto" (Onda B), declarado pela performer
         $content->path = ''; // preenchido pelo job ao terminar
         $content->save();
 

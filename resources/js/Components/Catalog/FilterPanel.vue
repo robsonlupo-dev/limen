@@ -71,6 +71,7 @@ const form = reactive({
     available: !!props.filters.available,
     has_photo: !!props.filters.has_photo,
     has_voice: !!props.filters.has_voice,
+    has_face: !!props.filters.has_face,
     level: props.filters.level || '',
     tier: props.filters.tier || '',
     state: props.filters.state || '',
@@ -123,6 +124,7 @@ function apply() {
             available: form.available ? 1 : undefined,
             has_photo: form.has_photo ? 1 : undefined,
             has_voice: form.has_voice ? 1 : undefined,
+            has_face: form.has_face ? 1 : undefined,
             level: form.level || undefined,
             tier: form.tier || undefined,
             // UF sempre. CIDADE (item 4) só alcança quem consentiu ser
@@ -184,6 +186,7 @@ function clearFilters() {
         available: false,
         has_photo: false,
         has_voice: false,
+        has_face: false,
         level: '',
         tier: '',
         state: '',
@@ -231,6 +234,7 @@ const activeCount = computed(() => {
     if (form.available) n++
     if (form.has_photo) n++
     if (form.has_voice) n++
+    if (form.has_face) n++
     if (form.level) n++
     if (form.tier) n++
     // Cidade IMPLICA a UF (ela vem com a UF do município escolhido), então conta
@@ -264,6 +268,7 @@ function activeFilters() {
     if (form.available) f.available = true
     if (form.has_photo) f.has_photo = true
     if (form.has_voice) f.has_voice = true
+    if (form.has_face) f.has_face = true
     if (form.level) f.level = form.level
     if (form.tier) f.tier = form.tier
     if (form.state) f.state = form.state
@@ -312,6 +317,7 @@ function applySaved(filters) {
         available: !!filters.available,
         has_photo: !!filters.has_photo,
         has_voice: !!filters.has_voice,
+        has_face: !!filters.has_face,
         level: filters.level || '',
         tier: filters.tier || '',
         state: filters.state || '',
@@ -466,6 +472,14 @@ async function deleteSaved(id) {
                                 <path d="M17 11a1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.07A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 0 0 10 0z" />
                             </svg>
                             Com voz
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-cream">
+                            <input v-model="form.has_face" type="checkbox" class="h-4 w-4 rounded border-frame bg-surface accent-gold" @change="apply" />
+                            <svg class="h-3.5 w-3.5 shrink-0 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="12" cy="9" r="3.2" />
+                                <path d="M5 20c0-3.3 3.1-5 7-5s7 1.7 7 5" />
+                            </svg>
+                            Com rosto
                         </label>
                     </div>
                 </section>
