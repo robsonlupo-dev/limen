@@ -48,6 +48,7 @@ class PerformerStoryStore
     public function __construct(
         private ImageProcessingService $images,
         private CsamScanService $csam,
+        private WatermarkService $watermark,
     ) {}
 
     /**
@@ -79,7 +80,7 @@ class PerformerStoryStore
      *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      */
-    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null): array
+    public function store(UploadedFile $file, int $performerProfileId, ?User $uploader = null, ?string $watermarkText = null): array
     {
         $processed = $this->images->process($file);
 
@@ -93,6 +94,12 @@ class PerformerStoryStore
             // Anti-CSAM (Sprint 16): confere o phash antes de gravar. Match →
             // bloqueia (CsamDetectedException), nada é gravado.
             $this->csam->scanBytes($bytes, 'story', $uploader);
+
+            // Marca de ORIGEM (Onda B §4, peça 2b) DEPOIS do scan (no conteúdo real),
+            // quando o caller pede. null = sem marca. Mesmo motor/estilo da foto.
+            if ($watermarkText !== null) {
+                $bytes = $this->watermark->applyToPhotoBytes($bytes, $watermarkText);
+            }
 
             $path = $performerProfileId.'/'.Str::random(40).'.jpg';
 

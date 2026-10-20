@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\PerformerProfile;
 use App\Models\PerformerProfilePreviousSlug;
+use App\Support\OriginMark;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -32,6 +33,7 @@ class PerformerProfileService
     public function __construct(
         private ImageProcessingService $imageProcessor,
         private CsamScanService $csam,
+        private WatermarkService $watermark,
     ) {}
 
     /**
@@ -100,6 +102,13 @@ class PerformerProfileService
             // já estava no ar.
             $this->csam->scanBytes($bytes, 'avatar', $profile->user);
 
+            // Marca de ORIGEM (Onda B §4, peça 2b): branding também no avatar, como
+            // no Fatal Model. Depois do scan (conteúdo real), antes de gravar. null
+            // quando desligada/sem fonte → avatar sem marca (fail-open de branding).
+            if (($mark = OriginMark::textIfEnabled($profile)) !== null) {
+                $bytes = $this->watermark->applyToPhotoBytes($bytes, $mark);
+            }
+
             if ($profile->avatar_path) {
                 Storage::disk('local')->delete($profile->avatar_path);
             }
@@ -139,6 +148,12 @@ class PerformerProfileService
 
             // Anti-CSAM (Sprint 16): confere o phash antes de gravar/apagar o antigo.
             $this->csam->scanBytes($bytes, 'cover', $profile->user);
+
+            // Marca de ORIGEM (Onda B §4, peça 2b): branding também na capa. Depois
+            // do scan (conteúdo real), antes de gravar. null → capa sem marca.
+            if (($mark = OriginMark::textIfEnabled($profile)) !== null) {
+                $bytes = $this->watermark->applyToPhotoBytes($bytes, $mark);
+            }
 
             if ($profile->cover_path) {
                 Storage::disk('local')->delete($profile->cover_path);
