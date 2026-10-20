@@ -40,10 +40,13 @@ class ContentStore
      * Higieniza e grava. Devolve ['path' => ..., 'hash' => ...]. O `$uploader` é a
      * conta que envia — para a sinalização anti-CSAM no match.
      *
-     * `$watermarkText` (Onda 4 §4.3): quando presente E a marca está ligada, queima a
-     * marca d'água nos bytes DEPOIS do scan CSAM e antes de gravar — o scan sempre vê o
-     * conteúdo real; a marca é overlay nosso. Fail-closed: se a marca falhar, o store
-     * inteiro lança e nada é gravado (a entrega falha; a performer reenvia).
+     * `$watermarkText`: quando presente, queima a marca d'água nos bytes DEPOIS do scan
+     * CSAM e antes de gravar — o scan sempre vê o conteúdo real; a marca é overlay nosso.
+     * Fail-closed: se a marca falhar, o store inteiro lança e nada é gravado (a entrega/
+     * publicação falha; a performer reenvia). QUEM decide se marca (e com que texto) é o
+     * caller: a marca FORENSE da encomenda (§4.3) gateia com `custom_order.watermark.enabled`
+     * no deliverCustomPiece; a marca de ORIGEM (Onda B §4) vem de `OriginMark::textIfEnabled`
+     * no publish. Aqui a regra é só: texto presente → marca; null → não marca.
      *
      * @throws ImageProcessingException entrada recusada ou indecodificável
      * @throws \App\Exceptions\CsamDetectedException imagem bate na lista de CSAM
@@ -64,8 +67,9 @@ class ContentStore
             // depois do store); o par context+user identifica a trilha.
             $this->csam->scanBytes($bytes, 'content', $uploader);
 
-            // Marca d'água (depois do scan, no conteúdo real): só quando pedida e ligada.
-            if ($watermarkText !== null && (bool) config('custom_order.watermark.enabled')) {
+            // Marca d'água (depois do scan, no conteúdo real): o caller já decidiu
+            // ligar/desligar e qual texto — aqui basta ter texto. null = sem marca.
+            if ($watermarkText !== null) {
                 $bytes = $this->watermark->applyToPhotoBytes($bytes, $watermarkText);
             }
 
