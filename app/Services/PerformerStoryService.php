@@ -10,6 +10,7 @@ use App\Models\Report;
 use App\Models\StoryView;
 use App\Models\User;
 use App\Support\Audit;
+use App\Support\OriginMark;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -369,7 +370,11 @@ class PerformerStoryService
             throw StoryException::inviteLimitReached(self::MAX_ACTIVE_INVITES);
         }
 
-        ['path' => $path, 'hash' => $hash] = $this->store->store($file, $profile->getKey(), $profile->user);
+        // Marca de ORIGEM (Onda B §4, peça 2b): o story leva o mesmo branding das
+        // fotos ("Limen" / "Limen · @slug"), respeitando o toggle da performer.
+        ['path' => $path, 'hash' => $hash] = $this->store->store(
+            $file, $profile->getKey(), $profile->user, OriginMark::textIfEnabled($profile),
+        );
 
         try {
             $story = new PerformerStory(['visibility_level' => $visibility]);

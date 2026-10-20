@@ -1211,3 +1211,16 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   - **Não há marca forense por espectador (Fã #NNNN) nesta onda** — a de origem é igual para todos e carimbada no upload (divulgação/atribuição), não identifica quem vazou.
   - **Custo:** é um passo GD **uma vez por upload** (não por exibição), em uma única imagem — barato. Kill-switch `ORIGIN_MARK_ENABLED` no `.env` (nasce ON); o estilo (diagonal, opacidade) é o mesmo motor do `custom_order.watermark.*`.
   - **Default do toggle:** LIGADO ("Limen · @slug"), como o Fatal Model; o @slug já é público (vai na URL do perfil). A performer troca para só "Limen" quando quiser.
+
+## FASE 45 — Marca de origem no avatar, capa e stories · PR feat/origin-mark-avatar-capa-stories
+- **Auto:** `OriginMarkMediaTest` ✅ (story/avatar/capa seguem JPEG válido nas dimensões certas — 512×512 avatar, 1200×400 capa; com a fonte presente, os bytes mudam = marca queimada; toggle do @ desligado ainda publica). `OriginMarkTest` (peça 2a) segue ✅. Suíte de stories/perfil (`PerformerStoriesTest`, `StoryHighlightTest`, `PerformerProfileRedesignTest`, `MemberAvatarTest`) ✅ — a marca preserva dimensão e formato; o highlight copia o story já marcado.
+- **Manual** ⬜ (DEIXAR EXEMPLO VIVO no ar — `limen.dev.br`):
+  1. Como performer com o toggle **"Incluir seu @ na marca das fotos"** ligado → trocar **foto de perfil (avatar)**. Baixar/abrir o avatar e conferir a marca diagonal discreta ("Limen · @slug").
+  2. Trocar a **capa** → conferir a marca na faixa.
+  3. Publicar um **story** (foto) → abrir e conferir a marca.
+  4. Desligar o toggle → repetir os três → a marca passa a ler só "Limen".
+- **Notas:**
+  - Reusa o MESMO motor/estilo da foto (peça 2a) e o MESMO toggle `origin_mark_handle` + kill-switch `ORIGIN_MARK_ENABLED` — uma escolha só, vale para tudo.
+  - **Avatar, capa e story são FOTO.** Vídeo (story em vídeo, se/quando existir; e o rodapé de vídeo da peça 2c) fica fora — PR própria, desligada até o go-live.
+  - **Retroativo:** só vale para uploads NOVOS; avatar/capa/stories já no ar antes da feature seguem sem marca (re-marcar o acervo seria caro/arriscado — fica como follow-up se você quiser).
+  - Custo: uma passada GD por upload (não por exibição).
