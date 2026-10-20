@@ -34,6 +34,23 @@ final class OriginMark
     }
 
     /**
+     * A marca de origem no VÍDEO deve ser aplicada? Interruptor PRÓPRIO (nasce OFF —
+     * vídeo é o caminho caro), também condicionado à fonte existir (mesmo fail-open de
+     * branding da foto). Separado de enabled() de propósito: a foto pode estar ligada e
+     * o vídeo desligado até o go-live.
+     */
+    public static function videoEnabled(): bool
+    {
+        if (! (bool) config('origin_mark.video_enabled', false)) {
+            return false;
+        }
+
+        $font = (string) config('custom_order.watermark.font');
+
+        return $font !== '' && is_file($font);
+    }
+
+    /**
      * O texto da marca para esta performer: "Limen · @slug" quando ela mantém o
      * @ ligado (padrão, divulgação), ou só "Limen" quando o desliga. O slug já é
      * público (vai na URL do perfil) — carimbá-lo não expõe nada novo.

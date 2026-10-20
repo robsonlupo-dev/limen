@@ -5,11 +5,14 @@ namespace App\Jobs;
 use App\Exceptions\VideoProcessingException;
 use App\Models\CustomOrder;
 use App\Models\PerformerContent;
+use App\Models\PerformerProfile;
 use App\Services\ContentStore;
 use App\Services\VideoProcessingService;
 use App\Services\WatermarkService;
 use App\Support\Audit;
 use App\Support\FanAlias;
+use App\Support\OriginMark;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -95,6 +98,30 @@ class ProcessVideoContent implements ShouldQueue
                     WatermarkService::labelFor(FanAlias::label($order->performer_profile_id, (int) $order->member_id)),
                     $overlayPng,
                 );
+            } elseif ($content->custom_order_id === null && OriginMark::videoEnabled()) {
+                // Marca de ORIGEM no vídeo da performer (Onda B §4, peça 2c): rodapé
+                // estilo OnlyFans, NÃO a encomenda. Fail-OPEN: é branding, não entrega
+                // paga — se o overlay falhar, o vídeo publica sem marca (nunca derruba
+                // o upload). O interruptor `origin_mark.video_enabled` nasce OFF.
+                try {
+                    $profile = PerformerProfile::find($content->performer_profile_id);
+                    if ($profile !== null) {
+                        [$w, $h] = $video->probeDimensions($rawAbs);
+                        [$ow, $oh] = $this->overlayDimensions($w, $h);
+                        $overlayPng = tempnam(sys_get_temp_dir(), 'limen_wm_');
+                        $watermark->buildFooterOverlayPng($ow, $oh, OriginMark::textFor($profile), $overlayPng);
+                    }
+                } catch (Throwable $e) {
+                    // Branding não bloqueia publicação: limpa o PNG parcial e segue sem marca.
+                    if ($overlayPng !== null) {
+                        @unlink($overlayPng);
+                        $overlayPng = null;
+                    }
+                    Log::warning('content.origin_mark.video_failed', [
+                        'content_id' => $content->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             $video->sanitize($rawAbs, $mp4Tmp, $overlayPng);
