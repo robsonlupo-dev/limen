@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\PhotoGalleryException;
 use App\Models\PerformerPhoto;
 use App\Models\PerformerProfile;
+use App\Support\OriginMark;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +56,9 @@ class PerformerPhotoService
      */
     public function add(PerformerProfile $profile, UploadedFile $file): PerformerPhoto
     {
-        $path = $this->store->store($file, (int) $profile->getKey(), $profile->user);
+        // Marca de ORIGEM (Onda B §4): a galeria leva o mesmo branding das demais
+        // fotos ("Limen" / "Limen · @slug"), respeitando o toggle da performer.
+        $path = $this->store->store($file, (int) $profile->getKey(), $profile->user, OriginMark::textIfEnabled($profile));
 
         try {
             return DB::transaction(function () use ($profile, $path) {
