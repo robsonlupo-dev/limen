@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import VerifiedBadge from '@/Components/VerifiedBadge.vue'
 import CurationSeal from '@/Components/CurationSeal.vue'
 import LiveBadge from '@/Components/LiveBadge.vue'
+import Modal from '@/Components/Modal.vue'
 
 // Cabeçalho do perfil (feat/performer-profile-redesign, itens 1 e 2). Uma unidade
 // visual só: capa como FAIXA (não parede), avatar circular sobrepondo a borda
@@ -34,6 +35,10 @@ const ringClass = computed(() => {
     if (hasStory.value) return 'bg-limen-line'
     return 'bg-limen-gold' // sem story: mantém a borda dourada permanente de antes
 })
+
+// Capa ampliada (achado do UAT): modal com a capa inteira + nome e frase, para
+// quem vê identificar de quem é a imagem.
+const coverOpen = ref(false)
 
 // Toque no avatar: com story → menu (Ver story / Ver foto); sem story → abre a
 // foto direto. O menu fecha no toque fora (backdrop) ou Esc.
@@ -78,22 +83,31 @@ const presence = computed(() => {
 
 <template>
     <div>
-        <!-- CAPA COMO FAIXA (item 1/3): altura FIXA com teto ~280px no desktop (não
-             `aspect-ratio`, que combinado com max-height não capava de forma
-             confiável e deixava a capa gigante). object-cover trata a capa como
-             banner; véu escuro na base para o que vem por cima ser legível; cantos
-             arredondados DENTRO do container centralizado (nunca full-bleed). Sem
-             capa: mármore da marca (CSS), nunca vazio. -->
-        <div class="profile-cover relative h-40 w-full overflow-hidden rounded-2xl sm:h-52 lg:h-[280px]">
-            <img
+        <!-- CAPA COMO FAIXA (item 1/3). PROPORÇÃO 3:1 FIXA (achado do UAT de 21/10):
+             a altura fixa de antes (h-40/52/280px) dava ao contêiner uma proporção
+             DIFERENTE do recorte 3:1 que a performer enquadrou, e o object-cover
+             re-cortava a foto — cabeça cortada no perfil público. Com aspect-[3/1]
+             (sem max-height: a largura já é limitada pelo max-width da página, então
+             a altura fica ≤ ~340px) o que ela enquadra é EXATAMENTE o que aparece.
+             Clicável: abre a capa inteira com nome + frase (slogan) num modal. -->
+        <div class="profile-cover relative aspect-[3/1] w-full overflow-hidden rounded-2xl">
+            <button
                 v-if="performer.cover_url"
-                :src="performer.cover_url"
-                :alt="`Capa de ${performer.stage_name}`"
-                class="h-full w-full object-cover"
-            />
+                type="button"
+                class="block h-full w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-limen-gold/50"
+                :aria-label="`Ampliar a capa de ${performer.stage_name}`"
+                @click="coverOpen = true"
+            >
+                <img
+                    :src="performer.cover_url"
+                    :alt="`Capa de ${performer.stage_name}`"
+                    class="h-full w-full object-cover"
+                />
+            </button>
             <div v-else class="profile-marble h-full w-full" aria-hidden="true" />
-            <!-- Véu: escurece a base para o avatar que a sobrepõe. -->
-            <div class="absolute inset-0 bg-gradient-to-t from-limen-bg/80 via-transparent to-transparent" />
+            <!-- Véu: escurece a base para o avatar que a sobrepõe. pointer-events-none
+                 para não engolir o clique de ampliar. -->
+            <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-limen-bg/80 via-transparent to-transparent" />
 
             <div v-if="liveNow" class="absolute right-4 top-4">
                 <LiveBadge />
@@ -205,6 +219,28 @@ const presence = computed(() => {
                 </div>
             </div>
         </div>
+
+        <!-- Capa ampliada: a imagem inteira + quem é (nome e frase/slogan). -->
+        <Modal :show="coverOpen" max-width="2xl" @close="coverOpen = false">
+            <div class="space-y-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="font-serif text-xl text-limen-ink">{{ performer.stage_name }}</p>
+                        <p v-if="performer.headline" class="mt-0.5 text-sm italic text-limen-gold/90">{{ performer.headline }}</p>
+                    </div>
+                    <button
+                        type="button"
+                        class="shrink-0 rounded-lg border border-limen-line px-3 py-1.5 text-xs text-limen-ink-mute transition-colors hover:bg-limen-surface-2 hover:text-limen-ink"
+                        @click="coverOpen = false"
+                    >
+                        Fechar
+                    </button>
+                </div>
+                <div class="overflow-hidden rounded-lg border border-limen-line bg-black">
+                    <img :src="performer.cover_url" :alt="`Capa de ${performer.stage_name}`" class="mx-auto max-h-[70vh] w-auto object-contain" />
+                </div>
+            </div>
+        </Modal>
     </div>
 </template>
 
