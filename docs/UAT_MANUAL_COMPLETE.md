@@ -1274,3 +1274,11 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   2. Fã-Clube → publicar foto com "Borrar meu rosto" → peça do set sai com o oval borrado.
   3. Publicar uma foto grande de celular → o envio deve levar segundos (não mais ~1 min).
 - **Nota:** vídeo não tem blur (como no conteúdo); a redução no navegador não substitui nenhuma validação do servidor.
+
+## FASE 50 — Pós-UAT rodada 3: copy dos Destaques + lightbox do set · PR fix/uat-b-round3
+- **Achados do UAT de 21/10 (tarde):**
+  1. Campo "Nova coleção" dos Destaques ganhou contador `x/30` + dica "Só o nome — sem telefone, @ ou link" (a pessoa via a regra só depois do erro).
+  2. Mensagens em linguagem de gente: a recusa anti-contato agora diz "Este texto não pode conter…" (dizia "Sua bio…" mesmo fora da bio — vale para headline/status/broadcast/destaques); o estouro de limite diz "O nome da coleção pode ter no máximo 30 caracteres" (vazava "O campo title…").
+  3. Set do Fã-Clube: tocar numa peça abre em TAMANHO GRANDE (lightbox, igual "Suas peças" do Conteúdo) para a dona conferir como ficou — vídeo mostra o quadro de capa.
+- **Auto:** mudanças de copy/UI; suíte completa no ship (nenhum teste assere as mensagens antigas — verificado).
+- **Manual** ⬜: Destaques → digitar no campo → contador e dica visíveis; errar de propósito (@ / 31 chars) → mensagens novas. Fã-Clube → clicar numa peça do set → abre grande; "Processando…" não abre.

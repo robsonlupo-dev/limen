@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
 import { postForm, deleteJson } from '@/lib/http'
 import { downscaleImage } from '@/lib/clientImage'
 import FaceBlurPicker from '@/Components/FaceBlurPicker.vue'
@@ -66,6 +67,19 @@ const canPublish = computed(() => !!file.value && !publishing.value)
 const FACE_DEFAULT = { cx: 0.5, cy: 0.38, rx: 0.18 }
 const blurFace = ref(false)
 const faceRegion = ref({ ...FACE_DEFAULT })
+
+// Lightbox do set (achado do UAT): tocar numa peça abre em tamanho grande para
+// conferir se ficou boa — mesmo gesto de "Suas peças" no Conteúdo.
+const lightbox = ref(null)
+
+function openLightbox(piece) {
+    if (piece.status !== 'ready' || !piece.image_url) return
+    lightbox.value = piece
+}
+
+function closeLightbox() {
+    lightbox.value = null
+}
 
 async function onFile(event) {
     const chosen = event.target.files[0] ?? null
@@ -253,7 +267,16 @@ function bandClass(b) { return BAND_CLASS[b] ?? BAND_CLASS.novo }
                     <p v-if="!set.length" class="rounded-lg border border-frame bg-surface-2 px-4 py-6 text-center text-sm text-muted">O set está vazio.</p>
                     <ul v-else class="grid grid-cols-3 gap-3 sm:grid-cols-4">
                         <li v-for="piece in set" :key="piece.id" class="relative aspect-square overflow-hidden rounded-lg border border-frame bg-surface-2">
-                            <img v-if="piece.image_url" :src="piece.image_url" alt="" class="h-full w-full object-cover" />
+                            <button
+                                v-if="piece.image_url"
+                                type="button"
+                                :title="piece.status === 'ready' ? 'Ver em tamanho grande' : null"
+                                class="block h-full w-full enabled:cursor-zoom-in"
+                                :disabled="piece.status !== 'ready'"
+                                @click="openLightbox(piece)"
+                            >
+                                <img :src="piece.image_url" alt="" class="h-full w-full object-cover" />
+                            </button>
                             <div v-else class="flex h-full w-full items-center justify-center text-xs text-muted">
                                 {{ piece.status === 'processing' ? 'Processando…' : (piece.kind === 'video' ? 'Vídeo' : '—') }}
                             </div>
@@ -292,5 +315,28 @@ function bandClass(b) { return BAND_CLASS[b] ?? BAND_CLASS.novo }
                 <p class="text-xs text-muted">Você vê só um apelido por fã e a faixa de apoio — nunca o nome real.</p>
             </div>
         </div>
+
+        <!-- Lightbox do set: a dona confere a peça em tamanho grande (vídeo mostra o
+             quadro de capa; a reprodução é do fluxo do assinante). -->
+        <Modal :show="!!lightbox" max-width="2xl" @close="closeLightbox">
+            <div v-if="lightbox" class="space-y-4">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="rounded bg-surface-2 px-2 py-0.5 text-xs text-gold">Fã-clube</span>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-frame px-3 py-1.5 text-xs text-muted transition-colors hover:text-cream hover:bg-surface-2"
+                        @click="closeLightbox"
+                    >
+                        Fechar
+                    </button>
+                </div>
+                <div class="overflow-hidden rounded-lg border border-frame bg-black">
+                    <img :src="lightbox.image_url" alt="" class="mx-auto max-h-[70vh] w-auto object-contain" />
+                </div>
+                <p v-if="lightbox.kind === 'video'" class="text-xs text-muted">
+                    Este é o quadro de capa do vídeo. A reprodução completa fica com o assinante.
+                </p>
+            </div>
+        </Modal>
     </AppLayout>
 </template>
