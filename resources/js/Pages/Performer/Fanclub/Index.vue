@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { postForm, deleteJson } from '@/lib/http'
+import { downscaleImage } from '@/lib/clientImage'
+import FaceBlurPicker from '@/Components/FaceBlurPicker.vue'
 
 const props = defineProps({
     settings: { type: Object, default: () => ({ is_open: false, price_public_tokens: null, vip_enabled: false, price_vip_tokens: null }) },
@@ -60,10 +62,16 @@ const pubError = ref('')
 const isVideoFile = computed(() => !!file.value && String(file.value.type).startsWith('video/'))
 const canPublish = computed(() => !!file.value && !publishing.value)
 
-function onFile(event) {
-    const chosen = event.target.files[0]
-    file.value = chosen ?? null
-    filePreview.value = chosen ? URL.createObjectURL(chosen) : null
+// Rosto borrado (Onda B, achado do UAT): o set também oferece o oval.
+const FACE_DEFAULT = { cx: 0.5, cy: 0.38, rx: 0.18 }
+const blurFace = ref(false)
+const faceRegion = ref({ ...FACE_DEFAULT })
+
+async function onFile(event) {
+    const chosen = event.target.files[0] ?? null
+    // Reduz FOTO no navegador antes do upload (vídeo passa direto).
+    file.value = chosen ? await downscaleImage(chosen) : null
+    filePreview.value = file.value ? URL.createObjectURL(file.value) : null
 }
 
 async function publish() {
@@ -72,10 +80,20 @@ async function publish() {
     pubError.value = ''
     const fd = new FormData()
     fd.append('arquivo', file.value)
+    const blurring = blurFace.value && !isVideoFile.value
+    fd.append('borrar_rosto', blurring ? '1' : '0')
+    if (blurring) {
+        fd.append('rosto_cx', String(faceRegion.value.cx))
+        fd.append('rosto_cy', String(faceRegion.value.cy))
+        fd.append('rosto_rx', String(faceRegion.value.rx))
+        fd.append('rosto_ry', String(Math.min(0.49, faceRegion.value.rx * 1.3)))
+    }
     try {
         await postForm(route('performer.fanclub.content'), fd)
         file.value = null
         filePreview.value = null
+        blurFace.value = false
+        faceRegion.value = { ...FACE_DEFAULT }
         router.reload({ only: ['set'] })
     } catch (e) {
         pubError.value = e.data?.message ?? 'Não foi possível publicar. Tente novamente.'
@@ -210,6 +228,18 @@ function bandClass(b) { return BAND_CLASS[b] ?? BAND_CLASS.novo }
                     <input type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime,video/webm,video/x-matroska" class="hidden" @change="onFile" />
                 </label>
                 <p class="text-xs text-muted">Foto (JPEG/PNG, até 10 MB) ou vídeo (MP4/MOV/WebM/MKV, até 500 MB, 10 min). Vídeo passa por processamento.</p>
+
+                <!-- Rosto borrado (Onda B): só FOTO; oval permanente, mesmo do conteúdo. -->
+                <template v-if="!isVideoFile">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input v-model="blurFace" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-frame bg-surface-2 accent-gold" />
+                        <span class="space-y-0.5">
+                            <span class="block text-sm text-cream">Borrar meu rosto nesta foto</span>
+                            <span class="block text-xs text-muted">Cobre só o rosto com um borrão, no oval que você posicionar. É permanente nesta foto.</span>
+                        </span>
+                    </label>
+                    <FaceBlurPicker v-if="blurFace && filePreview" v-model="faceRegion" :preview-url="filePreview" />
+                </template>
 
                 <button
                     type="button" :disabled="!canPublish"

@@ -37,7 +37,16 @@ class PublishFanclubContentRequest extends FormRequest
             ]
             : ['required', 'file', 'mimes:jpeg,png', 'max:10240'];
 
-        return ['arquivo' => $fileRules];
+        return [
+            'arquivo' => $fileRules,
+            // Rosto borrado (Onda B, achado do UAT): o set de fã-clube também
+            // oferece o oval. Mesmas regras do PublishContentRequest; só foto.
+            'borrar_rosto' => ['nullable', 'boolean'],
+            'rosto_cx' => ['nullable', 'numeric', 'between:0,1'],
+            'rosto_cy' => ['nullable', 'numeric', 'between:0,1'],
+            'rosto_rx' => ['nullable', 'numeric', 'between:0.02,1'],
+            'rosto_ry' => ['nullable', 'numeric', 'between:0.02,1'],
+        ];
     }
 
     public function messages(): array

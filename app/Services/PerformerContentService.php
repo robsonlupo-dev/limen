@@ -225,7 +225,7 @@ class PerformerContentService
      *
      * @throws ContentException|VideoProcessingException
      */
-    public function publishToFanclub(PerformerProfile $profile, UploadedFile $file): PerformerContent
+    public function publishToFanclub(PerformerProfile $profile, UploadedFile $file, ?array $faceBlur = null): PerformerContent
     {
         $isVideo = str_starts_with((string) $file->getMimeType(), 'video/');
 
@@ -256,12 +256,14 @@ class PerformerContentService
 
         // Marca de ORIGEM (Onda B §4) também no set de fã-clube — é foto dela, leva
         // o branding como qualquer outra. (O forense por espectador não se aplica aqui.)
-        $stored = $this->store->store($file, $profile->id, $profile->user, OriginMark::textIfEnabled($profile));
+        // Rosto borrado (achado do UAT): o set também aceita o oval, queimado antes da marca.
+        $stored = $this->store->store($file, $profile->id, $profile->user, OriginMark::textIfEnabled($profile), $faceBlur);
 
         try {
             $content = new PerformerContent;
             $content->performer_profile_id = $profile->id;
             $content->fanclub = true;
+            $content->face_blurred = $faceBlur !== null;
             $content->kind = PerformerContent::KIND_PHOTO;
             $content->status = PerformerContent::STATUS_READY;
             $content->access_level = PerformerContent::LEVEL_EXCLUSIVE;
