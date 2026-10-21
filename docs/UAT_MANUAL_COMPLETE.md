@@ -1262,3 +1262,15 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   1. Editar perfil → aba Fotos → subir uma foto NOVA na galeria → abrir grande → marca discreta presente ("Limen · @slug" ou "Limen", conforme o toggle). Fotos antigas da galeria seguem sem marca (retroativo não re-marca).
   2. Editar perfil → Destaques → "Nova coleção" com "@algo" no nome → aparece o motivo real (sem "recarregue a página"); com 31+ caracteres → idem.
 - **Esclarecimentos do UAT (não eram bug):** preço do fã-clube tem MÍNIMO 20 tokens (o 5 foi corretamente recusado); favoritar/salvar (F42) é ação de MEMBRO (coração no card), não da conta performer; o MP4 do self-test está no servidor — baixar com `scp deploy@62.238.46.212:/tmp/origin-video-marked.mp4 .`; a peça de rosto borrado aparece na aba CONTEÚDO do perfil (a seção "Fotos" é a galeria, outra superfície).
+
+## FASE 49 — Pós-UAT rodada 2: oval arrastável + blur no fã-clube + upload rápido · PR feat/blur-ux-v2
+- **Achados do UAT de 21/10 que este PR atende:**
+  1. Posicionador do oval v2 (`FaceBlurPicker.vue`, usado no conteúdo E no fã-clube): ARRASTAR dentro do oval move; puxar pela BORDA redimensiona (o oval segue o dedo/mouse); tocar fora recentra; presets P/M/G viram atalho. Funciona com toque (pointer events + touch-action none).
+  2. "Borrar meu rosto" agora TAMBÉM no publicar do Fã-Clube (mesmo contrato do conteúdo: só foto, oval queimado antes da marca de origem, `face_blurred` na peça).
+  3. Upload lento (~1 min): a FOTO é reduzida NO NAVEGADOR para ≤2048px antes de subir (`lib/clientImage.js`, fail-open — qualquer problema envia o original; o servidor continua re-encodando/validando tudo). Vídeo passa direto.
+- **Auto:** `FaceBlurTest` ganhou o caso do fã-clube ✅ (com região → `face_blurred=true` + `fanclub=true`; sem → false). Suíte completa no ship.
+- **Manual** ⬜:
+  1. Conteúdo → foto → "Borrar meu rosto" → ARRASTAR o oval até o rosto; puxar a borda para crescer/encolher; testar no celular (toque). Publicar e conferir o borrão onde o oval estava.
+  2. Fã-Clube → publicar foto com "Borrar meu rosto" → peça do set sai com o oval borrado.
+  3. Publicar uma foto grande de celular → o envio deve levar segundos (não mais ~1 min).
+- **Nota:** vídeo não tem blur (como no conteúdo); a redução no navegador não substitui nenhuma validação do servidor.

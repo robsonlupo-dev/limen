@@ -130,3 +130,19 @@ it('publish com região marca face_blurred; sem região, não', function () {
     );
     expect($noBlur->fresh()->face_blurred)->toBeFalse();
 });
+
+it('publishToFanclub com região marca face_blurred; sem região, não (achado do UAT)', function () {
+    $svc = app(PerformerContentService::class);
+    $profile = fbPerformer();
+
+    $withBlur = $svc->publishToFanclub(
+        $profile,
+        UploadedFile::fake()->image('fc-a.jpg', 600, 800),
+        ['cx' => 0.5, 'cy' => 0.4, 'rx' => 0.18, 'ry' => 0.24],
+    );
+    expect($withBlur->fresh()->face_blurred)->toBeTrue()
+        ->and($withBlur->fresh()->fanclub)->toBeTrue();
+
+    $noBlur = $svc->publishToFanclub($profile, UploadedFile::fake()->image('fc-b.jpg', 600, 800));
+    expect($noBlur->fresh()->face_blurred)->toBeFalse();
+});

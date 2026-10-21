@@ -97,8 +97,19 @@ class FanclubController extends Controller
 
         $file = $request->file('arquivo');
 
+        // Rosto borrado (Onda B, achado do UAT): só FOTO e só quando pedido —
+        // mesmo contrato do PerformerContentController::store.
+        $faceBlur = (! $request->isVideoUpload() && $request->boolean('borrar_rosto'))
+            ? [
+                'cx' => (float) $request->input('rosto_cx', 0.5),
+                'cy' => (float) $request->input('rosto_cy', 0.4),
+                'rx' => (float) $request->input('rosto_rx', 0.18),
+                'ry' => (float) $request->input('rosto_ry', 0.24),
+            ]
+            : null;
+
         try {
-            $piece = $this->content->publishToFanclub($profile, $file);
+            $piece = $this->content->publishToFanclub($profile, $file, $faceBlur);
         } catch (ContentException $e) {
             return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], 422);
         } catch (ImageProcessingException $e) {

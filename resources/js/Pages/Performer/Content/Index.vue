@@ -4,6 +4,8 @@ import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import { getJson, postFormWithProgress, postJson, deleteJson } from '@/lib/http'
+import { downscaleImage } from '@/lib/clientImage'
+import FaceBlurPicker from '@/Components/FaceBlurPicker.vue'
 
 const props = defineProps({
     // Estado inicial (o controller já entrega a primeira lista); as mutações
@@ -62,28 +64,10 @@ const showsFace = ref(false)
 // Rosto borrado (Onda B): a performer liga o blur e posiciona um OVAL sobre o rosto.
 // Default do botão global do perfil. Coords normalizadas 0..1; tamanho por preset.
 const blurFace = ref(props.blurFaceDefault)
-const faceCx = ref(0.5)
-const faceCy = ref(0.38)
-const faceSize = ref('m') // 's' | 'm' | 'l'
-const FACE_RX = { s: 0.12, m: 0.18, l: 0.26 }
-const faceRx = computed(() => FACE_RX[faceSize.value] ?? 0.18)
-const faceRy = computed(() => Math.min(1, faceRx.value * 1.3)) // rosto é mais alto que largo
-
-// Estilo do oval de prévia (em %, sobre a imagem). backdrop-blur dá uma ideia do borrão.
-const ovalStyle = computed(() => ({
-    left: `${faceCx.value * 100}%`,
-    top: `${faceCy.value * 100}%`,
-    width: `${faceRx.value * 200}%`,
-    height: `${faceRy.value * 200}%`,
-    transform: 'translate(-50%, -50%)',
-}))
-
-function placeFace(event) {
-    const rect = event.currentTarget.getBoundingClientRect()
-    if (!rect.width || !rect.height) return
-    faceCx.value = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-    faceCy.value = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
-}
+// Oval em coordenadas normalizadas 0..1; o FaceBlurPicker (v2: arrastar/
+// redimensionar, pedido do UAT) edita este objeto. ry = rx × 1,3 no envio.
+const FACE_DEFAULT = { cx: 0.5, cy: 0.38, rx: 0.18 }
+const faceRegion = ref({ ...FACE_DEFAULT })
 
 const publishing = ref(false)
 // Progresso do upload (0–100). Vídeo até 500 MB subia sem feedback — parecia travado.
@@ -100,10 +84,12 @@ function levelLabel(slug) {
     return LEVEL_LABELS[slug] ?? slug
 }
 
-function onFile(event) {
-    const chosen = event.target.files[0]
-    file.value = chosen ?? null
-    filePreview.value = chosen ? URL.createObjectURL(chosen) : null
+async function onFile(event) {
+    const chosen = event.target.files[0] ?? null
+    // Reduz FOTO no navegador antes do upload (achado do UAT: ~1 min de envio
+    // para foto de celular). Fail-open: qualquer problema usa o original.
+    file.value = chosen ? await downscaleImage(chosen) : null
+    filePreview.value = file.value ? URL.createObjectURL(file.value) : null
 }
 
 async function refresh() {
@@ -126,10 +112,10 @@ async function publish() {
     const blurring = blurFace.value && !isVideoFile.value
     form.append('borrar_rosto', blurring ? '1' : '0')
     if (blurring) {
-        form.append('rosto_cx', String(faceCx.value))
-        form.append('rosto_cy', String(faceCy.value))
-        form.append('rosto_rx', String(faceRx.value))
-        form.append('rosto_ry', String(faceRy.value))
+        form.append('rosto_cx', String(faceRegion.value.cx))
+        form.append('rosto_cy', String(faceRegion.value.cy))
+        form.append('rosto_rx', String(faceRegion.value.rx))
+        form.append('rosto_ry', String(Math.min(0.49, faceRegion.value.rx * 1.3)))
     }
 
     uploadPct.value = 0
@@ -146,9 +132,7 @@ async function publish() {
         nivel.value = props.levels[0] ?? 'open'
         showsFace.value = false
         blurFace.value = props.blurFaceDefault
-        faceCx.value = 0.5
-        faceCy.value = 0.38
-        faceSize.value = 'm'
+        faceRegion.value = { ...FACE_DEFAULT }
         await refresh()
     } catch (e) {
         error.value = e.data?.message ?? 'Não foi possível publicar. Tente novamente.'
@@ -277,27 +261,7 @@ async function remove(piece) {
                         </span>
                     </label>
 
-                    <div v-if="blurFace && filePreview" class="space-y-3 rounded-lg border border-gold/30 bg-gold/5 p-3">
-                        <p class="text-xs text-muted">Toque no seu rosto na imagem e ajuste o tamanho do borrão.</p>
-                        <div class="relative inline-block max-w-xs select-none overflow-hidden rounded-lg">
-                            <img :src="filePreview" alt="Posicionar o borrão" class="block w-full cursor-crosshair" @click="placeFace" />
-                            <div
-                                class="pointer-events-none absolute rounded-full border-2 border-gold/80 bg-background/30 backdrop-blur-md"
-                                :style="ovalStyle"
-                            />
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs text-muted">Tamanho:</span>
-                            <button
-                                v-for="opt in [['s','P'],['m','M'],['l','G']]"
-                                :key="opt[0]"
-                                type="button"
-                                class="rounded-md border px-2.5 py-1 text-xs transition-colors"
-                                :class="faceSize === opt[0] ? 'border-gold text-gold bg-gold/10' : 'border-frame text-muted hover:text-cream'"
-                                @click="faceSize = opt[0]"
-                            >{{ opt[1] }}</button>
-                        </div>
-                    </div>
+                    <FaceBlurPicker v-if="blurFace && filePreview" v-model="faceRegion" :preview-url="filePreview" />
                 </template>
 
                 <button
