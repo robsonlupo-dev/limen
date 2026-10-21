@@ -1232,7 +1232,7 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   php artisan origin-mark:video-selftest
   php artisan origin-mark:video-selftest --text="Limen · @teste" --size=720x1280 --out=/tmp
   ```
-  Gera `/tmp/origin-video-marked.mp4`. Abra: se o rodapé "Limen · @nome" aparecer discreto e legível na base, o caminho ffmpeg está ok.
+  Gera `/tmp/origin-video-marked.mp4`. Abra: se o rodapé "Limen · @nome" aparecer discreto e legível na base, no CANTO DIREITO (ajuste do UAT de 21/10 — centralizado ficava atrás dos controles do player; `origin_mark.video.align` aceita right/left/center), o caminho ffmpeg está ok.
 - **Para LIGAR no go-live (só depois do self-test ok):** `ORIGIN_MARK_VIDEO=true` no `.env` de `/var/www/limen` + `php artisan config:cache` + reload php-fpm.
 - **Manual (depois de ligar)** ⬜: como performer, publicar um VÍDEO no cofre e no Fã-Clube → ao terminar o processamento, o vídeo mostra o rodapé "Limen"/"Limen · @slug" (respeita o mesmo toggle da foto). Encomenda sob medida NÃO recebe o rodapé de origem (ela tem a marca forense própria).
 - **Notas:**

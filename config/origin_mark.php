@@ -56,6 +56,10 @@ return [
         'shadow_offset' => 2,     // px
         'size_ratio' => 0.030,    // fração do MENOR lado do vídeo (escala com a resolução)
         'margin_ratio' => 0.045,  // distância da linha até a base, fração da ALTURA
+        // Posição horizontal: 'right' (padrão — centralizado ficava atrás dos
+        // controles do player, achado do UAT), 'left' ou 'center'.
+        'align' => env('ORIGIN_MARK_VIDEO_ALIGN', 'right'),
+        'side_margin_ratio' => 0.04, // respiro até a borda lateral, fração da LARGURA
     ],
 
     // Default do toggle por performer quando a coluna ainda não foi escrita:

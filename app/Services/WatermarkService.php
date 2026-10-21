@@ -65,7 +65,12 @@ class WatermarkService
         }
     }
 
-    /** Uma linha centralizada perto da base: sombra escura + texto branco, sem rotação. */
+    /**
+     * Uma linha perto da base: sombra escura + texto branco, sem rotação. Posição
+     * horizontal configurável — padrão à DIREITA (achado do UAT: centralizado, a
+     * marca ficava escondida atrás dos controles do player; canto é onde o
+     * OnlyFans põe a dele e onde legenda/controle não cobrem).
+     */
     private function stampFooter(ImageInterface $image, int $w, int $h, string $text): void
     {
         $font = (string) config('custom_order.watermark.font');
@@ -78,17 +83,27 @@ class WatermarkService
         $shadowOpacity = (float) config('origin_mark.video.shadow_opacity', 0.45);
         $shadowOffset = max(0, (int) config('origin_mark.video.shadow_offset', 2));
         $margin = (int) round($h * (float) config('origin_mark.video.margin_ratio', 0.045));
+        $sideMargin = (int) round($w * (float) config('origin_mark.video.side_margin_ratio', 0.04));
 
         $white = sprintf('rgba(255, 255, 255, %.3f)', max(0.0, min(1.0, $opacity)));
         $shadow = sprintf('rgba(0, 0, 0, %.3f)', max(0.0, min(1.0, $shadowOpacity)));
 
-        $x = intdiv($w, 2);           // centralizado na horizontal
+        // 'right' (padrão) | 'left' | 'center' — valor desconhecido cai em 'right'.
+        $align = (string) config('origin_mark.video.align', 'right');
+        if ($align === 'left') {
+            $x = min($w, $sideMargin);
+        } elseif ($align === 'center') {
+            $x = intdiv($w, 2);
+        } else {
+            $align = 'right';
+            $x = max(0, $w - $sideMargin);
+        }
         $y = max(0, $h - $margin);    // perto da base
 
-        $base = function ($f) use ($font, $size) {
+        $base = function ($f) use ($font, $size, $align) {
             $f->filename($font);
             $f->size($size);
-            $f->align('center');
+            $f->align($align);
             $f->valign('bottom');
         };
 
