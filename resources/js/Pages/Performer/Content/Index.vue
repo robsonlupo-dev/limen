@@ -11,6 +11,9 @@ const props = defineProps({
     content: { type: Array, default: () => [] },
     levels: { type: Array, default: () => [] },
     minPrice: { type: Number, default: 5 },
+    // Rosto borrado (Onda B): default do toggle "borrar meu rosto" para novas fotos,
+    // vindo do botão global do perfil. Padrão desbloqueado.
+    blurFaceDefault: { type: Boolean, default: false },
 })
 
 // Rótulos dos níveis de acesso (M.4/M.13.13). O slug vem do servidor; a copy é
@@ -56,6 +59,32 @@ const preco = ref(props.minPrice)
 // "Com rosto" (roadmap Fatal Model, Onda B): a performer declara se a peça
 // mostra o rosto dela. Alimenta o filtro "Com rosto" do catálogo.
 const showsFace = ref(false)
+// Rosto borrado (Onda B): a performer liga o blur e posiciona um OVAL sobre o rosto.
+// Default do botão global do perfil. Coords normalizadas 0..1; tamanho por preset.
+const blurFace = ref(props.blurFaceDefault)
+const faceCx = ref(0.5)
+const faceCy = ref(0.38)
+const faceSize = ref('m') // 's' | 'm' | 'l'
+const FACE_RX = { s: 0.12, m: 0.18, l: 0.26 }
+const faceRx = computed(() => FACE_RX[faceSize.value] ?? 0.18)
+const faceRy = computed(() => Math.min(1, faceRx.value * 1.3)) // rosto é mais alto que largo
+
+// Estilo do oval de prévia (em %, sobre a imagem). backdrop-blur dá uma ideia do borrão.
+const ovalStyle = computed(() => ({
+    left: `${faceCx.value * 100}%`,
+    top: `${faceCy.value * 100}%`,
+    width: `${faceRx.value * 200}%`,
+    height: `${faceRy.value * 200}%`,
+    transform: 'translate(-50%, -50%)',
+}))
+
+function placeFace(event) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+    faceCx.value = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+    faceCy.value = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+}
+
 const publishing = ref(false)
 // Progresso do upload (0–100). Vídeo até 500 MB subia sem feedback — parecia travado.
 const uploadPct = ref(0)
@@ -93,6 +122,15 @@ async function publish() {
     form.append('nivel', nivel.value)
     form.append('preco', String(preco.value))
     form.append('com_rosto', showsFace.value ? '1' : '0')
+    // Rosto borrado só se ligado E for foto (vídeo ignora no servidor).
+    const blurring = blurFace.value && !isVideoFile.value
+    form.append('borrar_rosto', blurring ? '1' : '0')
+    if (blurring) {
+        form.append('rosto_cx', String(faceCx.value))
+        form.append('rosto_cy', String(faceCy.value))
+        form.append('rosto_rx', String(faceRx.value))
+        form.append('rosto_ry', String(faceRy.value))
+    }
 
     uploadPct.value = 0
     try {
@@ -107,6 +145,10 @@ async function publish() {
         preco.value = props.minPrice
         nivel.value = props.levels[0] ?? 'open'
         showsFace.value = false
+        blurFace.value = props.blurFaceDefault
+        faceCx.value = 0.5
+        faceCy.value = 0.38
+        faceSize.value = 'm'
         await refresh()
     } catch (e) {
         error.value = e.data?.message ?? 'Não foi possível publicar. Tente novamente.'
@@ -223,6 +265,40 @@ async function remove(piece) {
                         <span class="block text-xs text-muted">Aparece no filtro "Com rosto" do catálogo. Você escolhe — nada é detectado automaticamente.</span>
                     </span>
                 </label>
+
+                <!-- Rosto borrado (Onda B): só FOTO. A performer liga e posiciona um
+                     oval sobre o rosto; o borrão é queimado no upload (irreversível). -->
+                <template v-if="!isVideoFile">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input v-model="blurFace" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-frame bg-surface-2 accent-gold" />
+                        <span class="space-y-0.5">
+                            <span class="block text-sm text-cream">Borrar meu rosto nesta foto</span>
+                            <span class="block text-xs text-muted">Cobre só o rosto com um borrão, no oval que você posicionar. É permanente nesta foto (não dá para desfazer depois).</span>
+                        </span>
+                    </label>
+
+                    <div v-if="blurFace && filePreview" class="space-y-3 rounded-lg border border-gold/30 bg-gold/5 p-3">
+                        <p class="text-xs text-muted">Toque no seu rosto na imagem e ajuste o tamanho do borrão.</p>
+                        <div class="relative inline-block max-w-xs select-none overflow-hidden rounded-lg">
+                            <img :src="filePreview" alt="Posicionar o borrão" class="block w-full cursor-crosshair" @click="placeFace" />
+                            <div
+                                class="pointer-events-none absolute rounded-full border-2 border-gold/80 bg-background/30 backdrop-blur-md"
+                                :style="ovalStyle"
+                            />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-muted">Tamanho:</span>
+                            <button
+                                v-for="opt in [['s','P'],['m','M'],['l','G']]"
+                                :key="opt[0]"
+                                type="button"
+                                class="rounded-md border px-2.5 py-1 text-xs transition-colors"
+                                :class="faceSize === opt[0] ? 'border-gold text-gold bg-gold/10' : 'border-frame text-muted hover:text-cream'"
+                                @click="faceSize = opt[0]"
+                            >{{ opt[1] }}</button>
+                        </div>
+                    </div>
+                </template>
 
                 <button
                     type="button"

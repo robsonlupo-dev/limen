@@ -37,6 +37,8 @@ class UpdatePerformerProfileRequest extends FormRequest
             'headline' => ['sometimes', 'nullable', 'string', 'max:40', new SafeProfileText],
             // Marca de origem (Onda B §4): true = "Limen · @slug", false = só "Limen".
             'origin_mark_handle' => ['sometimes', 'boolean'],
+            // Rosto borrado (Onda B §4): botão global "borrar meu rosto em tudo" (default p/ uploads novos).
+            'blur_face_default' => ['sometimes', 'boolean'],
             // Multi-worlds: a performer pode pertencer a mais de um mundo. Se
             // `worlds` vier, ele é a fonte da verdade e `category` é DERIVADA de
             // worlds[0] no servidor (controller) — nunca do request. `min:1`

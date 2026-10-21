@@ -78,6 +78,8 @@ class ProfileController extends Controller
                 // Marca de origem (Onda B §4): true = "Limen · @slug", false = só
                 // "Limen". O ?? respeita o default do config para linhas antigas.
                 'origin_mark_handle' => $profile->origin_mark_handle ?? (bool) config('origin_mark.handle_default', true),
+                // Rosto borrado (Onda B §4): botão global. Padrão desbloqueado (false).
+                'blur_face_default' => (bool) $profile->blur_face_default,
                 // `worlds` pode ser null (linha anterior ao multi-worlds); a
                 // tela usa `worlds ?? [category]` para pré-selecionar. Mando os
                 // dois para o legado cair no fallback sem uma query extra.
@@ -153,7 +155,7 @@ class ProfileController extends Controller
         // crua — sejam alteradas por um POST forjado a partir de uma tela que
         // não as oferece.
         $data = array_intersect_key($validated, array_flip([
-            'stage_name', 'bio', 'headline', 'origin_mark_handle',
+            'stage_name', 'bio', 'headline', 'origin_mark_handle', 'blur_face_default',
             // "Sobre mim" (Sprint 9). `tags` NÃO entra aqui: não é coluna, vai
             // pela junção logo abaixo.
             'languages', 'drinks', 'smokes', 'height_cm', 'looking_for',

@@ -1239,3 +1239,16 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   - **Interruptor PRÓPRIO e OFF** (`ORIGIN_MARK_VIDEO`), separado do da foto (`ORIGIN_MARK_ENABLED`, ON): vídeo é o caminho caro (overlay por frame na fila de 2 vCPU), então fica pronto e testado mas desligado até o go-live.
   - **Fail-OPEN:** se o overlay de rodapé falhar, o vídeo publica SEM marca (é branding, não entrega paga) — nunca derruba o upload nem marca a peça como FAILED. A marca forense da encomenda segue fail-closed (inalterada).
   - Reaproveita o mesmo `scale2ref` já testado da marca forense; só muda o estilo (rodapé em vez de diagonal) e o texto (origem em vez de Fã #NNNN).
+
+## FASE 47 — Rosto borrado (oval localizado) · PR feat/rosto-borrado
+- **Auto:** `FaceBlurTest` ✅ (GD puro, roda em qualquer ambiente): borra o oval e devolve JPEG de mesmas dimensões mudando os bytes; muda MUITO dentro da caixa do oval e ZERO no canto (fora); região degenerada (raio mínimo) não quebra; `publish` com região marca `face_blurred=true`, sem região `false`. Algoritmo validado standalone (4951 px alterados dentro do oval, 0 no canto). Pipeline de foto (`PermanentContentTest`, `ContentBlurPreviewTest`) segue ✅.
+- **Manual** ⬜ (DEIXAR EXEMPLO VIVO no ar — `limen.dev.br`):
+  1. Como performer → Conteúdo → escolher uma FOTO → marcar **"Borrar meu rosto nesta foto"** → tocar no rosto na prévia e escolher o tamanho (P/M/G) → Publicar. Abrir a peça: o rosto sai coberto por um borrão oval (o resto nítido).
+  2. Editar perfil → aba Sobre → ligar **"Borrar meu rosto por padrão"** → na próxima publicação de foto o toggle já vem marcado (ela ainda posiciona o oval).
+  3. Publicar SEM marcar → a foto sai normal (padrão desbloqueado).
+- **Notas:**
+  - **Oval MANUAL** posicionado pela performer (sem IA/ML — o servidor 2 vCPU não paga detecção facial). Blur = **mosaico irreversível** (como a prévia do paywall), **queimado no upload**: vale no pago e no não-pago.
+  - **Não guardamos o original nem a REGIÃO** (privacidade: não registrar "onde está o rosto"). Por isso esta peça NÃO é o "revelar rosto" Premium (que precisaria manter o original e servir borrado por acesso) — fica como feature futura à parte.
+  - **Botão global = só uploads NOVOS** (`blur_face_default`, padrão OFF). Não altera o acervo já publicado.
+  - **v1 = foto de conteúdo.** Avatar/capa/stories com blur de rosto ficam como extensão (mesma mecânica).
+  - Custo: uma passada GD por upload (não por exibição), só na caixa do oval.

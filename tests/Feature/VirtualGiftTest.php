@@ -267,8 +267,10 @@ it('a descrição do crédito da performer usa FanAlias, nunca o member_id', fun
     $creditLine = TokenLedger::find($send->performer_ledger_id);
     $label = FanAlias::label($performer->id, $member->id);
 
+    // Usa o FanAlias e não o id CRU. `\b...\b` (número inteiro) em vez de substring:
+    // o id pequeno aparece dentro do alias de 4 dígitos por acaso, e isso não é vazamento.
     expect($creditLine->description)->toContain($label)
-        ->and($creditLine->description)->not->toContain((string) $member->id);
+        ->and($creditLine->description)->not->toMatch('/\b'.$member->id.'\b/');
 
     // sender_id é $hidden no JSON do GiftSend (M.13.10).
     expect($send->toArray())->not->toHaveKey('sender_id');

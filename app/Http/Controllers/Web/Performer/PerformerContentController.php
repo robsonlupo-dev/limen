@@ -45,6 +45,9 @@ class PerformerContentController extends Controller
             'content' => $this->content->forOwner($request->user()->performerProfile),
             'levels' => PerformerContent::LEVELS,
             'minPrice' => 5,
+            // Rosto borrado (Onda B): default do toggle "borrar meu rosto" para novas
+            // fotos, vindo do botão global do perfil. Padrão desbloqueado.
+            'blurFaceDefault' => (bool) $request->user()->performerProfile->blur_face_default,
         ]);
     }
 
@@ -69,11 +72,22 @@ class PerformerContentController extends Controller
         // "Com rosto" (Onda B): a performer declara se a peça mostra o rosto.
         $showsFace = $request->boolean('com_rosto');
 
+        // Rosto borrado (Onda B): só FOTO, e só quando a performer pediu. A região do
+        // oval vem normalizada; defaults sensatos (centro-alto) se faltar alguma coord.
+        $faceBlur = (! $request->isVideoUpload() && $request->boolean('borrar_rosto'))
+            ? [
+                'cx' => (float) $request->input('rosto_cx', 0.5),
+                'cy' => (float) $request->input('rosto_cy', 0.4),
+                'rx' => (float) $request->input('rosto_rx', 0.18),
+                'ry' => (float) $request->input('rosto_ry', 0.24),
+            ]
+            : null;
+
         try {
             // Vídeo → pipeline assíncrono (ffmpeg); foto → síncrono (GD).
             $piece = $request->isVideoUpload()
                 ? $this->content->publishVideo($profile, $file, $level, $price, $showsFace)
-                : $this->content->publish($profile, $file, $level, $price, $showsFace);
+                : $this->content->publish($profile, $file, $level, $price, $showsFace, $faceBlur);
         } catch (ContentException $e) {
             return response()->json(['message' => $e->getMessage(), 'reason' => $e->reason], 422);
         } catch (ImageProcessingException $e) {

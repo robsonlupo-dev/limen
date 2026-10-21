@@ -58,6 +58,7 @@ class PerformerContent extends Model
             'pinned_at' => 'datetime',
             'fanclub' => 'boolean',
             'shows_face' => 'boolean',
+            'face_blurred' => 'boolean',
         ];
     }
 

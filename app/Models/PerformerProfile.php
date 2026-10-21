@@ -139,6 +139,9 @@ class PerformerProfile extends Model
         // Marca de origem (Onda B §4): escolha "Limen" vs "Limen · @slug". A
         // performer edita no próprio Editar perfil, então é fillable.
         'origin_mark_handle',
+        // Rosto borrado (Onda B §4): botão global "borrar meu rosto em tudo" —
+        // default do blur para uploads NOVOS. Editado no próprio Editar perfil.
+        'blur_face_default',
         // Localização opt-in. `city` é fillable porque a performer a escreve na
         // própria tela — o que a mantém interna é não sair em resource nenhum,
         // não a ausência daqui. Ver PerformerPublicResource.
@@ -188,6 +191,7 @@ class PerformerProfile extends Model
             'boosted_until' => 'datetime',
             'is_verified' => 'boolean',
             'origin_mark_handle' => 'boolean',
+            'blur_face_default' => 'boolean',
             'rating_avg' => 'decimal:2',
             'split_pct' => 'integer',
             'rate_public' => 'integer',
