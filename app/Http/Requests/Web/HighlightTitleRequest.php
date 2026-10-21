@@ -30,4 +30,15 @@ class HighlightTitleRequest extends FormRequest
             'title' => ['required', 'string', 'max:'.(int) config('stories.highlights.title_max_length', 30), new SafeProfileText],
         ];
     }
+
+    /** Mensagens em linguagem da TELA (achado do UAT: "O campo title…" vazava cru). */
+    public function messages(): array
+    {
+        $max = (int) config('stories.highlights.title_max_length', 30);
+
+        return [
+            'title.required' => 'Dê um nome à coleção.',
+            'title.max' => "O nome da coleção pode ter no máximo {$max} caracteres.",
+        ];
+    }
 }

@@ -33,13 +33,13 @@ class SafeProfileText implements ValidationRule
         $violation = ProfileTextGuard::violation($value);
 
         if ($violation === 'contact') {
-            $fail('Sua bio não pode conter telefone, e-mail, link ou rede social. Reescreva sem esses dados.');
+            $fail('Este texto não pode conter telefone, e-mail, link ou rede social. Reescreva sem esses dados.');
 
             return;
         }
 
         if ($violation === 'conduct') {
-            $fail('Sua bio contém conteúdo que viola nossos Termos de Uso. Reescreva em outro tom.');
+            $fail('Este texto contém conteúdo que viola nossos Termos de Uso. Reescreva em outro tom.');
         }
     }
 }

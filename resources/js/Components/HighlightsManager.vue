@@ -81,12 +81,17 @@ async function destroyCollection(h) {
 
         <p v-if="error" class="text-sm text-danger">{{ error }}</p>
 
-        <!-- Nova coleção -->
+        <!-- Nova coleção. Contador + dica (achado do UAT): a pessoa via o limite e
+             a regra anti-contato só DEPOIS do erro; agora vê enquanto digita. -->
         <div class="flex items-end gap-2">
             <div class="flex-1">
                 <Input id="new_highlight" v-model="newTitle" label="Nova coleção" type="text" maxlength="30" placeholder="Ex.: Ensaios" />
             </div>
             <Button variant="primary" :loading="busy" :disabled="!newTitle.trim()" @click="createCollection">Criar</Button>
+        </div>
+        <div class="-mt-2 flex items-baseline justify-between gap-3">
+            <p class="text-xs text-muted">Só o nome — sem telefone, @ ou link.</p>
+            <span class="text-xs text-muted tabular-nums shrink-0">{{ newTitle.length }}/30</span>
         </div>
 
         <!-- Coleções -->
