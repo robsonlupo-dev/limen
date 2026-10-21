@@ -131,3 +131,23 @@ it('com o toggle do @ desligado, o story ainda publica (texto só "Limen")', fun
 
     expect(getimagesizefromstring($bytes)[2])->toBe(IMAGETYPE_JPEG);
 });
+
+it('foto da GALERIA é JPEG válido e, com a marca ligada, os bytes mudam (achado do UAT)', function () {
+    $svc = app(App\Services\PerformerPhotoService::class);
+
+    config()->set('origin_mark.enabled', false);
+    $p1 = ommPerformer();
+    $off = Storage::disk(App\Services\PerformerPhotoStore::DISK)->get($svc->add($p1, ommUpload())->path);
+    expect(getimagesizefromstring($off)[2])->toBe(IMAGETYPE_JPEG);
+
+    if (! ommFontPresent()) {
+        $this->markTestSkipped('Fonte da marca ausente neste ambiente.');
+    }
+
+    config()->set('origin_mark.enabled', true);
+    $p2 = ommPerformer();
+    $on = Storage::disk(App\Services\PerformerPhotoStore::DISK)->get($svc->add($p2, ommUpload())->path);
+
+    expect(getimagesizefromstring($on)[2])->toBe(IMAGETYPE_JPEG)
+        ->and($on)->not->toBe($off); // marca queimada na galeria
+});

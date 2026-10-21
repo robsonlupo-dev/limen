@@ -1252,3 +1252,13 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   - **Botão global = só uploads NOVOS** (`blur_face_default`, padrão OFF). Não altera o acervo já publicado.
   - **v1 = foto de conteúdo.** Avatar/capa/stories com blur de rosto ficam como extensão (mesma mecânica).
   - Custo: uma passada GD por upload (não por exibição), só na caixa do oval.
+
+## FASE 48 — Pós-UAT rodada 1: galeria com marca + erro real nos Destaques · PR fix/uat-b-round1
+- **Achados do UAT de 21/10 que este PR corrige:**
+  1. A seção "Fotos" do perfil (galeria de até 6) ficou FORA da peça 2b — fotos da galeria saíam SEM a marca de origem. Agora o `PerformerPhotoStore` marca como as demais (mesmo motor, mesmo toggle do @).
+  2. Criar coleção de Destaques com "@" ou título >30 mostrava o genérico "Não foi possível confirmar a ação. Recarregue a página" (validação web virava redirect; o fetch recebia HTML). Com o `FailsValidationAsJson`, o motivo real aparece.
+- **Auto:** `OriginMarkMediaTest` ganhou o caso da galeria ✅ (JPEG válido; com fonte presente, bytes mudam = marca queimada). Suíte completa no ship.
+- **Manual** ⬜:
+  1. Editar perfil → aba Fotos → subir uma foto NOVA na galeria → abrir grande → marca discreta presente ("Limen · @slug" ou "Limen", conforme o toggle). Fotos antigas da galeria seguem sem marca (retroativo não re-marca).
+  2. Editar perfil → Destaques → "Nova coleção" com "@algo" no nome → aparece o motivo real (sem "recarregue a página"); com 31+ caracteres → idem.
+- **Esclarecimentos do UAT (não eram bug):** preço do fã-clube tem MÍNIMO 20 tokens (o 5 foi corretamente recusado); favoritar/salvar (F42) é ação de MEMBRO (coração no card), não da conta performer; o MP4 do self-test está no servidor — baixar com `scp deploy@62.238.46.212:/tmp/origin-video-marked.mp4 .`; a peça de rosto borrado aparece na aba CONTEÚDO do perfil (a seção "Fotos" é a galeria, outra superfície).
