@@ -1282,3 +1282,12 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   3. Set do Fã-Clube: tocar numa peça abre em TAMANHO GRANDE (lightbox, igual "Suas peças" do Conteúdo) para a dona conferir como ficou — vídeo mostra o quadro de capa.
 - **Auto:** mudanças de copy/UI; suíte completa no ship (nenhum teste assere as mensagens antigas — verificado).
 - **Manual** ⬜: Destaques → digitar no campo → contador e dica visíveis; errar de propósito (@ / 31 chars) → mensagens novas. Fã-Clube → clicar numa peça do set → abre grande; "Processando…" não abre.
+
+## FASE 51 — Pós-UAT rodada 4: capa fiel + capa ampliável + marca espalhada · PR fix/uat-b-round4
+- **Achados do UAT de 21/10 (fim de tarde):**
+  1. **Capa desalinhada (bug):** o contêiner do perfil tinha ALTURA FIXA (proporção diferente do recorte 3:1 que a performer enquadra) e o object-cover re-cortava — cabeça cortada no público. Agora o contêiner é `aspect-[3/1]`: o que ela enquadra é EXATAMENTE o que aparece, em qualquer largura.
+  2. **Capa clicável:** tocar na capa abre a imagem inteira num modal com o NOME e a FRASE (slogan) da performer — identificação de quem é a imagem.
+  3. **Marca espalhada:** com handle longo, o passo do ladrilho ficava enorme e cabia UMA repetição visível (fácil de recortar). Teto no passo garante ~≥2 colunas × ~≥3 fileiras seja qual for o texto; marca forense (texto curto) inalterada.
+- **Auto:** `WatermarkTest` segue ✅ (dimensões/validez; o teto não muda texto curto). Suíte completa no ship.
+- **Manual** ⬜: perfil público → a capa mostra o MESMO enquadramento do editor (desktop e celular); tocar na capa → abre grande com nome+frase; publicar foto nova → a marca aparece em VÁRIOS pontos da imagem, não só um.
+- **Nota (avatar):** a marca na foto de perfil JÁ está ativa desde o #367 para uploads NOVOS — o avatar atual da conta de teste é anterior; troque a foto de perfil para ver a marca (baixando a imagem ela fica visível; no círculo pequeno é sutil de propósito).
