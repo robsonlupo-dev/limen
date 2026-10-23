@@ -223,7 +223,7 @@ Route::get('/presentes/catalogo', [GiftController::class, 'catalog'])
 // repetido não dá erro — o último registrado vence no lookup e `route()` no front
 // apontaria para a rota errada. Ver a nota do RouteNameCollisionTest no CLAUDE.md.
 Route::get('/performer/fotos/{photo}/imagem', [PerformerPhotoController::class, 'image'])
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:media-serving')
     ->whereNumber('photo')
     ->name('performer.gallery.image');
 
@@ -1207,7 +1207,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->can('performer-active');
 
             Route::post('/performer/conteudo', [PerformerContentController::class, 'store'])
-                ->middleware('throttle:10,1')
+                ->middleware('throttle:performer-publish')
                 ->name('performer.content.store')
                 ->can('performer-active');
 
@@ -1218,7 +1218,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->can('performer-active');
 
             Route::get('/performer/conteudo/{content}/imagem', [PerformerContentController::class, 'image'])
-                ->middleware('throttle:60,1')
+                ->middleware('throttle:media-serving')
                 ->whereNumber('content')
                 ->name('performer.content.image')
                 ->can('performer-active');
@@ -1251,7 +1251,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
                 ->can('performer-active');
 
             Route::post('/performer/fa-clube/conteudo', [FanclubController::class, 'publishContent'])
-                ->middleware('throttle:10,1')
+                ->middleware('throttle:performer-publish')
                 ->name('performer.fanclub.content')
                 ->can('performer-active');
 
@@ -1764,7 +1764,7 @@ Route::middleware(['auth', '2fa'])->group(function () {
             ->name('content.show');
 
         Route::get('/conteudo/{content}/imagem', [ContentController::class, 'image'])
-            ->middleware('throttle:120,1')
+            ->middleware('throttle:media-serving')
             ->whereNumber('content')
             ->name('content.image');
 

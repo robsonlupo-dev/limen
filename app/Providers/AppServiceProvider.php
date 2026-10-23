@@ -15,7 +15,9 @@ use App\Services\Kyc\FakeKycClient;
 use App\Services\Kyc\KycClientInterface;
 use App\Services\Kyc\KycHttpClient;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -56,6 +58,19 @@ class AppServiceProvider extends ServiceProvider
                 'email' => $notifiable->getEmailForPasswordReset(),
             ]);
         });
+
+        // Limiters NOMEADOS por rota (fix do 429 ao publicar, UAT 23/10). O
+        // `throttle:N,1` INLINE do Laravel chaveia o balde só por usuário (sem a
+        // rota), então TODAS as rotas de performer dividiam UM contador e o limite
+        // baixo do publish (10/min) estourava quando o painel recarregava cheio de
+        // miniaturas (cada `content.image` é um hit no MESMO balde). Limiter nomeado
+        // tem balde PRÓPRIO por (nome, usuário/IP) — publish e serving deixam de se
+        // atropelar. `by` cai no IP para visitante (serving público).
+        RateLimiter::for('performer-publish', fn ($request) => Limit::perMinute(30)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
+
+        RateLimiter::for('media-serving', fn ($request) => Limit::perMinute(300)
+            ->by((string) ($request->user()?->id ?? $request->ip())));
 
         Gate::define('performer-active', function (User $user) {
             return $user->role === 'performer' && $user->status === 'active';
