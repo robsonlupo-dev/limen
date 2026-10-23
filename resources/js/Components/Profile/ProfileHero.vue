@@ -83,14 +83,14 @@ const presence = computed(() => {
 
 <template>
     <div>
-        <!-- CAPA COMO FAIXA (item 1/3). PROPORÇÃO 3:1 FIXA (achado do UAT de 21/10):
-             a altura fixa de antes (h-40/52/280px) dava ao contêiner uma proporção
-             DIFERENTE do recorte 3:1 que a performer enquadrou, e o object-cover
-             re-cortava a foto — cabeça cortada no perfil público. Com aspect-[3/1]
-             (sem max-height: a largura já é limitada pelo max-width da página, então
-             a altura fica ≤ ~340px) o que ela enquadra é EXATAMENTE o que aparece.
-             Clicável: abre a capa inteira com nome + frase (slogan) num modal. -->
-        <div class="profile-cover relative aspect-[3/1] w-full overflow-hidden rounded-2xl">
+        <!-- CAPA COMO FAIXA (item 1/3). PROPORÇÃO 2:1 FIXA (UAT 21/10 → rodada 5):
+             a altura fixa de antes dava ao contêiner uma proporção DIFERENTE do
+             recorte que a performer enquadrou, e o object-cover re-cortava a foto —
+             cabeça cortada no perfil público. Com aspect-[2/1] o que ela enquadra é
+             EXATAMENTE o que aparece (2:1 mostra mais de foto retrato que o 3:1 de
+             antes). Clicável: abre a FOTO INTEIRA (cópia não-recortada) com nome +
+             frase (slogan) num modal. -->
+        <div class="profile-cover relative aspect-[2/1] w-full overflow-hidden rounded-2xl">
             <button
                 v-if="performer.cover_url"
                 type="button"
@@ -237,7 +237,9 @@ const presence = computed(() => {
                     </button>
                 </div>
                 <div class="overflow-hidden rounded-lg border border-limen-line bg-black">
-                    <img :src="performer.cover_url" :alt="`Capa de ${performer.stage_name}`" class="mx-auto max-h-[70vh] w-auto object-contain" />
+                    <!-- A cópia INTEIRA (não-recortada) quando existe; cai na capa
+                         recortada para perfis cuja capa é anterior à rodada 5. -->
+                    <img :src="performer.cover_full_url || performer.cover_url" :alt="`Capa de ${performer.stage_name}`" class="mx-auto max-h-[80vh] w-auto object-contain" />
                 </div>
             </div>
         </Modal>

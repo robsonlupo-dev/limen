@@ -134,7 +134,7 @@ class PerformerProfile extends Model
     protected $fillable = [
         'stage_name', 'slug', 'bio', 'category', 'worlds', 'work_modes',
         'level', 'split_pct', 'rate_public', 'rate_private', 'rate_camera',
-        'is_live', 'is_verified', 'avatar_path', 'cover_path',
+        'is_live', 'is_verified', 'avatar_path', 'cover_path', 'cover_full_path',
         'languages', 'drinks', 'smokes', 'height_cm', 'looking_for', 'headline',
         // Marca de origem (Onda B §4): escolha "Limen" vs "Limen · @slug". A
         // performer edita no próprio Editar perfil, então é fillable.

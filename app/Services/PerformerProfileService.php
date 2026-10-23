@@ -22,7 +22,14 @@ class PerformerProfileService
      */
     public const COVER_WIDTH = 1200;
 
-    public const COVER_HEIGHT = 400;
+    // Faixa 2:1 (UAT rodada 5): era 3:1 (400) e cortava demais foto retrato. 2:1
+    // mostra mais da foto no próprio banner; o card do catálogo usa avatar/cover
+    // como retrato 3:4 (object-cover), então NÃO depende desta proporção.
+    public const COVER_HEIGHT = 600;
+
+    // Cópia "inteira" da capa (não-recortada, só reduzida): o maior lado cabe
+    // aqui. É o que o modal de ampliar mostra, para a foto toda aparecer.
+    public const COVER_FULL_MAX = 1600;
 
     /**
      * Avatar: quadrado 1:1. O cropperjs no cliente enquadra para UX, mas o corte
@@ -164,7 +171,32 @@ class PerformerProfileService
             @unlink($clean);
         }
 
-        $profile->update(['cover_path' => $path]);
+        // Cópia INTEIRA (não-recortada, só reduzida ao maior lado) para o modal de
+        // ampliar — a faixa 2:1 mostra pouco de uma foto retrato. Mesmo pipeline
+        // endurecido (guarda de imagem-bomba, strip EXIF, re-encode), SEM crop, +
+        // anti-CSAM + marca de origem, como a capa. Fail-closed junto da capa: se
+        // esta falhar, a troca inteira falha (o finally limpa o temporário).
+        $fullClean = $this->imageProcessor->process($file, self::COVER_FULL_MAX, self::COVER_FULL_MAX, crop: false);
+        $fullPath = "performer-media/{$profile->user_id}/cover-full.jpg";
+
+        try {
+            $fullBytes = file_get_contents($fullClean);
+            $this->csam->scanBytes($fullBytes, 'cover', $profile->user);
+
+            if (($mark = OriginMark::textIfEnabled($profile)) !== null) {
+                $fullBytes = $this->watermark->applyToPhotoBytes($fullBytes, $mark);
+            }
+
+            if ($profile->cover_full_path) {
+                Storage::disk('local')->delete($profile->cover_full_path);
+            }
+
+            Storage::disk('local')->put($fullPath, $fullBytes);
+        } finally {
+            @unlink($fullClean);
+        }
+
+        $profile->update(['cover_path' => $path, 'cover_full_path' => $fullPath]);
 
         return $path;
     }

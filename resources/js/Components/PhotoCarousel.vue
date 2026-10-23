@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { postJson } from '@/lib/http'
+import Lightbox from '@/Components/Lightbox.vue'
 
 // Carrossel da galeria de fotos do perfil público (Sprint 10; privadas no
 // Sprint 13).
@@ -60,6 +61,21 @@ function go(i) {
     index.value = i
 }
 
+// Ampliar (UAT rodada 5): clicar na foto abre o Lightbox em tela cheia
+// (object-contain), como as "Suas peças" do painel da dona. Só fotos
+// DESBLOQUEADAS entram (tile bloqueado não tem bytes); o índice do lightbox é
+// sobre essa lista filtrada. `full_url` cai em `url` (uma só resolução servida).
+const lightboxIndex = ref(null)
+const openablePhotos = computed(() =>
+    props.photos.filter((p) => !p.locked).map((p) => ({ id: p.id, url: p.url, full_url: p.url })),
+)
+
+function openLightbox() {
+    if (!current.value || current.value.locked) return
+    const i = openablePhotos.value.findIndex((p) => p.id === current.value.id)
+    if (i >= 0) lightboxIndex.value = i
+}
+
 // Swipe em telas de toque. Sem dependência: mede o deslocamento horizontal no
 // touchend e decide a direção acima de um limiar pequeno.
 const touchStartX = ref(null)
@@ -86,12 +102,21 @@ function onTouchEnd(event) {
             @touchstart.passive="onTouchStart"
             @touchend.passive="onTouchEnd"
         >
-            <img
+            <!-- object-contain: mostra a foto INTEIRA (não corta retrato — achado do
+                 UAT). Clicável: abre em tela cheia no Lightbox. -->
+            <button
                 v-if="current && !current.locked"
-                :src="current.url"
-                :alt="`Foto de ${performerName}`"
-                class="h-full w-full object-cover"
-            />
+                type="button"
+                :aria-label="`Ampliar foto de ${performerName}`"
+                class="h-full w-full cursor-zoom-in"
+                @click="openLightbox"
+            >
+                <img
+                    :src="current.url"
+                    :alt="`Foto de ${performerName}`"
+                    class="h-full w-full object-contain"
+                />
+            </button>
 
             <!-- Tile bloqueado: sem bytes, só placeholder + cadeado. O membro pede
                  acesso aqui; a performer aprova no painel. -->
@@ -162,5 +187,8 @@ function onTouchEnd(event) {
                 <svg v-else class="h-4 w-4 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
             </button>
         </div>
+
+        <!-- Tela cheia (object-contain): a foto inteira sem corte. -->
+        <Lightbox v-model:index="lightboxIndex" :photos="openablePhotos" />
     </div>
 </template>
