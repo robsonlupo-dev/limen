@@ -29,6 +29,30 @@ tire print e anote a URL. Continue por outro caminho.
 
 ---
 
+## 🟢 PAINEL DE STATUS — Onda B (pós-UAT, out/2026)
+
+**Onde paramos:** a Onda B de polimento está no fim. Só falta confirmar visualmente a FASE 56 (menos marcas d'água ~4) — já deployada em 23/10. O resto abaixo foi testado e está OK.
+
+| FASE | O que | Status |
+|---|---|---|
+| 47 | Rosto borrado (oval localizado) | ✅ OK |
+| 48 | Galeria com marca + erro real nos Destaques | ✅ OK |
+| 49 | Oval arrastável + blur no fã-clube + upload rápido | ✅ OK |
+| 50 | Copy dos Destaques + lightbox do set | ✅ OK |
+| 51 | Capa clicável + marca espalhada | ✅ OK (capa evoluiu em 54–56) |
+| 52 | Segurança: scan CSAM no vídeo | ✅ OK (auto + pentest) |
+| 53 | Segurança: teto do payout sob lock | ✅ OK (pentest #5) |
+| 54 | Capa 2:1 + lightbox público + object-contain | ✅ OK |
+| 55 | Capa inteira ao ampliar + marca legível + **fix do 429 ao publicar** | ✅ OK |
+| 56 | Menos marcas d'água por foto (~4) | ⬜ **TESTAR** (deploy feito 23/10) |
+
+**Único teste pendente agora:** FASE 56 — publicar foto NOVA e conferir ~4 marcas legíveis (em vez de ~12), com o @handle ainda em ≥2 pontos.
+
+**Legenda:** ✅ testado e OK · ⬜ pendente de teste · ❌ falhou · ⚠️ parcial.
+**Nota:** as FASES 1–46 são o roteiro-base de UAT (jornadas, economia, moderação, features anteriores), validadas nas janelas anteriores; este painel cobre a Onda B (o que mexemos agora).
+
+---
+
 ## TRIAGEM DE COBERTURA AUTOMATIZADA — 2026-10-15
 
 Cruzamento do roteiro manual contra a suíte Pest (~2807 testes, verde no CI). O que
@@ -1314,12 +1338,12 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   5. **Marca d'água em mais pontos.** O teto do passo do ladrilho apertou de `w/2 × h/3` para **`w/3 × h/4`** (~≥3 colunas × ≥4 fileiras) para handle longo; texto curto (marca forense) inalterado.
 - **Auto:** `OriginMarkMediaTest` — capa agora 1200×600 + a cópia inteira 800×800 gravada em `cover_full_path`; novo caso serve `cover-full` pela rota assinada e 404 em type inválido. Suíte completa no ship.
 - **Resolvidos de rodadas anteriores (confirmados neste UAT):** Destaques — mensagem real "Este texto não pode conter…" + "máximo 30 caracteres" + contador x/30 (FASE 48/50) ✅; capa clicável abre modal com nome+slogan (FASE 51) ✅.
-- **Manual** ⬜:
-  1. Editar perfil → capa: enquadrar em **2:1**; salvar; no perfil público a faixa mostra o enquadramento 2:1.
-  2. Perfil público → **tocar na capa** → o modal mostra a **foto inteira** (não só a faixa), com nome+slogan. (Capa trocada DEPOIS deste deploy; capas antigas caem no recorte.)
-  3. Perfil público → aba Fotos → **tocar numa foto** → abre em **tela cheia** (inteira, sem corte); setas/esc navegam.
-  4. Publicar foto nova → a **marca aparece em mais pontos** (≥3 colunas × ≥4 fileiras).
-- **Nota:** a cópia inteira e a densidade nova valem para uploads NOVOS (retroativo não re-processa).
+- **Manual ✅ (confirmado 23/10):**
+  1. ✅ Capa **2:1** no editor e no perfil público.
+  2. ✗→✅ **Tocar na capa:** na rodada 5 ainda mostrava o RECORTE (o editor corta no cliente antes de subir) — **corrigido na rodada 6** (FASE 55).
+  3. ✅ **Tocar numa foto** da galeria → abre em tela cheia (lightbox), sem corte.
+  4. ✅ **Marca em mais pontos** — ficou denso demais com a opacidade nova; **densidade reduzida na rodada 7** (FASE 56).
+- **Nota:** a cópia inteira e a densidade valem para uploads NOVOS (retroativo não re-processa).
 
 ## FASE 55 — Pós-UAT rodada 6: capa inteira de verdade + marca d'água legível + fix do 429 ao publicar · PRs fix/publish-429-and-cover + fix/uat-b-round6
 - **Confirmados no UAT de 23/10 (rodada 5, conta Ana UAT testando1):** publicar 3-4 peças seguidas sem 429 ✅ (fix dos limiters nomeados); fã-clube sem 429 ✅; galeria pública **amplia** no lightbox + foto **sem corte** (object-contain) ✅; capa editor/público em **2:1** ✅; fã-clube blur + lightbox ✅.
@@ -1327,10 +1351,10 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   1. **Tocar na capa mostrava o RECORTE, não a foto inteira.** Causa: o editor corta a 2:1 NO CLIENTE antes de enviar, então o servidor só recebia a faixa — a "cópia inteira" acabava sendo o próprio recorte. Fix: o cliente envia TAMBÉM o original não-recortado (`file_full`), e o `replaceCover` usa o original para a cópia inteira (`UploadMediaRequest` ganha `file_full` nullable; sem ele cai no `file`, como antes).
   2. **Marca d'água fraquinha ("não dava para identificar quem é").** A marca serve de identificação anti-vazamento — se não dá para ler, não cumpre a função. Opacidade subida de `0.11/0.16` para **`0.22/0.28`** (texto/sombra) — legível no claro e no escuro, sem destruir a foto. Vale para origem (galeria/capa/avatar) e para a marca forense da encomenda (mesmo config).
 - **Auto:** `OriginMarkMediaTest` — novo caso prova que a cópia inteira usa o ORIGINAL (retrato 600×1600 sai 600×1600, não o recorte 2:1). Suíte completa no ship.
-- **Manual** ⬜:
-  1. Editar perfil → trocar a capa (foto retrato) → tocar na capa no perfil público → o modal mostra a **foto inteira** (retrato completo, não a faixa).
-  2. Publicar foto nova → a marca aparece **legível** (dá para ler o @handle), em vários pontos.
-  3. Trocar foto de perfil → a marca no avatar está **mais visível** (ainda discreta no círculo pequeno, mas legível ao baixar).
+- **Manual ✅ (confirmado 23/10):**
+  1. ✅ Trocar a capa (foto retrato) → tocar na capa no perfil público → o modal mostra a **foto inteira** (retrato completo, não a faixa).
+  2. ✅ Publicar foto nova → marca **legível** (dá para ler o @handle). Ficou densa demais → **densidade ajustada na rodada 7** (FASE 56).
+  3. ✅ Avatar com a marca **mais visível** (mesma opacidade das demais).
 - **Nota:** vale para uploads/capas NOVAS (retroativo não re-processa) — troque a capa e publique fotos novas para ver.
 
 ## FASE 56 — Pós-UAT rodada 7: menos marcas d'água por foto · PR fix/uat-b-round7
