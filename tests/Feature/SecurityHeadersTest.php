@@ -31,3 +31,26 @@ it('mantém os demais cabeçalhos de base', function () {
         ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
         ->assertHeader('Content-Security-Policy', "frame-ancestors 'self'");
 });
+
+// ─── HSTS por hostname (fix/sec-hsts-hostname) ───────────────────────────────
+//
+// O gate é o HOST, não o APP_ENV: a instância de produção roda APP_ENV=staging
+// (um checkout servindo os dois domínios), então gatear por environment deixava
+// o usuário real no thelimen.com.br com o HSTS fraco de 5 min. Estes testes
+// travam o comportamento por host — `APP_ENV` de teste é 'testing', então o
+// gate antigo reprovaria o host de produção aqui.
+
+it('manda HSTS forte (1 ano) no host de produção, mesmo fora de APP_ENV=production', function () {
+    $this->get('https://thelimen.com.br/')
+        ->assertHeader('Strict-Transport-Security', 'max-age=31536000');
+});
+
+it('mantém HSTS curto e reversível no apelido de dev', function () {
+    $this->get('https://limen.dev.br/')
+        ->assertHeader('Strict-Transport-Security', 'max-age=300');
+});
+
+it('não manda HSTS sob HTTP (o navegador ignoraria, e evita confundir proxies)', function () {
+    $resp = $this->get('http://thelimen.com.br/');
+    expect($resp->headers->has('Strict-Transport-Security'))->toBeFalse();
+});
