@@ -1332,3 +1332,9 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   2. Publicar foto nova → a marca aparece **legível** (dá para ler o @handle), em vários pontos.
   3. Trocar foto de perfil → a marca no avatar está **mais visível** (ainda discreta no círculo pequeno, mas legível ao baixar).
 - **Nota:** vale para uploads/capas NOVAS (retroativo não re-processa) — troque a capa e publique fotos novas para ver.
+
+## FASE 56 — Pós-UAT rodada 7: menos marcas d'água por foto · PR fix/uat-b-round7
+- **Achado (UAT 23/10):** com a opacidade legível (rodada 6), as ~12-18 marcas (3 col × 4-6 fileiras, teto w/3×h/4 da rodada 5) ficaram "muitas"; o PO quer ~3-4.
+- **Correção:** teto do passo do ladrilho volta a afrouxar para **w/2 × h/2** (~≥2 colunas × ≥2 fileiras ≈ 4 marcas com handle longo). PISO deliberado: cobertura nos dois sentidos para o @handle não ser recortável fora da foto (abaixo de 2×2 volta o risco de recorte do achado da FASE 51). Texto curto (marca forense) inalterado — o passo natural já é menor que o teto.
+- **Auto:** `WatermarkTest` segue ✅ (dimensões/validez; o teto não muda texto curto). Suíte completa no ship.
+- **Manual** ⬜: publicar foto nova → ~4 marcas legíveis, não ~12; o @handle continua aparecendo em ≥2 pontos (não dá para recortar fora).
