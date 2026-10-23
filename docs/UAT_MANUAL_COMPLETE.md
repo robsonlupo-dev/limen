@@ -1304,3 +1304,19 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
 - **Auto:** `MonthlyPayoutTest` (B1 anti-leak: paga só ganhos, nunca grant/bonus/refund) e `PayoutTest` seguem ✅ — a mudança é no-op no caminho válido. Suíte completa no ship.
 - **Limitação de teste:** a corrida em si não é reproduzível na suíte (conexão única no Pest); o fix é estrutural (serialização por lock), validado pela revisão de segurança + regressão da suíte.
 - **Manual** ⬜ (opcional, menu de pentest item 5): numa conta de teste com saldo de grant > ganhos, disparar N saques on-demand concorrentes e confirmar que só o valor GANHO é pago.
+
+## FASE 54 — Pós-UAT rodada 5: capa 2:1 + foto inteira ao ampliar + lightbox público + marca mais densa · PR fix/uat-b-round5
+- **Achados do UAT de 23/10 (conta Ana UAT testando1):**
+  1. **Capa mostra pouco (foto retrato cortada na faixa).** A capa virou **2:1** (era 3:1 — `COVER_HEIGHT` 400→600). O card do catálogo usa avatar/cover como retrato 3:4 (`object-cover`), então NÃO depende desta proporção — muda só o hero do perfil e o editor.
+  2. **Clicar na capa não mostrava a foto inteira** (repetia o recorte). Agora guardamos uma **cópia NÃO-recortada** (`cover_full_path`, migration; reduzida ao maior lado ≤1600; mesmo pipeline endurecido + anti-CSAM + marca), servida pela mesma rota assinada (`performer.media` type `cover-full`), e o modal de ampliar mostra ELA (cai no recorte para capas antigas). Exposta em `PerformerPublicResource.cover_full_url`.
+  3. **Foto da galeria não ampliava no perfil público.** O `PhotoCarousel` agora abre o **Lightbox** (o mesmo do avatar) ao clicar — só fotos desbloqueadas.
+  4. **Foto não ficava enquadrada** no carrossel. O tile principal passou de `object-cover` (cortava retrato) para **`object-contain`** — mostra a foto inteira; o Lightbox dá a tela cheia.
+  5. **Marca d'água em mais pontos.** O teto do passo do ladrilho apertou de `w/2 × h/3` para **`w/3 × h/4`** (~≥3 colunas × ≥4 fileiras) para handle longo; texto curto (marca forense) inalterado.
+- **Auto:** `OriginMarkMediaTest` — capa agora 1200×600 + a cópia inteira 800×800 gravada em `cover_full_path`; novo caso serve `cover-full` pela rota assinada e 404 em type inválido. Suíte completa no ship.
+- **Resolvidos de rodadas anteriores (confirmados neste UAT):** Destaques — mensagem real "Este texto não pode conter…" + "máximo 30 caracteres" + contador x/30 (FASE 48/50) ✅; capa clicável abre modal com nome+slogan (FASE 51) ✅.
+- **Manual** ⬜:
+  1. Editar perfil → capa: enquadrar em **2:1**; salvar; no perfil público a faixa mostra o enquadramento 2:1.
+  2. Perfil público → **tocar na capa** → o modal mostra a **foto inteira** (não só a faixa), com nome+slogan. (Capa trocada DEPOIS deste deploy; capas antigas caem no recorte.)
+  3. Perfil público → aba Fotos → **tocar numa foto** → abre em **tela cheia** (inteira, sem corte); setas/esc navegam.
+  4. Publicar foto nova → a **marca aparece em mais pontos** (≥3 colunas × ≥4 fileiras).
+- **Nota:** a cópia inteira e a densidade nova valem para uploads NOVOS (retroativo não re-processa).

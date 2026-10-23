@@ -602,9 +602,9 @@ function save() {
                 <div class="rounded-xl border border-frame bg-surface p-6 space-y-4">
                     <h2 class="font-serif text-xl text-cream">Foto de capa</h2>
 
-                    <div class="aspect-[3/1] w-full overflow-hidden rounded-lg bg-surface-2 border border-frame flex items-center justify-center">
-                        <!-- object-contain: espelha o display público (a capa 3:1 do
-                             Catalog/Show), imagem inteira em vez de cortar o centro. -->
+                    <div class="aspect-[2/1] w-full overflow-hidden rounded-lg bg-surface-2 border border-frame flex items-center justify-center">
+                        <!-- object-contain: espelha o display público (a capa 2:1 do
+                             perfil), imagem inteira em vez de cortar o centro. -->
                         <img v-if="currentCover" :src="currentCover" alt="Sua foto de capa" class="h-full w-full object-contain" />
                         <span v-else class="text-sm text-muted">Nenhuma foto de capa</span>
                     </div>
@@ -622,7 +622,7 @@ function save() {
                                 @change="pickCover"
                             />
                         </label>
-                        <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em 3:1 antes de salvar.</p>
+                        <p class="text-xs text-muted">JPG, PNG ou WebP. Até 5 MB. Você enquadra em 2:1 antes de salvar; a foto inteira fica no modal de ampliar.</p>
                         <p v-if="coverForm.errors.file" class="text-xs text-danger">{{ coverForm.errors.file }}</p>
                     </div>
                 </div>
@@ -640,10 +640,10 @@ function save() {
                 />
                 <ImageCropper
                     :file="pendingCoverFile"
-                    :aspect-ratio="3"
+                    :aspect-ratio="2"
                     :output-width="1200"
                     title="Enquadre sua foto de capa"
-                    hint="Arraste e ajuste o zoom. A capa é a faixa larga 3:1 do topo do perfil."
+                    hint="Arraste e ajuste o zoom. A capa é a faixa 2:1 do topo do perfil; a foto inteira aparece ao ampliar."
                     @crop="onCoverCropped"
                     @cancel="pendingCoverFile = null"
                 />

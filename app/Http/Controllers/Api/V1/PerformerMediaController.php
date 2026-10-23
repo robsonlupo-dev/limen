@@ -15,11 +15,15 @@ class PerformerMediaController extends Controller
         $profileId = $request->integer('profile_id');
         $type = $request->input('type');
 
-        abort_unless(in_array($type, ['avatar', 'cover'], true), 404);
+        abort_unless(in_array($type, ['avatar', 'cover', 'cover-full'], true), 404);
 
         $profile = PerformerProfile::findOrFail($profileId);
 
-        $path = $type === 'avatar' ? $profile->avatar_path : $profile->cover_path;
+        $path = match ($type) {
+            'avatar' => $profile->avatar_path,
+            'cover-full' => $profile->cover_full_path,
+            default => $profile->cover_path,
+        };
 
         abort_unless($path && Storage::disk('local')->exists($path), 404);
 

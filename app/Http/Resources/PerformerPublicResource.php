@@ -136,6 +136,9 @@ class PerformerPublicResource extends JsonResource
             'tier' => $this->tier,
             'avatar_url' => $this->mediaUrl('avatar'),
             'cover_url' => $this->mediaUrl('cover'),
+            // Capa INTEIRA (não-recortada) para o modal de ampliar — a faixa 2:1
+            // mostra pouco de foto retrato. null para capas antigas (sem a cópia).
+            'cover_full_url' => $this->mediaUrl('cover-full'),
             // Contador da galeria (Sprint 10) para o selo "📷 N" no card. Vem do
             // `withCount('photos')` do scope publicCatalog — as duas listagens e
             // as duas telas de perfil passam por ele. Fallback em 0 para uma linha
@@ -165,7 +168,11 @@ class PerformerPublicResource extends JsonResource
 
     protected function mediaUrl(string $type): ?string
     {
-        $path = $type === 'avatar' ? $this->avatar_path : $this->cover_path;
+        $path = match ($type) {
+            'avatar' => $this->avatar_path,
+            'cover-full' => $this->cover_full_path,
+            default => $this->cover_path,
+        };
 
         if (! $path) {
             return null;

@@ -151,13 +151,14 @@ class WatermarkService
         $stepX = max(180, (int) ceil($spanX * $gapX));
         $stepY = max(140, (int) ceil($spanY * $gapY));
 
-        // Teto do passo (achado do UAT de 21/10): com um handle LONGO o span fica
-        // enorme e cabia UMA repetição visível na foto — fácil de recortar. O teto
-        // garante ~≥2 colunas e ~≥3 fileiras seja qual for o tamanho do texto; para
-        // texto curto (ex.: a marca forense "Fã #NNNN · data") nada muda, porque o
-        // passo natural já é menor que o teto.
-        $stepX = min($stepX, max(180, (int) ceil($w / 2)));
-        $stepY = min($stepY, max(140, (int) ceil($h / 3)));
+        // Teto do passo (achado do UAT de 21/10, apertado na rodada 5): com um
+        // handle LONGO o span fica enorme e cabia pouca repetição — fácil de
+        // recortar, e o PO pediu a marca em MAIS pontos. O teto agora garante
+        // ~≥3 colunas e ~≥4 fileiras seja qual for o tamanho do texto; para texto
+        // curto (ex.: a marca forense "Fã #NNNN · data") nada muda, porque o passo
+        // natural já é menor que o teto.
+        $stepX = min($stepX, max(140, (int) ceil($w / 3)));
+        $stepY = min($stepY, max(110, (int) ceil($h / 4)));
 
         // Config comum das duas passadas (sombra e branco): mesma fonte/tamanho/ângulo,
         // ancorado no CENTRO do ponto (align+valign) para a rotação girar em torno dele.

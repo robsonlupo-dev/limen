@@ -99,7 +99,7 @@ it('avatar é 512×512 e, com a marca ligada, os bytes mudam', function () {
         ->and($on)->not->toBe($off);
 });
 
-it('capa é 1200×400 e, com a marca ligada, os bytes mudam', function () {
+it('capa é 1200×600 (2:1) e, com a marca ligada, os bytes mudam', function () {
     $svc = app(PerformerProfileService::class);
 
     config()->set('origin_mark.enabled', false);
@@ -107,7 +107,15 @@ it('capa é 1200×400 e, com a marca ligada, os bytes mudam', function () {
     $path1 = $svc->replaceCover($p1, ommUpload());
     $off = Storage::disk('local')->get($path1);
     $size = getimagesizefromstring($off);
-    expect($size[0])->toBe(1200)->and($size[1])->toBe(400)->and($size[2])->toBe(IMAGETYPE_JPEG);
+    expect($size[0])->toBe(1200)->and($size[1])->toBe(600)->and($size[2])->toBe(IMAGETYPE_JPEG);
+
+    // A cópia INTEIRA (UAT rodada 5): gravada, NÃO recortada para 2:1 — a fonte
+    // 800×800 sai 800×800 (scaleDown nunca amplia), distinta do banner 1200×600.
+    $fullPath = $p1->fresh()->cover_full_path;
+    expect($fullPath)->not->toBeNull()
+        ->and(Storage::disk('local')->exists($fullPath))->toBeTrue();
+    $fullSize = getimagesizefromstring(Storage::disk('local')->get($fullPath));
+    expect($fullSize[0])->toBe(800)->and($fullSize[1])->toBe(800)->and($fullSize[2])->toBe(IMAGETYPE_JPEG);
 
     if (! ommFontPresent()) {
         $this->markTestSkipped('Fonte da marca ausente neste ambiente.');
@@ -120,6 +128,24 @@ it('capa é 1200×400 e, com a marca ligada, os bytes mudam', function () {
 
     expect(getimagesizefromstring($on)[2])->toBe(IMAGETYPE_JPEG)
         ->and($on)->not->toBe($off);
+});
+
+it('serve a capa INTEIRA pela rota de mídia assinada (type cover-full) e 404 em type inválido', function () {
+    $svc = app(PerformerProfileService::class);
+    config()->set('origin_mark.enabled', false);
+    $p = ommPerformer();
+    $svc->replaceCover($p, ommUpload());
+
+    $ok = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+        'performer.media', now()->addMinutes(5), ['profile_id' => $p->id, 'type' => 'cover-full']
+    );
+    test()->get($ok)->assertOk();
+
+    // Allowlist de type: qualquer coisa fora de avatar/cover/cover-full → 404.
+    $bad = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+        'performer.media', now()->addMinutes(5), ['profile_id' => $p->id, 'type' => 'nope']
+    );
+    test()->get($bad)->assertNotFound();
 });
 
 it('com o toggle do @ desligado, o story ainda publica (texto só "Limen")', function () {
