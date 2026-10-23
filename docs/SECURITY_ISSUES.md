@@ -953,3 +953,34 @@ não-autenticado no PHP-FPM, corrigido no 8.4.27). Veredito geral: base
   e remover do `$fillable` quebraria dezenas de `create([...])` em testes/seeders.
   Adiado para um PR próprio de limpeza, com os call sites migrados para
   `forceFill`/atribuição direta. Registrado para não se perder.
+
+## Pentest (como atacante) — out/2026, resultados
+
+Bateria 1–7 contra a instância no ar / `limen_test`. Veredito:
+
+- **#5 corrida de saque on-demand → ✅ PASSOU.** 6 saques concorrentes numa
+  performer com ganho=200 e grant não-sacável=10000: só 1 entrou (150 ≤ 200), os
+  outros 5 bateram em `available 50` (o lock serializou e cada um já via a reserva
+  do anterior). Total em PIX = 150 ≤ ganho. Confirma o fix do teto sob lock (#3) no ar.
+- **#6 brute-force / rate-limit → ✅ PASSOU.** `/login` corta em 429 na 6ª (teto
+  5/min); `/entrar-com-codigo` corta dentro do teto 5/min. Nota de design: o throttle
+  padrão do Laravel chaveia o balde por **domínio+IP** (não por rota), então uma
+  rajada num endpoint `throttle` trava os outros pro mesmo IP — forte contra
+  brute-force, leve "auto-DoS"; decidir se é intencional (prioridade baixa).
+- **#7 recon externo → sólido, 1 fix de código + 1 de nginx.** 6 headers de
+  segurança presentes; cookies de sessão HttpOnly+Secure+SameSite; TLS 1.0/1.1
+  recusados; `.env`/`.git`/logs/telescope/horizon todos 403/404.
+  - **🟠 MÉDIO (CORRIGIDO neste PR) — HSTS fraco p/ usuário real.** `max-age=300`
+    chegava ao `thelimen.com.br` porque o header completo era gated em
+    `environment('production')` e a instância roda `APP_ENV=staging`. Fix:
+    `SecurityHeaders` passa a chavear o HSTS por **hostname** (host de produção →
+    `max-age=31536000`; apelido de dev → curto). `includeSubDomains`/`preload`
+    deixados de fora de propósito (compromisso ~irreversível) — adicionar depois de
+    confirmar HTTPS em todo subdomínio. **debug=OFF confirmado** (cenário ALTO de
+    stack-trace descartado).
+  - **🟡 BAIXO (ops, fora do código) — nginx vaza versão.** `Server: nginx/1.24.0
+    (Ubuntu)`. Fix: `server_tokens off;` + `nginx -t && systemctl reload nginx`.
+  - **Observação (não-vuln):** CSP é só anti-clickjacking (`frame-ancestors 'self'`),
+    sem `script-src`/`default-src` — endurecimento futuro, chato com Inertia/Vite inline.
+- **#1–#4 (enumeração de galeria banida, teaser efêmero, upload malicioso, varredura
+  IDOR):** adiados a pedido do PO — rodar depois.

@@ -38,16 +38,31 @@ class SecurityHeaders
 
         // HSTS só faz sentido sob HTTPS; navegadores ignoram o header em HTTP.
         //
-        // O valor é condicional ao ambiente para que o deploy (git reset --hard)
-        // não reintroduza um HSTS agressivo em staging:
-        //  - produção (limen.com.br): max-age completo + includeSubDomains + preload;
-        //  - staging/dev (limen.dev.br): max-age curto, SEM preload, para que a redução
-        //    seja reversível e não quebre proxies de inspeção SSL corporativos.
+        // O valor é condicional ao HOSTNAME, NÃO ao APP_ENV. Motivo (achado da
+        // auditoria/pentest 23/10): a instância de produção serve o domínio real
+        // (thelimen.com.br) E o apelido de dev (limen.dev.br) do MESMO checkout,
+        // com o MESMO `.env` — e esse `.env` roda `APP_ENV=staging`. Gatear o HSTS
+        // em `environment('production')` fazia o header completo NUNCA sair: o
+        // usuário real no thelimen.com.br recebia o `max-age=300` fraco. Chavear
+        // pelo host entrega HSTS forte a quem é produção e mantém o apelido de dev
+        // reversível, independente do APP_ENV:
+        //  - host de produção (thelimen.com.br / limen.com.br): max-age de 1 ano;
+        //  - demais (limen.dev.br, localhost): max-age curto, reversível.
+        //
+        // `includeSubDomains`/`preload` ficam de FORA de propósito: são
+        // compromissos ~irreversíveis (todo subdomínio tem de ser HTTPS; o preload
+        // entra numa lista de navegador difícil de desfazer). Adicione
+        // deliberadamente depois de confirmar que todo subdomínio do domínio de
+        // produção serve HTTPS.
         if ($request->isSecure()) {
+            $host = $request->getHost();
+            $isProductionHost = str_ends_with($host, 'thelimen.com.br')
+                || str_ends_with($host, 'limen.com.br');
+
             $response->headers->set(
                 'Strict-Transport-Security',
-                app()->environment('production')
-                    ? 'max-age=31536000; includeSubDomains; preload'
+                $isProductionHost
+                    ? 'max-age=31536000'
                     : 'max-age=300'
             );
         }
