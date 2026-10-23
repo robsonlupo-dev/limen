@@ -36,3 +36,9 @@ Thumbs.db
 /PROMPT_CLAUDE_CODE_FASE9.md
 /PROMPT_CLAUDE_CODE_FASE10.md
 /PROMPT_CLAUDE_CODE_FASE11.md
+
+# Editor swap files (Vim/nano) — nunca versionar (podem conter trecho de .env)
+*.swp
+.*.swp
+*.swo
+*~

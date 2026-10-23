@@ -872,3 +872,56 @@ it('does not accept deletion columns via mass assignment', function () {
 
     expect($user->fresh()->deletion_scheduled_at)->toBeNull();
 });
+
+// ─── fix/sec-medium-batch: as reações/votos do MEMBRO somem no encerramento ───
+//
+// `story_reactions`/`story_poll_votes` têm `member_id` com `cascadeOnDelete`, mas
+// o cascade NUNCA dispara (o encerramento ANONIMIZA o `users`, não deleta a linha
+// — item 11 do CLAUDE.md). As reações/votos do membro em stories de OUTRAS
+// performers sobreviviam à conta, presos ao `member_id` anonimizado. O lado da
+// performer já saía pelo DELETE das stories dela (FK `performer_story_id`).
+
+function delStoryUpload(): Illuminate\Http\UploadedFile
+{
+    $img = imagecreatetruecolor(60, 40);
+    imagefilledrectangle($img, 0, 0, 59, 39, imagecolorallocate($img, 70, 130, 90));
+    ob_start();
+    imagejpeg($img, null, 90);
+    $bytes = ob_get_clean();
+    imagedestroy($img);
+
+    $path = tempnam(sys_get_temp_dir(), 'limen_del_story_');
+    file_put_contents($path, $bytes);
+
+    return new Illuminate\Http\UploadedFile($path, 'story.jpg', 'image/jpeg', null, true);
+}
+
+it('purges the member own story reactions and poll votes on deletion (cascade never fires)', function () {
+    Storage::fake(App\Services\PerformerStoryStore::DISK);
+
+    // A performer SOBREVIVE: a reação/voto do membro só sai pela varredura do lado
+    // dele, nunca pelo cascade (que dependeria de deletar a performer).
+    $performer = delPerformer()->performerProfile;
+    $member = delMember();
+    $member->forceFill(['created_at' => now()->subDays(30), 'email_verified_at' => now()->subDays(30)])->save();
+    Follow::create(['user_id' => $member->id, 'performer_profile_id' => $performer->id]); // Nível 1
+
+    $story = app(App\Services\PerformerStoryService::class)->publish($performer, delStoryUpload(), 'public');
+
+    // Reação do membro.
+    app(App\Services\StoryReactionService::class)->react($member->fresh(), $story, 'fire');
+    // Enquete + voto do membro.
+    app(App\Services\StoryInteractionService::class)->attach($performer, $story, 'Praia ou montanha?', ['Praia', 'Montanha']);
+    app(App\Services\StoryInteractionService::class)->vote($member->fresh(), $story->fresh(), 0);
+
+    expect(App\Models\StoryReaction::where('member_id', $member->id)->count())->toBe(1)
+        ->and(App\Models\StoryPollVote::where('member_id', $member->id)->count())->toBe(1);
+
+    $summary = delService()->executeDeletion($member->fresh())->data_summary;
+
+    // O lado do MEMBRO some — mesmo com a performer (e a story) ainda de pé.
+    expect(App\Models\StoryReaction::where('member_id', $member->id)->count())->toBe(0)
+        ->and(App\Models\StoryPollVote::where('member_id', $member->id)->count())->toBe(0)
+        ->and($summary['story_reactions'])->toBe(1)
+        ->and($summary['story_poll_votes'])->toBe(1);
+});
