@@ -166,6 +166,52 @@ it('depois de pagar, a conversa entrega o corpo e o teaser some', function () {
             ->where('messages.data.0.body', 'Oi, adorei seu perfil, você é de São Paulo?'));
 });
 
+// ─── fix/sec-medium-batch: o teaser do paywall respeita o previewHidden ──────
+//
+// A lista (index) já segura o teaser quando a ÚLTIMA mensagem é redigida/efêmera
+// (previewHidden). A tela da conversa (show) lia só a coluna `body` da última
+// linha e NÃO aplicava o mesmo gate — uma última mensagem "desfeita" ou efêmera
+// vazava as primeiras palavras por essa porta. Agora as duas portas concordam.
+
+it('não vaza teaser no paywall quando a última mensagem foi redigida ("desfazer envio")', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
+    $message = app(ChatService::class)->sendMessage($conversation, $performer->user, 'Oi, adorei seu perfil, você é de São Paulo?');
+
+    // A performer desfaz o envio (redação de exibição) — dentro da janela.
+    app(ChatService::class)->redactMessage($conversation, $performer->user, $message);
+
+    $response = $this->actingAs($member)->get(route('chat.show', $conversation->id));
+
+    $response->assertInertia(fn ($page) => $page
+        ->component('Chat/Show')
+        ->where('teaser', null)
+        ->where('access.can_read', false));
+
+    // Nem o corpo nem o teaser escapam no HTML.
+    $response->assertDontSee('adorei seu perfil', false);
+    $response->assertDontSee('São Paulo', false);
+});
+
+it('não vaza teaser no paywall quando a última mensagem é efêmera', function () {
+    $performer = chatPerformer();
+    [$member, $conversation] = chatUnlockedPair($performer, balance: 0);
+
+    // Qualquer um dos dois liga o modo efêmero; a mensagem carimba o flag no envio.
+    app(ChatService::class)->setEphemeral($conversation, $performer->user, true);
+    app(ChatService::class)->sendMessage($conversation, $performer->user, 'Oi, adorei seu perfil, você é de São Paulo?');
+
+    $response = $this->actingAs($member)->get(route('chat.show', $conversation->id));
+
+    $response->assertInertia(fn ($page) => $page
+        ->component('Chat/Show')
+        ->where('teaser', null)
+        ->where('access.can_read', false));
+
+    $response->assertDontSee('adorei seu perfil', false);
+    $response->assertDontSee('São Paulo', false);
+});
+
 // ─── Broadcast (NewMessage → lista em tempo real + toast) ────────────────────
 
 it('na CARÊNCIA (grace) o broadcast manda só o teaser, não o preview completo', function () {

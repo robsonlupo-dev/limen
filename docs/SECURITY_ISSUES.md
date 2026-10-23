@@ -890,3 +890,66 @@ para não devolver ao membro o estado da conta dela.
 > chat. Enquanto não for unificado, **regra nova no envio de mensagem tem de ser
 > replicada em `MemberPhotoService::shareWith()`** — foi assim que o
 > `status === 'active'` passou batido na primeira versão.
+
+## Auditoria de vulnerabilidades — out/2026 (gatilho: PHP2Shell) + lote MÉDIO/BAIXO
+
+Varredura completa do Limen motivada pelo PHP2Shell (CVE-2026-109618/109619, RCE
+não-autenticado no PHP-FPM, corrigido no 8.4.27). Veredito geral: base
+**bem-endurecida**, poucos achados reais. Estado das correções:
+
+- **CRÍTICO — PHP2Shell:** servidor subiu 8.4.24 → **8.4.27** + restart fpm/reverb/
+  workers (verificado). Fechado.
+- **ALTO #2 — vídeo não passava pelo anti-CSAM:** `ProcessVideoContent` escaneia
+  agora o quadro de capa (`CsamScanService::scanBytes`, fail-closed → peça FAILED).
+  PR `fix/sec-video-csam` (+`VideoCsamScanTest`), revisado e aprovado.
+- **ALTO #3 — teto de ganho sacável fora do lock no payout:** a checagem do teto foi
+  para DENTRO da transação, sob `lockForUpdate` da carteira, antes do débito —
+  fecha a corrida de dois payouts on-demand sacando token não-sacável. PR
+  `fix/sec-payout-ceiling`, revisado e aprovado.
+- **DEPS (composer audit, 15 advisories / 4 pacotes):** um `composer update` de
+  laravel/framework, league/commonmark, league/flysystem e symfony/http-foundation.
+  O de alcance prático aqui é o **symfony/http-foundation CVE-2026-108082** (ReDoS
+  via header `Cache-Control`, em TODO request). PR `fix/deps-security-oct26`.
+
+### Lote MÉDIO/BAIXO — PR `fix/sec-medium-batch` (este)
+
+- **MÉDIO #4 — foto PÚBLICA servia com a performer fora do ar.**
+  `PhotoAccessService::canView` devolvia `true` para qualquer foto não-privada, SEM
+  checar se o perfil estava de pé. A foto pública de uma performer banida/suspensa/
+  encerrada seguia saindo por URL direta (`performer.gallery.image`) mesmo com o
+  perfil derrubado. **Fix:** recorte `performerIsReachable` (não-encerrado + conta
+  ativa) — o MESMO do serving de conteúdo/stories — aplicado a terceiros; a dona vê
+  sempre as próprias (rever/restaurar). Serving 404 quando a performer cai.
+  Cobertura: 3 testes em `PerformerPhotoPermissionsTest`.
+- **MÉDIO #5 — teaser do paywall vazava última mensagem redigida/efêmera.**
+  `ChatController::show` lia só a coluna `body` da última linha e NÃO aplicava
+  `previewHidden()` (que o `index()` já aplica em :277): uma ÚLTIMA mensagem
+  "desfeita" (redação de exibição) ou efêmera vazava as primeiras palavras pelo
+  teaser. **Fix:** busca o MODELO e passa pelo mesmo gate → sem teaser quando
+  redigida/efêmera. Cobertura: 2 testes em `MessagePreviewTeaserTest`.
+- **MÉDIO #6 — LGPD: reações/votos do membro sobreviviam ao encerramento.**
+  `story_reactions`/`story_poll_votes` têm `member_id` com `cascadeOnDelete`, mas o
+  cascade NUNCA dispara (o encerramento ANONIMIZA o `users`, não deleta a linha).
+  As reações/votos do membro em stories de OUTRAS performers ficavam presos ao
+  `member_id` anonimizado. **Fix:** `purgeStoryReactions`/`purgeStoryPollVotes` no
+  `DeletionService` (irmãs de `purgeStoryViews`). Cobertura: 1 teste em
+  `AccountDeletionTest`.
+- **BAIXO #8 — `..env.swp` versionado + `.gitignore` sem `*.swp`.** O arquivo tinha
+  só metadados do nano (nenhum segredo), mas swap de editor nunca deve ir ao Git.
+  **Fix:** `git rm --cached ..env.swp` + regras `*.swp`/`.*.swp`/`*.swo`/`*~`.
+
+- **FOLLOW-UP (fora do escopo deste PR, achado da revisão) — reações/votos
+  RECEBIDOS em stories PRESERVADAS por denúncia.** Este PR cobre o lado do MEMBRO
+  (reações/votos que ELE deu). As stories preservadas por denúncia aberta NÃO são
+  `forceDelete` no encerramento da performer, então reações/votos que TERCEIROS
+  deram nelas sobrevivem — PII de terceiro pendurada numa performer encerrada. O
+  `story_views` recebido já tem varredura própria (`purgeStoryViewsToOwnProfile`,
+  roda inclusive nas preservadas); não há equivalente para reações/votos. Não é
+  regressão (o gap é anterior); candidato a um PR próprio espelhando o de views.
+
+- **BAIXO #7 (DEFERIDO) — `is_verified`/`split_pct`/`level` no `$fillable` de
+  `PerformerProfile`.** NÃO explorável hoje (o controller usa allowlist por
+  `array_intersect_key` e o `UpdatePerformerProfileRequest` não tem regra para eles),
+  e remover do `$fillable` quebraria dezenas de `create([...])` em testes/seeders.
+  Adiado para um PR próprio de limpeza, com os call sites migrados para
+  `forceFill`/atribuição direta. Registrado para não se perder.

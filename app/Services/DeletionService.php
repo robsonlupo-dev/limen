@@ -368,6 +368,15 @@ class DeletionService
             $summary['member_gallery_photos'] = $this->purgeGalleryPhotos($user);
             $summary['member_photo_access_received'] = $this->purgePhotoAccessToOwnProfile($user);
             $summary['story_views'] = $this->purgeStoryViews($user);
+            // Os sinais leves que o TITULAR deixou em stories de OUTRAS performers
+            // — reações e votos de enquete. Como `story_views`, não saem pela FK
+            // (`anonymizeUser()` não apaga a linha de `users`, então o
+            // `cascadeOnDelete` por `member_id` NUNCA dispara) nem pela varredura
+            // do perfil dela (aquela é por `performer_story_id`). Sem isto, a
+            // reação/voto do membro excluído sobrevivia à conta, preso ao
+            // `member_id` anonimizado. (Achado da auditoria, item LGPD.)
+            $summary['story_reactions'] = $this->purgeStoryReactions($user);
+            $summary['story_poll_votes'] = $this->purgeStoryPollVotes($user);
             $summary['story_views_received'] = $this->purgeStoryViewsToOwnProfile($user);
             $summary['performer_stories'] = $this->purgePerformerStories($user);
             $summary['performer_stories_preserved'] = $this->preservedStoryCount($user);
@@ -1369,6 +1378,33 @@ class DeletionService
     private function purgeStoryViews(User $user): int
     {
         return DB::table('story_views')->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * As reações que o TITULAR deu em stories (de qualquer performer).
+     *
+     * `member_id` referencia `users` com `cascadeOnDelete`, mas — como em
+     * `story_views` — o cascade NUNCA dispara porque `anonymizeUser()` não apaga a
+     * linha do `users` (item 11 do CLAUDE.md). As reações nas stories DELA saem
+     * pelo outro lado (o DELETE de `performer_stories` cascateia por
+     * `performer_story_id`); esta varredura cobre o lado do MEMBRO — as reações
+     * dele em stories de terceiros, que de outro modo sobreviveriam à conta.
+     */
+    private function purgeStoryReactions(User $user): int
+    {
+        return DB::table('story_reactions')->where('member_id', $user->id)->delete();
+    }
+
+    /**
+     * Os votos de enquete que o TITULAR deu em stories (de qualquer performer).
+     * Mesma razão de `purgeStoryReactions`: o `cascadeOnDelete` por `member_id`
+     * não dispara (usuário anonimizado, não deletado), e o lado da performer sai
+     * pelo DELETE de `performer_stories`/`story_interactions`. Esta varredura
+     * limpa o lado do MEMBRO.
+     */
+    private function purgeStoryPollVotes(User $user): int
+    {
+        return DB::table('story_poll_votes')->where('member_id', $user->id)->delete();
     }
 
     /**

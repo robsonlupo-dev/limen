@@ -427,7 +427,15 @@ class ChatController extends Controller
         // há mensagem legível (ex.: expirado com histórico soft-deletado).
         $teaser = null;
         if ($state['locked']) {
-            $teaser = MessageTeaser::for($conversation->messages()->latest('id')->value('body'));
+            // A última mensagem como MODELO (não só a coluna `body`): o teaser tem
+            // de passar pelo MESMO gate da listagem (`previewHidden`), senão uma
+            // ÚLTIMA mensagem redigida ("desfazer envio") ou efêmera vazaria as
+            // primeiras palavras por esta porta — a mesma porta dos fundos que o
+            // `index()` já fecha em :277. Redigida/efêmera selada → sem teaser.
+            $last = $conversation->messages()->latest('id')->first();
+            $teaser = ($last !== null && ! $this->previewHidden($last))
+                ? MessageTeaser::for($last->body)
+                : null;
         }
 
         return Inertia::render('Chat/Show', [

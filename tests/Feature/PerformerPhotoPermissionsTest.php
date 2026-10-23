@@ -416,3 +416,56 @@ it('recusa o membro nos endpoints de gestão de permissão — role:performer', 
     test()->actingAs($member)->postJson(route('performer.gallery.grant', [$photo->id, $handle]))->assertForbidden();
     test()->actingAs($member)->deleteJson(route('performer.gallery.revoke', [$photo->id, $handle]))->assertForbidden();
 });
+
+// ─── fix/sec-medium-batch: foto PÚBLICA para de servir quando a performer cai ──
+//
+// `canView` devolvia `true` para QUALQUER foto não-privada, sem checar se o perfil
+// está de pé. A foto pública de uma performer banida/suspensa/encerrada seguia
+// servindo por URL direta (`performer.gallery.image`) mesmo com o perfil fora do
+// ar — o mesmo recorte que o serving de conteúdo/stories já aplica. A dona nunca
+// é afetada (vê as próprias para rever/restaurar).
+
+it('serve a foto pública enquanto a performer está de pé (dona, membro e guest)', function () {
+    $performer = chatPerformer();
+    $photo = ppPhoto($performer); // pública
+    $access = app(App\Services\PhotoAccessService::class);
+    $member = chatMember();
+
+    expect($access->canView($performer->user, $photo))->toBeTrue()  // dona
+        ->and($access->canView($member, $photo))->toBeTrue()        // terceiro logado
+        ->and($access->canView(null, $photo))->toBeTrue();          // guest
+
+    test()->actingAs($member)->get(route('performer.gallery.image', $photo->id))->assertOk();
+});
+
+it('para de servir a foto pública a TERCEIROS quando a conta da performer é suspensa', function () {
+    $performer = chatPerformer();
+    $photo = ppPhoto($performer);
+    $member = chatMember();
+
+    $performer->user->forceFill(['status' => 'suspended'])->save();
+    $access = app(App\Services\PhotoAccessService::class);
+
+    // Terceiros (logado e guest) não veem mais; a DONA segue vendo a própria.
+    expect($access->canView($member, $photo->fresh()))->toBeFalse()
+        ->and($access->canView(null, $photo->fresh()))->toBeFalse()
+        ->and($access->canView($performer->user, $photo->fresh()))->toBeTrue();
+
+    // E o serving dos bytes 404 (não vaza por URL direta).
+    test()->actingAs($member)->get(route('performer.gallery.image', $photo->id))->assertNotFound();
+    test()->get(route('performer.gallery.image', $photo->id))->assertNotFound();
+});
+
+it('para de servir a foto pública a TERCEIROS quando o perfil da performer é encerrado', function () {
+    $performer = chatPerformer();
+    $photo = ppPhoto($performer);
+    $member = chatMember();
+
+    $performer->delete(); // soft delete do perfil (encerramento)
+    $access = app(App\Services\PhotoAccessService::class);
+
+    expect($access->canView($member, $photo->fresh()))->toBeFalse()
+        ->and($access->canView(null, $photo->fresh()))->toBeFalse();
+
+    test()->actingAs($member)->get(route('performer.gallery.image', $photo->id))->assertNotFound();
+});

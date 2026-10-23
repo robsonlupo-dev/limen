@@ -36,11 +36,26 @@ class PhotoAccessService
      */
     public function canView(?User $viewer, PerformerPhoto $photo): bool
     {
-        if (! $photo->is_private) {
+        // A dona vê as próprias fotos. Precede o recorte de "de pé" abaixo (que é
+        // só para TERCEIROS), sem mudar o resultado dela em foto pública ou
+        // privada. (Com o perfil soft-deletado a relação `performerProfile`
+        // resolve null e `isOwner` cai para false — mas aí ela também não opera o
+        // painel; o caso vivo é performer ativa/suspensa, em que a relação
+        // resolve e ela segue vendo as próprias.)
+        if ($this->isOwner($viewer, $photo)) {
             return true;
         }
 
-        if ($this->isOwner($viewer, $photo)) {
+        // Terceiro só recebe bytes de foto de perfil DE PÉ. Sem este recorte, a
+        // foto PÚBLICA de uma performer banida/suspensa/encerrada seguia servindo
+        // por URL direta (`performer.gallery.image`) mesmo com o perfil derrubado
+        // — o mesmo recorte do catálogo e do serving de conteúdo
+        // (ContentVisibilityService::performerIsReachable). (Achado da auditoria.)
+        if (! $this->performerIsReachable($photo)) {
+            return false;
+        }
+
+        if (! $photo->is_private) {
             return true;
         }
 
@@ -267,6 +282,26 @@ class PhotoAccessService
         $profileId = $viewer->performerProfile?->id;
 
         return $profileId !== null && (int) $profileId === (int) $photo->performer_profile_id;
+    }
+
+    /**
+     * O perfil dono da foto está DE PÉ para servir bytes a TERCEIROS? (não
+     * encerrado, conta ativa). É o MESMO recorte (e razão) de
+     * ContentVisibilityService/StoryVisibilityService::performerIsReachable — o
+     * serving de conteúdo já para quando a performer cai, e a galeria não podia
+     * ser a exceção. Propositalmente SEM `is_verified` (ao contrário de
+     * `isLiveProfile`, que porteia o fluxo de SOLICITAR acesso): isto é o recorte
+     * de SERVING, idêntico ao das demais mídias; a dona nunca passa por aqui
+     * (tratada antes em `canView`).
+     */
+    private function performerIsReachable(PerformerPhoto $photo): bool
+    {
+        $profile = $photo->performerProfile()->with('user')->first();
+
+        return $profile !== null
+            && ! $profile->trashed()
+            && $profile->user !== null
+            && $profile->user->status === 'active';
     }
 
     /**
