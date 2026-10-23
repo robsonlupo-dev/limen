@@ -16,7 +16,7 @@ uses(RefreshDatabase::class);
  *     Permissions-Policy barrava a câmera com `camera=()`.
  *  2. Panic button invisível (canto inferior): reposicionado ao topo direito.
  *  3. Avatar cortado no card: transbordo dentro da capa com overflow-hidden.
- *  4. Capa sem redimensionar: agora 1200x400 (3:1) server-side no upload.
+ *  4. Capa sem redimensionar: agora 1200x600 (2:1) server-side no upload.
  *  5. Performer levava 403 em /catalogo: virou redirect (302) ao painel.
  *
  * Helpers locais (prefixo r3*) para o arquivo rodar isolado.
@@ -84,13 +84,13 @@ it('preenche o card com a foto retrato 3:4 sem cortar (card v2)', function () {
     }
 });
 
-// ─── #4 Capa redimensionada para 1200x400 (3:1) no upload ────────────────────
+// ─── #4 Capa redimensionada para 1200x600 (2:1) no upload ────────────────────
 
-it('redimensiona a capa para 1200x400 (3:1) no upload, forcando a proporcao', function () {
+it('redimensiona a capa para 1200x600 (2:1) no upload, forcando a proporcao', function () {
     Storage::fake('local');
     $profile = r3Performer();
 
-    // Foto retrato bem fora de 3:1 — o corte tem de forçar a proporção da capa.
+    // Foto retrato bem fora de 2:1 — o corte tem de forçar a proporção da capa.
     test()->actingAs($profile->user)->post(route('performer.profile.cover-photo'), [
         'file' => UploadedFile::fake()->image('retrato.jpg', 900, 1600),
     ])->assertRedirect();
@@ -103,7 +103,7 @@ it('redimensiona a capa para 1200x400 (3:1) no upload, forcando a proporcao', fu
     $bytes = Storage::disk('local')->get($profile->cover_path);
     [$width, $height] = getimagesizefromstring($bytes);
 
-    expect($width)->toBe(1200)->and($height)->toBe(400);
+    expect($width)->toBe(1200)->and($height)->toBe(600);
 });
 
 it('troca a capa antiga sem deixar orfao, mesmo mudando a extensao de origem', function () {
