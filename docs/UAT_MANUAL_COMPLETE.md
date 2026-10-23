@@ -1291,3 +1291,10 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
 - **Auto:** `WatermarkTest` segue ✅ (dimensões/validez; o teto não muda texto curto). Suíte completa no ship.
 - **Manual** ⬜: perfil público → a capa mostra o MESMO enquadramento do editor (desktop e celular); tocar na capa → abre grande com nome+frase; publicar foto nova → a marca aparece em VÁRIOS pontos da imagem, não só um.
 - **Nota (avatar):** a marca na foto de perfil JÁ está ativa desde o #367 para uploads NOVOS — o avatar atual da conta de teste é anterior; troque a foto de perfil para ver a marca (baixando a imagem ela fica visível; no círculo pequeno é sutil de propósito).
+
+## FASE 52 — Segurança (auditoria 22/10): scan CSAM no vídeo · PR fix/sec-video-csam
+- **Achado ALTO da auditoria:** o caminho de vídeo (`ProcessVideoContent`) nunca chamava o scanner anti-CSAM — as 8 trilhas de foto escaneiam, o vídeo (cofre/PPV/encomenda) não. Ponto cego do princípio nº 1.
+- **Correção:** o job escaneia o QUADRO DE CAPA (`scanBytes($poster, 'content_video', uploader, id)`) DEPOIS do thumbnail e ANTES de publicar. Fail-CLOSED: match → `CsamDetectedException` → peça FAILED (motivo genérico, não revela CSAM) + conta sinalizada (`csam_flagged_at`); poster ilegível → também falha (não publica vídeo não-verificável). Encomenda FAILED é estornada pelo cron existente. Escanear o poster (1 frame) evita decodificar cada frame no worker de 2 vCPU.
+- **Auto:** `VideoCsamScanTest` ✅ (poster que bate → FAILED + conta sinalizada + nada no disco; poster que não bate → ready). `VideoContentTest` segue ✅.
+- **Manual** ⬜ (não dá para testar com CSAM real — é por construção): com `CSAM_ENABLED=true` e um hash de teste na lista, publicar um vídeo cujo primeiro frame bate → peça fica "falhou", sem publicar.
+- **Limitação conhecida:** escaneia só o quadro de capa (1 frame), não cada frame — decisão de custo no 2 vCPU; cobre o caso comum e fica auditável em `content_hash_checks` como a foto.

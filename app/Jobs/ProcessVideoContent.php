@@ -7,6 +7,7 @@ use App\Models\CustomOrder;
 use App\Models\PerformerContent;
 use App\Models\PerformerProfile;
 use App\Services\ContentStore;
+use App\Services\CsamScanService;
 use App\Services\VideoProcessingService;
 use App\Services\WatermarkService;
 use App\Support\Audit;
@@ -48,8 +49,11 @@ class ProcessVideoContent implements ShouldQueue
         public string $rawPath,
     ) {}
 
-    public function handle(VideoProcessingService $video, ContentStore $store, ?WatermarkService $watermark = null): void
+    public function handle(VideoProcessingService $video, ContentStore $store, ?WatermarkService $watermark = null, ?CsamScanService $csam = null): void
     {
+        // Nullable + fallback pelo container (como o watermark): a fila injeta todos,
+        // mas testes que chamam handle($video, $store) direto seguem válidos.
+        $csam ??= app(CsamScanService::class);
         // Nullable + fallback pelo container: a fila injeta os três args, mas testes que
         // chamam handle($video, $store) direto (VideoContentTest) continuam válidos.
         $watermark ??= app(WatermarkService::class);
@@ -128,6 +132,22 @@ class ProcessVideoContent implements ShouldQueue
             // Thumbnail a partir do MP4 JÁ higienizado (não relê o cru hostil) e a
             // duração do resultado servível.
             $video->thumbnail($mp4Tmp, $thumbTmp);
+
+            // Anti-CSAM no VÍDEO (achado da auditoria de segurança, 22/10): o caminho de
+            // vídeo não passava pelo scanner — ponto cego do princípio nº 1. Escaneia o
+            // QUADRO DE CAPA (uma imagem decodificada, sem forçar o worker de 2 vCPU a
+            // decodificar cada frame) ANTES de publicar. Fail-CLOSED: match → CsamDetected
+            // sobe → markFailed (genérico, sem revelar o motivo); se nem der para ler o
+            // poster, também falha (não publica vídeo não-verificável). O uploader é a
+            // performer dona da peça (vale para cofre, PPV e encomenda). Para encomenda,
+            // a peça FAILED é estornada pelo cron custom-orders:process (caminho existente).
+            $posterBytes = file_get_contents($thumbTmp);
+            if ($posterBytes === false || $posterBytes === '') {
+                throw new \RuntimeException('Falha ao ler o quadro de capa para a verificação anti-CSAM.');
+            }
+            $uploader = PerformerProfile::find($content->performer_profile_id)?->user;
+            $csam->scanBytes($posterBytes, 'content_video', $uploader, $content->id);
+
             $duration = (int) round($video->probeDurationSeconds($mp4Tmp));
 
             $stored = $store->putSanitizedVideo($mp4Tmp, $thumbTmp, $content->performer_profile_id);
