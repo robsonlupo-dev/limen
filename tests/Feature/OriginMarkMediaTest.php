@@ -49,7 +49,12 @@ function ommPerformer(bool $handle = true): PerformerProfile
 /** Upload determinístico: a MESMA imagem a cada chamada, para on-vs-off diferir só pela marca. */
 function ommUpload(): UploadedFile
 {
-    $bytes = (string) ImageManager::gd()->create(800, 800)->fill('rgb(40,40,40)')->toJpeg(quality: 85);
+    return ommUploadSized(800, 800);
+}
+
+function ommUploadSized(int $w, int $h): UploadedFile
+{
+    $bytes = (string) ImageManager::gd()->create($w, $h)->fill('rgb(40,40,40)')->toJpeg(quality: 85);
     $tmp = tempnam(sys_get_temp_dir(), 'omm').'.jpg';
     file_put_contents($tmp, $bytes);
 
@@ -128,6 +133,27 @@ it('capa é 1200×600 (2:1) e, com a marca ligada, os bytes mudam', function () 
 
     expect(getimagesizefromstring($on)[2])->toBe(IMAGETYPE_JPEG)
         ->and($on)->not->toBe($off);
+});
+
+it('usa o ORIGINAL (não o recorte do cliente) para a cópia inteira da capa', function () {
+    $svc = app(PerformerProfileService::class);
+    config()->set('origin_mark.enabled', false);
+    $p = ommPerformer();
+
+    // O cliente corta a 2:1 antes de subir → `file` é a faixa (800×800 aqui);
+    // o ORIGINAL retrato vai como segundo arg.
+    $cropped = ommUploadSized(800, 800);
+    $original = ommUploadSized(600, 1600);
+    $svc->replaceCover($p, $cropped, $original);
+
+    // Banner = 1200×600 (recorte forçado).
+    $cover = getimagesizefromstring(Storage::disk('local')->get($p->fresh()->cover_path));
+    expect($cover[0])->toBe(1200)->and($cover[1])->toBe(600);
+
+    // Cópia inteira = o ORIGINAL reduzido (600×1600 cabe em 1600 → 600×1600),
+    // NÃO o recorte 2:1 nem os 800×800 da faixa. É a prova do fix da rodada 6.
+    $full = getimagesizefromstring(Storage::disk('local')->get($p->fresh()->cover_full_path));
+    expect($full[0])->toBe(600)->and($full[1])->toBe(1600);
 });
 
 it('serve a capa INTEIRA pela rota de mídia assinada (type cover-full) e 404 em type inválido', function () {

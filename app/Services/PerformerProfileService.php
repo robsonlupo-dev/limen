@@ -136,7 +136,7 @@ class PerformerProfileService
      * PerformerPublicResource já serve) e de descarte do arquivo anterior para
      * não deixar órfão quando a extensão muda.
      */
-    public function replaceCover(PerformerProfile $profile, UploadedFile $file): string
+    public function replaceCover(PerformerProfile $profile, UploadedFile $file, ?UploadedFile $originalFile = null): string
     {
         // Redimensiona server-side para 1200x400 (3:1) ANTES de guardar (UAT R3):
         // a capa é banner de vitrine e, sem o corte, subia em tamanho original e
@@ -172,11 +172,14 @@ class PerformerProfileService
         }
 
         // Cópia INTEIRA (não-recortada, só reduzida ao maior lado) para o modal de
-        // ampliar — a faixa 2:1 mostra pouco de uma foto retrato. Mesmo pipeline
-        // endurecido (guarda de imagem-bomba, strip EXIF, re-encode), SEM crop, +
-        // anti-CSAM + marca de origem, como a capa. Fail-closed junto da capa: se
-        // esta falhar, a troca inteira falha (o finally limpa o temporário).
-        $fullClean = $this->imageProcessor->process($file, self::COVER_FULL_MAX, self::COVER_FULL_MAX, crop: false);
+        // ampliar — a faixa 2:1 mostra pouco de uma foto retrato. Usa o ORIGINAL
+        // quando o cliente o envia (o editor corta a 2:1 ANTES de subir, então
+        // `$file` já é só a faixa — achado do UAT rodada 6); sem o original, cai no
+        // `$file` (melhor do que nada). Mesmo pipeline endurecido (guarda de
+        // imagem-bomba, strip EXIF, re-encode), SEM crop, + anti-CSAM + marca. Fail-
+        // closed junto da capa; o finally limpa o temporário.
+        $fullSource = $originalFile ?? $file;
+        $fullClean = $this->imageProcessor->process($fullSource, self::COVER_FULL_MAX, self::COVER_FULL_MAX, crop: false);
         $fullPath = "performer-media/{$profile->user_id}/cover-full.jpg";
 
         try {

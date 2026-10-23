@@ -237,7 +237,9 @@ class ProfileController extends Controller
         abort_if(! $profile, 404);
 
         try {
-            $this->profileService->replaceCover($profile, $request->file('file'));
+            // `file` é a faixa 2:1 (recortada no cliente); `file_full` (opcional) é o
+            // ORIGINAL não-recortado para a cópia inteira do modal de ampliar.
+            $this->profileService->replaceCover($profile, $request->file('file'), $request->file('file_full'));
         } catch (ImageProcessingException $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
         } catch (CsamDetectedException $e) {
