@@ -982,5 +982,24 @@ Bateria 1–7 contra a instância no ar / `limen_test`. Veredito:
     (Ubuntu)`. Fix: `server_tokens off;` + `nginx -t && systemctl reload nginx`.
   - **Observação (não-vuln):** CSP é só anti-clickjacking (`frame-ancestors 'self'`),
     sem `script-src`/`default-src` — endurecimento futuro, chato com Inertia/Vite inline.
-- **#1–#4 (enumeração de galeria banida, teaser efêmero, upload malicioso, varredura
-  IDOR):** adiados a pedido do PO — rodar depois.
+- **#1 enumeração de galeria de performer caída → ✅ PASSOU.** Harness em
+  limen_test: performer ativa/suspensa/encerrada, cada uma com foto PÚBLICA. A
+  terceiros, `PhotoAccessService::canView` serve só a da ativa; suspensa/encerrada
+  404. A dona vê sempre a própria. Confirma o fix #4 no runtime.
+- **#2 teaser efêmero/redigido → ✅ (coberto por teste automatizado).** O
+  `MessagePreviewTeaserTest` (no #378, verde no CI) já prova que a última mensagem
+  redigida/efêmera não vaza teaser no paywall. Não refeito à mão por redundância.
+- **#3 upload malicioso → ✅ PASSOU.** 4 entradas hostis no higienizador
+  (`ImageProcessingService::process`): SVG-com-`<script>` e HTML disfarçado de `.jpg`
+  RECUSADOS (ImageProcessingException); polyglot JPEG+PHP re-encodado para JPEG
+  limpo com o payload REMOVIDO; marcador EXIF/APP1 some no re-encode. O re-encode
+  mata script/HTML/payload/metadado antes de qualquer byte virar servível.
+- **#4 IDOR → ✅ PASSOU.** O black-box ao vivo esbarrou no **captcha do `/login`**
+  (`LoginRequest` → `CaptchaValid`, captcha LIGADO em prod) — login automatizado por
+  script NÃO passa; é um **controle positivo** anti-credential-stuffing, não um
+  obstáculo de teste. Pivotado para harness em limen_test exercitando os MESMOS
+  gates/policies das rotas: (a) `ConversationPolicy::view` — membro não-participante
+  recebe 404 (o `abort_if(cannot('view'),404)` do `chat.show`); (b) gate
+  `performer-active` (porta das rotas de payout) — membro negado; (c)
+  `PhotoAccessService::grant` de uma performer sobre foto de OUTRA → ModelNotFound
+  (404 uniforme). Acesso cruzado por ID negado nos três.
