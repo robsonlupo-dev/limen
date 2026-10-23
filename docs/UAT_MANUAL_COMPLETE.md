@@ -1298,3 +1298,9 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
 - **Auto:** `VideoCsamScanTest` ✅ (poster que bate → FAILED + conta sinalizada + nada no disco; poster que não bate → ready). `VideoContentTest` segue ✅.
 - **Manual** ⬜ (não dá para testar com CSAM real — é por construção): com `CSAM_ENABLED=true` e um hash de teste na lista, publicar um vídeo cujo primeiro frame bate → peça fica "falhou", sem publicar.
 - **Limitação conhecida:** escaneia só o quadro de capa (1 frame), não cada frame — decisão de custo no 2 vCPU; cobre o caso comum e fica auditável em `content_hash_checks` como a foto.
+## FASE 53 — Segurança (auditoria 22/10): teto de ganhos do payout sob lock · PR fix/sec-payout-ceiling
+- **Achado ALTO da auditoria:** a checagem "só saca o que ganhou" (`createAndSendPayout`) rodava FORA de lock; o `debit` interno só confere o SALDO TOTAL. Saques on-demand concorrentes (período NULL → fora do índice único) liam `earningsOwed` antes de qualquer reserva commitar e todos passavam → conversão de tokens não-ganhos (grant/compra/bônus) em PIX real a R$0,60.
+- **Correção:** dentro da transação, segurar `TokenWallet::lockForUpdate()` da performer ANTES de medir `earningsOwed`, e re-checar o teto sob esse lock. Concorrentes serializam e cada um já vê a reserva (`payout_reserve`) do anterior. A checagem pré-lock (best-effort, UX) continua.
+- **Auto:** `MonthlyPayoutTest` (B1 anti-leak: paga só ganhos, nunca grant/bonus/refund) e `PayoutTest` seguem ✅ — a mudança é no-op no caminho válido. Suíte completa no ship.
+- **Limitação de teste:** a corrida em si não é reproduzível na suíte (conexão única no Pest); o fix é estrutural (serialização por lock), validado pela revisão de segurança + regressão da suíte.
+- **Manual** ⬜ (opcional, menu de pentest item 5): numa conta de teste com saldo de grant > ganhos, disparar N saques on-demand concorrentes e confirmar que só o valor GANHO é pago.

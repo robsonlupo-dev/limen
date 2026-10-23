@@ -240,6 +240,19 @@ class PayoutService
         $amountBrl = sprintf('%d.%02d', intdiv($centavos, 100), $centavos % 100);
 
         $payout = DB::transaction(function () use ($performer, $tokensConsumed, $tokensLabel, $pixKey, $pixKeyType, $amountBrl, $periodYear, $periodMonth) {
+            // Teto de ganhos SOB LOCK (achado da auditoria de segurança, 22/10): a
+            // checagem acima é best-effort e roda FORA de lock — saques on-demand
+            // concorrentes (período NULL, fora do índice único) liam `earningsOwed`
+            // antes de qualquer reserva commitar e TODOS passavam, sacando tokens
+            // não-ganhos (grant/compra/bônus) a R$0,60. Segurando o lock da carteira
+            // ANTES de medir, os concorrentes serializam e cada um já vê a reserva
+            // (payout_reserve) do anterior. `tokensConsumed` é o que de fato sai.
+            TokenWallet::where('user_id', $performer->id)->lockForUpdate()->first();
+
+            if (TokenMath::cmp($tokensConsumed, $this->earningsOwed($performer)) > 0) {
+                throw new InsufficientBalanceException($tokensConsumed, $this->earningsOwed($performer));
+            }
+
             $payout = Payout::create([
                 'performer_id' => $performer->id,
                 'tokens' => $tokensConsumed,
