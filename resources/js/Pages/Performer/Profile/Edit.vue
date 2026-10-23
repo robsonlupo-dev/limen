@@ -124,7 +124,7 @@ const avatarPreview = ref(null)
 // File aguardando enquadramento no cropper (null = cropper fechado).
 const pendingAvatarFile = ref(null)
 
-const coverForm = useForm({ file: null })
+const coverForm = useForm({ file: null, file_full: null })
 const coverPreview = ref(null)
 const pendingCoverFile = ref(null)
 
@@ -321,9 +321,14 @@ function pickCover(event) {
 }
 
 function onCoverCropped(file) {
+    // `file` é a faixa 2:1 recortada (vira o banner); o ORIGINAL não-recortado
+    // (pendingCoverFile) vai junto como `file_full` para a cópia INTEIRA do modal
+    // de ampliar — sem isto o servidor só recebe a faixa (achado do UAT rodada 6).
+    const original = pendingCoverFile.value
     pendingCoverFile.value = null
     coverPreview.value = URL.createObjectURL(file)
     coverForm.file = file
+    coverForm.file_full = original
     coverForm.post(route('performer.profile.cover-photo'), {
         forceFormData: true,
         preserveScroll: true,

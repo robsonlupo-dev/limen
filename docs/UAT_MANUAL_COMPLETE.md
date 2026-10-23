@@ -1320,3 +1320,15 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   3. Perfil público → aba Fotos → **tocar numa foto** → abre em **tela cheia** (inteira, sem corte); setas/esc navegam.
   4. Publicar foto nova → a **marca aparece em mais pontos** (≥3 colunas × ≥4 fileiras).
 - **Nota:** a cópia inteira e a densidade nova valem para uploads NOVOS (retroativo não re-processa).
+
+## FASE 55 — Pós-UAT rodada 6: capa inteira de verdade + marca d'água legível + fix do 429 ao publicar · PRs fix/publish-429-and-cover + fix/uat-b-round6
+- **Confirmados no UAT de 23/10 (rodada 5, conta Ana UAT testando1):** publicar 3-4 peças seguidas sem 429 ✅ (fix dos limiters nomeados); fã-clube sem 429 ✅; galeria pública **amplia** no lightbox + foto **sem corte** (object-contain) ✅; capa editor/público em **2:1** ✅; fã-clube blur + lightbox ✅.
+- **Achados da rodada 6 que este PR corrige:**
+  1. **Tocar na capa mostrava o RECORTE, não a foto inteira.** Causa: o editor corta a 2:1 NO CLIENTE antes de enviar, então o servidor só recebia a faixa — a "cópia inteira" acabava sendo o próprio recorte. Fix: o cliente envia TAMBÉM o original não-recortado (`file_full`), e o `replaceCover` usa o original para a cópia inteira (`UploadMediaRequest` ganha `file_full` nullable; sem ele cai no `file`, como antes).
+  2. **Marca d'água fraquinha ("não dava para identificar quem é").** A marca serve de identificação anti-vazamento — se não dá para ler, não cumpre a função. Opacidade subida de `0.11/0.16` para **`0.22/0.28`** (texto/sombra) — legível no claro e no escuro, sem destruir a foto. Vale para origem (galeria/capa/avatar) e para a marca forense da encomenda (mesmo config).
+- **Auto:** `OriginMarkMediaTest` — novo caso prova que a cópia inteira usa o ORIGINAL (retrato 600×1600 sai 600×1600, não o recorte 2:1). Suíte completa no ship.
+- **Manual** ⬜:
+  1. Editar perfil → trocar a capa (foto retrato) → tocar na capa no perfil público → o modal mostra a **foto inteira** (retrato completo, não a faixa).
+  2. Publicar foto nova → a marca aparece **legível** (dá para ler o @handle), em vários pontos.
+  3. Trocar foto de perfil → a marca no avatar está **mais visível** (ainda discreta no círculo pequeno, mas legível ao baixar).
+- **Nota:** vale para uploads/capas NOVAS (retroativo não re-processa) — troque a capa e publique fotos novas para ver.
