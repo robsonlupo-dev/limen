@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\WaitlistWebRequest;
+use App\Http\Requests\Web\WaitlistWhatsappRequest;
 use App\Mail\WaitlistConfirmationMail;
 use App\Models\WaitlistEntry;
 use App\Services\Waitlist\WaitlistService;
+use App\Support\BrazilPhone;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class WaitlistController extends Controller
 {
@@ -48,7 +53,125 @@ class WaitlistController extends Controller
         // The invite has been consumed; don't attribute future signups to it.
         $request->session()->forget('waitlist_referrer_id');
 
-        return back()->with('success', $success);
+        // Direciona para a tela de CONTINUAÇÃO (confirme o e-mail + WhatsApp +
+        // convide), em vez do aviso inline. A identificação é por SESSÃO — nenhum
+        // token/PII vai na URL. (feat/waitlist-continue-screen)
+        $request->session()->put('waitlist_entry_id', $entry->id);
+
+        return redirect()->route('waitlist.continue')->with('success', $success);
+    }
+
+    /**
+     * Tela de continuação do pré-cadastro (feat/waitlist-continue-screen): logo
+     * depois de entrar na lista, reforça a confirmação do e-mail (anti-spam / não
+     * perder o go-live), oferece o opt-in de WhatsApp e o convite de amigos. Sem
+     * login — a pessoa é identificada pelo `waitlist_entry_id` da sessão. Sem
+     * sessão (acesso direto), volta para a home.
+     */
+    public function continueScreen(Request $request): Response|RedirectResponse
+    {
+        $entry = $this->sessionEntry($request);
+
+        if ($entry === null) {
+            return redirect()->route('landing');
+        }
+
+        return Inertia::render('Waitlist/Continue', [
+            'waitlist' => $this->entryProps($entry),
+        ]);
+    }
+
+    /** Opt-in de WhatsApp da tela de continuação (JSON; identificado por sessão). */
+    public function storeWhatsapp(WaitlistWhatsappRequest $request): JsonResponse
+    {
+        $entry = $this->sessionEntry($request);
+
+        if ($entry === null) {
+            return response()->json(['message' => 'Sessão expirada. Volte à página inicial.'], 419);
+        }
+
+        $e164 = $this->service->optInWhatsapp($entry, (string) $request->input('whatsapp'));
+
+        if ($e164 === null) {
+            return response()->json([
+                'message' => 'Informe um número de celular válido com DDD.',
+                'errors' => ['whatsapp' => ['Informe um número de celular válido com DDD.']],
+            ], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'whatsapp_masked' => BrazilPhone::mask($e164),
+            'message' => 'Pronto! Vamos te avisar por WhatsApp quando as portas abrirem.',
+        ]);
+    }
+
+    /** Revoga o opt-in de WhatsApp (JSON). */
+    public function destroyWhatsapp(Request $request): JsonResponse
+    {
+        $entry = $this->sessionEntry($request);
+
+        $entry && $this->service->optOutWhatsapp($entry);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** Reenvia o e-mail de confirmação para o registro da sessão (JSON). */
+    public function resendForEntry(Request $request): JsonResponse
+    {
+        $entry = $this->sessionEntry($request);
+
+        if ($entry === null) {
+            return response()->json(['message' => 'Sessão expirada. Volte à página inicial.'], 419);
+        }
+
+        if (! $entry->isConfirmed()) {
+            Mail::to($entry->email)->send(new WaitlistConfirmationMail($entry));
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Reenviamos o e-mail de confirmação.']);
+    }
+
+    /** Registro da lista de espera da sessão atual, ou null. */
+    private function sessionEntry(Request $request): ?WaitlistEntry
+    {
+        $id = $request->session()->get('waitlist_entry_id');
+
+        return $id ? WaitlistEntry::find($id) : null;
+    }
+
+    /**
+     * Props da tela de continuação. Nada sensível: papel, primeiro nome, e-mail
+     * mascarado, código/link de convite (o invite_code já é público) e o estado do
+     * opt-in. NUNCA valores de token (pré-lançamento não tem conta nem token).
+     *
+     * @return array<string, mixed>
+     */
+    private function entryProps(WaitlistEntry $entry): array
+    {
+        $inviteCode = $entry->invite_code;
+        $base = rtrim((string) config('app.url'), '/');
+
+        return [
+            'role' => $entry->isPerformer() ? 'performer' : 'member',
+            'name' => (string) \Illuminate\Support\Str::of($entry->name)->trim()->explode(' ')->first(),
+            'email_masked' => $this->maskEmail($entry->email),
+            'confirmed' => $entry->isConfirmed(),
+            'founder_title' => $entry->founderTitle(),
+            'invite_code' => $inviteCode,
+            'invite_link' => $inviteCode ? $base.'/convite/'.$inviteCode : null,
+            'referral_count' => (int) $entry->referral_count,
+            'whatsapp_opted_in' => filled($entry->whatsapp_consent_at),
+            'whatsapp_masked' => BrazilPhone::mask($entry->whatsapp),
+        ];
+    }
+
+    /** ma•••@gmail.com — nunca o e-mail inteiro na tela. */
+    private function maskEmail(string $email): string
+    {
+        $parts = explode('@', $email, 2);
+
+        return mb_substr($parts[0] ?? '', 0, 2).'•••@'.($parts[1] ?? '');
     }
 
     /**

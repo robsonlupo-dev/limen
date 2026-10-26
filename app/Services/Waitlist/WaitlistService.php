@@ -4,14 +4,59 @@ namespace App\Services\Waitlist;
 
 use App\Enums\MemberTier;
 use App\Enums\PerformerTier;
+use App\Jobs\PushWaitlistContactToChatwoot;
 use App\Models\WaitlistEntry;
 use App\Models\WaitlistReferral;
+use App\Support\BrazilPhone;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class WaitlistService
 {
     /** Max referrals that may be attributed to a single signup IP per 24h. */
     private const MAX_REFERRALS_PER_IP_24H = 3;
+
+    /**
+     * Opt-in de WhatsApp (feat/waitlist-continue-screen): grava o número E.164 + o
+     * carimbo do consentimento no registro da lista de espera e empurra o contato
+     * ao Chatwoot. Devolve o E.164 gravado, ou null se o número for inválido (o
+     * Form Request já valida; esta é a última linha de defesa). Escrita por
+     * forceFill — as colunas ficam fora do $fillable.
+     */
+    public function optInWhatsapp(WaitlistEntry $entry, string $rawPhone): ?string
+    {
+        $e164 = BrazilPhone::toE164($rawPhone);
+
+        if ($e164 === null) {
+            return null;
+        }
+
+        $changedNumber = $entry->whatsapp !== $e164;
+
+        $entry->forceFill([
+            'whatsapp' => $e164,
+            'whatsapp_consent_at' => now(),
+            'whatsapp_synced_at' => $changedNumber ? null : $entry->whatsapp_synced_at,
+        ])->save();
+
+        Log::info('waitlist.whatsapp_optin', ['entry_id' => $entry->id]);
+
+        PushWaitlistContactToChatwoot::dispatch($entry->id)->afterCommit();
+
+        return $e164;
+    }
+
+    /** Revoga o opt-in de WhatsApp ("Agora não" / sair depois de ter aceitado). */
+    public function optOutWhatsapp(WaitlistEntry $entry): void
+    {
+        $entry->forceFill([
+            'whatsapp' => null,
+            'whatsapp_consent_at' => null,
+            'whatsapp_synced_at' => null,
+        ])->save();
+
+        Log::info('waitlist.whatsapp_optout', ['entry_id' => $entry->id]);
+    }
 
     /**
      * Idempotent per (email, role) join. On a genuinely new entry we mint the

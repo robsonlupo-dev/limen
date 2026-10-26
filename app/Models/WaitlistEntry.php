@@ -21,6 +21,9 @@ class WaitlistEntry extends Model
     protected $casts = [
         'age_confirmed' => 'boolean',
         'confirmed_at' => 'datetime',
+        // Opt-in de WhatsApp (feat/waitlist-continue-screen). Fora do $fillable.
+        'whatsapp_consent_at' => 'datetime',
+        'whatsapp_synced_at' => 'datetime',
         'referral_count' => 'integer',
         'position_in_role' => 'integer',
         'world_preferences' => 'array',
