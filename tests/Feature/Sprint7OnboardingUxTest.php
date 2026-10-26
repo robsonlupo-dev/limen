@@ -54,6 +54,7 @@ it('renders the performer wizard variant of the register page', function () {
 });
 
 it('creates the performer account from the wizard payload and lands on onboarding', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino onboarding)
     $this->post('/cadastro', [
         'tipo' => 'performer',
         'name' => 'Luna Prado',
