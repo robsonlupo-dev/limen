@@ -1387,3 +1387,19 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   5. ⬜ **Confirmar o e-mail** pelo link → vai ao catálogo; o rastreio de indicação (`referrals`) do indicado passa a contar como "confirmado".
   6. ⬜ **Trava do bônus (exemplo vivo):** criar indicado via `?ref=`, NÃO confirmar o e-mail, simular a conversão e rodar `php artisan referral:process-holds` → bônus **não** credita (adiado); confirmar o e-mail e rodar de novo → credita.
 - **Exemplo vivo:** cadastrar uma conta de teste de membro e uma de criadora em `limen.dev.br` e deixar as duas na tela de pós-cadastro para o PO conferir o visual dos dois papéis.
+
+## FASE 58 — Tela de continuação da lista de espera (membro × criadora) + opt-in de WhatsApp · PR feat/waitlist-continue-screen
+- **Contexto:** no pré-lançamento (`LANDING_PRELAUNCH=true`) o funil público é a LISTA DE ESPERA (só e-mail, duplo opt-in) — não o `/cadastro` (conta real, que só abre no go-live). A tela rica de pós-cadastro (FASE 57) está amarrada ao `/cadastro`, então no pré-lançamento ninguém a via. Esta fase cria a versão da tela para a LISTA DE ESPERA.
+- **O que entrou:**
+  1. **Tela de continuação** (`Waitlist/Continue.vue`, role-aware): logo após entrar na lista (home → `waitlist.store`), a pessoa é redirecionada para `/lista/continuar`. Reforça **confirmar o e-mail** (anti-spam / não perder o go-live), oferece **opt-in de WhatsApp** e **convidar amigos** (link `/convite/{invite_code}` que a lista de espera já tem, com 3 tons + WhatsApp/Telegram/X/Instagram/e-mail/SMS/native share). **SEM valores de token** (pré-lançamento não tem conta nem token) — o incentivo é vaga de Fundador + aviso em primeira mão + subir na fila indicando.
+  2. **Identificação por SESSÃO** (sem login, sem token/PII na URL): o `store` guarda `waitlist_entry_id` na sessão; a tela e os endpoints de opt-in/reenvio leem de lá. Sem sessão → volta para a home (GET) ou 419 (POST).
+  3. **Opt-in de WhatsApp na lista de espera**: colunas `waitlist_entries.whatsapp` + `whatsapp_consent_at` + `whatsapp_synced_at` (migration). Caixa de consentimento desmarcada, número opcional; push ao Chatwoot (`PushWaitlistContactToChatwoot`, rótulos optin-golive + membro/criadora + lista-de-espera) desligado por padrão.
+  4. A home **redireciona** para a tela (antes mostrava o aviso inline); os botões "Entrar/Criar conta" seguem escondidos no pré-lançamento (mesma flag da landing).
+- **Auto (no ship, suíte completa):** `WaitlistContinueTest` — redirect + sessão; props (papel, e-mail mascarado, link de convite); opt-in grava E.164 + consentimento; recusa sem consentimento / número inválido; sem sessão 419; destroy limpa; reenvio de e-mail.
+- **Manual** ⬜:
+  1. ⬜ Na home, entrar na lista como **membro** → cai em `/lista/continuar` com "Você está na lista" + papel Membro Fundador + confirme o e-mail + WhatsApp + convidar.
+  2. ⬜ Entrar como **criadora** → mesma tela com papel Criadora Fundadora e textos de criadora.
+  3. ⬜ **WhatsApp:** marcar + número válido → "WhatsApp guardado"; conferir `waitlist_entries.whatsapp` no banco.
+  4. ⬜ **Convite:** botão WhatsApp abre o `wa.me` com a mensagem + link `/convite/<code>`; copiar funciona; abrir o link numa aba anônima e entrar na lista → a indicação conta (`referral_count` sobe).
+  5. ⬜ **Reenviar e-mail** funciona; confirmar o e-mail pelo link → tela passa a mostrar "E-mail confirmado".
+- **Exemplo vivo:** deixar uma inscrição de teste de membro e uma de criadora e abrir `/lista/continuar` com a sessão de cada uma para o PO conferir os dois papéis.

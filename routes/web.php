@@ -142,6 +142,21 @@ Route::get('/f/{invite_code}', [FounderPanelController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('waitlist.founder');
 
+// Tela de continuação do pré-cadastro (feat/waitlist-continue-screen): mostrada
+// logo após entrar na lista. Identificação por SESSÃO (sem login, sem token na URL).
+Route::get('/lista/continuar', [WaitlistController::class, 'continueScreen'])
+    ->middleware('throttle:60,1')
+    ->name('waitlist.continue');
+Route::post('/lista/whatsapp', [WaitlistController::class, 'storeWhatsapp'])
+    ->middleware('throttle:10,1')
+    ->name('waitlist.whatsapp.store');
+Route::delete('/lista/whatsapp', [WaitlistController::class, 'destroyWhatsapp'])
+    ->middleware('throttle:10,1')
+    ->name('waitlist.whatsapp.destroy');
+Route::post('/lista/reenviar', [WaitlistController::class, 'resendForEntry'])
+    ->middleware('throttle:5,10')
+    ->name('waitlist.continue.resend');
+
 // Double opt-in email confirmation (idempotent; from the confirmation email).
 Route::get('/waitlist/confirmar', [WaitlistController::class, 'confirm'])
     ->middleware('throttle:20,1')

@@ -8,6 +8,11 @@ return [
         'links',
         'waitlist.store',
         'waitlist.resend.show',
+        // Tela de continuação do pré-cadastro (feat/waitlist-continue-screen)
+        'waitlist.continue',
+        'waitlist.whatsapp.store',
+        'waitlist.whatsapp.destroy',
+        'waitlist.continue.resend',
 
         // Textos jurídicos (públicos)
         'legal.content-policy',
