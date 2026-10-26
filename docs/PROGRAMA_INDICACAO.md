@@ -325,3 +325,29 @@ deploy de lógica.
       clawback, teto de acúmulo, exclusão do payout allowlist, privacidade do
       extrato/e-mail.
 - [ ] Registrar em `docs/ARQUITETURA.md` e `CLAUDE.md`.
+
+## Ponte pré-lançamento → go-live (feat/referral-waitlist-bridge)
+
+No pré-lançamento o funil é a **lista de espera** (`waitlist_entries`), com sistema de
+indicação próprio (`referred_by` por e-mail, link `/convite/{invite_code}`). O cadastro
+de conta real (`users` + `referrals`, bônus em tokens) só abre no **go-live**. A
+indicação feita no pré-cadastro **não pode se perder** nessa virada.
+
+**Chave de ligação: o e-mail.** Quando a pessoa cria a conta real:
+- Se veio com `?ref=` → atribuição normal por código (inalterada).
+- Senão, `ReferralService::attributeFromWaitlist()` procura a inscrição da lista de
+  espera pelo MESMO e-mail; se ela foi indicada por alguém que **já tem conta real**,
+  grava o vínculo (`referred_via = 'waitlist'`) exatamente como se tivesse entrado por
+  link — abrindo a indicação `pending`.
+- Se o indicador ainda **não** tem conta real, nada é ligado naquele instante. O comando
+  **`referral:reconcile-waitlist`** (`ReferralService::reconcileWaitlistReferrals()`)
+  varre os pares e fecha o vínculo assim que os dois lados têm conta — cobre o indicador
+  que se cadastra DEPOIS do indicado. Idempotente.
+
+**Quando rodar o comando:** a partir do go-live, agendado de hora em hora nos primeiros
+dias enquanto as pessoas migram da lista para a conta real. (Antes do go-live não há
+contas reais, então ele não faz nada.)
+
+**Travas mantidas:** o vínculo é gravado UMA vez e é imutável; auto-indicação por MESMO
+CPF é barrada; o crédito do bônus continua só no go-live, com hold anti-estorno e trava
+de e-mail confirmado. A ponte só **preserva o vínculo** — nunca credita por conta própria.

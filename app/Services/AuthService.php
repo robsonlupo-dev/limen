@@ -74,6 +74,12 @@ class AuthService
             if ($referrals->enabled()) {
                 $referrals->ensureCode($user);
                 $referrals->attributeAtSignup($user, $data['referral_code'] ?? null, $data['referred_via'] ?? 'code');
+
+                // Ponte pré-lançamento → go-live: sem `?ref=`, herda a indicação da
+                // LISTA DE ESPERA pelo mesmo e-mail (feat/referral-waitlist-bridge).
+                if (blank($user->referred_by_user_id)) {
+                    $referrals->attributeFromWaitlist($user);
+                }
             }
 
             event(new Registered($user));
@@ -135,6 +141,12 @@ class AuthService
             if ($referrals->enabled()) {
                 $referrals->ensureCode($user);
                 $referrals->attributeAtSignup($user, $data['referral_code'] ?? null, $data['referred_via'] ?? 'code');
+
+                // Ponte pré-lançamento → go-live: sem `?ref=`, herda a indicação da
+                // LISTA DE ESPERA pelo mesmo e-mail (feat/referral-waitlist-bridge).
+                if (blank($user->referred_by_user_id)) {
+                    $referrals->attributeFromWaitlist($user);
+                }
             }
 
             event(new Registered($user));

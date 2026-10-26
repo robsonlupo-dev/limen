@@ -111,43 +111,160 @@ class ReferralService
                 return; // código inexistente ou o próprio código (impossível no cadastro, mas defensivo)
             }
 
-            // Auto-indicação: bloqueia só por MESMO CPF (mesma pessoa, definitivo).
-            // Mesmo IP NÃO bloqueia — indicar gente da mesma casa é legítimo (o IP é
-            // sinal fraco). A 2ª camada é a exigência de terceiro pagador na conversão
-            // da performer, que aí sim usa o sinal de IP.
-            if ($this->sharesCpf($referrer, $newUser)) {
-                Log::info('referral.attribution_blocked_linked', [
-                    'referrer_id' => $referrer->id,
-                    'referred_id' => $newUser->id,
-                ]);
-
-                return;
-            }
-
-            $role = $newUser->role === 'performer' ? 'performer' : 'member';
-
-            $newUser->forceFill([
-                'referred_by_user_id' => $referrer->id,
-                'referred_via' => in_array($via, ['link', 'code'], true) ? $via : 'code',
-            ])->save();
-
-            // UNIQUE(referred_user_id) — firstOrCreate é a trava de idempotência.
-            $referral = Referral::firstOrCreate(
-                ['referred_user_id' => $newUser->id],
-                [
-                    'referrer_user_id' => $referrer->id,
-                    'referred_role_at_signup' => $role,
-                    'status' => 'pending',
-                ],
-            );
-
-            if ($referral->wasRecentlyCreated) {
-                SendReferralSignupEmail::dispatch($referrer->id, $this->displayLabelFor($newUser))->afterCommit();
-            }
+            $this->linkReferrer($newUser, $referrer, $via);
         } catch (\Throwable $e) {
             // Cadastro é sagrado: engole e loga, nunca propaga.
             Log::warning('referral.attribution_failed', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Ponte pré-lançamento → go-live (feat/referral-waitlist-bridge). Quando NÃO
+     * veio um `?ref=` no cadastro real, herda a indicação da LISTA DE ESPERA: acha
+     * o registro da lista pelo MESMO e-mail; se ele foi indicado por alguém que JÁ
+     * tem conta real, grava o vínculo como se tivesse entrado por link. Assim a
+     * indicação feita no pré-cadastro nunca se perde na virada para o cadastro.
+     *
+     * Se o indicador ainda NÃO tem conta real, não há o que ligar agora — o comando
+     * `referral:reconcile-waitlist` fecha o par quando os dois tiverem conta. Nunca
+     * lança (cadastro é sagrado).
+     */
+    public function attributeFromWaitlist(User $newUser): void
+    {
+        try {
+            if (! $this->enabled()) {
+                return;
+            }
+
+            if (filled($newUser->referred_by_user_id)
+                || Referral::where('referred_user_id', $newUser->id)->exists()) {
+                return;
+            }
+
+            $referrer = $this->waitlistReferrerFor($newUser);
+
+            if ($referrer === null || $referrer->id === $newUser->id) {
+                return;
+            }
+
+            $this->linkReferrer($newUser, $referrer, 'waitlist');
+        } catch (\Throwable $e) {
+            Log::warning('referral.waitlist_attribution_failed', [
+                'referred_id' => $newUser->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * O indicador (User com conta real) que indicou este usuário na LISTA DE ESPERA,
+     * casado pelo e-mail. Prefere a inscrição do MESMO papel do novo usuário; se não
+     * houver, qualquer inscrição dele que tenha indicador. Devolve null se não há
+     * inscrição, não há indicador, ou o indicador ainda não tem conta real.
+     */
+    private function waitlistReferrerFor(User $newUser): ?User
+    {
+        $role = $newUser->role === 'performer' ? 'performer' : 'member';
+
+        $entry = \App\Models\WaitlistEntry::where('email', $newUser->email)
+            ->whereNotNull('referred_by')
+            ->orderByRaw('CASE WHEN role = ? THEN 0 ELSE 1 END', [$role])
+            ->first();
+
+        $referrerEntry = $entry?->referrer;
+        if ($referrerEntry === null) {
+            return null;
+        }
+
+        return User::where('email', $referrerEntry->email)->first();
+    }
+
+    /**
+     * Grava o vínculo indicado→indicador (uma vez, imutável) e abre a indicação
+     * `pending`. Dona única da escrita — chamada pela atribuição por código/link e
+     * pela ponte da lista de espera. Barra auto-indicação por MESMO CPF (mesma
+     * pessoa); o mesmo IP NÃO barra (sinal fraco — ver a trava de terceiro pagador).
+     */
+    private function linkReferrer(User $newUser, User $referrer, string $via): void
+    {
+        if ($this->sharesCpf($referrer, $newUser)) {
+            Log::info('referral.attribution_blocked_linked', [
+                'referrer_id' => $referrer->id,
+                'referred_id' => $newUser->id,
+            ]);
+
+            return;
+        }
+
+        $role = $newUser->role === 'performer' ? 'performer' : 'member';
+
+        $newUser->forceFill([
+            'referred_by_user_id' => $referrer->id,
+            'referred_via' => in_array($via, ['link', 'code', 'waitlist'], true) ? $via : 'code',
+        ])->save();
+
+        // UNIQUE(referred_user_id) — firstOrCreate é a trava de idempotência.
+        $referral = Referral::firstOrCreate(
+            ['referred_user_id' => $newUser->id],
+            [
+                'referrer_user_id' => $referrer->id,
+                'referred_role_at_signup' => $role,
+                'status' => 'pending',
+            ],
+        );
+
+        if ($referral->wasRecentlyCreated) {
+            SendReferralSignupEmail::dispatch($referrer->id, $this->displayLabelFor($newUser))->afterCommit();
+        }
+    }
+
+    /**
+     * Reconciliação da ponte da lista de espera (comando `referral:reconcile-waitlist`,
+     * roda no/depois do go-live): varre as inscrições indicadas cujos DOIS lados já
+     * têm conta real e ainda não estão ligadas no sistema real, e grava o vínculo.
+     * Cobre o caso em que o indicador criou a conta DEPOIS do indicado. Idempotente.
+     *
+     * @return int quantos vínculos novos foram criados
+     */
+    public function reconcileWaitlistReferrals(): int
+    {
+        if (! $this->enabled()) {
+            return 0;
+        }
+
+        $linked = 0;
+
+        \App\Models\WaitlistEntry::whereNotNull('referred_by')
+            ->with('referrer')
+            ->chunkById(500, function ($entries) use (&$linked) {
+                foreach ($entries as $entry) {
+                    $referrerEntry = $entry->referrer;
+                    if ($referrerEntry === null) {
+                        continue;
+                    }
+
+                    $referred = User::where('email', $entry->email)->first();
+                    $referrer = User::where('email', $referrerEntry->email)->first();
+
+                    if (! $referred || ! $referrer || $referred->id === $referrer->id) {
+                        continue;
+                    }
+
+                    if (filled($referred->referred_by_user_id)
+                        || Referral::where('referred_user_id', $referred->id)->exists()) {
+                        continue;
+                    }
+
+                    $before = $referred->referred_by_user_id;
+                    $this->linkReferrer($referred, $referrer, 'waitlist');
+
+                    if (blank($before) && filled($referred->fresh()->referred_by_user_id)) {
+                        $linked++;
+                    }
+                }
+            });
+
+        return $linked;
     }
 
     // ── Gatilhos de conversão ─────────────────────────────────────────────────
