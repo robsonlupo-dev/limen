@@ -1367,3 +1367,23 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
 - **Correção:** teto do passo do ladrilho volta a afrouxar para **w/2 × h/2** (~≥2 colunas × ≥2 fileiras ≈ 4 marcas com handle longo). PISO deliberado: cobertura nos dois sentidos para o @handle não ser recortável fora da foto (abaixo de 2×2 volta o risco de recorte do achado da FASE 51). Texto curto (marca forense) inalterado — o passo natural já é menor que o teto.
 - **Auto:** `WatermarkTest` segue ✅ (dimensões/validez; o teto não muda texto curto). Suíte completa no ship.
 - **Manual** ⬜: publicar foto nova → ~4 marcas legíveis, não ~12; o @handle continua aparecendo em ≥2 pontos (não dá para recortar fora).
+
+## FASE 57 — Tela de pós-cadastro (membro × criadora) + trava de e-mail no bônus + opt-in de WhatsApp · PR feat/signup-email-gate-and-whatsapp-optin
+- **O que entrou:**
+  1. **Tela de pós-cadastro rica e role-aware** (substitui o `Auth/VerifyEmail.vue` simples). Logo após o cadastro, membro e criadora caem nela: "pré-cadastro recebido", confirme o e-mail (com o motivo), o que libera, bônus de indicação com valores por papel, contadores das próprias indicações (feitas / confirmaram / tokens a receber), bloco de compartilhar (link + 3 tons + WhatsApp + Telegram/X/Instagram/E-mail/SMS/Mais opções/native share) e o opt-in de WhatsApp. Conteúdo de membro e de criadora separados (nada de misturar os dois).
+  2. **Trava "bônus só com e-mail confirmado"** no `ReferralService::settle()`: o bônus de indicação só é creditado quando o INDICADO confirmou o e-mail; sem confirmação o sweep **ADIA** (mantém `qualified`, nunca estorna), e credita assim que a confirmação chega. A tela e o e-mail deixam esse requisito explícito.
+  3. **Opt-in de WhatsApp** (colunas dedicadas `users.whatsapp` + `whatsapp_consent_at` + `whatsapp_synced_at`): caixa de consentimento **desmarcada por padrão**, número opcional, registro LGPD (carimbo do consentimento). Push ao Chatwoot via job (`PushContactToChatwoot`) com rótulos `optin-golive` + `membro`/`criadora` — **desligado por padrão** (`CHATWOOT_ENABLED=false`); o banco é a fonte da verdade, o Chatwoot liga quando o `.env` tiver as credenciais.
+  4. **E-mail de confirmação role-aware** com a explicação dos bônus (mesma fonte da tela: `SignupWelcomeData`).
+  5. **Flag `SIGNUP_PRELAUNCH_WELCOME`** (default ON): no pré-lançamento, o destino do cadastro é esta tela, não o KYC (membro) / onboarding (performer) — que ficam ADIADOS, não removidos (o gate `member.verified` segue intacto). Desligar no go-live.
+- **Auto (no ship, suíte completa):**
+  - `ReferralEmailGateTest` — adia enquanto o e-mail não é confirmado; credita os dois lados assim que confirma.
+  - `WhatsappOptInTest` — grava E.164 + consentimento; recusa sem consentimento; recusa número inválido; revoga no destroy; exige auth.
+  - `SignupWelcomeNoticeTest` — a notice entrega `welcome` com papel certo (membro/criadora), código de indicação e contadores.
+- **Manual** ⬜ (roteiro no fim desta fase):
+  1. ⬜ **Cadastrar um membro** (`/cadastro`) → cai na tela de pós-cadastro de **MEMBRO** (porta, "A porta está entreaberta"), com link de indicação, contadores zerados e opt-in de WhatsApp.
+  2. ⬜ **Cadastrar uma criadora** (`/cadastro?tipo=performer`) → cai na tela de **CRIADORA** ("Seu palco está quase pronto", 80%/70%, proteções, bônus +40/+25).
+  3. ⬜ **Opt-in de WhatsApp:** deixar a caixa desmarcada e clicar → recusa; marcar + número válido → "WhatsApp guardado"; conferir no banco (`users.whatsapp`, `whatsapp_consent_at`).
+  4. ⬜ **Compartilhar:** botão WhatsApp abre o `wa.me` com a mensagem + link `?ref=<código>`; trocar o tom muda o texto; copiar link funciona.
+  5. ⬜ **Confirmar o e-mail** pelo link → vai ao catálogo; o rastreio de indicação (`referrals`) do indicado passa a contar como "confirmado".
+  6. ⬜ **Trava do bônus (exemplo vivo):** criar indicado via `?ref=`, NÃO confirmar o e-mail, simular a conversão e rodar `php artisan referral:process-holds` → bônus **não** credita (adiado); confirmar o e-mail e rodar de novo → credita.
+- **Exemplo vivo:** cadastrar uma conta de teste de membro e uma de criadora em `limen.dev.br` e deixar as duas na tela de pós-cadastro para o PO conferir o visual dos dois papéis.

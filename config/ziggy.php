@@ -44,6 +44,10 @@ return [
         'verification.notice',
         'verification.send',
 
+        // Opt-in de WhatsApp da tela de pós-cadastro (feat/signup-email-gate-and-whatsapp-optin)
+        'welcome.whatsapp.store',
+        'welcome.whatsapp.destroy',
+
         // Catalog & follows
         'catalog',
         'catalog.show',

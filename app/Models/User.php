@@ -123,6 +123,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            // Opt-in de WhatsApp (feat/signup-email-gate-and-whatsapp-optin). O
+            // carimbo do consentimento e o do sync com o Chatwoot; fora do
+            // $fillable (escrita só pelo WhatsappOptInService).
+            'whatsapp_consent_at' => 'datetime',
+            'whatsapp_synced_at' => 'datetime',
             // Suspensão temporizada (feat/moderator-actions): quando passa, o
             // login reativa a conta. NULL = suspensão indefinida (barra até
             // reativação manual).
