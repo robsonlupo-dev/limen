@@ -34,6 +34,7 @@ it('renders login page as Inertia Auth/Login component', function () {
 // ─── 4. Successful registration ──────────────────────────────────────────────
 
 it('registers a new consumer and redirects to identity verification (KYC)', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino KYC)
     $response = $this->post('/cadastro', [
         'name' => 'Maria Silva',
         'email' => 'maria@example.com',

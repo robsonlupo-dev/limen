@@ -57,3 +57,36 @@ it('conta indicações feitas e quantas confirmaram o e-mail', function () {
             ->where('welcome.counters.confirmed', 1)
         );
 });
+
+it('no pré-lançamento (flag on) o cadastro de membro cai na tela de boas-vindas', function () {
+    config(['signup.prelaunch_welcome' => true]);
+
+    $this->post('/cadastro', [
+        'tipo' => 'membro',
+        'name' => 'Membro Welcome',
+        'email' => 'membro.welcome@example.com',
+        'password' => 'Senha123',
+        'password_confirmation' => 'Senha123',
+        'birthdate' => '1990-06-15',
+        'cpf' => '529.982.247-25',
+        'accept_terms' => true,
+        'lgpd_consent' => true,
+    ])->assertRedirect(route('verification.notice'));
+});
+
+it('no pré-lançamento (flag on) o cadastro de criadora cai na tela de boas-vindas', function () {
+    config(['signup.prelaunch_welcome' => true]);
+
+    $this->post('/cadastro', [
+        'tipo' => 'performer',
+        'name' => 'Criadora Welcome',
+        'email' => 'criadora.welcome@example.com',
+        'password' => 'Senha123',
+        'password_confirmation' => 'Senha123',
+        'birthdate' => '1995-03-10',
+        'stage_name' => 'Estrela Welcome',
+        'worlds' => ['mulheres'],
+        'accept_terms' => true,
+        'lgpd_consent' => true,
+    ])->assertRedirect(route('verification.notice'));
+});

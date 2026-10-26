@@ -40,6 +40,7 @@ function memberKycAdmin(): User
 // ─── Cadastro nasce pending_kyc ──────────────────────────────────────────────
 
 it('cria o membro com status pending_kyc no cadastro', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino KYC)
     $this->post('/cadastro', [
         'tipo' => 'membro',
         'name' => 'Novo Membro',

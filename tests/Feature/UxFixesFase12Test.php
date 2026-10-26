@@ -40,6 +40,7 @@ it('redirects logged-in users away from entrada to the catalog', function () {
 // ─── FIX 1/7 — Registration by tipo ──────────────────────────────────────────
 
 it('creates a consumer when registering with tipo=membro', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino KYC)
     $this->post('/cadastro', [
         'tipo' => 'membro',
         'name' => 'Maria Membro',
@@ -61,6 +62,7 @@ it('creates a consumer when registering with tipo=membro', function () {
 });
 
 it('creates a performer with a KYC record when registering with tipo=performer', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino onboarding)
     $this->post('/cadastro', [
         'tipo' => 'performer',
         'name' => 'Estrela Silva',
@@ -128,7 +130,8 @@ it('sends a PT-BR verification notification on registration', function () {
     Notification::assertSentTo($user, VerifyEmailNotification::class, function ($notification) use ($user) {
         $mail = $notification->toMail($user);
 
-        return $mail->subject === 'Confirme seu e-mail — Limen';
+        // Assunto agora é role-aware (membro) — ver VerifyEmailNotification.
+        return $mail->subject === 'Falta 1 clique para cruzar a porta — Limen';
     });
 });
 

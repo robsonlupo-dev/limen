@@ -89,6 +89,7 @@ it('aceita quem completa 18 anos hoje', function () {
 // ─── Caminho feliz + não persistência do CPF ────────────────────────────────
 
 it('aceita membro maior de idade e nao grava o CPF em lugar nenhum', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino KYC)
     $this->post('/cadastro', registerMemberPayload())
         ->assertSessionHasNoErrors()
         ->assertRedirect(route('consumer.kyc.index'));

@@ -128,6 +128,7 @@ it('registration requires at least one world for a performer', function () {
 });
 
 it('registration persists worlds and derives category from the first', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino onboarding)
     $this->post(route('register.store'), [
         'tipo' => 'performer',
         'name' => 'Luna Multi',
@@ -150,6 +151,7 @@ it('registration persists worlds and derives category from the first', function 
 });
 
 it('legacy registration with only category still works (worlds stays null)', function () {
+    config(['signup.prelaunch_welcome' => false]); // testa o fluxo clássico (destino onboarding)
     $this->post(route('register.store'), [
         'tipo' => 'performer',
         'name' => 'Legacy Cat',
