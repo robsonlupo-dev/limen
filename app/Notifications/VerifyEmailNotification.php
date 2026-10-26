@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\SignupWelcomeData;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -11,14 +12,27 @@ class VerifyEmailNotification extends VerifyEmail
     use Queueable;
 
     /**
-     * Build the PT-BR verification mail. The verification URL points to the
-     * web route `verification.verify` (see routes/web.php), which fulfils the
-     * request and redirects to the catalog — never the JSON API route.
+     * E-mail de confirmação PT-BR, agora role-aware (membro × criadora) e com a
+     * explicação dos bônus (feat/signup-email-gate-and-whatsapp-optin) — a mesma
+     * história da tela de pós-cadastro, pela MESMA fonte (SignupWelcomeData), para
+     * dar à pessoa um motivo concreto de confirmar o e-mail. A URL aponta para a
+     * rota web `verification.verify` (nunca a API).
      */
-    protected function buildMailMessage($url): MailMessage
+    public function toMail($notifiable): MailMessage
     {
+        $url = $this->verificationUrl($notifiable);
+        $data = app(SignupWelcomeData::class)->for($notifiable);
+
+        $isPerformer = ($data['role'] ?? 'member') === 'performer';
+
         return (new MailMessage)
-            ->subject('Confirme seu e-mail — Limen')
-            ->markdown('emails.verify-email', ['verificationUrl' => $url]);
+            ->subject($isPerformer
+                ? 'Falta 1 clique para reservar sua vaga de Criadora Fundadora'
+                : 'Falta 1 clique para cruzar a porta — Limen')
+            ->markdown('emails.verify-email', [
+                'verificationUrl' => $url,
+                'isPerformer' => $isPerformer,
+                'welcome' => $data,
+            ]);
     }
 }

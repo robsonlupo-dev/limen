@@ -347,6 +347,21 @@ class ReferralService
      */
     private function settle(Referral $referral): string
     {
+        // Trava de E-MAIL CONFIRMADO (decisão do PO, feat/signup-email-gate): o bônus
+        // só é creditado se o INDICADO confirmou o e-mail — é o que conclui o cadastro
+        // de fato. Sem confirmação, ADIA (mantém 'qualified' e o próximo sweep tenta de
+        // novo): a pessoa ainda pode confirmar depois, então NÃO estorna. Vale para os
+        // dois lados — uma indicação cujo indicado nunca confirmou o e-mail não paga
+        // ninguém. A tela de pós-cadastro e o e-mail deixam esse requisito explícito.
+        if (blank($referral->referred?->email_verified_at)) {
+            Log::info('referral.reward_deferred_email_unverified', [
+                'referral_id' => $referral->id,
+                'referred_id' => $referral->referred_user_id,
+            ]);
+
+            return 'deferred';
+        }
+
         // Re-verifica a base ainda de pé (fecha a janela de estorno sem depender de
         // um webhook de refund): se a base caiu no hold, nunca credita.
         if (! $this->baseStillValid($referral)) {

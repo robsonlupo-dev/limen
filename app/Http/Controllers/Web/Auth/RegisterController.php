@@ -81,6 +81,14 @@ class RegisterController extends Controller
             Auth::login($user);
             $request->session()->regenerate();
 
+            // Pré-lançamento: a tela de boas-vindas (confirme o e-mail + bônus +
+            // indique + opt-in de WhatsApp) é o destino, não o onboarding — o foco
+            // agora é crescer a base. Flag `signup.prelaunch_welcome` (liga/desliga
+            // sem deploy de lógica); desligada, volta ao onboarding. Ver config/signup.php.
+            if (config('signup.prelaunch_welcome')) {
+                return redirect()->route('verification.notice');
+            }
+
             return redirect()->route('performer.onboarding');
         }
 
@@ -119,6 +127,15 @@ class RegisterController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+
+        // Pré-lançamento: a tela de boas-vindas (confirme o e-mail + bônus + indique +
+        // opt-in de WhatsApp) é o destino, não a selfie de KYC. O gate do KYC
+        // (EnsureMemberVerified) segue intacto — só é ADIADO: o membro é levado ao
+        // KYC quando navega para as áreas de membro. Flag `signup.prelaunch_welcome`
+        // (liga/desliga sem deploy de lógica); desligada, volta direto ao KYC.
+        if (config('signup.prelaunch_welcome')) {
+            return redirect()->route('verification.notice');
+        }
 
         // Membro nasce em pending_kyc: o destino do cadastro é o envio da
         // selfie de verificação, não mais o aviso de e-mail. O EnsureMemberVerified

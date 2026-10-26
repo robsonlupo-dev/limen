@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Support\Audit;
+use App\Support\SignupWelcomeData;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,9 +13,14 @@ use Inertia\Response;
 
 class EmailVerificationController extends Controller
 {
-    public function notice(): Response
+    public function notice(Request $request, SignupWelcomeData $welcome): Response
     {
-        return Inertia::render('Auth/VerifyEmail');
+        // A tela de "pré-cadastro recebido": confirme o e-mail + bônus + indique +
+        // opt-in de WhatsApp. É role-aware (membro × criadora) e reaproveita o
+        // SignupWelcomeData, a mesma fonte do e-mail de confirmação.
+        return Inertia::render('Auth/VerifyEmail', [
+            'welcome' => $welcome->for($request->user()),
+        ]);
     }
 
     public function verify(EmailVerificationRequest $request): RedirectResponse

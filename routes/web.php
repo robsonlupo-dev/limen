@@ -553,6 +553,16 @@ Route::middleware(['auth', '2fa'])->group(function () {
         ->middleware('throttle:6,1')
         ->name('verification.send');
 
+    // Opt-in de WhatsApp da tela de pós-cadastro (feat/signup-email-gate-and-whatsapp-optin).
+    // Fica neste grupo (auth + 2fa, ANTES do gate de e-mail verificado) de propósito:
+    // a pessoa deixa o WhatsApp exatamente enquanto o e-mail ainda não foi confirmado.
+    Route::post('/bem-vindo/whatsapp', [\App\Http\Controllers\Web\WhatsappOptInController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('welcome.whatsapp.store');
+    Route::delete('/bem-vindo/whatsapp', [\App\Http\Controllers\Web\WhatsappOptInController::class, 'destroy'])
+        ->middleware('throttle:10,1')
+        ->name('welcome.whatsapp.destroy');
+
     // O catálogo de MEMBROS é a vitrine onde a performer é o produto — ela não o
     // navega (o logo dela leva ao próprio painel, PR #146). O corte de papel mora
     // no CONTROLLER, não num `role:consumer` no meio: a performer é REDIRECIONADA
