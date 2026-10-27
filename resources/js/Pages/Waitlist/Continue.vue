@@ -19,9 +19,15 @@ const props = defineProps({
             referral_count: 0,
             whatsapp_opted_in: false,
             whatsapp_masked: null,
+            auth_e: null,
+            auth_k: null,
         }),
     },
 })
+
+// Token (id + HMAC) que identifica o registro nos próximos passos sem depender do
+// cookie de sessão sobreviver ao redirect — enviado no corpo dos POSTs.
+const auth = () => ({ e: props.waitlist.auth_e, k: props.waitlist.auth_k })
 
 const w = computed(() => props.waitlist)
 const isPerformer = computed(() => w.value.role === 'performer')
@@ -36,7 +42,7 @@ const resent = ref(false)
 async function resend() {
     resending.value = true
     try {
-        await postJson(route('waitlist.continue.resend'), {})
+        await postJson(route('waitlist.continue.resend'), { ...auth() })
         resent.value = true
         setTimeout(() => { resent.value = false }, 4000)
     } catch { /* silencioso */ } finally {
@@ -106,7 +112,7 @@ async function submitWhatsApp() {
     if (!consent.value) { wppError.value = 'Marque a caixa para aceitar receber avisos.'; return }
     saving.value = true
     try {
-        const data = await postJson(route('waitlist.whatsapp.store'), { whatsapp: phone.value, consent: true })
+        const data = await postJson(route('waitlist.whatsapp.store'), { whatsapp: phone.value, consent: true, ...auth() })
         optedIn.value = true
         savedMasked.value = data.whatsapp_masked
     } catch (e) {
@@ -117,7 +123,7 @@ async function submitWhatsApp() {
 }
 async function skipWhatsApp() {
     if (optedIn.value) {
-        try { await deleteJson(route('waitlist.whatsapp.destroy')) } catch { /* ignora */ }
+        try { await deleteJson(route('waitlist.whatsapp.destroy'), { ...auth() }) } catch { /* ignora */ }
         optedIn.value = false
         savedMasked.value = null
     }

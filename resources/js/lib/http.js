@@ -82,8 +82,8 @@ export function getJson(url) {
     return request('GET', url)
 }
 
-export function deleteJson(url) {
-    return request('DELETE', url)
+export function deleteJson(url, body) {
+    return request('DELETE', url, body)
 }
 
 /**

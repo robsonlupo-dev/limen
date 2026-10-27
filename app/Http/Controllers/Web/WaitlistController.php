@@ -54,11 +54,57 @@ class WaitlistController extends Controller
         $request->session()->forget('waitlist_referrer_id');
 
         // Direciona para a tela de CONTINUAÇÃO (confirme o e-mail + WhatsApp +
-        // convide), em vez do aviso inline. A identificação é por SESSÃO — nenhum
-        // token/PII vai na URL. (feat/waitlist-continue-screen)
+        // convide), em vez do aviso inline. (feat/waitlist-continue-screen)
+        //
+        // Identificação por TOKEN assinado (HMAC com a APP_KEY) carregado na URL,
+        // com a SESSÃO como fallback. Num site de DOIS domínios (thelimen.com.br e
+        // limen.dev.br, mesmo app, `app.url` aponta para um só), o cookie de sessão
+        // nem sempre sobrevive ao redirect POST→GET — o token stateless garante que
+        // a tela SEMPRE reconhece quem acabou de entrar, sem depender do cookie.
+        // Não é PII: é o id do registro + um HMAC que só o servidor gera/valida.
         $request->session()->put('waitlist_entry_id', $entry->id);
 
-        return redirect()->route('waitlist.continue')->with('success', $success);
+        return redirect()->route('waitlist.continue', [
+            'e' => $entry->id,
+            'k' => $this->continueToken($entry->id),
+        ])->with('success', $success);
+    }
+
+    /** HMAC estável por registro, capability-token da tela de continuação. */
+    private function continueToken(int $entryId): string
+    {
+        return hash_hmac('sha256', 'waitlist-continue:'.$entryId, (string) config('app.key'));
+    }
+
+    private function tokenValid(?int $entryId, ?string $k): bool
+    {
+        if (! $entryId || ! $k) {
+            return false;
+        }
+
+        return hash_equals($this->continueToken($entryId), $k);
+    }
+
+    /**
+     * Resolve o registro da continuação: primeiro pelo TOKEN (stateless, imune a
+     * problema de cookie entre requests), depois pela SESSÃO (fluxo feliz). Quando
+     * casa pelo token, reidrata a sessão para os próximos passos.
+     */
+    private function resolveEntry(Request $request): ?WaitlistEntry
+    {
+        $e = (int) ($request->input('e') ?? $request->query('e') ?? 0);
+        $k = (string) ($request->input('k') ?? $request->query('k') ?? '');
+
+        if ($this->tokenValid($e, $k)) {
+            $entry = WaitlistEntry::find($e);
+            if ($entry) {
+                $request->session()->put('waitlist_entry_id', $entry->id);
+
+                return $entry;
+            }
+        }
+
+        return $this->sessionEntry($request);
     }
 
     /**
@@ -70,7 +116,7 @@ class WaitlistController extends Controller
      */
     public function continueScreen(Request $request): Response|RedirectResponse
     {
-        $entry = $this->sessionEntry($request);
+        $entry = $this->resolveEntry($request);
 
         if ($entry === null) {
             return redirect()->route('landing');
@@ -84,7 +130,7 @@ class WaitlistController extends Controller
     /** Opt-in de WhatsApp da tela de continuação (JSON; identificado por sessão). */
     public function storeWhatsapp(WaitlistWhatsappRequest $request): JsonResponse
     {
-        $entry = $this->sessionEntry($request);
+        $entry = $this->resolveEntry($request);
 
         if ($entry === null) {
             return response()->json(['message' => 'Sessão expirada. Volte à página inicial.'], 419);
@@ -109,7 +155,7 @@ class WaitlistController extends Controller
     /** Revoga o opt-in de WhatsApp (JSON). */
     public function destroyWhatsapp(Request $request): JsonResponse
     {
-        $entry = $this->sessionEntry($request);
+        $entry = $this->resolveEntry($request);
 
         $entry && $this->service->optOutWhatsapp($entry);
 
@@ -119,7 +165,7 @@ class WaitlistController extends Controller
     /** Reenvia o e-mail de confirmação para o registro da sessão (JSON). */
     public function resendForEntry(Request $request): JsonResponse
     {
-        $entry = $this->sessionEntry($request);
+        $entry = $this->resolveEntry($request);
 
         if ($entry === null) {
             return response()->json(['message' => 'Sessão expirada. Volte à página inicial.'], 419);
@@ -150,7 +196,6 @@ class WaitlistController extends Controller
     private function entryProps(WaitlistEntry $entry): array
     {
         $inviteCode = $entry->invite_code;
-        $base = rtrim((string) config('app.url'), '/');
 
         return [
             'role' => $entry->isPerformer() ? 'performer' : 'member',
@@ -159,10 +204,16 @@ class WaitlistController extends Controller
             'confirmed' => $entry->isConfirmed(),
             'founder_title' => $entry->founderTitle(),
             'invite_code' => $inviteCode,
-            'invite_link' => $inviteCode ? $base.'/convite/'.$inviteCode : null,
+            // url() usa o HOST da requisição (thelimen.com.br), não o app.url
+            // (limen.dev.br) — o convite tem que apontar para o domínio público.
+            'invite_link' => $inviteCode ? url('/convite/'.$inviteCode) : null,
             'referral_count' => (int) $entry->referral_count,
             'whatsapp_opted_in' => filled($entry->whatsapp_consent_at),
             'whatsapp_masked' => BrazilPhone::mask($entry->whatsapp),
+            // Capability-token para os próximos passos (opt-in / reenvio) sem depender
+            // do cookie de sessão sobreviver entre requests.
+            'auth_e' => $entry->id,
+            'auth_k' => $this->continueToken($entry->id),
         ];
     }
 

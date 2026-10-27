@@ -1403,3 +1403,9 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   4. ⬜ **Convite:** botão WhatsApp abre o `wa.me` com a mensagem + link `/convite/<code>`; copiar funciona; abrir o link numa aba anônima e entrar na lista → a indicação conta (`referral_count` sobe).
   5. ⬜ **Reenviar e-mail** funciona; confirmar o e-mail pelo link → tela passa a mostrar "E-mail confirmado".
 - **Exemplo vivo:** deixar uma inscrição de teste de membro e uma de criadora e abrir `/lista/continuar` com a sessão de cada uma para o PO conferir os dois papéis.
+
+## FASE 58.1 — Fix: tela de continuação não abria (sessão perdida entre domínios) · PR fix/waitlist-continue-session
+- **Sintoma:** depois de entrar na lista, a pessoa continuava vendo o aviso inline antigo; `/lista/continuar` voltava para a home. **Causa:** o site serve DOIS domínios (`thelimen.com.br` público + `limen.dev.br`), `app.url` aponta só para um, e o cookie de sessão não sobrevivia ao redirect POST→GET no outro domínio — então o `waitlist_entry_id` da sessão sumia e a tela caía de volta na home.
+- **Fix:** a tela passa a se identificar por **token assinado** (HMAC com a APP_KEY: `e`=id do registro + `k`=assinatura) carregado na URL do redirect e enviado no corpo dos POSTs de opt-in/reenvio; a **sessão vira fallback**. Stateless → funciona em qualquer domínio, sem depender do cookie. Também corrigido o **link de convite** para usar o host da requisição (`url()`), não o `app.url` (antes apontava para `limen.dev.br`).
+- **Auto:** `WaitlistContinueTest` ganhou casos de token sem sessão (tela + opt-in) e token inválido → home; os casos por sessão seguem (fallback).
+- **Manual** ⬜: entrar na lista (membro e criadora) → cair em `/lista/continuar?e=..&k=..` com a tela certa; marcar WhatsApp; conferir que o link de convite é `thelimen.com.br/convite/<code>`.

@@ -33,10 +33,49 @@ it('o cadastro na lista redireciona para a tela de continuação e guarda a sess
         'email' => 'maria.lista@gmail.com',
         'role' => 'member',
         'age_confirmed' => true,
-    ])->assertRedirect(route('waitlist.continue'));
+    ])->assertRedirectContains('/lista/continuar');
 
     $entry = WaitlistEntry::where('email', 'maria.lista@gmail.com')->firstOrFail();
     expect(session('waitlist_entry_id'))->toBe($entry->id);
+});
+
+/** HMAC igual ao do controller (WaitlistController::continueToken). */
+function wlToken(int $id): string
+{
+    return hash_hmac('sha256', 'waitlist-continue:'.$id, (string) config('app.key'));
+}
+
+it('reconhece o registro pelo TOKEN, sem sessão (fix dois domínios)', function () {
+    $entry = wlEntry('performer', 'token.criadora@gmail.com');
+
+    // SEM withSession — só o token na URL.
+    $this->get(route('waitlist.continue', ['e' => $entry->id, 'k' => wlToken($entry->id)]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Waitlist/Continue')
+            ->where('waitlist.role', 'performer')
+            ->where('waitlist.auth_e', $entry->id)
+        );
+});
+
+it('token inválido e sem sessão → volta para a home', function () {
+    $entry = wlEntry();
+
+    $this->get(route('waitlist.continue', ['e' => $entry->id, 'k' => 'errado']))
+        ->assertRedirect(route('landing'));
+});
+
+it('opt-in de WhatsApp funciona pelo token, sem sessão', function () {
+    $entry = wlEntry();
+
+    $this->postJson(route('waitlist.whatsapp.store'), [
+        'whatsapp' => '(11) 91234-5678',
+        'consent' => true,
+        'e' => $entry->id,
+        'k' => wlToken($entry->id),
+    ])->assertOk()->assertJsonPath('ok', true);
+
+    expect($entry->fresh()->whatsapp)->toBe('+5511912345678');
 });
 
 it('a tela de continuação entrega papel, e-mail mascarado e link de convite', function () {
