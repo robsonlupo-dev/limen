@@ -52,14 +52,20 @@ enum MemberTier: string
         };
     }
 
+    /**
+     * Benefício exibido por nível. DECISÃO DO PO (04/11/2026): metas dão STATUS
+     * e vantagem, NUNCA valor em token — todo token vem exclusivamente do
+     * programa de indicação real (crédito só quando a indicação converte, com
+     * e-mail confirmado + hold). Não reintroduzir valores de token aqui.
+     */
     public function benefit(): string
     {
         return match ($this) {
             self::Curious => 'Acesso antecipado ao lançamento',
-            self::Supporter => '+100 tokens no primeiro depósito',
+            self::Supporter => 'Prioridade na fila de entrada',
             self::Founder => 'Selo Fundador permanente + 1 semana Explorador grátis',
-            self::Patron => '+500 tokens + prioridade em beta de features',
-            self::Architect => '100 tokens/mês por 12 meses + nome nos créditos',
+            self::Patron => 'Prioridade em beta de features',
+            self::Architect => 'Nome nos créditos de fundação',
         };
     }
 

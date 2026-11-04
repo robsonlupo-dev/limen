@@ -64,6 +64,22 @@ class WaitlistEntry extends Model
         return $this->confirmed_at !== null;
     }
 
+    /**
+     * Capability-token da tela de continuação (/lista/continuar): HMAC estável
+     * por inscrição, validado pelo WaitlistController. Vai só por canais do DONO
+     * (redirect pós-inscrição e links de e-mail) — nunca no /f/{code} público.
+     */
+    public function continueToken(): string
+    {
+        return hash_hmac('sha256', 'waitlist-continue:'.$this->id, (string) config('app.key'));
+    }
+
+    /** URL de DONO da tela de continuação (painel unificado do fundador). */
+    public function continueUrl(array $extra = []): string
+    {
+        return route('waitlist.continue', ['e' => $this->id, 'k' => $this->continueToken()] + $extra);
+    }
+
     public function isPerformer(): bool
     {
         return $this->role === 'performer';

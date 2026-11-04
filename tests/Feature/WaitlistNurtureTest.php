@@ -189,13 +189,15 @@ it('uses the gender-neutral founder CTA only for performers', function () {
 
 // ─── CTA link (panel + role/day UTM) ─────────────────────────────────────────
 
-it('points the CTA at the founder panel with a role- and day-specific UTM', function () {
+it('points the CTA at the continuation screen (owner URL) with a role- and day-specific UTM', function () {
     $member = confirmedEntry('member', 'mutm@example.com', daysAgo: 1);
     $perf = confirmedEntry('performer', 'putm@example.com', daysAgo: 1);
 
     // Day is the configured cadence (nurture_2 → dia3, nurture_3 → dia7).
     $memberHtml = (new WaitlistNurtureMail($member, 'nurture_2'))->render();
-    expect($memberHtml)->toContain('/f/'.$member->invite_code)
+    // URL de DONO (e+k), nunca o /f/ público: quem clica no e-mail é o titular.
+    expect($memberHtml)->toContain('/lista/continuar?e='.$member->id)
+        ->and($memberHtml)->toContain('k='.$member->continueToken())
         ->and($memberHtml)->toContain('utm_source=nurturing')
         ->and($memberHtml)->toContain('utm_medium=email')
         ->and($memberHtml)->toContain('utm_campaign=membro_dia3');

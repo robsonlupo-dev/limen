@@ -23,6 +23,10 @@ const props = defineProps({
             auth_k: null,
         }),
     },
+    // Painel unificado (04/11): modo DONO (token/sessão) × modo PÚBLICO (?c=,
+    // substitui o antigo /f/{code}) + nível/metas/indicados do FounderPresenter.
+    is_owner: { type: Boolean, default: true },
+    standing: { type: Object, default: null },
 })
 
 // Token (id + HMAC) que identifica o registro nos próximos passos sem depender do
@@ -162,8 +166,13 @@ async function skipWhatsApp() {
                 </div>
             </div>
 
-            <!-- CONFIRME O E-MAIL -->
-            <template v-if="!confirmed">
+            <!-- MODO PÚBLICO (quem chegou pelo /f/ ou por um código) -->
+            <div v-if="!is_owner" class="mt-4 rounded-xl border border-limen-line bg-limen-surface px-4 py-3 text-sm text-limen-ink-mute">
+                Este é o painel público de <strong class="text-limen-ink">{{ w.name }}</strong>. É você? Abra pelo link do seu e-mail para gerenciar o cadastro.
+            </div>
+
+            <!-- CONFIRME O E-MAIL (só o dono) -->
+            <template v-if="is_owner && !confirmed">
                 <p class="mt-5 text-base text-limen-ink-soft">
                     Falta um passo: <strong class="text-limen-ink">confirme seu e-mail</strong>.
                     É o que garante sua vaga e o que faz você <strong class="text-limen-ink">receber o aviso quando o Limen abrir</strong> — sem confirmar, você pode perder o lançamento.
@@ -188,15 +197,51 @@ async function skipWhatsApp() {
                 </p>
             </template>
 
-            <template v-else>
+            <template v-else-if="confirmed">
                 <div class="mt-5 flex items-center gap-2.5 rounded-xl border border-limen-gold bg-limen-surface px-3.5 py-3">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6b872" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
                     <span class="text-sm text-limen-ink">E-mail confirmado — sua vaga está garantida.</span>
                 </div>
             </template>
 
-            <!-- OPT-IN WHATSAPP -->
-            <div class="mt-10 rounded-2xl border border-limen-line bg-limen-surface p-5">
+            <!-- NÍVEL & METAS (painel do fundador, unificado aqui) -->
+            <template v-if="standing">
+                <div class="mt-8 rounded-2xl border border-limen-line bg-limen-surface p-4">
+                    <div class="flex items-baseline justify-between gap-3">
+                        <div class="font-serif text-lg">Nível: <span class="text-limen-gold">{{ standing.tierLabel }}</span></div>
+                        <div class="text-xs text-limen-ink-mute">{{ standing.referralCount }} {{ standing.referralCount === 1 ? 'indicação' : 'indicações' }}</div>
+                    </div>
+                    <div class="mt-0.5 text-sm text-limen-ink-soft">{{ standing.tierBenefit }}</div>
+                    <template v-if="standing.nextTier">
+                        <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-limen-surface-2">
+                            <div class="h-full rounded-full bg-limen-gold" :style="{ width: standing.nextTier.progress + '%' }"></div>
+                        </div>
+                        <p class="mt-2 text-[13px] text-limen-ink-mute">
+                            Faltam <strong class="text-limen-ink-soft">{{ standing.nextTier.remaining }}</strong> {{ standing.nextTier.phrase }} para
+                            <strong class="text-limen-ink">{{ standing.nextTier.label }}</strong> — {{ standing.nextTier.benefit }}.
+                        </p>
+                    </template>
+                </div>
+
+                <div class="mt-3 rounded-2xl border border-limen-line bg-limen-surface p-4">
+                    <div class="font-serif text-lg">Benefícios</div>
+                    <div v-for="b in standing.benefits" :key="b.label" class="mt-3 flex items-start gap-3 border-t border-limen-line pt-3 first:mt-2 first:border-0 first:pt-0">
+                        <div class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :class="b.achieved ? 'bg-limen-gold' : 'border-2 border-limen-line'"></div>
+                        <div>
+                            <div class="text-sm"><strong class="text-limen-ink">{{ b.label }}</strong> <span class="text-limen-ink-mute">· meta {{ b.threshold }}</span></div>
+                            <div class="text-[13px] text-limen-ink-mute">{{ b.benefit }}</div>
+                        </div>
+                    </div>
+                    <p class="mt-3 border-t border-limen-line pt-3 text-xs text-limen-ink-mute">
+                        E os tokens? Vêm do <strong class="text-limen-ink-soft">programa de indicação</strong> — e as indicações que você fizer aqui valem lá:
+                        o bônus é liberado quando a pessoa indicada entra <strong class="text-limen-ink-soft">de verdade</strong> no lançamento
+                        (compra confirmada, ou criadora verificada com 1º ganho), nunca só por confirmar e-mail.
+                    </p>
+                </div>
+            </template>
+
+            <!-- OPT-IN WHATSAPP (só o dono) -->
+            <div v-if="is_owner" class="mt-10 rounded-2xl border border-limen-line bg-limen-surface p-5">
                 <div class="flex items-center gap-2.5">
                     <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-limen-surface-2">
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#35c77a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-4.2A8 8 0 1 1 8.4 18.8z" /><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-1 .7a3.5 3.5 0 0 1-1.6-1.6l.7-1-1-2z" /></svg>
@@ -288,6 +333,18 @@ async function skipWhatsApp() {
                     Você já trouxe <strong class="text-limen-gold">{{ w.referral_count }}</strong> {{ w.referral_count === 1 ? 'pessoa' : 'pessoas' }} para a lista.
                 </p>
             </template>
+
+            <!-- ÚLTIMOS INDICADOS -->
+            <div v-if="standing && standing.recentReferrals && standing.recentReferrals.length" class="mt-8 rounded-2xl border border-limen-line bg-limen-surface p-4">
+                <div class="font-serif text-lg">Seus últimos indicados</div>
+                <div v-for="(r, i) in standing.recentReferrals" :key="i" class="mt-2.5 flex items-center justify-between gap-3 border-t border-limen-line pt-2.5 first:border-0 first:pt-0">
+                    <span class="text-sm text-limen-ink">{{ r.name }}</span>
+                    <span class="rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide"
+                        :class="r.confirmed ? 'border-limen-gold text-limen-gold' : 'border-limen-line text-limen-ink-mute'">
+                        {{ r.confirmed ? 'confirmado' : 'pendente' }}
+                    </span>
+                </div>
+            </div>
 
             <!-- RODAPÉ -->
             <div class="mt-10 flex flex-col items-center gap-2 text-center">

@@ -159,3 +159,67 @@ it('reenvia o e-mail de confirmação para o registro da sessão', function () {
     // A mailable é ShouldQueue — o Mail::fake registra como ENFILEIRADA, não enviada.
     \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\WaitlistConfirmationMail::class);
 });
+
+// ─── Painel unificado: modo DONO × modo PÚBLICO (?c=) ────────────────────────
+
+it('modo público via ?c: sem token de dono, sem PII, com standing', function () {
+    $entry = wlEntry('member', 'dona.publica@gmail.com');
+
+    // Visitante anônimo (sem sessão, sem e/k) abrindo o código que circula.
+    $this->get(route('waitlist.continue', ['c' => $entry->invite_code]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Waitlist/Continue')
+            ->where('is_owner', false)
+            ->where('waitlist.invite_code', $entry->invite_code)
+            ->whereNot('standing', null)
+            // O capability-token e os dados do dono NUNCA saem no modo público.
+            ->where('waitlist.auth_k', null)
+            ->where('waitlist.auth_e', null)
+            ->where('waitlist.email_masked', null)
+        );
+});
+
+it('?c desconhecido sem sessão → volta para a home', function () {
+    $this->get(route('waitlist.continue', ['c' => 'LIMEN-ZZZ-9999']))
+        ->assertRedirect(route('landing'));
+});
+
+it('dono abrindo o PRÓPRIO ?c continua dono (token e+k presente)', function () {
+    $entry = wlEntry('member', 'dona.de.si@gmail.com');
+
+    $this->withSession(['waitlist_entry_id' => $entry->id])
+        ->get(route('waitlist.continue', ['c' => $entry->invite_code]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('is_owner', true)
+            ->where('waitlist.auth_k', $entry->continueToken())
+        );
+});
+
+it('dono abrindo o ?c de OUTRA pessoa vê o painel dela em modo público', function () {
+    $dona = wlEntry('member', 'eu.mesma@gmail.com');
+    $outra = wlEntry('performer', 'outra.pessoa@gmail.com');
+
+    $this->withSession(['waitlist_entry_id' => $dona->id])
+        ->get(route('waitlist.continue', ['c' => $outra->invite_code]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('is_owner', false)
+            ->where('waitlist.invite_code', $outra->invite_code)
+            ->where('waitlist.auth_k', null)
+        );
+});
+
+it('a tela do dono carrega o standing (nível/metas) do FounderPresenter', function () {
+    $entry = wlEntry('member', 'nivel.metas@gmail.com');
+
+    $this->get(route('waitlist.continue', ['e' => $entry->id, 'k' => wlToken($entry->id)]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('is_owner', true)
+            ->where('standing.tierLabel', 'Curioso')
+            ->has('standing.benefits')
+            ->has('standing.nextTier')
+        );
+});

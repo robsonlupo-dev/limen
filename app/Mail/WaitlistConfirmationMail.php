@@ -56,7 +56,7 @@ class WaitlistConfirmationMail extends Mailable implements ShouldQueue
                 'isPerformer' => $this->entry->isPerformer(),
                 'founderTitle' => $this->entry->founderTitle(),
                 'confirmUrl' => URL::route('waitlist.confirm', ['t' => $this->entry->invite_token]),
-                'panelUrl' => URL::route('waitlist.founder', ['invite_code' => $this->entry->invite_code]),
+                'panelUrl' => $this->entry->continueUrl(),
                 'unsubscribeUrl' => URL::route('waitlist.unsubscribe', ['t' => $this->entry->invite_token]),
             ],
         );
