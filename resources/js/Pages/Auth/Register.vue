@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useForm, Link, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import Input from '@/Components/Input.vue'
+import BirthdatePicker from '@/Components/BirthdatePicker.vue'
 import Button from '@/Components/Button.vue'
 import PortalLogo from '@/Components/PortalLogo.vue'
 import Captcha from '@/Components/Captcha.vue'
@@ -150,11 +151,14 @@ function submit() {
                             :error="form.errors.password_confirmation"
                         />
 
-                        <Input
+                        <!-- Dia/Mês/Ano em seletores (BirthdatePicker) no lugar do
+                             calendário nativo: chegar a um ano de nascimento no
+                             <input type=date> era penoso no celular. Mesmo formato
+                             YYYY-MM-DD no form — a validação não muda. -->
+                        <BirthdatePicker
                             id="birthdate"
                             v-model="form.birthdate"
                             label="Data de nascimento"
-                            type="date"
                             :required="true"
                             :error="form.errors.birthdate"
                         />

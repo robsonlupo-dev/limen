@@ -19,15 +19,34 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;">
         <tr>
             <td align="center" style="padding:48px 16px;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px; margin:0 auto; background-color:#0d0d0d; border:1px solid #262626; border-radius:18px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; margin:0 auto; background-color:#0d0d0d; border:1px solid #262626; border-radius:18px;">
+                 <tr>
+                  <td style="padding:10px;">
+                   {{-- Filete dourado interno: moldura dupla, o "elitizado" sem
+                        imagem (o redesign de 04/11; <img> remoto segue banido —
+                        pixel de leitura, docs/PIXEL_AUDIT.md). --}}
+                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(201,168,76,0.28); border-radius:12px;">
 
                     {{-- Portal mark --}}
                     <tr>
-                        <td align="center" style="padding:44px 40px 8px 40px;">
-                            <div style="width:68px; height:42px; margin:0 auto; border:2px solid #C9A84C; border-bottom:none; border-radius:36px 36px 0 0;"></div>
-                            <div style="width:84px; height:2px; margin:0 auto; background-color:#C9A84C;"></div>
-                            <div style="margin-top:14px; font-size:14px; letter-spacing:6px; color:#C9A84C; text-transform:uppercase;">Limen</div>
-                            <div style="margin-top:6px; font-size:11px; letter-spacing:3px; color:#6f6a62; text-transform:uppercase;">Founding Members</div>
+                        <td align="center" style="padding:46px 40px 0 40px;">
+                            <div style="width:76px; height:48px; margin:0 auto; border:2px solid #C9A84C; border-bottom:none; border-radius:40px 40px 0 0;"></div>
+                            <div style="width:94px; height:2px; margin:0 auto; background-color:#C9A84C;"></div>
+                            <div style="margin-top:16px; font-size:15px; letter-spacing:7px; color:#C9A84C; text-transform:uppercase;">Limen</div>
+                            <div style="margin-top:7px; font-size:10px; letter-spacing:4px; color:#6f6a62; text-transform:uppercase;">Founding Members</div>
+                        </td>
+                    </tr>
+
+                    {{-- Ornamento --}}
+                    <tr>
+                        <td align="center" style="padding:26px 60px 0 60px;">
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td style="border-top:1px solid #262626;"></td>
+                                    <td width="40" align="center" style="font-size:11px; color:#C9A84C; padding:0 2px; line-height:0;">✦</td>
+                                    <td style="border-top:1px solid #262626;"></td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
 
@@ -53,7 +72,7 @@
                     {{-- Headline --}}
                     <tr>
                         <td align="center" style="padding:10px 40px 0 40px;">
-                            <h1 style="margin:0; font-size:28px; line-height:1.3; font-weight:normal; color:#F5F0E8;">
+                            <h1 style="margin:0; font-size:30px; line-height:1.3; font-weight:normal; color:#F5F0E8;">
                                 {{ $isPerformer ? 'Sua reserva foi confirmada.' : 'Seu lugar está reservado.' }}
                             </h1>
                         </td>
@@ -122,6 +141,9 @@
                         </td>
                     </tr>
 
+                   </table>
+                  </td>
+                 </tr>
                 </table>
             </td>
         </tr>

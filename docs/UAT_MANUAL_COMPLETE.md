@@ -1439,3 +1439,18 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   3. ⬜ Abrir `/f/<code>` (link antigo de e-mail já enviado) → redireciona para a tela unificada em modo público, com o aviso "este é o painel público de…"; conferir que NÃO aparecem e-mail, WhatsApp nem botões de ação.
   4. ⬜ Indicar alguém pelo `/convite/<code>` → no painel do DONO aparece "Seus últimos indicados" com o nome mascarado (Fulana S.) e o badge pendente→confirmado após o opt-in do indicado.
 - **Exemplo vivo:** usar as inscrições celularn73 (indicador) e brimportadosmiami (indicado) que o PO já criou — o painel do celularn73 deve mostrar o indicado confirmado e a meta "Apoiador: faltam 2".
+
+## FASE 61 — Portas de entrada da indicação + data de nascimento em seletores + e-mails maison · PR feat/growth-entries-and-polish
+- **O que entrou (pedidos do PO em 04/11, pós-teste das FASES 59/60):**
+  1. **/indicacoes ganhou portas de entrada** (antes só por URL): item "Indique e ganhe" no menu do avatar (membro E criadora) + card-atalho dourado na **Carteira** do membro e na tela de **Saques** da criadora. Os cards não repetem valores (10/40) — fonte única é a própria /indicacoes.
+  2. **Data de nascimento no /cadastro em TRÊS seletores** (Dia / Mês por extenso / Ano) no lugar do calendário nativo — chegar a 1981 no type=date era penoso. Componente `BirthdatePicker.vue`: ano já começa em quem faz 18 hoje (até 100 anos atrás), fevereiro/bissexto tratado, mesmo formato YYYY-MM-DD no form (validação intacta). No celular abre a roda nativa do sistema.
+  3. **E-mails de entrada repaginados no vestido maison**: o "Falta 1 clique…" (verify-email) saiu do tema markdown padrão do Laravel para o HTML escuro da casa (fundo #0a0a0a, dourado, serifada), com moldura DUPLA (borda + filete dourado interno), ornamento ✦ e os bônus em linhas emolduradas; o "Confirme seu lugar — Founding Members" ganhou a mesma moldura dupla e marca do portal maior. ⚠️ **SEM imagem (decisão mantida do PIXEL_AUDIT):** `<img>` remoto em e-mail é pixel de leitura — denuncia quando/onde a pessoa abriu — e o Limen não rastreia leitor; o "elitizado" vem de tipografia + moldura, não de foto. (O PO pediu arte via OpenArt; explicado e adiado — se quiser imagem mesmo assim, dá para EMBUTIR via CID sem rastreio, follow-up.)
+  4. **Polimento do painel unificado**: a tarja "E-mail confirmado" agora aparece só para o DONO (no modo público ?c ela escondia a natureza pública da tela).
+- **Auto (no ship, suíte completa):** `EmailMaisonDesignTest` — verify-email membro (porta entreaberta + CTA + bônus + fundo escuro), criadora (palco + 40 + 80%), e NENHUM `<img>` nos dois e-mails de entrada.
+- **Manual** ⬜:
+  1. ⬜ Logado como `staging-membro100`: menu do avatar → "Indique e ganhe" abre /indicacoes; Carteira mostra o card dourado "Indique e ganhe tokens" → clicar leva à tela.
+  2. ⬜ Logado como `staging-performer08`: mesmo item no menu do avatar; tela de Saques mostra o card (texto de criadora).
+  3. ⬜ /cadastro: campo Data de nascimento virou Dia/Mês/Ano; escolher 31 + Fevereiro → o dia rebaixa sozinho; cadastro completa normalmente (no celular, conferir a roda nativa).
+  4. ⬜ Fazer um cadastro de conta novo → e-mail "Falta 1 clique…" chega ESCURO com moldura dupla e os bônus em card (sem imagem); entrar na lista de espera → "Confirme seu lugar" com a mesma moldura.
+  5. ⬜ Abrir /f/<code> (modo público) → a tarja "E-mail confirmado" NÃO aparece (só o aviso de painel público).
+- **Exemplo vivo:** o card na Carteira do `staging-membro100` e o e-mail novo na caixa do próximo cadastro de teste.
