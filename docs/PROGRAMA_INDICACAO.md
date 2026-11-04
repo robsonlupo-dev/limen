@@ -351,3 +351,14 @@ contas reais, então ele não faz nada.)
 **Travas mantidas:** o vínculo é gravado UMA vez e é imutável; auto-indicação por MESMO
 CPF é barrada; o crédito do bônus continua só no go-live, com hold anti-estorno e trava
 de e-mail confirmado. A ponte só **preserva o vínculo** — nunca credita por conta própria.
+
+## Links personalizados /r/{slug} (feat/referral-custom-links)
+
+Camada "Airbnb" sobre o código padrão: até `referral.custom_links_max` (2) slugs por
+usuário em `referral_links`, **imutáveis** (sem editar/excluir — a única escrita é a
+criação, via `ReferralLinkService`). `/r/{slug}` grava o MESMO cookie do `?ref=` e
+manda ao destino da fase (home no pré-lançamento, cadastro no go-live) — a atribuição
+continua passando 100% pelo fluxo existente (`attributeAtSignup` por cookie/código).
+Validação do slug herda a disciplina do apelido (reservadas + contato + conduta +
+anti-personificação de criadora, recusa genérica anti-oráculo). QR com foto no centro
+(ECC nível H) gerado no cliente com lib vendorizada (MIT, self-host).

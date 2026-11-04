@@ -34,6 +34,7 @@ return [
 
         // Programa de indicação — tela "meu link"
         'referral.index',
+        'referral.links.store',
 
         // Login passwordless por código OTP (Sprint 11)
         'otp.request.show',

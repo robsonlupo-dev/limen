@@ -318,6 +318,18 @@ Route::post('/logout', [LoginController::class, 'destroy'])->middleware('auth')-
 Route::get('/indicacoes', [\App\Http\Controllers\Web\ReferralController::class, 'index'])
     ->middleware('auth')->name('referral.index');
 
+// Links personalizados de indicação (feat/referral-custom-links). Criação com
+// throttle apertado (são no máx. 2 por usuário e imutáveis — volume aqui é abuso).
+Route::post('/indicacoes/links', [\App\Http\Controllers\Web\ReferralController::class, 'storeLink'])
+    ->middleware(['auth', 'throttle:10,1'])->name('referral.links.store');
+
+// Porta pública do link personalizado: /r/{slug} grava o cookie do ?ref= e manda
+// ao destino da fase (home no pré-lançamento, cadastro no go-live). Pública e
+// idempotente; o constraint fecha o charset antes de tocar o banco.
+Route::get('/r/{slug}', [\App\Http\Controllers\Web\ReferralController::class, 'go'])
+    ->where('slug', '[A-Za-z0-9\-]{1,40}')
+    ->middleware('throttle:60,1')->name('referral.go');
+
 // Admin back-office (auth + admin-only). `admin.access` (EnsureAdmin → isAdmin):
 // dinheiro, tier, KYC, waitlist, ban, config. O moderador NÃO alcança nada aqui.
 Route::middleware(['auth', 'admin.access'])->prefix('admin')->group(function () {
