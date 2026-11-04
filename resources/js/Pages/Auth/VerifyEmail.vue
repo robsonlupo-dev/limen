@@ -417,7 +417,7 @@ async function skipWhatsApp() {
                         <span>Aceito receber avisos do Limen por WhatsApp. Posso cancelar quando quiser respondendo SAIR.</span>
                     </label>
 
-                    <p v-if="wppError" class="mt-2 text-sm text-limen-live">{{ wppError }}</p>
+                    <p v-if="wppError" class="mt-2 text-sm text-danger">{{ wppError }}</p>
 
                     <button type="button" class="mt-3 min-h-[52px] w-full rounded-xl text-base font-bold disabled:opacity-70"
                         :class="consent ? 'bg-limen-gold text-limen-bg' : 'border border-limen-line bg-limen-surface-2 text-limen-ink-mute'"

@@ -34,4 +34,19 @@ return [
 
     // Prefixo do código gerado (ex.: LM-7F3K2). Só cosmético.
     'code_prefix' => env('REFERRAL_CODE_PREFIX', 'LM-'),
+
+    // ── Links personalizados (feat/referral-custom-links, estilo Airbnb) ────
+    // Teto de slugs /r/{slug} por usuário. Imutáveis depois de criados — o teto
+    // baixo força escolha com cuidado e reduz ocupação especulativa de nomes.
+    'custom_links_max' => (int) env('REFERRAL_CUSTOM_LINKS_MAX', 2),
+
+    // Reservadas ESPECÍFICAS de rota/URL, somadas às listas do apelido
+    // (config/nickname.php: reserved + contact_keywords + url_markers), que o
+    // ReferralLinkService também aplica. Casadas por SUBSTRING normalizada.
+    'link_reserved' => [
+        'ref', 'convite', 'invite', 'lista', 'waitlist', 'fundador', 'founder',
+        'cadastro', 'login', 'entrada', 'catalogo', 'ajuda', 'help', 'api',
+        'www', 'app', 'performer', 'criadora', 'membro', 'member', 'token',
+        'tokens', 'pix', 'vip', 'premium', 'gratis', 'free', 'promo',
+    ],
 ];
