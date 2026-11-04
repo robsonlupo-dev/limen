@@ -1425,3 +1425,17 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   3. ⬜ Abrir **/r/<seu-slug>** numa aba anônima → cai na home; depois cadastrar com o mesmo navegador → a indicação aparece em `referrals` apontando para você.
   4. ⬜ **QR**: abrir o modal → QR com sua foto no centro (se tiver avatar; chave liga/desliga) → Salvar baixa o PNG → escanear com o celular abre o /r/.
 - **Exemplo vivo:** criar o link `/r/robson` na sua conta de teste e deixar o QR salvo para conferir o escaneamento.
+
+## FASE 60 — Painel do fundador unificado na tela de continuação + metas sem token · PR feat/waitlist-unified-panel
+- **O que entrou (decisões do PO em 04/11):**
+  1. **Uma casa só para o fundador**: o painel antigo `/f/{code}` foi aposentado como tela; `/f/` agora **redireciona** para `/lista/continuar?c={code}` (modo público). A tela de continuação vira o painel definitivo: confirme o e-mail + WhatsApp + convite + **nível/metas** + **últimos indicados** (mascarados).
+  2. **Dois modos na mesma tela**: **DONO** (identificado pelo token `e`+`k` ou pela sessão de quem acabou de se inscrever) vê tudo, inclusive e-mail mascarado, WhatsApp e os botões de ação; **PÚBLICO** (`?c=` com o invite code, que circula nos convites) vê só o que o painel antigo já mostrava — nível, metas, contagem e indicados mascarados — com um aviso "este é o painel público de Fulano". O `?c` NUNCA carrega o token de dono nem PII.
+  3. **Pós-confirmação de e-mail cai na tela unificada**: o link do e-mail confirma e redireciona para `/lista/continuar?e=..&k=..` (antes ia para o `/f/` antigo). Os CTAs dos e-mails de confirmação e de nutrição também apontam para a URL de DONO (UTMs preservadas).
+  4. **Metas sem valor de token (decisão do PO)**: os tiers de membro deixam de prometer token ("+100 tokens no primeiro depósito" etc.) e passam a dar STATUS/vantagem: Apoiador = prioridade na fila, Patrono = beta de features, Arquiteto = nome nos créditos. Token SÓ pela regra real de conversão do programa de indicação (compra confirmada / criadora com 1º ganho — 10/5 e 40/25, e-mail confirmado + 14 dias), e a tela diz isso com todas as letras no card de benefícios.
+- **Auto (no ship, suíte completa):** `WaitlistTest` (confirmação → tela unificada; /f/ redireciona; painel via ?c sem token de dono; título neutro; e-mails indicados mascarados), `WaitlistContinueTest` (modo público sem PII com standing; ?c desconhecido → home; dono no próprio ?c segue dono; dono no ?c alheio vira público; standing com nível/metas), `WaitlistNurtureTest` (CTA → URL de dono).
+- **Manual** ⬜:
+  1. ⬜ Fazer um cadastro novo na home → cair em `/lista/continuar?e=..&k=..` já com o card **Nível** (Curioso/Curiosa), a régua de **Benefícios** com as metas e a nota "E os tokens? Vêm do programa de indicação…" — **sem** nenhuma promessa de token nas metas.
+  2. ⬜ Confirmar o e-mail pelo link → voltar para a MESMA tela com "E-mail confirmado".
+  3. ⬜ Abrir `/f/<code>` (link antigo de e-mail já enviado) → redireciona para a tela unificada em modo público, com o aviso "este é o painel público de…"; conferir que NÃO aparecem e-mail, WhatsApp nem botões de ação.
+  4. ⬜ Indicar alguém pelo `/convite/<code>` → no painel do DONO aparece "Seus últimos indicados" com o nome mascarado (Fulana S.) e o badge pendente→confirmado após o opt-in do indicado.
+- **Exemplo vivo:** usar as inscrições celularn73 (indicador) e brimportadosmiami (indicado) que o PO já criou — o painel do celularn73 deve mostrar o indicado confirmado e a meta "Apoiador: faltam 2".

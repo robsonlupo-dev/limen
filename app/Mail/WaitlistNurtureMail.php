@@ -87,8 +87,7 @@ class WaitlistNurtureMail extends Mailable implements ShouldQueue
      */
     private function ctaUrl(): string
     {
-        return URL::route('waitlist.founder', [
-            'invite_code' => $this->entry->invite_code,
+        return $this->entry->continueUrl([
             'utm_source' => 'nurturing',
             'utm_medium' => 'email',
             'utm_campaign' => "{$this->role()}_dia{$this->stepDay()}",

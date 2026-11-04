@@ -280,11 +280,11 @@ it('does not resend the confirmation email on an idempotent re-submit', function
 
 // ─── Email confirmation (double opt-in) ──────────────────────────────────────
 
-it('confirms an email via the token link and lands on the founder panel', function () {
+it('confirms an email via the token link and lands on the continuation screen (owner URL)', function () {
     $entry = joinWaitlist();
 
     $this->get('/waitlist/confirmar?t='.$entry->invite_token)
-        ->assertRedirect(route('waitlist.founder', ['invite_code' => $entry->invite_code]))
+        ->assertRedirect($entry->continueUrl())
         ->assertSessionHas('success');
 
     expect($entry->fresh()->confirmed_at)->not->toBeNull();
@@ -413,40 +413,49 @@ it('numbers positions independently per role', function () {
     expect($p2->position_in_role)->toBe(2);
 });
 
-// ─── Founder panel ───────────────────────────────────────────────────────────
+// ─── Founder panel (unificado na tela de continuação — /f/ só redireciona) ───
 
-it('renders the member founder panel with role title and tier', function () {
+it('redirects the legacy /f/ panel to the continuation screen in PUBLIC mode', function () {
     $entry = joinWaitlist(['name' => 'Rafael Souza', 'email' => 'raf@example.com', 'role' => 'member']);
 
     $this->get('/f/'.$entry->invite_code)
-        ->assertOk()
-        ->assertSee('Painel de Rafael')
-        ->assertSee('Membro Fundador')
-        ->assertSee('Curioso')
-        ->assertSee($entry->invite_code);
+        ->assertRedirect(route('waitlist.continue', ['c' => $entry->invite_code]));
 });
 
-it('renders the performer founder panel with a gender-neutral title', function () {
+it('renders the unified panel via ?c with tier, title and NO owner token', function () {
+    $entry = joinWaitlist(['name' => 'Rafael Souza', 'email' => 'raf@example.com', 'role' => 'member']);
+
+    $this->get(route('waitlist.continue', ['c' => $entry->invite_code]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $p) => $p
+            ->component('Waitlist/Continue')
+            ->where('is_owner', false)
+            ->where('waitlist.founder_title', 'Membro Fundador')
+            ->where('standing.tierLabel', 'Curioso')
+            // Modo público NUNCA carrega o capability-token nem PII do dono.
+            ->where('waitlist.auth_k', null)
+            ->where('waitlist.email_masked', null)
+        );
+});
+
+it('shows the gender-neutral performer title on the unified panel', function () {
     $entry = joinWaitlist(['name' => 'Lia', 'email' => 'lia@example.com', 'role' => 'performer']);
 
-    $this->get('/f/'.$entry->invite_code)
+    $this->get(route('waitlist.continue', ['c' => $entry->invite_code]))
         ->assertOk()
-        ->assertSee('Performer Fundador(a)')
-        ->assertDontSee('Performer Fundadora')
-        // Problema 1: sem contador de posição no painel.
-        ->assertDontSee('Sua posição')
-        ->assertDontSee('performers na lista');
+        ->assertInertia(fn (Assert $p) => $p
+            ->where('waitlist.founder_title', 'Performer Fundador(a)'));
 });
 
-it('404s the founder panel for an unknown invite code', function () {
+it('404s the legacy /f/ redirect for an unknown invite code', function () {
     $this->get('/f/LIMEN-XXX-0000')->assertNotFound();
 });
 
-it('does not expose referred emails on the founder panel (only masked names)', function () {
+it('does not expose referred emails on the unified panel (only masked names)', function () {
     $referrer = joinWaitlist(['email' => 'ref@example.com']);
     joinWaitlist(['name' => 'Carla Menezes', 'email' => 'carla@example.com'], $referrer);
 
-    $this->get('/f/'.$referrer->invite_code)
+    $this->get(route('waitlist.continue', ['c' => $referrer->invite_code]))
         ->assertSee('Carla M.')
         ->assertDontSee('carla@example.com');
 });

@@ -64,40 +64,24 @@ class WaitlistController extends Controller
         // Não é PII: é o id do registro + um HMAC que só o servidor gera/valida.
         $request->session()->put('waitlist_entry_id', $entry->id);
 
-        return redirect()->route('waitlist.continue', [
-            'e' => $entry->id,
-            'k' => $this->continueToken($entry->id),
-        ])->with('success', $success);
-    }
-
-    /** HMAC estável por registro, capability-token da tela de continuação. */
-    private function continueToken(int $entryId): string
-    {
-        return hash_hmac('sha256', 'waitlist-continue:'.$entryId, (string) config('app.key'));
-    }
-
-    private function tokenValid(?int $entryId, ?string $k): bool
-    {
-        if (! $entryId || ! $k) {
-            return false;
-        }
-
-        return hash_equals($this->continueToken($entryId), $k);
+        return redirect()->to($entry->continueUrl())->with('success', $success);
     }
 
     /**
-     * Resolve o registro da continuação: primeiro pelo TOKEN (stateless, imune a
-     * problema de cookie entre requests), depois pela SESSÃO (fluxo feliz). Quando
-     * casa pelo token, reidrata a sessão para os próximos passos.
+     * Resolve o registro como DONO: primeiro pelo token e+k (stateless, imune a
+     * problema de cookie entre requests; o HMAC vive no WaitlistEntry), depois
+     * pela SESSÃO (quem acabou de se inscrever neste navegador). Quando casa pelo
+     * token, reidrata a sessão. O ?c= público NUNCA passa por aqui — os POSTs
+     * (WhatsApp/reenvio) exigem dono.
      */
     private function resolveEntry(Request $request): ?WaitlistEntry
     {
         $e = (int) ($request->input('e') ?? $request->query('e') ?? 0);
         $k = (string) ($request->input('k') ?? $request->query('k') ?? '');
 
-        if ($this->tokenValid($e, $k)) {
+        if ($e > 0 && $k !== '') {
             $entry = WaitlistEntry::find($e);
-            if ($entry) {
+            if ($entry && hash_equals($entry->continueToken(), $k)) {
                 $request->session()->put('waitlist_entry_id', $entry->id);
 
                 return $entry;
@@ -114,16 +98,35 @@ class WaitlistController extends Controller
      * login — a pessoa é identificada pelo `waitlist_entry_id` da sessão. Sem
      * sessão (acesso direto), volta para a home.
      */
-    public function continueScreen(Request $request): Response|RedirectResponse
+    public function continueScreen(Request $request, \App\Services\Waitlist\FounderPresenter $presenter): Response|RedirectResponse
     {
-        $entry = $this->resolveEntry($request);
+        // DONO = token e+k válido ou sessão de quem acabou de se inscrever.
+        $ownerEntry = $this->resolveEntry($request);
+
+        // Modo PÚBLICO (?c=invite_code): o painel unificado substitui o antigo
+        // /f/{code}. O invite_code é público, então este caminho mostra só o que
+        // o painel antigo já mostrava (nível, metas, convite, indicados
+        // mascarados) — nunca e-mail, WhatsApp ou o token de dono.
+        $viewEntry = null;
+        $c = (string) $request->query('c', '');
+        if ($c !== '') {
+            $viewEntry = WaitlistEntry::findByInviteCode($c);
+        }
+
+        $entry = $viewEntry ?? $ownerEntry;
 
         if ($entry === null) {
             return redirect()->route('landing');
         }
 
+        $isOwner = $ownerEntry !== null && $ownerEntry->id === $entry->id;
+
         return Inertia::render('Waitlist/Continue', [
-            'waitlist' => $this->entryProps($entry),
+            'waitlist' => $this->entryProps($entry, $isOwner),
+            'is_owner' => $isOwner,
+            // Nível, metas, posição e últimos indicados — a MESMA fonte do painel
+            // antigo (FounderPresenter), agora dentro da tela unificada.
+            'standing' => $presenter->for($entry),
         ]);
     }
 
@@ -193,14 +196,13 @@ class WaitlistController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function entryProps(WaitlistEntry $entry): array
+    private function entryProps(WaitlistEntry $entry, bool $isOwner): array
     {
         $inviteCode = $entry->invite_code;
 
-        return [
+        $props = [
             'role' => $entry->isPerformer() ? 'performer' : 'member',
             'name' => (string) \Illuminate\Support\Str::of($entry->name)->trim()->explode(' ')->first(),
-            'email_masked' => $this->maskEmail($entry->email),
             'confirmed' => $entry->isConfirmed(),
             'founder_title' => $entry->founderTitle(),
             'invite_code' => $inviteCode,
@@ -208,13 +210,31 @@ class WaitlistController extends Controller
             // (limen.dev.br) — o convite tem que apontar para o domínio público.
             'invite_link' => $inviteCode ? url('/convite/'.$inviteCode) : null,
             'referral_count' => (int) $entry->referral_count,
-            'whatsapp_opted_in' => filled($entry->whatsapp_consent_at),
-            'whatsapp_masked' => BrazilPhone::mask($entry->whatsapp),
-            // Capability-token para os próximos passos (opt-in / reenvio) sem depender
-            // do cookie de sessão sobreviver entre requests.
-            'auth_e' => $entry->id,
-            'auth_k' => $this->continueToken($entry->id),
         ];
+
+        if ($isOwner) {
+            // Só o DONO vê e-mail mascarado, estado do WhatsApp e o token de
+            // ação (opt-in/reenvio). No modo público (?c) nada disso sai.
+            $props += [
+                'email_masked' => $this->maskEmail($entry->email),
+                'whatsapp_opted_in' => filled($entry->whatsapp_consent_at),
+                'whatsapp_masked' => BrazilPhone::mask($entry->whatsapp),
+                'auth_e' => $entry->id,
+                'auth_k' => $entry->continueToken(),
+            ];
+        } else {
+            // Chaves explícitas em null no modo público: o front e os testes
+            // enxergam "não há dono aqui" em vez de uma chave ausente.
+            $props += [
+                'email_masked' => null,
+                'whatsapp_opted_in' => false,
+                'whatsapp_masked' => null,
+                'auth_e' => null,
+                'auth_k' => null,
+            ];
+        }
+
+        return $props;
     }
 
     /** ma•••@gmail.com — nunca o e-mail inteiro na tela. */
@@ -228,7 +248,8 @@ class WaitlistController extends Controller
     /**
      * Double opt-in email confirmation. Reached from the link in the
      * confirmation email; idempotent, so a link pre-fetch confirms at most once.
-     * On success we land the person on their own founder panel.
+     * On success we land the person on their OWNER continuation screen (e+k) —
+     * the unified founder panel (04/11).
      */
     public function confirm(Request $request): RedirectResponse
     {
@@ -240,8 +261,11 @@ class WaitlistController extends Controller
 
         $this->service->confirm($entry);
 
+        // Painel unificado (04/11): depois de confirmar, a pessoa volta para a
+        // tela de continuação em modo DONO (e+k) — é lá que ficam o nível, as
+        // metas, o convite e o WhatsApp. O /f/{code} segue vivo só como redirect.
         return redirect()
-            ->route('waitlist.founder', ['invite_code' => $entry->invite_code])
+            ->to($entry->continueUrl())
             ->with('success', 'E-mail confirmado! Seu lugar está garantido.');
     }
 
