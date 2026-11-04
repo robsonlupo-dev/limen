@@ -197,7 +197,7 @@ async function skipWhatsApp() {
                 </p>
             </template>
 
-            <template v-else-if="confirmed">
+            <template v-else-if="is_owner && confirmed">
                 <div class="mt-5 flex items-center gap-2.5 rounded-xl border border-limen-gold bg-limen-surface px-3.5 py-3">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d6b872" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
                     <span class="text-sm text-limen-ink">E-mail confirmado — sua vaga está garantida.</span>

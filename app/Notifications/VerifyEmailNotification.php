@@ -29,7 +29,10 @@ class VerifyEmailNotification extends VerifyEmail
             ->subject($isPerformer
                 ? 'Falta 1 clique para reservar sua vaga de Criadora Fundadora'
                 : 'Falta 1 clique para cruzar a porta — Limen')
-            ->markdown('emails.verify-email', [
+            // view() (não markdown): o template é HTML completo no vestido
+            // maison escuro dos e-mails da waitlist — o tema markdown padrão
+            // do Laravel destoava da marca (pedido do PO, 04/11).
+            ->view('emails.verify-email', [
                 'verificationUrl' => $url,
                 'isPerformer' => $isPerformer,
                 'welcome' => $data,

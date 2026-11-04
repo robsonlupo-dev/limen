@@ -96,6 +96,10 @@ export const MEMBER_SECTIONS = [
 // `action:'logout'` não navega: dispara o modal de confirmação de saída do layout.
 export const MEMBER_MENU = [
     { key: 'perfil', label: 'Meu Perfil', route: 'consumer.profile.edit' },
+    // Indicação (feat/growth-entries): antes só se chegava a /indicacoes por URL
+    // — nenhuma porta na navegação. Mora no menu do avatar (não é uso diário) e
+    // ganha um card-atalho na Carteira, onde a pessoa pensa em token.
+    { key: 'indicar', label: 'Indique e ganhe', route: 'referral.index' },
     { key: 'config', label: 'Configurações', route: 'consumer.settings' },
     { key: 'sair', label: 'Sair', action: 'logout' },
 ]

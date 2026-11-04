@@ -112,6 +112,9 @@ export const PERFORMER_MENU = [
     // a usava), então nenhum only[] muda.
     { key: 'voz', label: 'Apresentação de voz', route: 'performer.voice-intro.edit' },
     { key: 'agendamentos', label: 'Agendamentos', route: 'performer.reservations.index', feature: 'call_enabled' },
+    // Indicação (feat/growth-entries): mesma porta do lado do membro — a tela
+    // /indicacoes é role-aware (criadora vê 40/25). Card-atalho também em Saques.
+    { key: 'indicar', label: 'Indique e ganhe', route: 'referral.index' },
     { key: 'seguranca', label: 'Segurança', route: 'performer.2fa.show' },
     { key: 'sair', label: 'Sair', action: 'logout' },
 ]

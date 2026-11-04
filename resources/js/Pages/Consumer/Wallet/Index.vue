@@ -161,6 +161,29 @@ onMounted(async () => {
                 </div>
             </div>
 
+
+            <!-- Atalho do programa de indicação (feat/growth-entries): a Carteira
+                 é onde o membro pensa em token, então a porta mora aqui. Os
+                 VALORES ficam só em /indicacoes (fonte única) — nada de número
+                 duplicado que depois divirja. -->
+            <Link
+                :href="route('referral.index')"
+                class="flex items-center gap-4 rounded-xl border border-gold/30 bg-surface p-5 no-underline transition-colors hover:border-gold"
+            >
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gold/40 text-gold" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                        <path d="M16 3h5v5" />
+                        <path d="M21 3 13 11" />
+                        <path d="M9 5a7 7 0 1 0 10 10" />
+                    </svg>
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block font-serif text-lg text-cream">Indique e ganhe tokens</span>
+                    <span class="mt-0.5 block text-sm text-muted">Cada amigo que entra de verdade pelo seu link rende tokens para os dois lados.</span>
+                </span>
+                <span class="shrink-0 text-gold" aria-hidden="true">→</span>
+            </Link>
+
             <!-- Recent history -->
             <div class="space-y-3">
                 <h2 class="font-serif text-xl text-cream">Histórico recente</h2>
