@@ -184,7 +184,7 @@ function submit() {
                         <!-- World preference (member) -->
                         <div>
                             <label class="text-sm font-medium text-cream">
-                                Qual mundo você quer explorar?
+                                Qual mundo você quer explorar primeiro?
                                 <span class="text-gold ml-0.5">*</span>
                             </label>
                             <div class="mt-2 grid grid-cols-3 gap-2">

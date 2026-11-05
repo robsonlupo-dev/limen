@@ -34,7 +34,25 @@
                             {{-- Filete interno: a moldura dupla da casa. --}}
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(201,168,76,0.28); border-radius:12px;">
 
-                                {{-- Marca do portal --}}
+                                {{-- Cabeçalho: a porta de bronze EMBUTIDA no e-mail (CID,
+                                     $message->embed) — nunca <img> remoto, que é pixel de
+                                     leitura (PIXEL_AUDIT): a foto viaja DENTRO do e-mail e
+                                     nada é buscado na rede ao abrir. No render sem envio
+                                     (testes/preview) não há $message e o arco CSS assume. --}}
+                                @isset($message)
+                                <tr>
+                                    <td style="padding:0; line-height:0;">
+                                        <img src="{{ $message->embed(public_path('email/hero-porta.jpg')) }}" width="538" alt="" style="display:block; width:100%; height:auto; border-radius:11px 11px 0 0;">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding:30px 40px 0 40px;">
+                                        <div style="font-size:15px; letter-spacing:7px; color:#C9A84C; text-transform:uppercase;">Limen</div>
+                                        <div style="margin-top:7px; font-size:10px; letter-spacing:4px; color:#6f6a62; text-transform:uppercase;">{{ $isPerformer ? 'Criadoras Fundadoras' : 'Founding Members' }}</div>
+                                    </td>
+                                </tr>
+                                @else
+                                {{-- Marca do portal (fallback sem $message) --}}
                                 <tr>
                                     <td align="center" style="padding:46px 40px 0 40px;">
                                         <div style="width:76px; height:48px; margin:0 auto; border:2px solid #C9A84C; border-bottom:none; border-radius:40px 40px 0 0;"></div>
@@ -43,6 +61,7 @@
                                         <div style="margin-top:7px; font-size:10px; letter-spacing:4px; color:#6f6a62; text-transform:uppercase;">{{ $isPerformer ? 'Criadoras Fundadoras' : 'Founding Members' }}</div>
                                     </td>
                                 </tr>
+                                @endisset
 
                                 {{-- Ornamento --}}
                                 <tr>

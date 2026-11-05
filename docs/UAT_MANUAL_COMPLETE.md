@@ -1454,3 +1454,13 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   4. ⬜ Fazer um cadastro de conta novo → e-mail "Falta 1 clique…" chega ESCURO com moldura dupla e os bônus em card (sem imagem); entrar na lista de espera → "Confirme seu lugar" com a mesma moldura.
   5. ⬜ Abrir /f/<code> (modo público) → a tarja "E-mail confirmado" NÃO aparece (só o aviso de painel público).
 - **Exemplo vivo:** o card na Carteira do `staging-membro100` e o e-mail novo na caixa do próximo cadastro de teste.
+
+## FASE 62 — Foto da porta embutida nos e-mails + "explorar primeiro" · PR feat/email-hero-and-world-copy
+- **O que entrou (PO, 05/11):**
+  1. **A porta de bronze no topo dos dois e-mails de entrada** (verify-email e "Confirme seu lugar"): arte gerada por IA (ambiente, sem pessoas — mesma regra da landing), escolhida pelo PO, **EMBUTIDA via CID** (`$message->embed`, `public/email/hero-porta.jpg`, 30 KB). Nada é buscado na rede quando o e-mail abre → a disciplina anti-pixel-de-leitura do PIXEL_AUDIT continua intacta. No render sem envio (testes/preview) o arco CSS antigo assume como fallback.
+  2. **Rótulo do mundo no /cadastro**: "Qual mundo você quer explorar?" → "Qual mundo você quer explorar **primeiro**?" — deixa claro que é o mundo PADRÃO do Descobrir, não uma escolha exclusiva (dá pra trocar no catálogo).
+- **Auto:** `EmailMaisonDesignTest` ganhou o teste do CID (templates usam `$message->embed`, zero `src="http`, asset presente); os testes de render sem `<img>` seguem valendo pelo fallback.
+- **Manual** ⬜:
+  1. ⬜ Cadastro de conta novo → e-mail "Falta 1 clique…" chega com a FOTO da porta no topo (cantos arredondados) + wordmark LIMEN abaixo.
+  2. ⬜ Lista de espera com e-mail novo → "Confirme seu lugar" com a mesma foto.
+  3. ⬜ /cadastro → rótulo "Qual mundo você quer explorar primeiro?".
