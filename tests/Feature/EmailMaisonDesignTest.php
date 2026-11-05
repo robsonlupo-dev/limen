@@ -46,11 +46,36 @@ it('verify-email da criadora usa o palco e o bônus de 40', function () {
         ->not->toContain('<img');
 });
 
-it('nenhum dos dois e-mails de entrada carrega imagem remota (pixel de leitura)', function () {
+it('nenhum dos dois e-mails de entrada carrega imagem REMOTA (pixel de leitura)', function () {
     $entry = app(WaitlistService::class)->join([
         'name' => 'Teste Pixel', 'email' => 'pixel@gmail.com', 'role' => 'member', 'age_confirmed' => true,
     ], null, '127.0.0.1')['entry'];
 
-    expect((new WaitlistConfirmationMail($entry))->render())->not->toContain('<img');
-    expect(verifyEmailHtml())->not->toContain('<img');
+    // A foto da porta é EMBUTIDA: ao enviar de verdade (render do Mailable), o
+    // <img> aparece com src="cid:...", servido de dentro do e-mail. O que não
+    // pode existir é src remoto (http/https/protocol-relative) — esse sim seria
+    // pixel de leitura, denunciando quando/onde o e-mail foi aberto.
+    $confirmation = (new WaitlistConfirmationMail($entry))->render();
+    expect($confirmation)
+        ->not->toContain('src="http')
+        ->not->toContain("src='http")
+        ->not->toContain('src="//');
+
+    // O verify renderizado SEM $message (preview) cai no arco CSS — nem <img> tem.
+    expect(verifyEmailHtml())->not->toContain('src="http');
+});
+
+it('a foto da porta é EMBUTIDA (CID) — nunca <img> remoto nos templates de e-mail', function () {
+    // A arte viaja dentro do e-mail ($message->embed); src="http..." seria
+    // pixel de leitura (PIXEL_AUDIT). O render sem $message cai no arco CSS —
+    // é por isso que os testes acima seguem sem ver <img>.
+    foreach ([
+        'resources/views/emails/verify-email.blade.php',
+        'resources/views/emails/waitlist/confirmation.blade.php',
+    ] as $tpl) {
+        $src = file_get_contents(base_path($tpl));
+        expect($src)->toContain('$message->embed(public_path(\'email/hero-porta.jpg\'))')
+            ->not->toContain('src="http');
+    }
+    expect(file_exists(public_path('email/hero-porta.jpg')))->toBeTrue();
 });
