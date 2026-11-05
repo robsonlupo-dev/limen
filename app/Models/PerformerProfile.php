@@ -729,7 +729,18 @@ class PerformerProfile extends Model
     {
         $unique = Rule::unique('performer_profiles', 'stage_name');
 
-        return ['string', 'max:255', $ignoreProfileId ? $unique->ignore($ignoreProfileId) : $unique];
+        // ProhibitedContentText fecha o buraco (fix minor-safety): o nome
+        // artístico é o texto MAIS público da performer (nome no catálogo) e até
+        // aqui passava sem filtro de conteúdo. Barra proteção à infância, risco
+        // legal e conduta — sem o filtro de contato, para não recusar nome
+        // criativo legítimo. Todas as portas que setam stage_name usam estas
+        // regras (Register*/Update*), então uma linha cobre as três.
+        return [
+            'string',
+            'max:255',
+            new \App\Rules\ProhibitedContentText,
+            $ignoreProfileId ? $unique->ignore($ignoreProfileId) : $unique,
+        ];
     }
 
     public static function generateSlug(string $stageName): string

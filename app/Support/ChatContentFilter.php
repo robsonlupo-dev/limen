@@ -22,6 +22,9 @@ final class ChatContentFilter
 
     public const CONDUCT = 'conduct';
 
+    /** Proteção à infância: a categoria mais grave, checada antes de todas. */
+    public const MINOR = 'minor';
+
     /**
      * Separadores de EVASÃO por espaçamento: o que uma pessoa intercala entre as
      * letras de uma palavra para furar o casamento ("t e  m a t o", "p.i.x",
@@ -43,8 +46,15 @@ final class ChatContentFilter
 
         $text = self::normalize($body);
 
-        // Risco legal primeiro: é a categoria com consequência jurídica, e uma
-        // mensagem que dispara as duas deve ser reportada como a mais grave.
+        // Proteção à infância ANTES de tudo: é a categoria de maior consequência
+        // e não tem qualificador que a desarme. Uma entrada que dispara esta e
+        // outra deve ser reportada como esta.
+        if ($rule = self::matchMinors($text)) {
+            return ['category' => self::MINOR, 'rule' => $rule];
+        }
+
+        // Risco legal: categoria com consequência jurídica, e uma mensagem que
+        // dispara duas abaixo deve ser reportada como a mais grave.
         if ($rule = self::matchLegal($text)) {
             return ['category' => self::LEGAL, 'rule' => $rule];
         }
@@ -81,6 +91,38 @@ final class ChatContentFilter
     }
 
     // ─── Tipo 1: risco legal ────────────────────────────────────────────────
+
+    /**
+     * Proteção à infância. Diferente de legal/conduta, casa por STEM e por
+     * SUBSTRING (não por palavra inteira): 'ninfet' pega ninfeta/ninfetinha, e
+     * a blindagem anti-desvio (fuzzy: separador/repetição) vale igual, então
+     * 'n1nfet' e 'n-i-n-f-e-t' também caem. Sem qualificador que desarme.
+     */
+    private static function matchMinors(string $text): ?string
+    {
+        if (! config('chat_filters.minors.enabled', true)) {
+            return null;
+        }
+
+        $terms = (array) config('chat_filters.minors.terms');
+        if (config('chat_filters.minors.include_pending')) {
+            $terms = array_merge($terms, (array) config('chat_filters.minors.terms_pending_legal'));
+        }
+
+        foreach ($terms as $term) {
+            $needle = self::normalize((string) $term);
+            if ($needle === '') {
+                continue;
+            }
+            // SUBSTRING, sem as âncoras de fronteira do contains(): protege contra
+            // declinação ('ninfet' em 'ninfetinha') e colagem ('xninfetx').
+            if (preg_match('/'.self::fuzzy($needle).'/u', $text) === 1) {
+                return (string) $term;
+            }
+        }
+
+        return null;
+    }
 
     private static function matchLegal(string $text): ?string
     {
