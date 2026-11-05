@@ -1464,3 +1464,17 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   1. ⬜ Cadastro de conta novo → e-mail "Falta 1 clique…" chega com a FOTO da porta no topo (cantos arredondados) + wordmark LIMEN abaixo.
   2. ⬜ Lista de espera com e-mail novo → "Confirme seu lugar" com a mesma foto.
   3. ⬜ /cadastro → rótulo "Qual mundo você quer explorar primeiro?".
+
+## FASE 63 — Proteção à infância nas superfícies públicas de texto · PR fix/minor-safety-terms
+- **Achado (05/11, durante o teste do QR):** NÃO existia filtro contra termos que sexualizam menor em NENHUMA superfície pública de texto. O nome artístico da performer (o texto mais público do catálogo) não tinha filtro de conteúdo algum; slug/apelido/bio passavam pelo ChatContentFilter, que só pegava FOSTA-SESTA e conduta — nada de idade/menor. "ninfetinha" como slug/nome passaria.
+- **O que entrou:**
+  1. Nova categoria **MINOR no ChatContentFilter** — a MAIS grave, checada ANTES de legal/conduta, sem qualquer qualificador que a desarme. Casa por STEM + SUBSTRING (`ninfet` pega ninfeta/ninfetinha) com a mesma blindagem anti-desvio (leet/separador/repetição/zero-width) do resto do filtro.
+  2. Lista em `config/chat_filters.php → minors.terms` (inequívocos, LIGADOS: ninfet, lolit, pedofil, impuber, prepuber, "menor de idade", "sexo/pornografia/abuso infantil").
+  3. Cobre as 4 superfícies: **slug** (ReferralLinkService), **apelido** (MemberNicknameService), **bio** (ProfileTextGuard) — já passavam por `blocks()`; e **nome artístico** (nova `App\Rules\ProhibitedContentText` em `PerformerProfile::stageNameRules()`, o buraco que estava aberto).
+  4. Mensagens genéricas (anti-oráculo) — não revelam qual categoria/termo disparou.
+- **⚠️ PENDÊNCIA JURÍDICA (Felipe):** `minors.terms_pending_legal` (novinh, colegial, teen, infantil, crianca, menininh, garotinh…) são os termos de MAIOR risco de codificação de menor, MAS também circulam como gíria adulta legítima para 18-19 num público já verificado +18. Nascem **DESLIGADOS** (`CHAT_FILTER_MINORS_PENDING=false`). Ligar é decisão de produto + jurídico, não de engenharia. **Recomendação do CTO: ligar após o aval do Felipe** — é `CHAT_FILTER_MINORS_PENDING=true` + `config:cache` + reload.
+- **Auto (no ship):** `MinorSafetyTermsTest` — categoria MINOR; declinação/desvio; sem falso-positivo (praia/bella/ninfa/cristina); toggle do pendente; as 4 superfícies barrando "ninfetinha"; nome inocente passando.
+- **Manual** ⬜ (opcional — o automático cobre):
+  1. ⬜ /indicacoes → criar link `ninfetinha` → recusado com "este link já existe/não pode ser usado".
+  2. ⬜ Cadastro de performer → nome artístico `ninfetinha` → recusado.
+  3. ⬜ Apelido de membro `ninfetinha` → recusado. Bio contendo o termo → recusada.

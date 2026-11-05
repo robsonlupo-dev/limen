@@ -244,6 +244,66 @@ return [
     ],
 
     /*
+    |----------------------------------------------------------------------
+    | TIPO 0 — Proteção à infância (bloqueia SEMPRE, a categoria mais grave)
+    |----------------------------------------------------------------------
+    | Termos que SEXUALIZAM menor de idade. Numa plataforma adulta, um nome
+    | artístico, apelido, slug de link ou bio carregando um destes é risco
+    | legal de primeira ordem (FOSTA-SESTA, derrubada pelo processador de
+    | pagamento, exposição criminal) — e não existe "contexto" que redima.
+    | Por isso esta categoria vem ANTES de legal/conduta no match() e é a
+    | única sem qualquer qualificador que a desarme.
+    |
+    | Casamento por STEM e por SUBSTRING (não por palavra inteira, como a
+    | conduta): 'ninfet' pega ninfeta/ninfetinha/ninfetas. Herda a mesma
+    | normalização anti-desvio (leet, repetição, separador, zero-width) de
+    | todo o ChatContentFilter — 'n1nfet', 'n-i-n-f-e-t' caem igual.
+    |
+    | 'terms' são os INEQUÍVOCOS: nenhuma palavra inocente do PT os contém
+    | como substring. Ligados sempre.
+    */
+    'minors' => [
+        'enabled' => (bool) env('CHAT_FILTER_MINORS_ENABLED', true),
+
+        'terms' => [
+            'ninfet',        // ninfeta, ninfetinha, ninfetas
+            'lolit',         // lolita, lolitinha
+            'pedofil',       // pedofilia, pedófilo
+            'pedofl',
+            'impuber',       // impúbere
+            'prepuber',      // pré-púbere
+            'menor de idade',
+            'menores de idade',
+            'sexo infantil',
+            'pornografia infantil',
+            'abuso infantil',
+        ],
+
+        /*
+        | 'terms_pending_legal' — ALTO VALOR, mas AMBÍGUOS: são os termos
+        | mais usados para codificar menor ('novinha', 'colegial', 'teen'…),
+        | PORÉM também circulam como gíria adulta legítima para 18-19 num
+        | público já verificado como +18. Ligar isto é decisão de PRODUTO +
+        | JURÍDICO (Felipe), não de engenharia — por isso nasce DESLIGADO.
+        | Recomendação do CTO: ligar após o aval do jurídico (são os de maior
+        | risco). Vira só um env: CHAT_FILTER_MINORS_PENDING=true.
+        */
+        'include_pending' => (bool) env('CHAT_FILTER_MINORS_PENDING', false),
+        'terms_pending_legal' => [
+            'novinh',        // novinha, novinhas, novinho
+            'colegial',
+            'colegiais',
+            'infantil',
+            'crianca',
+            'menininh',      // menininha
+            'garotinh',      // garotinha
+            'teen',
+            'nova demais',
+            'nova de mais',
+        ],
+    ],
+
+    /*
     | Janela (minutos) de deduplicação do audit por (usuário, regra).
     | Sem isso, enumerar a lista escreve uma linha por tentativa e enterra a
     | trilha — o mesmo cuidado que config/geo.php já toma.
