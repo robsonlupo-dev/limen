@@ -73,6 +73,13 @@ const heroDurations = [4.5, 4.5, 10.5, 7.5, 5.5, 9.5, 7.5]
 const heroIndex = ref(0)
 let heroTimer = null
 
+// Cena que está SAINDO (fade-out). Mantemos o <video> dela montado enquanto
+// some, para segurar o ÚLTIMO frame. Sem isso, o v-if trocava o vídeo que
+// acabou pelo <img poster> (o PRIMEIRO frame) no instante do `ended`, e o clipe
+// parecia "voltar pro início" por meio segundo antes da próxima cena entrar.
+const heroPrev = ref(-1)
+let heroPrevTimer = null
+
 // Timer de SEGURANÇA das cenas de vídeo: o avanço real é no evento `ended`; este só
 // dispara se o vídeo não terminar (erro de rede/codec). Fica acima do maior vídeo do
 // topo (~11s) para nunca cortar a cena antes do fim (ponto nº 2 do fix).
@@ -99,6 +106,12 @@ function heroSchedule(k) {
     heroTimer = setTimeout(() => heroGo((k + 1) % heroScenes.length), ms)
 }
 function heroGo(k) {
+    // Segura a cena que sai montada durante o fade (~.5s de opacity). Um <video>
+    // que terminou fica parado no último frame — é esse frame que deve aparecer
+    // enquanto a cena some, e não o primeiro frame do poster.
+    clearTimeout(heroPrevTimer)
+    heroPrev.value = heroIndex.value
+    heroPrevTimer = setTimeout(() => { heroPrev.value = -1 }, 650)
     heroIndex.value = k
     heroSchedule(k)
 }
@@ -396,6 +409,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     clearTimeout(heroTimer)
+    clearTimeout(heroPrevTimer)
     clearInterval(cardTimer)
     cardVideoObserver?.disconnect()
     window.removeEventListener('scroll', onPortalScroll)
@@ -425,7 +439,7 @@ onBeforeUnmount(() => {
                 >
                     <template v-if="s.type === 'video'">
                         <video
-                            v-if="heroIndex === s.k && motionOk"
+                            v-if="(heroIndex === s.k || heroPrev === s.k) && motionOk"
                             class="hmedia"
                             :src="s.src"
                             :poster="s.poster"
