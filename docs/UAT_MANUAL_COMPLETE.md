@@ -1478,3 +1478,13 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   1. ⬜ /indicacoes → criar link `ninfetinha` → recusado com "este link já existe/não pode ser usado".
   2. ⬜ Cadastro de performer → nome artístico `ninfetinha` → recusado.
   3. ⬜ Apelido de membro `ninfetinha` → recusado. Bio contendo o termo → recusada.
+
+## FASE 64 — Fix da transição dos vídeos do hero (volta ao 1º frame) · PR fix/landing-video-transition
+- **Sintoma (gravação do PO, 06/11):** cada cena de VÍDEO do hero termina, "volta ~1s pro início" e só então troca pra próxima. A vela acende, pisca de volta pro começo e só aí apaga/troca.
+- **Causa:** quando o vídeo termina (`@ended`), o `v-if="heroIndex === s.k"` trocava NA HORA o `<video>` (parado no último frame) pelo `<img :src="poster">` — e o poster é o PRIMEIRO frame do clipe. Durante o fade de 0,5s via-se o primeiro frame no lugar do último → parecia "rebobinar". Não era replay (os vídeos do hero não têm `loop`).
+- **Correção:** `heroPrev` segura a cena que está SAINDO montada durante o fade (650ms), para o `<video>` que terminou exibir o ÚLTIMO frame enquanto some, em vez do poster. Só mídia; sem mudança de asset, de duração ou de ordem das cenas. `prefers-reduced-motion` intacto (continua em poster estático).
+- **Nota:** o "1.00" no canto superior-esquerdo que aparece na gravação é a extensão de velocidade de vídeo do Chrome do PO, não é do site.
+- **Auto:** `LandingCinematicTest` segue verde (markup/assets inalterados). O comportamento é de runtime (Vue) — teste manual confirma.
+- **Manual** ⬜:
+  1. ⬜ Abrir thelimen.com.br e observar 1 ciclo completo do hero: cada vídeo deve emendar na próxima cena SEM piscar de volta pro começo.
+  2. ⬜ Cena da vela (acender → selo) e a cena da vela apagando: transição limpa, sem rebobinar.
