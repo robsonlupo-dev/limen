@@ -616,7 +616,7 @@ onBeforeUnmount(() => {
                                         <div class="ps-row">✓ Apareça em destaque no catálogo</div>
                                         <div class="ps-row">✓ Proteja seu nome e seu conteúdo</div>
                                     </div>
-                                    <div class="ps-cta">Verificar agora →</div>
+                                    <div class="ps-foot">Feita uma única vez, com total sigilo.</div>
                                 </div>
                                 <!-- Tela 1 · Carteira -->
                                 <div v-show="accIndex === 1" class="ps">
@@ -642,7 +642,7 @@ onBeforeUnmount(() => {
                                         <div class="ps-tip">50</div>
                                     </div>
                                     <div class="ps-msg">Deixe uma mensagem…</div>
-                                    <div class="ps-cta">Enviar 25 tokens</div>
+                                    <div class="ps-foot">Gorjeta de 25 tokens, com a sua mensagem.</div>
                                 </div>
                                 <!-- Tela 3 · Privacidade -->
                                 <div v-show="accIndex === 3" class="ps">
@@ -660,7 +660,7 @@ onBeforeUnmount(() => {
                                     <div class="ps-price">R$ 39,90</div>
                                     <div class="ps-qr" aria-hidden="true"><div class="ps-qr-grid" /></div>
                                     <div class="ps-sub">Expira em <span class="lc-gold">4:32</span></div>
-                                    <div class="ps-cta ps-cta--ghost">Copiar código PIX</div>
+                                    <div class="ps-foot">Pagamento instantâneo, o saldo cai na hora.</div>
                                     <div class="ps-foot">QR ilustrativo · Os tokens caem assim que o PIX é confirmado.</div>
                                 </div>
                             </div>
@@ -775,13 +775,13 @@ onBeforeUnmount(() => {
                                 <!-- Passo 1 -->
                                 <template v-if="step === 1">
                                     <div>
-                                        <span class="f-label">Eu quero entrar como</span>
-                                        <div class="role-toggle" role="group" aria-label="Eu sou">
+                                        <span class="f-label">O que você procura no Limen?</span>
+                                        <div class="role-toggle" role="group" aria-label="O que você procura">
                                             <button type="button" class="role-opt" :class="{ 'is-on': form.role === 'member' }" @click="selectRole('member')">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>Quero explorar
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>Conhecer e conversar
                                             </button>
                                             <button type="button" class="role-opt" :class="{ 'is-on': form.role === 'performer' }" @click="selectRole('performer')">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></svg>Sou criadora
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></svg>Ser descoberta e ganhar
                                             </button>
                                         </div>
                                         <p v-if="form.errors.role" class="f-err">{{ form.errors.role }}</p>
@@ -1315,7 +1315,7 @@ onBeforeUnmount(() => {
     padding: 11px;
     box-sizing: border-box;
 }
-.phone-screen { position: relative; width: 100%; height: 100%; border-radius: 34px; background: #0c0a10; overflow: hidden; }
+.phone-screen { pointer-events: none; user-select: none; position: relative; width: 100%; height: 100%; border-radius: 34px; background: #0c0a10; overflow: hidden; }
 .phone-notch { position: absolute; left: 50%; top: 10px; width: 84px; height: 24px; margin-left: -42px; border-radius: 12px; background: #000; z-index: 2; }
 .ps { position: absolute; inset: 0; padding: 60px 21px 21px; display: flex; flex-direction: column; gap: 13px; box-sizing: border-box; overflow-y: auto; }
 .ps-center { align-items: center; text-align: center; }
@@ -1440,7 +1440,9 @@ onBeforeUnmount(() => {
     justify-content: center;
     gap: 0.4rem;
     min-height: 48px;
-    padding: 0 0.8rem;
+    padding: 0.5rem 0.8rem;
+    text-align: center;
+    line-height: 1.25;
     border-radius: 12px;
     border: 1px solid rgba(242, 232, 214, 0.22);
     background: none;
