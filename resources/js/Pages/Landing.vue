@@ -260,12 +260,23 @@ const pillars = [
 
 // ── Círculos (fonte canônica: docs/ECONOMIA.md) ──────────────────────────────
 const circles = [
-    { name: 'EXPLORADOR', price: 'R$ 89,90', tokens: '105', discount: '10%', seats: null, note: 'A primeira porta.', hi: false, gold: false },
-    { name: 'INSIDER', price: 'R$ 189,90', tokens: '230', discount: '10%', seats: null, note: 'Para quem já escolheu.', hi: false, gold: false },
-    { name: 'PRESTIGE', price: 'R$ 389,90', tokens: '490', discount: '15%', seats: null, note: 'Mais perto, mais vezes.', hi: false, gold: false },
-    { name: 'BLACK', price: 'R$ 749,90', tokens: '1.000', discount: '20%', seats: '500 vagas', note: 'Discrição total liberada.', hi: false, gold: true },
-    { name: 'FOUNDERS', price: 'R$ 1.490', tokens: '2.100', discount: '25%', seats: '100 vagas', note: 'Número seu, para sempre.', hi: true, gold: true },
+    { name: 'EXPLORADOR', price: 'R$ 89,90', tokens: '105', discount: '10%', seats: null, note: 'A primeira porta.', hi: false, gold: false, desc: 'A porta de entrada do Portal. 105 tokens por mês e 10% de desconto em tudo. Ideal para conhecer no seu ritmo.' },
+    { name: 'INSIDER', price: 'R$ 189,90', tokens: '230', discount: '10%', seats: null, note: 'Para quem já escolheu.', hi: false, gold: false, desc: 'Para quem já escolheu ficar. 230 tokens por mês, 10% de desconto e mais presença nas conversas.' },
+    { name: 'PRESTIGE', price: 'R$ 389,90', tokens: '490', discount: '15%', seats: null, note: 'Mais perto, mais vezes.', hi: false, gold: false, desc: 'Mais perto, mais vezes. 490 tokens por mês, 15% de desconto e destaque nas suas interações.' },
+    { name: 'BLACK', price: 'R$ 749,90', tokens: '1.000', discount: '20%', seats: '500 vagas', note: 'Discrição total liberada.', hi: false, gold: true, desc: 'Discrição total liberada. 1.000 tokens por mês, 20% de desconto e recursos de privacidade avançada. Apenas 500 vagas.' },
+    { name: 'FOUNDERS', price: 'R$ 1.490', tokens: '2.100', discount: '25%', seats: '100 vagas', note: 'Número seu, para sempre.', hi: true, gold: true, desc: 'O círculo mais alto. 2.100 tokens por mês, 25% de desconto, número permanente e marcos físicos. Apenas 100 vagas, para sempre.' },
 ]
+
+// Pop explicativo dos Círculos: hover no desktop, toque (com X) no celular.
+const activeCircle = ref(null)   // índice visível no momento (hover ou toque)
+const pinnedCircle = ref(null)   // índice fixado por clique/toque (celular)
+function circleEnter(idx) { if (pinnedCircle.value === null) activeCircle.value = idx }
+function circleLeave() { if (pinnedCircle.value === null) activeCircle.value = null }
+function circleToggle(idx) {
+    if (pinnedCircle.value === idx) { pinnedCircle.value = null; activeCircle.value = null }
+    else { pinnedCircle.value = idx; activeCircle.value = idx }
+}
+function circleClose() { pinnedCircle.value = null; activeCircle.value = null }
 
 const footerLinks = [
     { label: 'Como funciona', href: '#por-dentro' },
@@ -288,7 +299,7 @@ const socialLinks = [
     },
     {
         label: 'Instagram',
-        href: 'https://instagram.com/limenoficial',
+        href: 'https://www.instagram.com/limen.oficial/',
         d: 'M12 2.2c3.2 0 3.58 0 4.85.07 1.17.05 1.8.25 2.22.42.56.22.96.48 1.38.9.42.42.68.82.9 1.38.17.42.37 1.05.42 2.22.06 1.27.07 1.65.07 4.85s0 3.58-.07 4.85c-.05 1.17-.25 1.8-.42 2.22a3.7 3.7 0 0 1-.9 1.38c-.42.42-.82.68-1.38.9-.42.17-1.05.37-2.22.42-1.27.06-1.65.07-4.85.07s-3.58 0-4.85-.07c-1.17-.05-1.8-.25-2.22-.42a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.17-.42-.37-1.05-.42-2.22C2.21 15.58 2.2 15.2 2.2 12s0-3.58.07-4.85c.05-1.17.25-1.8.42-2.22.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.17 1.05-.37 2.22-.42C8.42 2.21 8.8 2.2 12 2.2zm0 1.8c-3.14 0-3.5.01-4.74.07-.9.04-1.38.19-1.7.32-.43.16-.74.36-1.06.68-.32.32-.52.63-.68 1.06-.13.32-.28.8-.32 1.7C3.44 9.07 3.43 9.43 3.43 12s.01 2.93.07 4.17c.04.9.19 1.38.32 1.7.16.43.36.74.68 1.06.32.32.63.52 1.06.68.32.13.8.28 1.7.32 1.24.06 1.6.07 4.74.07s3.5-.01 4.74-.07c.9-.04 1.38-.19 1.7-.32.43-.16.74-.36 1.06-.68.32-.32.52-.63.68-1.06.13-.32.28-.8.32-1.7.06-1.24.07-1.6.07-4.17s-.01-2.93-.07-4.17c-.04-.9-.19-1.38-.32-1.7a2.85 2.85 0 0 0-.68-1.06 2.85 2.85 0 0 0-1.06-.68c-.32-.13-.8-.28-1.7-.32C15.5 4.01 15.14 4 12 4zm0 3.07a4.93 4.93 0 1 1 0 9.86 4.93 4.93 0 0 1 0-9.86zm0 1.8a3.13 3.13 0 1 0 0 6.26 3.13 3.13 0 0 0 0-6.26zm5.14-.3a1.15 1.15 0 1 1-2.3 0 1.15 1.15 0 0 1 2.3 0z',
     },
     {
@@ -405,6 +416,9 @@ onMounted(() => {
     // Scroll do Portal.
     window.addEventListener('scroll', onPortalScroll, { passive: true })
     runPortalScroll()
+
+    // Fecha o pop dos Círculos ao tocar/clicar fora dele (celular).
+    document.addEventListener('click', circleClose)
 })
 
 onBeforeUnmount(() => {
@@ -413,6 +427,7 @@ onBeforeUnmount(() => {
     clearInterval(cardTimer)
     cardVideoObserver?.disconnect()
     window.removeEventListener('scroll', onPortalScroll)
+    document.removeEventListener('click', circleClose)
     if (portalRaf !== null) cancelAnimationFrame(portalRaf)
 })
 </script>
@@ -728,13 +743,41 @@ onBeforeUnmount(() => {
                     <p class="lead">Assinatura mensal com tokens incluídos e desconto em tudo. Os dois círculos mais altos têm vagas contadas.</p>
                 </div>
                 <div class="wrap circulos-grid">
-                    <div v-for="(ci, idx) in circles" :key="'ci-' + idx" class="circle" :class="{ 'is-hi': ci.hi }">
+                    <div
+                        v-for="(ci, idx) in circles"
+                        :key="'ci-' + idx"
+                        class="circle"
+                        :class="{ 'is-hi': ci.hi, 'is-active': activeCircle === idx }"
+                        tabindex="0"
+                        role="button"
+                        :aria-expanded="activeCircle === idx"
+                        :aria-label="'Ver detalhes do círculo ' + ci.name"
+                        @mouseenter="circleEnter(idx)"
+                        @mouseleave="circleLeave"
+                        @focus="circleEnter(idx)"
+                        @blur="circleLeave"
+                        @click.stop="circleToggle(idx)"
+                        @keydown.enter.prevent="circleToggle(idx)"
+                        @keydown.space.prevent="circleToggle(idx)"
+                        @keydown.esc="circleClose"
+                    >
                         <div class="circle-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
                         <div class="circle-price">{{ ci.price }}<span>/mês</span></div>
                         <div class="circle-div" aria-hidden="true" />
                         <div class="circle-meta">{{ ci.tokens }} tokens por mês<br>{{ ci.discount }} de desconto</div>
                         <div v-if="ci.seats" class="circle-seats">{{ ci.seats }}</div>
                         <div class="circle-note">{{ ci.note }}</div>
+                        <span class="circle-hint" aria-hidden="true">detalhes</span>
+
+                        <transition name="circle-pop">
+                            <div v-if="activeCircle === idx" class="circle-pop" @click.stop>
+                                <button type="button" class="circle-pop-x" aria-label="Fechar" @click.stop="circleClose">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                                </button>
+                                <div class="circle-pop-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
+                                <p class="circle-pop-desc">{{ ci.desc }}</p>
+                            </div>
+                        </transition>
                     </div>
                 </div>
             </section>
@@ -1384,8 +1427,25 @@ onBeforeUnmount(() => {
 .circulos-head { display: flex; flex-direction: column; gap: 1rem; text-align: left; margin-bottom: 2.2rem; }
 .circulos-head .lead { max-width: 640px; }
 .circulos-grid { display: flex; flex-direction: column; gap: 13px; }
-.circle { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 1.1rem; border-radius: 18px; background: rgba(242, 232, 214, 0.04); box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22); text-align: left; }
+.circle { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 1.1rem; border-radius: 18px; background: rgba(242, 232, 214, 0.04); box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22); text-align: left; cursor: pointer; outline: none; transition: box-shadow 0.2s ease, background-color 0.2s ease, transform 0.2s ease; }
 .circle.is-hi { background: rgba(243, 201, 126, 0.1); box-shadow: inset 0 0 0 1px var(--gold); }
+.circle.is-active { background: rgba(243, 201, 126, 0.12); box-shadow: inset 0 0 0 2px var(--gold); }
+.circle:focus-visible { box-shadow: inset 0 0 0 2px var(--gold); }
+
+/* Dica "detalhes" — só aparece quando não há pop aberto nesse card */
+.circle-hint { margin-top: 2px; font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); opacity: 0.55; transition: opacity 0.2s ease; }
+.circle.is-active .circle-hint { opacity: 0; }
+
+/* Pop explicativo */
+.circle-pop { position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); width: min(260px, 82vw); z-index: 20; padding: 1rem 1.1rem; border-radius: 14px; background: #15110c; box-shadow: 0 0 0 1px var(--gold), 0 18px 44px rgba(0, 0, 0, 0.6); text-align: left; cursor: default; }
+.circle-pop::after { content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #15110c; }
+.circle-pop-name { font-family: 'Cinzel', Georgia, serif; font-size: 0.82rem; letter-spacing: 0.14em; color: var(--ink); margin-bottom: 0.4rem; padding-right: 1.2rem; }
+.circle-pop-desc { margin: 0; font-size: 0.82rem; line-height: 1.55; color: var(--muted); }
+.circle-pop-x { position: absolute; top: 0.45rem; right: 0.45rem; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 999px; background: rgba(242, 232, 214, 0.08); color: var(--muted); cursor: pointer; }
+.circle-pop-x:hover { color: var(--ink); background: rgba(242, 232, 214, 0.16); }
+.circle-pop-x svg { width: 15px; height: 15px; }
+.circle-pop-enter-active, .circle-pop-leave-active { transition: opacity 0.16s ease, transform 0.16s ease; }
+.circle-pop-enter-from, .circle-pop-leave-to { opacity: 0; transform: translateX(-50%) translateY(6px); }
 .circle-name { font-family: 'Cinzel', Georgia, serif; font-size: 1rem; letter-spacing: 0.16em; color: var(--ink); }
 .circle-price { font-family: var(--serif); font-size: 1.7rem; line-height: 1; color: var(--ink); white-space: nowrap; }
 .circle-price span { font-size: 0.85rem; color: var(--muted); }
