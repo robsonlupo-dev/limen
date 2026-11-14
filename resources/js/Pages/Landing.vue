@@ -217,7 +217,7 @@ const accIndex = ref(0)
 const BF = 'Black · Founders'
 const pillars = [
     {
-        title: 'Discrição', sub: 'Ninguém precisa saber.',
+        title: 'Discrição', sub: 'Ninguém precisa saber.', img: '/landing/pilar-discricao.webp', pos: '50% 45%',
         icon: 'M3 3l18 18M10.6 5.1A9.9 9.9 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2M6.6 6.6C4.4 8 2.8 10 2 12c1 2.5 5 7 10 7 1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2',
         items: [
             { name: 'Modo Discreto', desc: 'Você some da lista de fãs que a criadora vê.', tier: BF },
@@ -230,7 +230,7 @@ const pillars = [
         ],
     },
     {
-        title: 'Conexão', sub: 'Perto de quem você escolheu.',
+        title: 'Conexão', sub: 'Perto de quem você escolheu.', img: '/landing/pilar-conexao.webp', pos: '50% 24%',
         icon: 'M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5.1A8 8 0 1 1 21 12z',
         items: [
             { name: 'Chat direto', desc: 'Converse com a criadora, sem intermediário.', tier: null },
@@ -243,7 +243,7 @@ const pillars = [
         ],
     },
     {
-        title: 'Exclusividade', sub: 'Um clube, não uma vitrine.',
+        title: 'Exclusividade', sub: 'Um clube, não uma vitrine.', img: '/landing/pilar-exclusividade.webp', pos: '50% 58%',
         icon: 'M5 21V9a7 7 0 0 1 14 0v12M9 21v-5a3 3 0 0 1 6 0v5',
         items: [
             { name: 'Fã-clube', desc: 'Assine sua criadora favorita em tokens, com nível VIP opcional, e libere o acervo exclusivo dela.', tier: null },
@@ -257,6 +257,12 @@ const pillars = [
         ],
     },
 ]
+
+// Pilares: card com foto que ABRE PARA BAIXO. No desktop abre só de passar o
+// mouse (CSS :hover); no toque/teclado, o clique alterna `openPillar`.
+const openPillar = ref(null)
+function pillarToggle(idx) { openPillar.value = openPillar.value === idx ? null : idx }
+function pillarClose() { openPillar.value = null }
 
 // ── Círculos (fonte canônica: docs/ECONOMIA.md) ──────────────────────────────
 const circles = [
@@ -414,6 +420,7 @@ onMounted(() => {
 
     // Fecha o pop dos Círculos ao tocar/clicar fora dele (celular).
     document.addEventListener('click', circleClose)
+    document.addEventListener('click', pillarClose)
 })
 
 onBeforeUnmount(() => {
@@ -423,6 +430,7 @@ onBeforeUnmount(() => {
     cardVideoObserver?.disconnect()
     window.removeEventListener('scroll', onPortalScroll)
     document.removeEventListener('click', circleClose)
+    document.removeEventListener('click', pillarClose)
     if (portalRaf !== null) cancelAnimationFrame(portalRaf)
 })
 </script>
@@ -708,22 +716,45 @@ onBeforeUnmount(() => {
                         <p class="lead recursos-sub">Tudo abaixo já está construído e testado. Cada promessa aqui é técnica, não de marketing.</p>
                     </div>
                     <div class="pillars">
-                        <div v-for="(pl, pi) in pillars" :key="'pl-' + pi" class="pillar">
-                            <div class="pillar-head">
-                                <span class="pillar-ic">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="pl.icon" /></svg>
+                        <div
+                            v-for="(pl, pi) in pillars"
+                            :key="'pl-' + pi"
+                            class="pillar"
+                            :class="{ 'is-open': openPillar === pi }"
+                        >
+                            <button
+                                type="button"
+                                class="pillar-head"
+                                :aria-expanded="openPillar === pi"
+                                :aria-controls="'pillar-list-' + pi"
+                                @click.stop="pillarToggle(pi)"
+                                @keydown.esc="pillarClose"
+                            >
+                                <img class="pillar-img" :src="pl.img" :style="{ objectPosition: pl.pos }" alt="" loading="lazy" decoding="async" />
+                                <span class="pillar-shade" aria-hidden="true" />
+                                <span class="pillar-cap">
+                                    <span class="pillar-ic">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="pl.icon" /></svg>
+                                    </span>
+                                    <span class="pillar-txt">
+                                        <span class="pillar-title">{{ pl.title }}</span>
+                                        <span class="pillar-sub">{{ pl.sub }}</span>
+                                    </span>
+                                    <span class="pillar-chev" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                                    </span>
                                 </span>
-                                <div>
-                                    <div class="pillar-title">{{ pl.title }}</div>
-                                    <div class="pillar-sub">{{ pl.sub }}</div>
+                            </button>
+                            <div :id="'pillar-list-' + pi" class="pillar-list">
+                                <div class="pillar-list-in">
+                                    <div v-for="(it, ii) in pl.items" :key="'it-' + pi + '-' + ii" class="pillar-item">
+                                        <div class="pi-row">
+                                            <span class="pi-name">{{ it.name }}</span>
+                                            <span v-if="it.tier" class="pi-tier">{{ it.tier }}</span>
+                                        </div>
+                                        <div class="pi-desc">{{ it.desc }}</div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div v-for="(it, ii) in pl.items" :key="'it-' + pi + '-' + ii" class="pillar-item">
-                                <div class="pi-row">
-                                    <span class="pi-name">{{ it.name }}</span>
-                                    <span v-if="it.tier" class="pi-tier">{{ it.tier }}</span>
-                                </div>
-                                <div class="pi-desc">{{ it.desc }}</div>
                             </div>
                         </div>
                     </div>
@@ -1408,20 +1439,46 @@ onBeforeUnmount(() => {
 .recursos-head { display: flex; flex-direction: column; gap: 1.1rem; margin-bottom: 3rem; }
 .recursos-title { font-size: clamp(2.6rem, 9vw, 5rem); }
 .recursos-sub { max-width: 360px; }
-.pillars { display: grid; gap: 3.4rem; }
-.pillar { display: flex; flex-direction: column; }
-.pillar-head { display: flex; align-items: center; gap: 0.8rem; padding-bottom: 1.1rem; }
-.pillar-ic { width: 46px; height: 46px; border-radius: 23px 23px 4px 4px; border: 1px solid rgba(243, 201, 126, 0.6); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--gold); }
+.pillars { display: grid; gap: 1.1rem; align-items: start; }
+.pillar { position: relative; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: rgba(13, 11, 9, 0.72); }
+.pillar::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22); pointer-events: none; transition: box-shadow 0.25s ease; }
+.pillar-head { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; padding: 0; border: none; background: #0d0b09; color: inherit; font: inherit; text-align: left; cursor: pointer; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+.pillar-head:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.pillar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.pillar-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(13, 11, 9, 0.1) 30%, rgba(13, 11, 9, 0.92) 100%); }
+.pillar-cap { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 0.8rem; padding: 1rem 1.1rem; }
+.pillar-ic { width: 46px; height: 46px; border-radius: 23px 23px 4px 4px; border: 1px solid rgba(243, 201, 126, 0.6); background: rgba(13, 11, 9, 0.55); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--gold); }
+.pillar-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pillar-title { font-family: 'Cinzel', Georgia, serif; font-size: 1.3rem; letter-spacing: 0.16em; color: var(--ink); }
 .pillar-sub { font-size: 0.8rem; color: var(--muted); }
+.pillar-chev { margin-left: auto; width: 30px; height: 30px; border-radius: 999px; border: 1px solid rgba(243, 201, 126, 0.5); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--gold); transition: transform 0.35s ease; }
+.pillar-chev svg { width: 16px; height: 16px; }
+/* Lista: abre para baixo (grid 0fr → 1fr anima a altura sem JS) */
+.pillar-list { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.pillar-list-in { min-height: 0; overflow: hidden; padding: 0 1.1rem; }
+.pillar.is-open::after { box-shadow: inset 0 0 0 1px var(--gold); }
+.pillar.is-open .pillar-list { grid-template-rows: 1fr; }
+.pillar.is-open .pillar-chev { transform: rotate(180deg); }
+.pillar.is-open .pillar-img { transform: scale(1.05); }
+@media (hover: hover) and (pointer: fine) {
+    .pillar:hover::after { box-shadow: inset 0 0 0 1px var(--gold); }
+    .pillar:hover .pillar-list { grid-template-rows: 1fr; }
+    .pillar:hover .pillar-chev { transform: rotate(180deg); }
+    .pillar:hover .pillar-img { transform: scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pillar-list, .pillar-img, .pillar-chev { transition: none; }
+}
 .pillar-item { display: flex; flex-direction: column; gap: 4px; padding: 1rem 0; border-top: 1px solid rgba(243, 201, 126, 0.2); }
+.pillar-item:first-child { border-top: none; }
 .pi-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .pi-name { font-size: 1.02rem; font-weight: 600; color: var(--ink); }
 .pi-tier { height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid rgba(243, 201, 126, 0.5); display: inline-flex; align-items: center; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); }
 .pi-desc { font-size: 0.92rem; line-height: 1.5; color: var(--muted); }
 @media (min-width: 768px) {
     .recursos-head { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3.4rem; }
-    .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3.4rem; }
+    .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem; }
+    .pillar-head { aspect-ratio: 4 / 5; }
 }
 
 /* ── Círculos (porta que abre: flip 3D) ──────────────────────────────────── */
