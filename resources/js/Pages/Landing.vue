@@ -260,23 +260,18 @@ const pillars = [
 
 // ── Círculos (fonte canônica: docs/ECONOMIA.md) ──────────────────────────────
 const circles = [
-    { name: 'EXPLORADOR', price: 'R$ 89,90', tokens: '105', discount: '10%', seats: null, note: 'A primeira porta.', hi: false, gold: false, desc: 'A porta de entrada do Portal. 105 tokens por mês e 10% de desconto em tudo. Ideal para conhecer no seu ritmo.' },
-    { name: 'INSIDER', price: 'R$ 189,90', tokens: '230', discount: '10%', seats: null, note: 'Para quem já escolheu.', hi: false, gold: false, desc: 'Para quem já escolheu ficar. 230 tokens por mês, 10% de desconto e mais presença nas conversas.' },
-    { name: 'PRESTIGE', price: 'R$ 389,90', tokens: '490', discount: '15%', seats: null, note: 'Mais perto, mais vezes.', hi: false, gold: false, desc: 'Mais perto, mais vezes. 490 tokens por mês, 15% de desconto e destaque nas suas interações.' },
-    { name: 'BLACK', price: 'R$ 749,90', tokens: '1.000', discount: '20%', seats: '500 vagas', note: 'Discrição total liberada.', hi: false, gold: true, desc: 'Discrição total liberada. 1.000 tokens por mês, 20% de desconto e recursos de privacidade avançada. Apenas 500 vagas.' },
-    { name: 'FOUNDERS', price: 'R$ 1.490', tokens: '2.100', discount: '25%', seats: '100 vagas', note: 'Número seu, para sempre.', hi: true, gold: true, desc: 'O círculo mais alto. 2.100 tokens por mês, 25% de desconto, número permanente e marcos físicos. Apenas 100 vagas, para sempre.' },
+    { name: 'EXPLORADOR', img: '/landing/circulo-explorador.webp', price: 'R$ 89,90', tokens: '105', discount: '10%', seats: null, note: 'A primeira porta.', hi: false, gold: false, desc: 'A porta de entrada do Portal. 105 tokens por mês e 10% de desconto em tudo. Ideal para conhecer no seu ritmo.' },
+    { name: 'INSIDER', img: '/landing/circulo-insider.webp', price: 'R$ 189,90', tokens: '230', discount: '10%', seats: null, note: 'Para quem já escolheu.', hi: false, gold: false, desc: 'Para quem já escolheu ficar. 230 tokens por mês, 10% de desconto e mais presença nas conversas.' },
+    { name: 'PRESTIGE', img: '/landing/circulo-prestige.webp', price: 'R$ 389,90', tokens: '490', discount: '15%', seats: null, note: 'Mais perto, mais vezes.', hi: false, gold: false, desc: 'Mais perto, mais vezes. 490 tokens por mês, 15% de desconto e destaque nas suas interações.' },
+    { name: 'BLACK', img: '/landing/circulo-black.webp', price: 'R$ 749,90', tokens: '1.000', discount: '20%', seats: '500 vagas', note: 'Discrição total liberada.', hi: false, gold: true, desc: 'Discrição total liberada. 1.000 tokens por mês, 20% de desconto e recursos de privacidade avançada. Apenas 500 vagas.' },
+    { name: 'FOUNDERS', img: '/landing/circulo-founders.webp', price: 'R$ 1.490', tokens: '2.100', discount: '25%', seats: '100 vagas', note: 'Número seu, para sempre.', hi: true, gold: true, desc: 'O círculo mais alto. 2.100 tokens por mês, 25% de desconto, número permanente e marcos físicos. Apenas 100 vagas, para sempre.' },
 ]
 
-// Pop explicativo dos Círculos: hover no desktop, toque (com X) no celular.
-const activeCircle = ref(null)   // índice visível no momento (hover ou toque)
-const pinnedCircle = ref(null)   // índice fixado por clique/toque (celular)
-function circleEnter(idx) { if (pinnedCircle.value === null) activeCircle.value = idx }
-function circleLeave() { if (pinnedCircle.value === null) activeCircle.value = null }
-function circleToggle(idx) {
-    if (pinnedCircle.value === idx) { pinnedCircle.value = null; activeCircle.value = null }
-    else { pinnedCircle.value = idx; activeCircle.value = idx }
-}
-function circleClose() { pinnedCircle.value = null; activeCircle.value = null }
+// Círculos como "porta que abre": clique/toque vira o card e mostra a descrição
+// no verso; X, Esc, clicar fora ou clicar de novo fecha. Hover só destaca (CSS).
+const openCircle = ref(null)
+function circleToggle(idx) { openCircle.value = openCircle.value === idx ? null : idx }
+function circleClose() { openCircle.value = null }
 
 const footerLinks = [
     { label: 'Como funciona', href: '#por-dentro' },
@@ -747,37 +742,43 @@ onBeforeUnmount(() => {
                         v-for="(ci, idx) in circles"
                         :key="'ci-' + idx"
                         class="circle"
-                        :class="{ 'is-hi': ci.hi, 'is-active': activeCircle === idx }"
+                        :class="{ 'is-hi': ci.hi, 'is-open': openCircle === idx }"
                         tabindex="0"
                         role="button"
-                        :aria-expanded="activeCircle === idx"
-                        :aria-label="'Ver detalhes do círculo ' + ci.name"
-                        @mouseenter="circleEnter(idx)"
-                        @mouseleave="circleLeave"
-                        @focus="circleEnter(idx)"
-                        @blur="circleLeave"
+                        :aria-expanded="openCircle === idx"
+                        :aria-label="(openCircle === idx ? 'Fechar o círculo ' : 'Abrir o círculo ') + ci.name"
                         @click.stop="circleToggle(idx)"
                         @keydown.enter.prevent="circleToggle(idx)"
                         @keydown.space.prevent="circleToggle(idx)"
                         @keydown.esc="circleClose"
                     >
-                        <div class="circle-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
-                        <div class="circle-price">{{ ci.price }}<span>/mês</span></div>
-                        <div class="circle-div" aria-hidden="true" />
-                        <div class="circle-meta">{{ ci.tokens }} tokens por mês<br>{{ ci.discount }} de desconto</div>
-                        <div v-if="ci.seats" class="circle-seats">{{ ci.seats }}</div>
-                        <div class="circle-note">{{ ci.note }}</div>
-                        <span class="circle-hint" aria-hidden="true">detalhes</span>
-
-                        <transition name="circle-pop">
-                            <div v-if="activeCircle === idx" class="circle-pop" @click.stop>
-                                <button type="button" class="circle-pop-x" aria-label="Fechar" @click.stop="circleClose">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-                                </button>
-                                <div class="circle-pop-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
-                                <p class="circle-pop-desc">{{ ci.desc }}</p>
+                        <div class="circle-inner">
+                            <!-- Frente: a porta fechada, com a foto de estilo -->
+                            <div class="circle-face" :aria-hidden="openCircle === idx">
+                                <img class="circle-img" :src="ci.img" alt="" loading="lazy" decoding="async" />
+                                <div class="circle-shade" aria-hidden="true" />
+                                <div class="circle-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
+                                <div class="circle-body">
+                                    <div class="circle-price">{{ ci.price }}<span>/mês</span></div>
+                                    <div class="circle-div" aria-hidden="true" />
+                                    <div class="circle-meta">{{ ci.tokens }} tokens por mês<br>{{ ci.discount }} de desconto</div>
+                                    <div v-if="ci.seats" class="circle-seats">{{ ci.seats }}</div>
+                                    <div class="circle-note">{{ ci.note }}</div>
+                                    <span class="circle-hint" aria-hidden="true">Abrir <span class="circle-hint-arrow">→</span></span>
+                                </div>
                             </div>
-                        </transition>
+                            <!-- Verso: por dentro da porta, a descrição -->
+                            <div class="circle-back" :aria-hidden="openCircle !== idx">
+                                <span class="circle-x" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                                </span>
+                                <div class="circle-back-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
+                                <div class="circle-back-div" aria-hidden="true" />
+                                <p class="circle-back-desc">{{ ci.desc }}</p>
+                                <div class="circle-back-price">{{ ci.price }}<span>/mês</span></div>
+                                <div v-if="ci.seats" class="circle-seats">{{ ci.seats }}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -1423,43 +1424,67 @@ onBeforeUnmount(() => {
     .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3.4rem; }
 }
 
-/* ── Círculos ────────────────────────────────────────────────────────────── */
+/* ── Círculos (porta que abre: flip 3D) ──────────────────────────────────── */
 .circulos-head { display: flex; flex-direction: column; gap: 1rem; text-align: left; margin-bottom: 2.2rem; }
 .circulos-head .lead { max-width: 640px; }
 .circulos-grid { display: flex; flex-direction: column; gap: 13px; }
-.circle { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 1.1rem; border-radius: 18px; background: rgba(242, 232, 214, 0.04); box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22); text-align: left; cursor: pointer; outline: none; transition: box-shadow 0.2s ease, background-color 0.2s ease, transform 0.2s ease; }
-.circle.is-hi { background: rgba(243, 201, 126, 0.1); box-shadow: inset 0 0 0 1px var(--gold); }
-.circle.is-active { background: rgba(243, 201, 126, 0.12); box-shadow: inset 0 0 0 2px var(--gold); }
-.circle:focus-visible { box-shadow: inset 0 0 0 2px var(--gold); }
+.circle { position: relative; perspective: 1400px; border-radius: 18px; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
+.circle-inner { position: relative; transform-style: preserve-3d; transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); border-radius: inherit; }
+.circle.is-open .circle-inner { transform: rotateY(180deg); }
+.circle-face, .circle-back { border-radius: inherit; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22); transition: box-shadow 0.25s ease; }
+.circle.is-hi .circle-face, .circle.is-hi .circle-back { box-shadow: inset 0 0 0 1px var(--gold); }
+.circle:hover .circle-face, .circle:focus-visible .circle-face, .circle.is-open .circle-back { box-shadow: inset 0 0 0 2px var(--gold); }
 
-/* Dica "detalhes" — só aparece quando não há pop aberto nesse card */
-.circle-hint { margin-top: 2px; font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); opacity: 0.55; transition: opacity 0.2s ease; }
-.circle.is-active .circle-hint { opacity: 0; }
-
-/* Pop explicativo */
-.circle-pop { position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); width: min(260px, 82vw); z-index: 20; padding: 1rem 1.1rem; border-radius: 14px; background: #15110c; box-shadow: 0 0 0 1px var(--gold), 0 18px 44px rgba(0, 0, 0, 0.6); text-align: left; cursor: default; }
-.circle-pop::after { content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #15110c; }
-.circle-pop-name { font-family: 'Cinzel', Georgia, serif; font-size: 0.82rem; letter-spacing: 0.14em; color: var(--ink); margin-bottom: 0.4rem; padding-right: 1.2rem; }
-.circle-pop-desc { margin: 0; font-size: 0.82rem; line-height: 1.55; color: var(--muted); }
-.circle-pop-x { position: absolute; top: 0.45rem; right: 0.45rem; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 999px; background: rgba(242, 232, 214, 0.08); color: var(--muted); cursor: pointer; }
-.circle-pop-x:hover { color: var(--ink); background: rgba(242, 232, 214, 0.16); }
-.circle-pop-x svg { width: 15px; height: 15px; }
-.circle-pop-enter-active, .circle-pop-leave-active { transition: opacity 0.16s ease, transform 0.16s ease; }
-.circle-pop-enter-from, .circle-pop-leave-to { opacity: 0; transform: translateX(-50%) translateY(6px); }
-.circle-name { font-family: 'Cinzel', Georgia, serif; font-size: 1rem; letter-spacing: 0.16em; color: var(--ink); }
+/* Frente */
+.circle-face { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 212px; padding: 1.1rem; background: #0d0b09; text-align: left; }
+.circle-img { position: absolute; top: 0; right: 0; width: 52%; height: 100%; object-fit: cover; transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.circle:hover .circle-img { transform: scale(1.05); }
+.circle-shade { position: absolute; inset: 0; background: linear-gradient(90deg, #0d0b09 46%, rgba(13, 11, 9, 0.55) 68%, rgba(13, 11, 9, 0.15) 100%); }
+.circle-name, .circle-body { position: relative; z-index: 1; }
+.circle-body { display: flex; flex-direction: column; align-items: inherit; gap: 8px; }
+.circle-name { font-family: 'Cinzel', Georgia, serif; font-size: 1rem; letter-spacing: 0.16em; color: var(--ink); text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9); }
 .circle-price { font-family: var(--serif); font-size: 1.7rem; line-height: 1; color: var(--ink); white-space: nowrap; }
 .circle-price span { font-size: 0.85rem; color: var(--muted); }
 .circle-div { display: none; }
 .circle-meta { font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
 .circle-seats { height: 24px; padding: 0 12px; border-radius: 999px; background: rgba(243, 201, 126, 0.14); display: inline-flex; align-items: center; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
 .circle-note { font-size: 0.82rem; line-height: 1.5; color: var(--faint); }
+.circle-hint { margin-top: 2px; font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); opacity: 0.75; transition: opacity 0.2s ease; }
+.circle-hint-arrow { display: inline-block; transition: transform 0.25s ease; }
+.circle:hover .circle-hint { opacity: 1; }
+.circle:hover .circle-hint-arrow { transform: translateX(4px); }
+
+/* Verso */
+.circle-back { position: absolute; inset: 0; transform: rotateY(180deg); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 9px; padding: 1.1rem 2.6rem 1.1rem 1.1rem; background: radial-gradient(120% 90% at 50% 0%, #1d1710 0%, #100d09 70%); text-align: left; overflow-y: auto; }
+.circle-x { position: absolute; top: 0.6rem; right: 0.6rem; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(242, 232, 214, 0.08); color: var(--muted); }
+.circle-x svg { width: 15px; height: 15px; }
+.circle:hover .circle-x { color: var(--ink); background: rgba(242, 232, 214, 0.16); }
+.circle-back-name { font-family: 'Cinzel', Georgia, serif; font-size: 0.9rem; letter-spacing: 0.16em; color: var(--ink); }
+.circle-back-div { width: 34px; height: 1px; background: rgba(243, 201, 126, 0.6); }
+.circle-back-desc { margin: 0; font-size: 0.86rem; line-height: 1.55; color: var(--muted); }
+.circle-back-price { font-family: var(--serif); font-size: 1.15rem; color: var(--ink); }
+.circle-back-price span { font-size: 0.75rem; color: var(--muted); }
+
 @media (min-width: 768px) {
     .circulos-head { align-items: center; text-align: center; margin-bottom: 4rem; }
     .circulos-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 21px; align-items: end; }
-    .circle { align-items: center; text-align: center; gap: 13px; padding: 3.4rem 1.3rem 2.2rem; border-radius: 200px 200px 13px 13px; }
-    .circle-price { font-size: 2.5rem; }
+    .circle { border-radius: 200px 200px 13px 13px; }
+    .circle-face { align-items: center; text-align: center; gap: 13px; min-height: 540px; padding: 3.4rem 1.1rem 2rem; }
+    .circle.is-hi .circle-face { min-height: 590px; }
+    .circle-img { top: 2.4rem; left: 0; right: auto; width: 100%; height: 60%; }
+    .circle-shade { background: linear-gradient(180deg, #0d0b09 0%, rgba(13, 11, 9, 0.75) 9%, rgba(13, 11, 9, 0.05) 28%, rgba(13, 11, 9, 0.2) 44%, #0d0b09 66%); }
+    .circle-body { margin-top: auto; gap: 13px; }
+    .circle-price { font-size: 2.1rem; }
     .circle-div { display: block; width: 34px; height: 1px; background: rgba(243, 201, 126, 0.6); }
     .circle-meta { text-align: center; }
+    .circle-back { align-items: center; text-align: center; gap: 14px; padding: 3.4rem 1.3rem 2rem; }
+    .circle-back-name { font-size: 1rem; }
+    .circle-back-desc { font-size: 0.9rem; }
+    .circle-back-price { font-size: 1.4rem; }
+    .circle-x { top: auto; bottom: 1rem; right: 50%; transform: translateX(50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .circle-inner, .circle-img { transition: none; }
 }
 
 /* ── Lista de fundadores ─────────────────────────────────────────────────── */

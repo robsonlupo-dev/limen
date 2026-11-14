@@ -1488,3 +1488,14 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
 - **Manual** ⬜:
   1. ⬜ Abrir thelimen.com.br e observar 1 ciclo completo do hero: cada vídeo deve emendar na próxima cena SEM piscar de volta pro começo.
   2. ⬜ Cena da vela (acender → selo) e a cena da vela apagando: transição limpa, sem rebobinar.
+
+## FASE 65 — Landing: clareza do cadastro, link do Instagram e Círculos como "porta que abre" · PRs #399, #400 e feat/landing-circulos-flip
+- **#399 (no ar):** mockup do celular sem botões falsos; pergunta do cadastro virou "O que você procura no Limen?" com "Conhecer e conversar" / "Ser descoberta e ganhar" (valores `member`/`performer` intactos).
+- **#400 (no ar):** link do Instagram do rodapé corrigido para `instagram.com/limen.oficial`; primeiro pop explicativo dos Círculos (substituído pelo flip abaixo).
+- **feat/landing-circulos-flip:** cada Círculo ganhou uma foto de estilo própria (`public/landing/circulo-*.webp`, geradas por IA, self-host: chave, máscara, taça, orquídea, coroa) e virou um card que GIRA (flip 3D em CSS, sem lib) ao clicar/tocar, mostrando a descrição no verso. Fecha no X, clicando de novo, clicando fora ou com Esc; só um aberto por vez. Hover só destaca (borda dourada + zoom leve da foto). `prefers-reduced-motion`: troca sem animação. Teclado: Tab foca, Enter/Espaço abre, Esc fecha.
+- **Auto:** testes de landing existentes seguem valendo (markup de waitlist e assets intactos). O flip é comportamento de runtime (Vue/CSS) — validado por captura de tela em página de teste (1600px e 390px) antes do ship; no ar, teste manual.
+- **Manual** ⬜:
+  1. ⬜ Desktop: em thelimen.com.br → Círculos, os 5 cards mostram a foto no arco, nome, preço e "ABRIR →". Passar o mouse: borda dourada.
+  2. ⬜ Clicar num card: ele gira e mostra a descrição + preço (+ vagas no Black/Founders). Clicar em outro: o anterior fecha. Clicar fora ou Esc: fecha.
+  3. ⬜ Celular (390px): cards empilhados com a foto à direita; tocar gira; tocar no X (ou no card) fecha; texto do verso não corta.
+  4. ⬜ Rodapé: ícone do Instagram abre `instagram.com/limen.oficial`.
