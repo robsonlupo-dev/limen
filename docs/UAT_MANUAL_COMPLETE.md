@@ -1499,3 +1499,11 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   2. ⬜ Clicar num card: ele gira e mostra a descrição + preço (+ vagas no Black/Founders). Clicar em outro: o anterior fecha. Clicar fora ou Esc: fecha.
   3. ⬜ Celular (390px): cards empilhados com a foto à direita; tocar gira; tocar no X (ou no card) fecha; texto do verso não corta.
   4. ⬜ Rodapé: ícone do Instagram abre `instagram.com/limen.oficial`.
+
+## FASE 66 — Landing: pilares "Privacidade não é recurso" como cards com foto que abrem para baixo · PR feat/landing-pilares-foto
+- **O que entrou:** os 3 pilares (Discrição, Conexão, Exclusividade) viraram cards com foto de estilo própria (`public/landing/pilar-*.webp`, geradas por IA, self-host: cortina, velas, envelope lacrado). Os três começam FECHADOS (decisão do PO). No desktop o card abre para baixo só de passar o mouse (CSS `:hover`, sem clique) e fecha ao sair; no celular/teclado, tocar/Enter no cabeçalho abre e fecha (um por vez; tocar fora ou Esc fecha). Itens e selos "Black · Founders" inalterados. `prefers-reduced-motion`: abre sem animação.
+- **Auto:** `LandingCinematicAssetsTest` (toda mídia referenciada existe em `public/landing/`, checagem replicada antes do ship) + suíte completa no ship. O abrir/fechar é runtime (CSS/Vue) — validado por captura em página de teste (1320px com hover e 390px com toque).
+- **Manual** ⬜:
+  1. ⬜ Desktop: os 3 cards aparecem fechados, com foto, ícone, nome e frase. Passar o mouse em um: abre para baixo com a lista e borda dourada; tirar o mouse: fecha.
+  2. ⬜ Celular: tocar no card abre a lista; tocar de novo (ou em outro card, ou fora) fecha.
+  3. ⬜ A seção dos Círculos logo abaixo continua funcionando (flip) depois de abrir/fechar pilares.
