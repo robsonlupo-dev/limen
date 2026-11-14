@@ -1507,3 +1507,14 @@ Ambiente: `limen.dev.br` = produção. Contas de teste em `@uat.limen.test` / `@
   1. ⬜ Desktop: os 3 cards aparecem fechados, com foto, ícone, nome e frase. Passar o mouse em um: abre para baixo com a lista e borda dourada; tirar o mouse: fecha.
   2. ⬜ Celular: tocar no card abre a lista; tocar de novo (ou em outro card, ou fora) fecha.
   3. ⬜ A seção dos Círculos logo abaixo continua funcionando (flip) depois de abrir/fechar pilares.
+
+## FASE 67 — Landing: "Só o que é real" em placas 3D e "Veja de perto" em capítulos com telefone 3D · PR feat/landing-real-portal-3d
+- **Só o que é real:** as 3 garantias viraram placas (Identidade / Origem / Pagamento) com ícone, numeral romano gigante vazado e linha dourada. No desktop a placa inclina em 3D seguindo o mouse, com brilho dourado que acompanha o cursor; ao entrar na tela as placas sobem em cascata e a linha se desenha. Celular: empilhadas, sem inclinação.
+- **Veja de perto:** o acordeão virou um índice em capítulos (01–05, estilo sumário de fólio) que avança sozinho a cada 6,5 s com barra de progresso; pausa no hover/foco, quando a seção sai da tela e no botão de pausa (WCAG 2.2.2). O telefone ganhou moldura com botões laterais, barra de status, reflexo, halo dourado, flutuação e inclinação 3D com o mouse; as telas trocam com fade+blur; o número do capítulo aparece gigante ao fundo (só desktop). Celular: capítulos viram uma faixa horizontal que centraliza o ativo, descrição embaixo do telefone, controles ‹ 01/05 ⏸ ›.
+- **Implementação:** CSS + Vue puros (sem GSAP/lib nova). Diretivas locais `v-tilt` (só com ponteiro fino e movimento permitido) e `v-reveal` (só esconde se for conseguir revelar — sem JS tudo aparece). `prefers-reduced-motion`: sem auto-avanço, sem flutuação, sem transições. Conteúdo das 5 telas inalterado.
+- **Auto:** a `Landing.vue` foi compilada de verdade com Vite (ambiente de teste com stubs do Inertia) e aberta no Chromium: sem erro de console, auto-avanço confirmado (foi sozinho para o capítulo 04), zero rolagem horizontal no celular (390px). Suíte completa roda no ship.
+- **Manual** ⬜:
+  1. ⬜ Desktop: em "Só o que é real", as 3 placas sobem ao rolar até elas; passar o mouse inclina a placa e acende o brilho dourado.
+  2. ⬜ Desktop: em "Veja de perto", os capítulos avançam sozinhos com a barra dourada; passar o mouse pausa; clicar num capítulo troca a tela do telefone; o mouse sobre o telefone o inclina.
+  3. ⬜ Botão de pausa para o auto-avanço; ‹ e › navegam; o contador mostra 01/05.
+  4. ⬜ Celular: faixa de capítulos rola sozinha para o ativo; descrição aparece embaixo do telefone; nada vaza para os lados.

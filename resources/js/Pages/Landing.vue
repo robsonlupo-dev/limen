@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 import WorldIcon from '@/Components/WorldIcon.vue'
@@ -213,6 +213,117 @@ const accData = [
 ]
 const accIndex = ref(0)
 
+// Índice em capítulos (estilo fólio): avança sozinho a cada PD_DUR enquanto a
+// seção está visível; pausa no hover/foco e no botão de pausa (WCAG 2.2.2).
+// Sem auto-avanço com prefers-reduced-motion (motionOk = false).
+const PD_DUR = 6500
+const pdEl = ref(null)
+const pdIndexEl = ref(null)
+const pdInView = ref(false)
+const pdHover = ref(false)
+const pdUserPaused = ref(false)
+const pdTick = ref(0)
+const pdHeld = computed(() => pdHover.value || pdUserPaused.value || !pdInView.value || !motionOk.value)
+const pdNum = computed(() => String(accIndex.value + 1).padStart(2, '0'))
+const pdPauseLabel = computed(() => (pdUserPaused.value ? 'Retomar as telas' : 'Pausar as telas'))
+let pdTimer = null
+let pdStart = 0
+let pdLeft = PD_DUR
+let pdObserver = null
+function pdArm(reset) {
+    clearTimeout(pdTimer)
+    pdTimer = null
+    if (reset) pdLeft = PD_DUR
+    if (pdHeld.value) return
+    pdStart = performance.now()
+    pdTimer = setTimeout(() => pdGo(accIndex.value + 1), pdLeft)
+}
+function pdHalt() {
+    if (!pdTimer) return
+    clearTimeout(pdTimer)
+    pdTimer = null
+    pdLeft = Math.max(400, pdLeft - (performance.now() - pdStart))
+}
+function pdGo(i) {
+    accIndex.value = (i + accData.length) % accData.length
+    pdTick.value++
+    pdArm(true)
+}
+watch(pdHeld, (held) => (held ? pdHalt() : pdArm(false)))
+// No celular o índice vira uma faixa horizontal: centraliza o capítulo ativo
+// rolando só a faixa (nunca a página).
+watch(accIndex, async () => {
+    await nextTick()
+    const box = pdIndexEl.value
+    const on = box?.querySelector('.pd-ch.is-on')?.parentElement
+    if (!box || !on || box.scrollWidth <= box.clientWidth) return
+    box.scrollTo({ left: on.offsetLeft - (box.clientWidth - on.offsetWidth) / 2, behavior: motionOk.value ? 'smooth' : 'auto' })
+})
+
+// ── Só o que é real: 3 garantias em placas 3D ────────────────────────────────
+const realItems = [
+    { n: 'I', kicker: 'Identidade', title: 'Criadoras verificadas', desc: 'Biometria e documento em cada perfil. Nenhum fake passa pela porta.', icon: 'M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3zM9 12l2 2 4-4' },
+    { n: 'II', kicker: 'Origem', title: 'Conteúdo exclusivo', desc: 'Direto de quem cria, sem intermediários.', icon: 'M6 4h12l3.5 5L12 20 2.5 9zM2.5 9h19M9 4l3 5 3-5M12 9v11' },
+    { n: 'III', kicker: 'Pagamento', title: 'PIX e discrição', desc: 'Tokens por PIX, em segundos. Você escolhe como aparece no portal, e quem vê.', icon: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3M12 15v2' },
+]
+
+// ── Diretivas de movimento (só no navegador, só com ponteiro fino e movimento
+// permitido; sem elas tudo aparece estático e legível) ────────────────────────
+// v-tilt: inclina o elemento seguindo o ponteiro. Publica --rx/--ry (graus) e
+// --mx/--my (posição do brilho) como variáveis CSS; o CSS decide o que fazer.
+const vTilt = {
+    mounted(el, binding) {
+        if (typeof window === 'undefined') return
+        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+        const max = binding.value ?? 8
+        let raf = 0
+        const move = (e) => {
+            const r = el.getBoundingClientRect()
+            const x = (e.clientX - r.left) / r.width
+            const y = (e.clientY - r.top) / r.height
+            cancelAnimationFrame(raf)
+            raf = requestAnimationFrame(() => {
+                el.style.setProperty('--rx', ((0.5 - y) * max).toFixed(2) + 'deg')
+                el.style.setProperty('--ry', ((x - 0.5) * max).toFixed(2) + 'deg')
+                el.style.setProperty('--mx', (x * 100).toFixed(1) + '%')
+                el.style.setProperty('--my', (y * 100).toFixed(1) + '%')
+            })
+        }
+        const leave = () => {
+            cancelAnimationFrame(raf)
+            el.style.setProperty('--rx', '0deg')
+            el.style.setProperty('--ry', '0deg')
+        }
+        el.addEventListener('pointermove', move)
+        el.addEventListener('pointerleave', leave)
+        el._tiltOff = () => {
+            cancelAnimationFrame(raf)
+            el.removeEventListener('pointermove', move)
+            el.removeEventListener('pointerleave', leave)
+        }
+    },
+    unmounted(el) { el._tiltOff?.() },
+}
+// v-reveal: esconde os filhos .rv-item e os revela (em cascata, via --i) quando
+// o bloco entra na tela. Só esconde se for conseguir revelar.
+const vReveal = {
+    mounted(el) {
+        if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+        el.classList.add('rv')
+        const io = new IntersectionObserver((entries) => {
+            if (entries.some((e) => e.isIntersecting)) {
+                el.classList.add('is-in')
+                io.disconnect()
+            }
+        }, { threshold: 0.15 })
+        io.observe(el)
+        el._rvOff = () => io.disconnect()
+    },
+    unmounted(el) { el._rvOff?.() },
+}
+
 // ── Recursos: 3 pilares ──────────────────────────────────────────────────────
 const BF = 'Black · Founders'
 const pillars = [
@@ -418,6 +529,12 @@ onMounted(() => {
     window.addEventListener('scroll', onPortalScroll, { passive: true })
     runPortalScroll()
 
+    // Índice do "Por dentro": só avança enquanto a seção está na tela.
+    if ('IntersectionObserver' in window && pdEl.value) {
+        pdObserver = new IntersectionObserver(([e]) => { pdInView.value = e.isIntersecting }, { threshold: 0.35 })
+        pdObserver.observe(pdEl.value)
+    }
+
     // Fecha o pop dos Círculos ao tocar/clicar fora dele (celular).
     document.addEventListener('click', circleClose)
     document.addEventListener('click', pillarClose)
@@ -430,6 +547,8 @@ onBeforeUnmount(() => {
     cardVideoObserver?.disconnect()
     window.removeEventListener('scroll', onPortalScroll)
     document.removeEventListener('click', circleClose)
+    pdObserver?.disconnect()
+    clearTimeout(pdTimer)
     document.removeEventListener('click', pillarClose)
     if (portalRaf !== null) cancelAnimationFrame(portalRaf)
 })
@@ -545,19 +664,33 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <!-- ══ Só o que é real ══ -->
-            <section class="sect marble">
+            <!-- ══ Só o que é real — 3 garantias em placas 3D ══ -->
+            <section class="sect marble real">
                 <div class="marble-veil" aria-hidden="true" />
-                <div class="wrap real-grid">
+                <div class="wrap">
                     <div class="real-head">
-                        <div class="eyebrow">Do outro lado</div>
-                        <h2 class="h-serif real-title">Só o que é <em>real.</em></h2>
-                        <p class="lead">Um portal de conteúdo adulto verificado, feito no Brasil, para quem valoriza discrição e autenticidade.</p>
+                        <div>
+                            <div class="eyebrow">Do outro lado</div>
+                            <h2 class="h-serif real-title">Só o que é <em>real.</em></h2>
+                        </div>
+                        <p class="lead real-lead">Um portal de conteúdo adulto verificado, feito no Brasil, para quem valoriza discrição e autenticidade.</p>
                     </div>
-                    <ul class="real-list">
-                        <li><span class="rn">I</span><div><div class="rt">Criadoras verificadas</div><div class="rd">Biometria e documento em cada perfil. Nenhum fake passa pela porta.</div></div></li>
-                        <li><span class="rn">II</span><div><div class="rt">Conteúdo exclusivo</div><div class="rd">Direto de quem cria, sem intermediários.</div></div></li>
-                        <li><span class="rn">III</span><div><div class="rt">PIX e discrição</div><div class="rd">Tokens por PIX, em segundos. Você escolhe como aparece no portal, e quem vê.</div></div></li>
+                    <ul v-reveal class="real-plates">
+                        <li v-for="(r, ri) in realItems" :key="'real-' + ri" class="real-plate rv-item" :style="{ '--i': ri }">
+                            <div v-tilt="10" class="real-card">
+                                <span class="real-glare" aria-hidden="true" />
+                                <span class="real-num" aria-hidden="true">{{ r.n }}</span>
+                                <span class="real-ic" aria-hidden="true">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path :d="r.icon" /></svg>
+                                </span>
+                                <div class="real-body">
+                                    <div class="real-kicker">{{ r.kicker }}</div>
+                                    <h3 class="real-t">{{ r.title }}</h3>
+                                    <p class="real-d">{{ r.desc }}</p>
+                                </div>
+                                <span class="real-rule" aria-hidden="true" />
+                            </div>
+                        </li>
                     </ul>
                 </div>
             </section>
@@ -614,91 +747,153 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <!-- ══ Por dentro — FAQ + mockup ══ -->
-            <section id="por-dentro" class="sect por-dentro">
+            <!-- ══ Por dentro — índice em capítulos (fólio) + telefone 3D ══ -->
+            <section id="por-dentro" ref="pdEl" class="sect por-dentro">
                 <div class="wrap">
-                    <div class="eyebrow">Por dentro do Portal</div>
-                    <h2 class="h-serif">Veja de perto.</h2>
-                    <div class="pd-grid">
-                        <!-- Mockup de telefone -->
-                        <div class="phone">
-                            <div class="phone-screen">
-                                <div class="phone-notch" aria-hidden="true" />
-                                <!-- Tela 0 · Verificação -->
-                                <div v-show="accIndex === 0" class="ps ps-center">
-                                    <img class="ps-avatar" :src="'/landing/destaque-2.webp'" alt="" />
-                                    <div class="ps-h">Verificação do Portal</div>
-                                    <div class="ps-sub">Confidencial. Não aparece no seu perfil nem para membros.</div>
-                                    <div class="ps-list">
-                                        <div class="ps-row">✓ Mostre que você é real</div>
-                                        <div class="ps-row">✓ Apareça em destaque no catálogo</div>
-                                        <div class="ps-row">✓ Proteja seu nome e seu conteúdo</div>
+                    <div class="pd-head">
+                        <div>
+                            <div class="eyebrow">Por dentro do Portal</div>
+                            <h2 class="h-serif">Veja de <em>perto.</em></h2>
+                        </div>
+                        <p class="lead pd-lead">Cinco telas do Portal, do jeito que você vai usar. Escolha um capítulo ou deixe passar sozinho.</p>
+                    </div>
+                    <div
+                        class="pd-body"
+                        @mouseenter="pdHover = true"
+                        @mouseleave="pdHover = false"
+                        @focusin="pdHover = true"
+                        @focusout="pdHover = false"
+                    >
+                        <ol ref="pdIndexEl" class="pd-index">
+                            <li v-for="(a, idx) in accData" :key="'ch-' + idx">
+                                <button
+                                    type="button"
+                                    class="pd-ch"
+                                    :class="{ 'is-on': accIndex === idx }"
+                                    :aria-current="accIndex === idx ? 'true' : null"
+                                    aria-controls="pd-panel"
+                                    @click="pdGo(idx)"
+                                >
+                                    <span class="pd-ch-num">{{ String(idx + 1).padStart(2, '0') }}</span>
+                                    <span class="pd-ch-title">{{ a[0] }}</span>
+                                    <span class="pd-ch-desc"><span>{{ a[1] }}</span></span>
+                                    <span class="pd-ch-track" aria-hidden="true">
+                                        <span
+                                            v-if="accIndex === idx"
+                                            :key="'bar-' + pdTick"
+                                            class="pd-ch-bar"
+                                            :class="{ 'is-held': pdHeld }"
+                                            :style="{ animationDuration: PD_DUR + 'ms' }"
+                                        />
+                                    </span>
+                                </button>
+                            </li>
+                        </ol>
+
+                        <div v-tilt="12" class="pd-stage">
+                            <transition name="pd-num" mode="out-in">
+                                <span :key="pdNum" class="pd-bignum" aria-hidden="true">{{ pdNum }}</span>
+                            </transition>
+                            <div class="phone-float">
+                                <div class="pd-halo" aria-hidden="true" />
+                                <div class="phone">
+                                    <div id="pd-panel" class="phone-screen">
+                                        <div class="phone-status" aria-hidden="true">
+                                            <span>21:00</span>
+                                            <span class="phone-status-ic">
+                                                <svg width="16" height="10" viewBox="0 0 16 10" fill="currentColor"><path d="M1 9h2V7H1zM5 9h2V5H5zM9 9h2V3H9zM13 9h2V1h-2z" /></svg>
+                                                <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0.5" y="0.5" width="18" height="9" rx="2.5" fill="none" stroke="currentColor" /><rect x="2" y="2" width="13" height="6" rx="1.5" fill="currentColor" /><rect x="19.5" y="3.5" width="1.5" height="3" rx="0.75" fill="currentColor" /></svg>
+                                            </span>
+                                        </div>
+                                        <div class="phone-notch" aria-hidden="true" />
+                                        <!-- Tela 0 · Verificação -->
+                                        <transition name="ps-swap">
+                                            <div v-show="accIndex === 0" class="ps ps-center">
+                                                <img class="ps-avatar" :src="'/landing/destaque-2.webp'" alt="" />
+                                                <div class="ps-h">Verificação do Portal</div>
+                                                <div class="ps-sub">Confidencial. Não aparece no seu perfil nem para membros.</div>
+                                                <div class="ps-list">
+                                                    <div class="ps-row">✓ Mostre que você é real</div>
+                                                    <div class="ps-row">✓ Apareça em destaque no catálogo</div>
+                                                    <div class="ps-row">✓ Proteja seu nome e seu conteúdo</div>
+                                                </div>
+                                                <div class="ps-foot">Feita uma única vez, com total sigilo.</div>
+                                            </div>
+                                        </transition>
+                                        <!-- Tela 1 · Carteira -->
+                                        <transition name="ps-swap">
+                                            <div v-show="accIndex === 1" class="ps">
+                                                <div class="ps-label">Sua carteira</div>
+                                                <div class="ps-balance">150 <span>tokens</span></div>
+                                                <div class="ps-sub">Recarregue quando quiser — por PIX.</div>
+                                                <div class="ps-pkgs">
+                                                    <div class="ps-pkg"><span>Básico · 100</span><span class="lc-gold">R$ 9,90</span></div>
+                                                    <div class="ps-pkg is-on"><span>Médio · 300 <span class="ps-star">★ popular</span></span><span class="lc-gold">R$ 27,90</span></div>
+                                                    <div class="ps-pkg"><span>Grande · 600</span><span class="lc-gold">R$ 52,90</span></div>
+                                                    <div class="ps-pkg"><span>Baleia · 1500</span><span class="lc-gold">R$ 119,90</span></div>
+                                                </div>
+                                                <div class="ps-foot">Desconto extra para quem está num Círculo</div>
+                                            </div>
+                                        </transition>
+                                        <!-- Tela 2 · Gorjeta -->
+                                        <transition name="ps-swap">
+                                            <div v-show="accIndex === 2" class="ps ps-center ps-mid">
+                                                <img class="ps-avatar ps-avatar--sm" :src="'/landing/destaque-5.webp'" alt="" />
+                                                <div class="ps-name">Criadora verificada <span class="lc-gold">✓</span></div>
+                                                <div class="ps-sub">Sua gorjeta aparece em destaque para ela.</div>
+                                                <div class="ps-tips">
+                                                    <div class="ps-tip">10</div>
+                                                    <div class="ps-tip is-on">25</div>
+                                                    <div class="ps-tip">50</div>
+                                                </div>
+                                                <div class="ps-msg">Deixe uma mensagem…</div>
+                                                <div class="ps-foot">Gorjeta de 25 tokens, com a sua mensagem.</div>
+                                            </div>
+                                        </transition>
+                                        <!-- Tela 3 · Privacidade -->
+                                        <transition name="ps-swap">
+                                            <div v-show="accIndex === 3" class="ps">
+                                                <div class="ps-h ps-h--sm">Privacidade</div>
+                                                <div class="ps-toggle"><span>Modo fantasma</span><span class="sw is-on" aria-hidden="true"><i /></span></div>
+                                                <div class="ps-toggle"><span>Apelido de fã</span><span class="lc-gold">@noturno</span></div>
+                                                <div class="ps-toggle"><span>Modo discreto</span><span class="sw is-on" aria-hidden="true"><i /></span></div>
+                                                <div class="ps-toggle"><span>Confirmação de leitura</span><span class="sw" aria-hidden="true"><i /></span></div>
+                                                <div class="ps-toggle"><span>Mostrar que estou online</span><span class="sw" aria-hidden="true"><i /></span></div>
+                                                <div class="ps-foot ps-foot--left">Criadoras veem seu apelido, nunca seu nome.</div>
+                                            </div>
+                                        </transition>
+                                        <!-- Tela 4 · PIX -->
+                                        <transition name="ps-swap">
+                                            <div v-show="accIndex === 4" class="ps ps-center ps-mid">
+                                                <div class="ps-label">Pagar com PIX</div>
+                                                <div class="ps-price">R$ 39,90</div>
+                                                <div class="ps-qr" aria-hidden="true"><div class="ps-qr-grid" /></div>
+                                                <div class="ps-sub">Expira em <span class="lc-gold">4:32</span></div>
+                                                <div class="ps-foot">Pagamento instantâneo, o saldo cai na hora.</div>
+                                                <div class="ps-foot">QR ilustrativo · Os tokens caem assim que o PIX é confirmado.</div>
+                                            </div>
+                                        </transition>
+                                        <span class="phone-glare" aria-hidden="true" />
+                                        <span class="phone-home" aria-hidden="true" />
                                     </div>
-                                    <div class="ps-foot">Feita uma única vez, com total sigilo.</div>
-                                </div>
-                                <!-- Tela 1 · Carteira -->
-                                <div v-show="accIndex === 1" class="ps">
-                                    <div class="ps-label">Sua carteira</div>
-                                    <div class="ps-balance">150 <span>tokens</span></div>
-                                    <div class="ps-sub">Recarregue quando quiser — por PIX.</div>
-                                    <div class="ps-pkgs">
-                                        <div class="ps-pkg"><span>Básico · 100</span><span class="lc-gold">R$ 9,90</span></div>
-                                        <div class="ps-pkg is-on"><span>Médio · 300 <span class="ps-star">★ popular</span></span><span class="lc-gold">R$ 27,90</span></div>
-                                        <div class="ps-pkg"><span>Grande · 600</span><span class="lc-gold">R$ 52,90</span></div>
-                                        <div class="ps-pkg"><span>Baleia · 1500</span><span class="lc-gold">R$ 119,90</span></div>
-                                    </div>
-                                    <div class="ps-foot">Desconto extra para quem está num Círculo</div>
-                                </div>
-                                <!-- Tela 2 · Gorjeta -->
-                                <div v-show="accIndex === 2" class="ps ps-center">
-                                    <img class="ps-avatar ps-avatar--sm" :src="'/landing/destaque-5.webp'" alt="" />
-                                    <div class="ps-name">Criadora verificada <span class="lc-gold">✓</span></div>
-                                    <div class="ps-sub">Sua gorjeta aparece em destaque para ela.</div>
-                                    <div class="ps-tips">
-                                        <div class="ps-tip">10</div>
-                                        <div class="ps-tip is-on">25</div>
-                                        <div class="ps-tip">50</div>
-                                    </div>
-                                    <div class="ps-msg">Deixe uma mensagem…</div>
-                                    <div class="ps-foot">Gorjeta de 25 tokens, com a sua mensagem.</div>
-                                </div>
-                                <!-- Tela 3 · Privacidade -->
-                                <div v-show="accIndex === 3" class="ps">
-                                    <div class="ps-h ps-h--sm">Privacidade</div>
-                                    <div class="ps-toggle"><span>Modo fantasma</span><span class="sw is-on" aria-hidden="true"><i /></span></div>
-                                    <div class="ps-toggle"><span>Apelido de fã</span><span class="lc-gold">@noturno</span></div>
-                                    <div class="ps-toggle"><span>Modo discreto</span><span class="sw is-on" aria-hidden="true"><i /></span></div>
-                                    <div class="ps-toggle"><span>Confirmação de leitura</span><span class="sw" aria-hidden="true"><i /></span></div>
-                                    <div class="ps-toggle"><span>Mostrar que estou online</span><span class="sw" aria-hidden="true"><i /></span></div>
-                                    <div class="ps-foot ps-foot--left">Criadoras veem seu apelido, nunca seu nome.</div>
-                                </div>
-                                <!-- Tela 4 · PIX -->
-                                <div v-show="accIndex === 4" class="ps ps-center">
-                                    <div class="ps-label">Pagar com PIX</div>
-                                    <div class="ps-price">R$ 39,90</div>
-                                    <div class="ps-qr" aria-hidden="true"><div class="ps-qr-grid" /></div>
-                                    <div class="ps-sub">Expira em <span class="lc-gold">4:32</span></div>
-                                    <div class="ps-foot">Pagamento instantâneo, o saldo cai na hora.</div>
-                                    <div class="ps-foot">QR ilustrativo · Os tokens caem assim que o PIX é confirmado.</div>
                                 </div>
                             </div>
                         </div>
-                        <!-- Accordion -->
-                        <div class="acc">
-                            <div
-                                v-for="(a, idx) in accData"
-                                :key="'acc-' + idx"
-                                class="acc-item"
-                                :class="{ 'is-open': accIndex === idx }"
-                            >
-                                <button type="button" class="acc-btn" :aria-expanded="accIndex === idx ? 'true' : 'false'" @click="accIndex = idx">
-                                    <span class="acc-plus" :class="{ 'is-open': accIndex === idx }" aria-hidden="true">
-                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 1v10M1 6h10" /></svg>
-                                    </span>
-                                    <span>{{ a[0] }}</span>
-                                </button>
-                                <div v-show="accIndex === idx" class="acc-body">{{ a[1] }}</div>
-                            </div>
+
+                        <p class="pd-caption">{{ accData[accIndex][1] }}</p>
+
+                        <div class="pd-ctrl">
+                            <button type="button" class="round-btn" aria-label="Tela anterior" @click="pdGo(accIndex - 1)">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5" /></svg>
+                            </button>
+                            <span class="pd-count"><b>{{ pdNum }}</b> / {{ String(accData.length).padStart(2, '0') }}</span>
+                            <button v-if="motionOk" type="button" class="round-btn" :aria-label="pdPauseLabel" @click="pdUserPaused = !pdUserPaused">
+                                <svg v-if="!pdUserPaused" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 3v10M11 3v10" /></svg>
+                                <svg v-else width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l8 5-8 5z" /></svg>
+                            </button>
+                            <button type="button" class="round-btn" aria-label="Próxima tela" @click="pdGo(accIndex + 1)">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5" /></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1305,19 +1500,55 @@ onBeforeUnmount(() => {
 .marble-veil--strong { background: rgba(5, 5, 6, 0.9); }
 .marble > .wrap { position: relative; z-index: 1; }
 
-/* ── Só o que é real ─────────────────────────────────────────────────────── */
-.real-grid { display: grid; gap: 2.2rem; }
-.real-head { display: flex; flex-direction: column; gap: 1.1rem; }
+/* ── Só o que é real — 3 garantias em placas 3D ───────────────────────────── */
+.real-head { display: flex; flex-direction: column; gap: 1.1rem; margin-bottom: 2.6rem; }
 .real-title { font-size: clamp(3rem, 11vw, 5.5rem); }
-.real-list { list-style: none; margin: 0; padding: 0; }
-.real-list li { display: flex; gap: 1.3rem; padding: 1.3rem 0; border-top: 1px solid rgba(243, 201, 126, 0.25); }
-.real-list li:last-child { border-bottom: 1px solid rgba(243, 201, 126, 0.25); }
-.rn { font-family: 'Cinzel', Georgia, serif; font-size: 1.05rem; color: var(--gold); width: 2rem; flex-shrink: 0; }
-.rt { font-size: 1.2rem; font-weight: 600; color: var(--ink); margin-bottom: 0.3rem; }
-.rd { font-size: 0.98rem; line-height: 1.55; color: var(--muted); }
+.real-lead { max-width: 400px; }
+.real-plates { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.real-plate { perspective: 1000px; }
+.real-card {
+    position: relative;
+    height: 100%;
+    min-height: 260px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 1.3rem;
+    padding: 6.2rem 1.5rem 1.7rem;
+    border-radius: 22px;
+    background: linear-gradient(165deg, rgba(36, 28, 19, 0.94) 0%, rgba(14, 12, 10, 0.96) 62%);
+    box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22), 0 24px 60px -24px rgba(0, 0, 0, 0.8);
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transform-style: preserve-3d;
+    transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.35s ease;
+}
+.real-glare { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(243, 201, 126, 0.17), transparent 55%); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; }
+.real-num { position: absolute; top: 0.5rem; right: 1.2rem; font-family: 'Cinzel', Georgia, serif; font-size: 5.5rem; line-height: 1; color: transparent; -webkit-text-stroke: 1px rgba(243, 201, 126, 0.34); transform: translateZ(46px); transition: -webkit-text-stroke-color 0.4s ease; pointer-events: none; user-select: none; }
+.real-ic { position: absolute; top: 1.6rem; left: 1.5rem; width: 46px; height: 46px; box-sizing: border-box; border-radius: 23px 23px 4px 4px; border: 1px solid rgba(243, 201, 126, 0.6); background: rgba(13, 11, 9, 0.55); display: flex; align-items: center; justify-content: center; color: var(--gold); transform: translateZ(32px); }
+.real-body { position: relative; transform: translateZ(22px); }
+.real-kicker { margin-bottom: 0.65rem; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
+.real-t { margin: 0 0 0.55rem; font-family: var(--serif); font-size: 2rem; font-weight: 400; line-height: 1.05; color: var(--ink); }
+.real-d { margin: 0; font-size: 0.96rem; line-height: 1.6; color: var(--muted); }
+.real-rule { display: block; height: 1px; background: linear-gradient(90deg, var(--gold), rgba(243, 201, 126, 0)); transform-origin: left; }
+@media (hover: hover) and (pointer: fine) {
+    .real-card:hover { box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.7), 0 34px 70px -24px rgba(0, 0, 0, 0.9), 0 0 70px -24px rgba(243, 201, 126, 0.4); }
+    .real-card:hover .real-glare { opacity: 1; }
+    .real-card:hover .real-num { -webkit-text-stroke-color: rgba(243, 201, 126, 0.8); }
+}
+/* Revelação na rolagem: o v-reveal só põe .rv quando vai conseguir revelar. */
+.rv .rv-item { opacity: 0; transform: translateY(36px); }
+.rv.is-in .rv-item { opacity: 1; transform: none; transition: opacity 0.9s ease, transform 1.1s cubic-bezier(0.2, 0.7, 0.2, 1); transition-delay: calc(var(--i, 0) * 140ms); }
+.rv .real-rule { transform: scaleX(0); }
+.rv.is-in .real-rule { transform: scaleX(1); transition: transform 1.4s cubic-bezier(0.2, 0.7, 0.2, 1); transition-delay: calc(var(--i, 0) * 140ms + 450ms); }
 @media (min-width: 768px) {
-    .real-grid { grid-template-columns: 1fr 1fr; gap: 5.5rem; align-items: start; }
-    .real-list { padding-top: 2rem; }
+    .real-head { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3.4rem; margin-bottom: 3.6rem; }
+    .real-plates { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4rem; }
+    .real-card { min-height: 390px; padding: 2rem 1.9rem 2.1rem; }
+    .real-d { min-height: 3.2em; }
+    .real-ic { top: 2rem; left: 1.9rem; }
+    .real-num { top: 0.7rem; right: 1.5rem; font-size: 7.5rem; }
+    .real-t { font-size: 2.15rem; }
 }
 
 /* ── Destaques ───────────────────────────────────────────────────────────── */
@@ -1374,26 +1605,74 @@ onBeforeUnmount(() => {
     .d-card-text { left: 3.4rem; top: 3rem; max-width: 520px; font-size: 1.75rem; }
 }
 
-/* ── Por dentro ──────────────────────────────────────────────────────────── */
-.por-dentro { background: #0b090d; border-top: 1px solid rgba(243, 201, 126, 0.1); }
-.por-dentro .h-serif { font-size: clamp(2.6rem, 8vw, 4.5rem); margin-top: 0.4rem; }
-.pd-grid { margin-top: 2.2rem; display: flex; flex-direction: column; gap: 2.2rem; align-items: center; }
-@media (min-width: 768px) { .pd-grid { flex-direction: row-reverse; gap: 5.5rem; align-items: center; } }
+/* ── Por dentro — índice em capítulos (fólio) + telefone 3D ───────────────── */
+.por-dentro { position: relative; background: radial-gradient(120% 70% at 85% 45%, #17110c 0%, #0b090d 55%); border-top: 1px solid rgba(243, 201, 126, 0.1); overflow: hidden; }
+.por-dentro .h-serif { font-size: clamp(2.8rem, 8vw, 5rem); margin-top: 0.4rem; }
+.pd-head { display: flex; flex-direction: column; gap: 1.1rem; margin-bottom: 2rem; }
+.pd-lead { max-width: 380px; }
+.pd-body { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "index" "stage" "caption" "ctrl"; gap: 1.2rem; }
+
+/* Índice — no celular: faixa horizontal de capítulos */
+.pd-index { grid-area: index; position: relative; list-style: none; margin: 0 -1.3rem; padding: 2px 1.3rem; display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; }
+.pd-index::-webkit-scrollbar { display: none; }
+.pd-index li { flex: 0 0 auto; scroll-snap-align: center; }
+.pd-ch { position: relative; display: flex; align-items: baseline; gap: 0.55rem; padding: 0.7rem 1.05rem 0.8rem; border: none; border-radius: 999px; background: rgba(242, 232, 214, 0.05); box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.18); color: inherit; font: inherit; text-align: left; cursor: pointer; overflow: hidden; -webkit-tap-highlight-color: transparent; transition: background-color 0.3s ease, box-shadow 0.3s ease; }
+.pd-ch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pd-ch-num { font-family: 'Cinzel', Georgia, serif; font-size: 0.72rem; letter-spacing: 0.14em; color: var(--faint); transition: color 0.3s ease; }
+.pd-ch-title { font-size: 0.92rem; font-weight: 600; color: rgba(242, 232, 214, 0.6); white-space: nowrap; transition: color 0.35s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.pd-ch-desc { display: none; }
+.pd-ch.is-on { background: rgba(243, 201, 126, 0.1); box-shadow: inset 0 0 0 1px var(--gold); }
+.pd-ch.is-on .pd-ch-num { color: var(--gold); }
+.pd-ch.is-on .pd-ch-title { color: var(--ink); }
+.pd-ch-track { position: absolute; left: 16px; right: 16px; bottom: 5px; height: 1px; pointer-events: none; }
+.pd-ch-bar { display: block; height: 100%; background: var(--gold); box-shadow: 0 0 10px rgba(243, 201, 126, 0.6); transform: scaleX(0); transform-origin: left; animation-name: pd-fill; animation-timing-function: linear; animation-fill-mode: forwards; }
+.pd-ch-bar.is-held { animation-play-state: paused; }
+@keyframes pd-fill { to { transform: scaleX(1); } }
+
+/* Palco do telefone */
+.pd-stage { grid-area: stage; position: relative; display: grid; place-items: center; min-height: 620px; perspective: 1400px; }
+.pd-halo { position: absolute; left: 50%; top: 50%; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; background: radial-gradient(closest-side, rgba(243, 201, 126, 0.24), rgba(243, 201, 126, 0.07) 55%, transparent 74%); pointer-events: none; }
+.pd-bignum { display: none; position: absolute; left: -0.04em; top: 50%; margin-top: -0.95em; font-family: 'Cinzel', Georgia, serif; font-size: 9.5rem; line-height: 1.2; letter-spacing: -0.02em; color: transparent; -webkit-text-stroke: 1px rgba(243, 201, 126, 0.2); pointer-events: none; user-select: none; }
+.pd-num-enter-active, .pd-num-leave-active { transition: opacity 0.45s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.pd-num-enter-from { opacity: 0; transform: translateY(40px); }
+.pd-num-leave-to { opacity: 0; transform: translateY(-40px); }
+.phone-float { position: relative; z-index: 1; display: grid; place-items: center; animation: pd-float 7s ease-in-out infinite; }
+@keyframes pd-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 
 .phone {
-    width: 300px;
-    height: 620px;
+    position: relative;
+    z-index: 1;
+    width: 280px;
+    height: 580px;
     flex-shrink: 0;
-    border-radius: 44px;
-    background: #16131a;
-    box-shadow: 0 0 0 1px rgba(243, 201, 126, 0.35), 0 30px 90px rgba(0, 0, 0, 0.7);
-    padding: 11px;
     box-sizing: border-box;
+    padding: 10px;
+    border-radius: 46px;
+    background: linear-gradient(150deg, #2c2631 0%, #16131b 45%, #0c0a0f 100%);
+    box-shadow:
+        0 0 0 1px rgba(243, 201, 126, 0.45),
+        inset 0 0 0 1.5px rgba(255, 255, 255, 0.06),
+        0 50px 90px -30px rgba(0, 0, 0, 0.9),
+        0 0 110px -20px rgba(243, 201, 126, 0.22);
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.phone-screen { pointer-events: none; user-select: none; position: relative; width: 100%; height: 100%; border-radius: 34px; background: #0c0a10; overflow: hidden; }
-.phone-notch { position: absolute; left: 50%; top: 10px; width: 84px; height: 24px; margin-left: -42px; border-radius: 12px; background: #000; z-index: 2; }
-.ps { position: absolute; inset: 0; padding: 60px 21px 21px; display: flex; flex-direction: column; gap: 13px; box-sizing: border-box; overflow-y: auto; }
+.phone::before, .phone::after { content: ''; position: absolute; width: 3px; border-radius: 2px; background: linear-gradient(180deg, #3b3342, #1c1820); }
+.phone::before { left: -3px; top: 118px; height: 52px; box-shadow: 0 70px 0 #2b2531; }
+.phone::after { right: -3px; top: 160px; height: 82px; }
+.phone-screen { pointer-events: none; user-select: none; position: relative; width: 100%; height: 100%; border-radius: 37px; background: radial-gradient(130% 70% at 50% 0%, #1a1520 0%, #0c0a10 60%); overflow: hidden; }
+.phone-status { position: absolute; top: 15px; left: 26px; right: 22px; z-index: 3; display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; font-weight: 600; color: var(--ink); }
+.phone-status-ic { display: inline-flex; align-items: center; gap: 5px; }
+.phone-notch { position: absolute; left: 50%; top: 10px; width: 84px; height: 24px; margin-left: -42px; border-radius: 12px; background: #000; z-index: 4; }
+.phone-glare { position: absolute; inset: 0; z-index: 5; border-radius: inherit; pointer-events: none; background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.07) 46%, rgba(255, 255, 255, 0.015) 56%, transparent 70%); background-size: 260% 100%; background-position: var(--mx, 50%) 0; transition: background-position 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.phone-home { position: absolute; left: 50%; bottom: 9px; z-index: 5; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; background: rgba(242, 232, 214, 0.35); }
+.ps-swap-enter-active { transition: opacity 0.55s ease 0.12s, transform 0.75s cubic-bezier(0.2, 0.7, 0.2, 1) 0.12s, filter 0.55s ease 0.12s; }
+.ps-swap-leave-active { transition: opacity 0.35s ease, transform 0.45s ease, filter 0.35s ease; }
+.ps-swap-enter-from { opacity: 0; transform: translateY(18px) scale(0.98); filter: blur(6px); }
+.ps-swap-leave-to { opacity: 0; transform: translateY(-12px) scale(0.99); filter: blur(4px); }
+.ps { position: absolute; inset: 0; padding: 62px 21px 30px; display: flex; flex-direction: column; gap: 13px; box-sizing: border-box; overflow-y: auto; }
 .ps-center { align-items: center; text-align: center; }
+.ps-mid { justify-content: center; padding-bottom: 46px; }
 .ps-avatar { width: 144px; height: 144px; border-radius: 50%; object-fit: cover; }
 .ps-avatar--sm { width: 96px; height: 96px; box-shadow: 0 0 0 2px var(--gold); }
 .ps-h { font-family: var(--serif); font-size: 1.75rem; color: var(--ink); }
@@ -1426,14 +1705,45 @@ onBeforeUnmount(() => {
 .ps-qr { width: 170px; height: 170px; border-radius: 13px; background: var(--ink); padding: 12px; box-sizing: border-box; }
 .ps-qr-grid { width: 100%; height: 100%; background: repeating-conic-gradient(#0c0a10 0% 25%, #f2e8d6 0% 50%) 0 0 / 22px 22px; }
 
-.acc { width: 100%; display: flex; flex-direction: column; gap: 10px; }
-@media (min-width: 768px) { .acc { width: 520px; flex-shrink: 0; } }
-.acc-item { border-radius: 18px; background: rgba(242, 232, 214, 0.03); transition: background-color 0.3s ease, box-shadow 0.3s ease; }
-.acc-item.is-open { background: rgba(242, 232, 214, 0.07); box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.35); }
-.acc-btn { width: 100%; min-height: 56px; padding: 0 1.1rem; display: flex; align-items: center; gap: 0.8rem; background: none; border: none; color: var(--ink); font-family: var(--body); font-size: 1.05rem; font-weight: 600; text-align: left; cursor: pointer; }
-.acc-plus { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(243, 201, 126, 0.7); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--gold); transition: transform 0.3s ease; }
-.acc-plus.is-open { transform: rotate(45deg); }
-.acc-body { padding: 0 1.1rem 1.1rem 3.6rem; font-size: 0.95rem; line-height: 1.6; color: var(--muted); }
+.pd-caption { grid-area: caption; justify-self: center; max-width: 34rem; min-height: 4.8em; margin: 0; font-size: 0.95rem; line-height: 1.6; text-align: center; color: var(--muted); }
+.pd-ctrl { grid-area: ctrl; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.pd-count { min-width: 74px; font-family: 'Cinzel', Georgia, serif; font-size: 0.8rem; letter-spacing: 0.16em; text-align: center; color: var(--muted); }
+.pd-count b { font-weight: 400; color: var(--gold); }
+
+@media (min-width: 900px) {
+    .pd-head { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3.4rem; margin-bottom: 3rem; }
+    .pd-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "index stage" "index ctrl"; column-gap: 4.5rem; row-gap: 0.4rem; align-items: center; }
+    .pd-caption { display: none; }
+    /* Índice — no desktop: lista vertical, estilo sumário de fólio */
+    .pd-index { display: block; margin: 0; padding: 0; overflow: visible; }
+    .pd-index li { border-top: 1px solid rgba(243, 201, 126, 0.16); }
+    .pd-index li:last-child { border-bottom: 1px solid rgba(243, 201, 126, 0.16); }
+    .pd-ch { width: 100%; display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); grid-template-areas: "num title" ". desc"; align-items: baseline; padding: 1.35rem 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+    .pd-ch.is-on { background: none; box-shadow: none; }
+    .pd-ch-num { grid-area: num; font-size: 0.8rem; }
+    .pd-ch-title { grid-area: title; font-family: var(--serif); font-size: clamp(1.8rem, 2.6vw, 2.4rem); font-weight: 400; line-height: 1.1; color: rgba(242, 232, 214, 0.38); white-space: normal; }
+    .pd-ch:hover .pd-ch-title { color: rgba(242, 232, 214, 0.72); }
+    .pd-ch.is-on .pd-ch-title { color: var(--ink); transform: translateX(6px); }
+    .pd-ch-desc { grid-area: desc; display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.55s cubic-bezier(0.2, 0.7, 0.2, 1); }
+    .pd-ch-desc > span { min-height: 0; overflow: hidden; max-width: 30rem; padding-left: 6px; font-size: 1rem; line-height: 1.6; color: var(--muted); }
+    .pd-ch-desc > span::before { content: ''; display: block; height: 0.7rem; }
+    .pd-ch.is-on .pd-ch-desc { grid-template-rows: 1fr; }
+    .pd-ch-track { left: 0; right: 0; bottom: -1px; }
+    .pd-stage { min-height: 700px; }
+    .pd-halo { width: 600px; height: 600px; margin: -300px 0 0 -300px; }
+    .pd-stage { justify-items: end; }
+    .phone-float { margin-right: 1.5rem; }
+    .pd-ctrl { justify-content: flex-end; margin-right: 56px; }
+    .pd-bignum { display: block; font-size: clamp(10rem, 15vw, 14rem); }
+    .phone { width: 300px; height: 620px; }
+}
+.lc--static .phone-float { animation: none; }
+.lc--static .pd-ch-bar { animation: none; transform: scaleX(1); }
+.lc--static .ps-swap-enter-active, .lc--static .ps-swap-leave-active, .lc--static .pd-num-enter-active, .lc--static .pd-num-leave-active { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+    .phone-float { animation: none; }
+    .phone, .real-card, .pd-ch-title, .pd-ch-desc, .phone-glare { transition: none; }
+}
 
 /* ── Recursos ────────────────────────────────────────────────────────────── */
 .recursos-head { display: flex; flex-direction: column; gap: 1.1rem; margin-bottom: 3rem; }
