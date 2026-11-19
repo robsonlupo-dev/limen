@@ -129,10 +129,12 @@ function mediaStyle(s) {
 }
 
 // ── "O Portal se abre com a rolagem" — seção sticky dirigida por scroll ───────
-// Reaproveita o mármore/portal do repo (portal.webp): a imagem CRESCE conforme
-// a pessoa rola (sensação de atravessar), o texto do "Capítulo I" some e o
-// "ATRAVESSE o limiar" entra e sai; no fim a cena escurece para a seguinte. Tudo
-// derivado da POSIÇÃO (simétrico: rolar pra cima desfaz), num rAF único.
+// (feat/landing-limiar-circulos) A cena é a CORTINA (portal-cortina.webp): já entra
+// em TELA CHEIA — nunca começa pequena. Ao rolar, a câmera avança para dentro do
+// arco (escala máx. 1.7: a fonte tem 2400px, segue nítida), o "Capítulo I" some,
+// a névoa dourada toma a tela e o "ATRAVESSE o limiar" aparece sobre o dourado; no
+// fim escurece para a seção seguinte. Tudo derivado da POSIÇÃO (simétrico: rolar
+// pra cima desfaz), num rAF único.
 const portalEl = ref(null)
 const portalStickyEl = ref(null)
 const portalProgress = ref(0)
@@ -140,18 +142,34 @@ let portalRaf = null
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
-const portalSpriteScale = computed(() => {
-    const p = portalProgress.value
-    if (p < 0.62) return 1
-    return 1 + Math.pow((p - 0.62) / 0.38, 2) * 5
-})
-const portalText1Opacity = computed(() => clamp(1 - portalProgress.value / 0.12, 0, 1))
+const easeOut3 = (t) => 1 - Math.pow(1 - t, 3)
+const portalSpriteScale = computed(() => (1 + easeOut3(clamp(portalProgress.value / 0.75, 0, 1)) * 0.7).toFixed(4))
+const portalText1Opacity = computed(() => clamp(1 - portalProgress.value / 0.2, 0, 1))
+const portalText1Shift = computed(() => (-40 * (1 - portalText1Opacity.value)).toFixed(1) + 'px')
+const portalGold = computed(() => clamp((portalProgress.value - 0.42) / 0.3, 0, 1))
 const portalText2Opacity = computed(() => {
     const p = portalProgress.value
-    return Math.min(clamp((p - 0.4) / 0.12, 0, 1), clamp((0.8 - p) / 0.08, 0, 1))
+    return Math.min(clamp((p - 0.6) / 0.15, 0, 1), clamp((0.94 - p) / 0.06, 0, 1))
 })
-const portalText2Shift = computed(() => ((1 - clamp((portalProgress.value - 0.4) / 0.12, 0, 1)) * 20).toFixed(1) + 'px')
-const portalDark = computed(() => clamp((portalProgress.value - 0.84) / 0.14, 0, 1))
+const portalText2Shift = computed(() => ((1 - clamp((portalProgress.value - 0.6) / 0.15, 0, 1)) * 24).toFixed(1) + 'px')
+const portalDark = computed(() => clamp((portalProgress.value - 0.88) / 0.12, 0, 1))
+
+// Poeira dourada (portal e "Só o que é real"): partículas geradas uma vez, posição e
+// ritmo aleatórios; puro CSS depois disso. Sem movimento → o CSS some com elas.
+function makeDust(n) {
+    return Array.from({ length: n }, () => {
+        const dur = 12 + Math.random() * 16
+        return {
+            left: (Math.random() * 100).toFixed(1) + '%',
+            size: (1.5 + Math.random() * 2.5).toFixed(1) + 'px',
+            dur: dur.toFixed(1) + 's',
+            delay: (-Math.random() * dur).toFixed(1) + 's',
+            sway: Math.round(Math.random() * 60 - 30) + 'px',
+        }
+    })
+}
+const portalDust = makeDust(30)
+const realDust = makeDust(24)
 const portalBarHeight = computed(() => (clamp(portalProgress.value, 0, 1) * 100).toFixed(1) + '%')
 
 function runPortalScroll() {
@@ -261,10 +279,13 @@ watch(accIndex, async () => {
 })
 
 // ── Só o que é real: 3 garantias em placas 3D ────────────────────────────────
+// (feat/landing-limiar-circulos) O ícone de traço virou uma FIGURA animada no nicho
+// em arco (escudo, pérola, cadeado — WebP animado self-host). `still` é o pôster
+// parado servido a quem pede movimento reduzido.
 const realItems = [
-    { n: 'I', kicker: 'Identidade', title: 'Criadoras verificadas', desc: 'Biometria e documento em cada perfil. Nenhum fake passa pela porta.', icon: 'M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3zM9 12l2 2 4-4' },
-    { n: 'II', kicker: 'Origem', title: 'Conteúdo exclusivo', desc: 'Direto de quem cria, sem intermediários.', icon: 'M6 4h12l3.5 5L12 20 2.5 9zM2.5 9h19M9 4l3 5 3-5M12 9v11' },
-    { n: 'III', kicker: 'Pagamento', title: 'PIX e discrição', desc: 'Tokens por PIX, em segundos. Você escolhe como aparece no portal, e quem vê.', icon: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3M12 15v2' },
+    { n: 'I', kicker: 'Identidade', title: 'Criadoras verificadas', desc: 'Biometria e documento em cada perfil. Nenhum fake passa pela porta.', fig: '/landing/real-escudo.webp', still: '/landing/real-escudo-still.webp' },
+    { n: 'II', kicker: 'Origem', title: 'Conteúdo exclusivo', desc: 'Direto de quem cria, sem intermediários.', fig: '/landing/real-perola.webp', still: '/landing/real-perola-still.webp' },
+    { n: 'III', kicker: 'Pagamento', title: 'PIX e discrição', desc: 'Tokens por PIX, em segundos. Você escolhe como aparece no portal, e quem vê.', fig: '/landing/real-cadeado.webp', still: '/landing/real-cadeado-still.webp' },
 ]
 
 // ── Diretivas de movimento (só no navegador, só com ponteiro fino e movimento
@@ -376,19 +397,25 @@ function pillarToggle(idx) { openPillar.value = openPillar.value === idx ? null 
 function pillarClose() { openPillar.value = null }
 
 // ── Círculos (fonte canônica: docs/ECONOMIA.md) ──────────────────────────────
+// (feat/landing-limiar-circulos) Acordeão de "portas": os cinco do MESMO tamanho
+// fechados (figura apagada + nome + preço); o ativo abre, ganha cor e mostra o
+// painel de venda. `perToken` = mensalidade ÷ tokens inclusos (conta exata; todos
+// abaixo do Starter R$ 1,00 e acima do piso de margem R$ 0,625 — ECONOMIA §2/§3).
+// O desconto é na COMPRA DE PACOTES (ECONOMIA §3), não "em tudo". Pré-lançamento:
+// o CTA leva à lista de fundadores (único CTA da landing).
 const circles = [
-    { name: 'EXPLORADOR', img: '/landing/circulo-explorador.webp', price: 'R$ 89,90', tokens: '105', discount: '10%', seats: null, note: 'A primeira porta.', hi: false, gold: false, desc: 'A porta de entrada do Portal. 105 tokens por mês e 10% de desconto em tudo. Ideal para conhecer no seu ritmo.' },
-    { name: 'INSIDER', img: '/landing/circulo-insider.webp', price: 'R$ 189,90', tokens: '230', discount: '10%', seats: null, note: 'Para quem já escolheu.', hi: false, gold: false, desc: 'Para quem já escolheu ficar. 230 tokens por mês, 10% de desconto e mais presença nas conversas.' },
-    { name: 'PRESTIGE', img: '/landing/circulo-prestige.webp', price: 'R$ 389,90', tokens: '490', discount: '15%', seats: null, note: 'Mais perto, mais vezes.', hi: false, gold: false, desc: 'Mais perto, mais vezes. 490 tokens por mês, 15% de desconto e destaque nas suas interações.' },
-    { name: 'BLACK', img: '/landing/circulo-black.webp', price: 'R$ 749,90', tokens: '1.000', discount: '20%', seats: '500 vagas', note: 'Discrição total liberada.', hi: false, gold: true, desc: 'Discrição total liberada. 1.000 tokens por mês, 20% de desconto e recursos de privacidade avançada. Apenas 500 vagas.' },
-    { name: 'FOUNDERS', img: '/landing/circulo-founders.webp', price: 'R$ 1.490', tokens: '2.100', discount: '25%', seats: '100 vagas', note: 'Número seu, para sempre.', hi: true, gold: true, desc: 'O círculo mais alto. 2.100 tokens por mês, 25% de desconto, número permanente e marcos físicos. Apenas 100 vagas, para sempre.' },
+    { name: 'EXPLORADOR', anim: '/landing/circulo-anim-explorador.webp', still: '/landing/circulo-anim-explorador-still.webp', alt: 'Uma chave dourada antiga sob uma fresta de luz.', price: 'R$ 89,90', tokens: '105', discount: '10%', perToken: 'R$ 0,86', seats: null, note: 'A primeira porta.', perk: null },
+    { name: 'INSIDER', anim: '/landing/circulo-anim-insider.webp', still: '/landing/circulo-anim-insider-still.webp', alt: 'Uma máscara de filigrana dourada sobre seda negra.', price: 'R$ 189,90', tokens: '230', discount: '10%', perToken: 'R$ 0,83', seats: null, note: 'Para quem já escolheu.', perk: 'Mais presença nas conversas' },
+    { name: 'PRESTIGE', anim: '/landing/circulo-anim-prestige.webp', still: '/landing/circulo-anim-prestige-still.webp', alt: 'Uma taça de champanhe de cristal com bolhas subindo.', price: 'R$ 389,90', tokens: '490', discount: '15%', perToken: 'R$ 0,80', seats: null, note: 'Mais perto, mais vezes.', perk: 'Destaque nas suas interações' },
+    { name: 'BLACK', anim: '/landing/circulo-anim-black.webp', still: '/landing/circulo-anim-black-still.webp', alt: 'Um frasco de perfume negro ao lado de uma orquídea negra.', price: 'R$ 749,90', tokens: '1.000', discount: '20%', perToken: 'R$ 0,75', seats: '500 vagas', note: 'Discrição total liberada.', perk: 'Privacidade avançada: modo discreto, fantasma e online invisível' },
+    { name: 'FOUNDERS', anim: '/landing/circulo-anim-founders.webp', still: '/landing/circulo-anim-founders-still.webp', alt: 'Uma coroa de louros dourada sobre uma almofada de veludo negro.', price: 'R$ 1.490', tokens: '2.100', discount: '25%', perToken: 'R$ 0,71', bestPerToken: true, seats: '100 vagas', note: 'Número seu, para sempre.', perk: 'Número permanente e marcos físicos' },
 ]
 
-// Círculos como "porta que abre": clique/toque vira o card e mostra a descrição
-// no verso; X, Esc, clicar fora ou clicar de novo fecha. Hover só destaca (CSS).
-const openCircle = ref(null)
-function circleToggle(idx) { openCircle.value = openCircle.value === idx ? null : idx }
-function circleClose() { openCircle.value = null }
+// Sempre há UMA porta aberta (começa na primeira). Desktop com mouse abre no
+// hover; toque, clique, Enter/Espaço e foco de teclado também abrem.
+const activeCircle = ref(0)
+function openCircleDoor(idx) { activeCircle.value = idx }
+function onCircleHover(idx) { if (isDesktop.value) activeCircle.value = idx }
 
 const footerLinks = [
     { label: 'Como funciona', href: '#por-dentro' },
@@ -535,8 +562,6 @@ onMounted(() => {
         pdObserver.observe(pdEl.value)
     }
 
-    // Fecha o pop dos Círculos ao tocar/clicar fora dele (celular).
-    document.addEventListener('click', circleClose)
     document.addEventListener('click', pillarClose)
 })
 
@@ -546,7 +571,6 @@ onBeforeUnmount(() => {
     clearInterval(cardTimer)
     cardVideoObserver?.disconnect()
     window.removeEventListener('scroll', onPortalScroll)
-    document.removeEventListener('click', circleClose)
     pdObserver?.disconnect()
     clearTimeout(pdTimer)
     document.removeEventListener('click', pillarClose)
@@ -638,21 +662,26 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <!-- ══ O Portal se abre com a rolagem ══ -->
-            <section id="portal" ref="portalEl" class="portal" :style="motionOk ? { height: isDesktop ? '3800px' : '3000px' } : {}">
+            <!-- ══ O Portal se abre com a rolagem (a cortina, em tela cheia) ══ -->
+            <section id="portal" ref="portalEl" class="portal" :style="motionOk ? { height: isDesktop ? '3400px' : '2800px' } : {}">
                 <div ref="portalStickyEl" class="portal-sticky">
-                    <div class="portal-media-wrap" aria-hidden="true">
+                    <div class="portal-scene" aria-hidden="true" :style="motionOk ? { transform: `scale(${portalSpriteScale})` } : {}">
                         <picture>
-                            <source media="(max-width: 767px)" :srcset="'/landing/portal-mobile.webp'" type="image/webp" />
-                            <img class="portal-media" :src="'/landing/portal.webp'" alt="" :style="motionOk ? { transform: `scale(${portalSpriteScale})` } : {}" />
+                            <source media="(max-width: 767px)" :srcset="'/landing/portal-cortina-mobile.webp'" type="image/webp" />
+                            <img class="portal-media" :src="'/landing/portal-cortina.webp'" alt="" width="2400" height="1340" decoding="async" />
                         </picture>
+                        <span class="portal-glow" />
+                    </div>
+                    <div class="lc-dust" aria-hidden="true">
+                        <span v-for="(d, di) in portalDust" :key="'pd-' + di" :style="{ left: d.left, width: d.size, height: d.size, animationDuration: d.dur, animationDelay: d.delay, '--sway': d.sway }" />
                     </div>
                     <div class="portal-top-veil" aria-hidden="true" />
+                    <div class="portal-gold" aria-hidden="true" :style="{ opacity: motionOk ? portalGold : 0 }" />
                     <div class="portal-rail" aria-hidden="true"><span class="portal-rail-fill" :style="{ height: portalBarHeight }" /></div>
 
-                    <div class="portal-cap" :style="{ opacity: motionOk ? portalText1Opacity : 1 }">
+                    <div class="portal-cap" :style="motionOk ? { opacity: portalText1Opacity, transform: `translateY(${portalText1Shift})` } : {}">
                         <div class="eyebrow">Capítulo I · O limiar</div>
-                        <div class="portal-h">Toda porta guarda um segredo.</div>
+                        <div class="portal-h">Toda porta guarda <em>um segredo.</em></div>
                     </div>
 
                     <div class="portal-cross" :style="{ opacity: motionOk ? portalText2Opacity : 0, transform: `translateY(${portalText2Shift})` }">
@@ -667,6 +696,9 @@ onBeforeUnmount(() => {
             <!-- ══ Só o que é real — 3 garantias em placas 3D ══ -->
             <section class="sect marble real">
                 <div class="marble-veil" aria-hidden="true" />
+                <div class="lc-dust lc-dust--real" aria-hidden="true">
+                    <span v-for="(d, di) in realDust" :key="'rd-' + di" :style="{ left: d.left, width: d.size, height: d.size, animationDuration: d.dur, animationDelay: d.delay, '--sway': d.sway }" />
+                </div>
                 <div class="wrap">
                     <div class="real-head">
                         <div>
@@ -681,7 +713,10 @@ onBeforeUnmount(() => {
                                 <span class="real-glare" aria-hidden="true" />
                                 <span class="real-num" aria-hidden="true">{{ r.n }}</span>
                                 <span class="real-ic" aria-hidden="true">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path :d="r.icon" /></svg>
+                                    <picture>
+                                        <source media="(prefers-reduced-motion: reduce)" :srcset="r.still" type="image/webp" />
+                                        <img :src="r.fig" alt="" width="240" height="240" loading="lazy" decoding="async" />
+                                    </picture>
                                 </span>
                                 <div class="real-body">
                                     <div class="real-kicker">{{ r.kicker }}</div>
@@ -956,54 +991,65 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <!-- ══ Círculos ══ -->
+            <!-- ══ Círculos — acordeão de portas ══ -->
             <section id="circulos" class="sect dark circulos">
                 <div class="wrap circulos-head">
-                    <div class="eyebrow">Os Círculos</div>
-                    <h2 class="h-serif">Cada círculo, <em>uma porta a mais.</em></h2>
-                    <p class="lead">Assinatura mensal com tokens incluídos e desconto em tudo. Os dois círculos mais altos têm vagas contadas.</p>
+                    <div>
+                        <div class="eyebrow">Os Círculos</div>
+                        <h2 class="h-serif">Cada círculo, <em>uma porta a mais.</em></h2>
+                    </div>
+                    <div class="circulos-aside">
+                        <p class="lead">Assinatura mensal com tokens incluídos e desconto nos pacotes de tokens. Os dois círculos mais altos têm vagas contadas.</p>
+                        <div class="circulos-count"><span>05</span><small>Círculos</small></div>
+                    </div>
                 </div>
-                <div class="wrap circulos-grid">
+                <div v-reveal class="cdoors">
                     <div
                         v-for="(ci, idx) in circles"
                         :key="'ci-' + idx"
-                        class="circle"
-                        :class="{ 'is-hi': ci.hi, 'is-open': openCircle === idx }"
+                        class="cdoor rv-item"
+                        :class="{ 'is-open': activeCircle === idx }"
+                        :style="{ '--i': idx }"
                         tabindex="0"
                         role="button"
-                        :aria-expanded="openCircle === idx"
-                        :aria-label="(openCircle === idx ? 'Fechar o círculo ' : 'Abrir o círculo ') + ci.name"
-                        @click.stop="circleToggle(idx)"
-                        @keydown.enter.prevent="circleToggle(idx)"
-                        @keydown.space.prevent="circleToggle(idx)"
-                        @keydown.esc="circleClose"
+                        :aria-expanded="activeCircle === idx"
+                        :aria-label="'Círculo ' + ci.name + ', ' + ci.price + ' por mês'"
+                        @mouseenter="onCircleHover(idx)"
+                        @focus="openCircleDoor(idx)"
+                        @click="openCircleDoor(idx)"
+                        @keydown.enter.prevent="openCircleDoor(idx)"
+                        @keydown.space.prevent="openCircleDoor(idx)"
                     >
-                        <div class="circle-inner">
-                            <!-- Frente: a porta fechada, com a foto de estilo -->
-                            <div class="circle-face" :aria-hidden="openCircle === idx">
-                                <img class="circle-img" :src="ci.img" alt="" loading="lazy" decoding="async" />
-                                <div class="circle-shade" aria-hidden="true" />
-                                <div class="circle-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
-                                <div class="circle-body">
-                                    <div class="circle-price">{{ ci.price }}<span>/mês</span></div>
-                                    <div class="circle-div" aria-hidden="true" />
-                                    <div class="circle-meta">{{ ci.tokens }} tokens por mês<br>{{ ci.discount }} de desconto</div>
-                                    <div v-if="ci.seats" class="circle-seats">{{ ci.seats }}</div>
-                                    <div class="circle-note">{{ ci.note }}</div>
-                                    <span class="circle-hint" aria-hidden="true">Abrir <span class="circle-hint-arrow">→</span></span>
-                                </div>
-                            </div>
-                            <!-- Verso: por dentro da porta, a descrição -->
-                            <div class="circle-back" :aria-hidden="openCircle !== idx">
-                                <span class="circle-x" aria-hidden="true">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-                                </span>
-                                <div class="circle-back-name" :class="{ 'lc-gold': ci.gold }">{{ ci.name }}</div>
-                                <div class="circle-back-div" aria-hidden="true" />
-                                <p class="circle-back-desc">{{ ci.desc }}</p>
-                                <div class="circle-back-price">{{ ci.price }}<span>/mês</span></div>
-                                <div v-if="ci.seats" class="circle-seats">{{ ci.seats }}</div>
-                            </div>
+                        <picture class="cdoor-fig">
+                            <source media="(prefers-reduced-motion: reduce)" :srcset="ci.still" type="image/webp" />
+                            <img :src="ci.anim" :alt="ci.alt" width="384" height="576" loading="lazy" decoding="async" />
+                        </picture>
+                        <span class="cdoor-shade" aria-hidden="true" />
+
+                        <!-- Fechada: número, nome e preço -->
+                        <div class="cdoor-closed" :aria-hidden="activeCircle === idx">
+                            <span class="cdoor-num">0{{ idx + 1 }}</span>
+                            <span class="cdoor-name" :class="{ 'lc-gold': ci.seats }">{{ ci.name }}</span>
+                            <span class="cdoor-mini">{{ ci.price }}</span>
+                        </div>
+
+                        <!-- Aberta: o painel de venda -->
+                        <div class="cdoor-open" :aria-hidden="activeCircle !== idx">
+                            <span class="cdoor-kicker">Círculo 0{{ idx + 1 }} · {{ ci.note }}</span>
+                            <h3 class="cdoor-title">{{ ci.name }}</h3>
+                            <div class="cdoor-reveal"><div>
+                                <div class="cdoor-price">{{ ci.price }}<span>/mês</span></div>
+                                <ul class="cdoor-perks">
+                                    <li><span><b>{{ ci.tokens }} tokens</b> todo mês</span></li>
+                                    <li><span><b>{{ ci.discount }}</b> de desconto nos pacotes de tokens</span></li>
+                                    <li><span>{{ ci.perToken }} por token incluso<template v-if="ci.bestPerToken">, o menor de todos</template></span></li>
+                                    <li v-if="ci.perk"><span>{{ ci.perk }}</span></li>
+                                </ul>
+                                <div v-if="ci.seats" class="circle-seats">Apenas {{ ci.seats }}</div>
+                                <button type="button" class="cdoor-cta" :tabindex="activeCircle === idx ? 0 : -1" @click.stop="scrollToForm('member')">
+                                    <span>Garantir minha vaga</span><span class="cdoor-cta-arrow" aria-hidden="true">→</span>
+                                </button>
+                            </div></div>
                         </div>
                     </div>
                 </div>
@@ -1422,7 +1468,7 @@ onBeforeUnmount(() => {
     }
 }
 
-/* ── O Portal se abre com a rolagem ──────────────────────────────────────── */
+/* ── O Portal se abre com a rolagem (a cortina em tela cheia) ────────────── */
 .portal { position: relative; background: var(--bg); }
 .portal-sticky {
     position: sticky;
@@ -1432,26 +1478,52 @@ onBeforeUnmount(() => {
     background: var(--bg);
     display: flex;
 }
-.lc--static .portal-sticky { position: relative; height: auto; min-height: 70svh; padding: 20svh 0; }
-.portal-media-wrap {
+.lc--static .portal-sticky { position: relative; height: auto; min-height: 88svh; padding: 20svh 0; }
+/* A cena ocupa a tela INTEIRA desde o primeiro frame; o zoom da rolagem nasce no
+   centro do arco (50% 42%). */
+.portal-scene {
     position: absolute;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.portal-media {
-    width: min(640px, 82vw);
-    height: auto;
-    max-height: 80svh;
-    object-fit: contain;
-    transform-origin: 50% 58%;
+    transform-origin: 50% 42%;
     will-change: transform;
 }
+.portal-scene picture { display: block; width: 100%; height: 100%; }
+.portal-media {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 40%;
+    animation: portal-breathe 18s ease-in-out infinite alternate;
+}
+@keyframes portal-breathe { from { transform: scale(1); } to { transform: scale(1.035); } }
+/* Brilho que pulsa dentro do arco. */
+.portal-glow {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    width: 70vw;
+    height: 60svh;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, rgba(255, 214, 140, 0.32), rgba(232, 170, 80, 0.12) 55%, transparent 100%);
+    mix-blend-mode: screen;
+    animation: portal-pulse 6s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes portal-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .portal-top-veil {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(5, 5, 6, 0.95) 0%, rgba(5, 5, 6, 0.4) 22%, rgba(5, 5, 6, 0) 40%);
+    background:
+        radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(5, 5, 6, 0.75) 100%),
+        linear-gradient(180deg, rgba(5, 5, 6, 0.55) 0%, rgba(5, 5, 6, 0) 18%, rgba(5, 5, 6, 0) 55%, rgba(5, 5, 6, 0.94) 100%);
+}
+/* A névoa dourada que toma a tela na travessia. */
+.portal-gold {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 45%, rgba(255, 220, 160, 0.92), rgba(201, 150, 70, 0.62) 45%, #050404 100%);
+    pointer-events: none;
 }
 .portal-rail {
     position: absolute;
@@ -1460,6 +1532,7 @@ onBeforeUnmount(() => {
     width: 2px;
     height: 160px;
     background: rgba(242, 232, 214, 0.14);
+    z-index: 2;
 }
 .portal-rail-fill { display: block; width: 2px; background: var(--gold); }
 .portal-cap,
@@ -1467,9 +1540,10 @@ onBeforeUnmount(() => {
     position: absolute;
     left: 0;
     bottom: 0;
+    z-index: 3;
     width: 100%;
     box-sizing: border-box;
-    padding: 0 1.3rem 3.4rem;
+    padding: 0 1.3rem 14svh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1478,18 +1552,40 @@ onBeforeUnmount(() => {
 }
 .portal-h {
     font-family: var(--serif);
-    font-size: clamp(2.3rem, 7vw, 3.25rem);
+    font-size: clamp(2.3rem, 7vw, 4.6rem);
     line-height: 1.05;
     color: var(--ink);
+    text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
 }
-.portal-cross { gap: 0.3rem; }
-.portal-cross-a { font-family: var(--disp); font-size: clamp(2rem, 6vw, 3.5rem); letter-spacing: 0.18em; color: var(--ink); }
-.portal-cross-b { font-family: var(--serif); font-style: italic; font-size: clamp(2rem, 6vw, 3.6rem); color: var(--gold); }
-.portal-darken { position: absolute; inset: 0; background: var(--bg); }
+.portal-h em { font-style: italic; color: var(--gold); }
+/* O segundo título entra SOBRE o dourado: tinta escura. */
+.portal-cross { gap: 0.3rem; padding-bottom: 22svh; }
+.portal-cross-a { font-family: var(--disp); font-size: clamp(2rem, 6vw, 3.5rem); letter-spacing: 0.18em; color: var(--on-gold); }
+.portal-cross-b { font-family: var(--serif); font-style: italic; font-size: clamp(2rem, 6vw, 3.6rem); color: #3a2710; }
+.portal-darken { position: absolute; inset: 0; z-index: 4; background: var(--bg); pointer-events: none; }
 @media (min-width: 768px) {
+    .portal-glow { width: 34vw; }
     .portal-rail { left: 5.5rem; top: 33%; height: 233px; }
-    .portal-cap, .portal-cross { padding: 0 5.5rem 3.4rem; }
+    .portal-cap, .portal-cross { padding-left: 5.5rem; padding-right: 5.5rem; }
 }
+
+/* ── Poeira dourada (portal e "Só o que é real") ─────────────────────────── */
+.lc-dust { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.lc-dust span {
+    position: absolute;
+    bottom: -10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff3cf, rgba(201, 162, 75, 0.2) 60%, transparent 70%);
+    opacity: 0;
+    animation: lc-rise linear infinite;
+}
+@keyframes lc-rise {
+    0% { transform: translate(0, 0); opacity: 0; }
+    10% { opacity: 0.9; }
+    90% { opacity: 0.5; }
+    100% { transform: translate(var(--sway, 20px), -110svh); opacity: 0; }
+}
+.lc--static .lc-dust { display: none; }
 
 /* ── Seções genéricas ────────────────────────────────────────────────────── */
 .sect { position: relative; padding: 5.5rem 0; }
@@ -1508,6 +1604,7 @@ onBeforeUnmount(() => {
 .real-plate { perspective: 1000px; }
 .real-card {
     position: relative;
+    isolation: isolate;
     height: 100%;
     min-height: 260px;
     box-sizing: border-box;
@@ -1515,7 +1612,7 @@ onBeforeUnmount(() => {
     flex-direction: column;
     justify-content: flex-end;
     gap: 1.3rem;
-    padding: 6.2rem 1.5rem 1.7rem;
+    padding: 7.6rem 1.5rem 1.7rem;
     border-radius: 22px;
     background: linear-gradient(165deg, rgba(36, 28, 19, 0.94) 0%, rgba(14, 12, 10, 0.96) 62%);
     box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22), 0 24px 60px -24px rgba(0, 0, 0, 0.8);
@@ -1525,7 +1622,36 @@ onBeforeUnmount(() => {
 }
 .real-glare { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(243, 201, 126, 0.17), transparent 55%); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; }
 .real-num { position: absolute; top: 0.5rem; right: 1.2rem; font-family: 'Cinzel', Georgia, serif; font-size: 5.5rem; line-height: 1; color: transparent; -webkit-text-stroke: 1px rgba(243, 201, 126, 0.34); transform: translateZ(46px); transition: -webkit-text-stroke-color 0.4s ease; pointer-events: none; user-select: none; }
-.real-ic { position: absolute; top: 1.6rem; left: 1.5rem; width: 46px; height: 46px; box-sizing: border-box; border-radius: 23px 23px 4px 4px; border: 1px solid rgba(243, 201, 126, 0.6); background: rgba(13, 11, 9, 0.55); display: flex; align-items: center; justify-content: center; color: var(--gold); transform: translateZ(32px); }
+.real-ic { position: absolute; top: 1.4rem; left: 1.5rem; width: 66px; height: 76px; box-sizing: border-box; border-radius: 33px 33px 10px 10px; border: 1px solid rgba(243, 201, 126, 0.45); background: #0d0b09; overflow: hidden; transform: translateZ(32px); transition: border-color 0.5s ease, box-shadow 0.5s ease; }
+.real-ic picture, .real-ic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.real-ic img { transition: transform 0.8s ease; }
+/* O "raio": um ponto de luz dourada que corre a borda do card. */
+@property --lc-ray { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+.real-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--lc-ray), transparent 0deg, transparent 232deg, rgba(243, 201, 126, 0.25) 252deg, var(--gold) 285deg, #fff3cf 300deg, var(--gold) 315deg, rgba(243, 201, 126, 0.25) 335deg, transparent 352deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+    z-index: 2;
+}
+@keyframes lc-ray { to { --lc-ray: 360deg; } }
+.real-rule { position: relative; overflow: hidden; }
+.real-rule::after { content: ''; position: absolute; top: 0; left: -40%; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, #fff3cf, transparent); opacity: 0; }
+@keyframes lc-slide { 0% { left: -40%; opacity: 1; } 100% { left: 110%; opacity: 1; } }
+/* Toque (sem hover): o raio dá UMA volta quando o card entra na tela. */
+@media (hover: none) {
+    .rv.is-in .real-card::before { animation: lc-ray 2.6s linear calc(var(--i, 0) * 300ms + 900ms) 1 both; opacity: 1; }
+}
+.lc-dust--real { z-index: 0; }
 .real-body { position: relative; transform: translateZ(22px); }
 .real-kicker { margin-bottom: 0.65rem; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
 .real-t { margin: 0 0 0.55rem; font-family: var(--serif); font-size: 2rem; font-weight: 400; line-height: 1.05; color: var(--ink); }
@@ -1535,6 +1661,10 @@ onBeforeUnmount(() => {
     .real-card:hover { box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.7), 0 34px 70px -24px rgba(0, 0, 0, 0.9), 0 0 70px -24px rgba(243, 201, 126, 0.4); }
     .real-card:hover .real-glare { opacity: 1; }
     .real-card:hover .real-num { -webkit-text-stroke-color: rgba(243, 201, 126, 0.8); }
+    .real-card:hover::before { opacity: 1; animation: lc-ray 1.5s linear infinite; }
+    .real-card:hover .real-ic { border-color: rgba(243, 201, 126, 0.85); box-shadow: 0 0 30px -4px rgba(243, 201, 126, 0.5); }
+    .real-card:hover .real-ic img { transform: scale(1.1); }
+    .real-card:hover .real-rule::after { animation: lc-slide 1.3s ease-in-out infinite; }
 }
 /* Revelação na rolagem: o v-reveal só põe .rv quando vai conseguir revelar. */
 .rv .rv-item { opacity: 0; transform: translateY(36px); }
@@ -1546,7 +1676,7 @@ onBeforeUnmount(() => {
     .real-plates { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4rem; }
     .real-card { min-height: 390px; padding: 2rem 1.9rem 2.1rem; }
     .real-d { min-height: 3.2em; }
-    .real-ic { top: 2rem; left: 1.9rem; }
+    .real-ic { top: 1.8rem; left: 1.9rem; width: 84px; height: 96px; border-radius: 42px 42px 14px 14px; }
     .real-num { top: 0.7rem; right: 1.5rem; font-size: 7.5rem; }
     .real-t { font-size: 2.15rem; }
 }
@@ -1791,67 +1921,200 @@ onBeforeUnmount(() => {
     .pillar-head { aspect-ratio: 4 / 5; }
 }
 
-/* ── Círculos (porta que abre: flip 3D) ──────────────────────────────────── */
-.circulos-head { display: flex; flex-direction: column; gap: 1rem; text-align: left; margin-bottom: 2.2rem; }
-.circulos-head .lead { max-width: 640px; }
-.circulos-grid { display: flex; flex-direction: column; gap: 13px; }
-.circle { position: relative; perspective: 1400px; border-radius: 18px; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
-.circle-inner { position: relative; transform-style: preserve-3d; transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); border-radius: inherit; }
-.circle.is-open .circle-inner { transform: rotateY(180deg); }
-.circle-face, .circle-back { border-radius: inherit; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: inset 0 0 0 1px rgba(243, 201, 126, 0.22); transition: box-shadow 0.25s ease; }
-.circle.is-hi .circle-face, .circle.is-hi .circle-back { box-shadow: inset 0 0 0 1px var(--gold); }
-.circle:hover .circle-face, .circle:focus-visible .circle-face, .circle.is-open .circle-back { box-shadow: inset 0 0 0 2px var(--gold); }
+/* ── Círculos — acordeão de portas (mobile primeiro) ───────────────────────
+   Celular: as portas empilham; a aberta cresce na vertical (figura em cima,
+   painel embaixo). Desktop (≥900px): lado a lado, todas do MESMO tamanho; a
+   aberta se expande na horizontal. A figura nunca é ampliada além do tamanho real
+   (384×576) — no desktop ela fica à direita, em 1:1; o texto, à esquerda. */
+.circulos-head { display: flex; flex-direction: column; gap: 1.4rem; margin-bottom: 2.4rem; }
+.circulos-head .eyebrow { margin-bottom: 1rem; }
+.circulos-aside { max-width: 400px; }
+.circulos-aside .lead { margin: 0 0 1.2rem; }
+.circulos-count span { display: block; font-family: var(--serif); font-size: 2.4rem; line-height: 1; color: var(--ink); }
+.circulos-count small { font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); }
+.circle-seats { height: 26px; padding: 0 13px; border-radius: 999px; border: 1px solid rgba(243, 201, 126, 0.45); background: rgba(243, 201, 126, 0.08); display: inline-flex; align-items: center; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
 
-/* Frente */
-.circle-face { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 212px; padding: 1.1rem; background: #0d0b09; text-align: left; }
-.circle-img { position: absolute; top: 0; right: 0; width: 52%; height: 100%; object-fit: cover; transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.circle:hover .circle-img { transform: scale(1.05); }
-.circle-shade { position: absolute; inset: 0; background: linear-gradient(90deg, #0d0b09 46%, rgba(13, 11, 9, 0.55) 68%, rgba(13, 11, 9, 0.15) 100%); }
-.circle-name, .circle-body { position: relative; z-index: 1; }
-.circle-body { display: flex; flex-direction: column; align-items: inherit; gap: 8px; }
-.circle-name { font-family: 'Cinzel', Georgia, serif; font-size: 1rem; letter-spacing: 0.16em; color: var(--ink); text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9); }
-.circle-price { font-family: var(--serif); font-size: 1.7rem; line-height: 1; color: var(--ink); white-space: nowrap; }
-.circle-price span { font-size: 0.85rem; color: var(--muted); }
-.circle-div { display: none; }
-.circle-meta { font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
-.circle-seats { height: 24px; padding: 0 12px; border-radius: 999px; background: rgba(243, 201, 126, 0.14); display: inline-flex; align-items: center; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
-.circle-note { font-size: 0.82rem; line-height: 1.5; color: var(--faint); }
-.circle-hint { margin-top: 2px; font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); opacity: 0.75; transition: opacity 0.2s ease; }
-.circle-hint-arrow { display: inline-block; transition: transform 0.25s ease; }
-.circle:hover .circle-hint { opacity: 1; }
-.circle:hover .circle-hint-arrow { transform: translateX(4px); }
+.cdoors {
+    display: flex;
+    flex-direction: column;
+    max-width: 1440px;
+    margin-inline: auto;
+    border-top: 1px solid rgba(243, 201, 126, 0.16);
+    background: #080706;
+}
+.cdoor {
+    position: relative;
+    height: 84px;
+    overflow: hidden;
+    cursor: pointer;
+    outline: none;
+    border-bottom: 1px solid rgba(243, 201, 126, 0.16);
+    -webkit-tap-highlight-color: transparent;
+    transition: height 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cdoor.is-open { height: 660px; }
+.cdoor:focus-visible { box-shadow: inset 0 0 0 2px var(--gold); }
+/* Linha de luz no topo da porta aberta. */
+.cdoor::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #fff3cf, var(--gold), transparent);
+    transition: width 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cdoor.is-open::after { width: 100%; }
 
-/* Verso */
-.circle-back { position: absolute; inset: 0; transform: rotateY(180deg); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 9px; padding: 1.1rem 2.6rem 1.1rem 1.1rem; background: radial-gradient(120% 90% at 50% 0%, #1d1710 0%, #100d09 70%); text-align: left; overflow-y: auto; }
-.circle-x { position: absolute; top: 0.6rem; right: 0.6rem; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(242, 232, 214, 0.08); color: var(--muted); }
-.circle-x svg { width: 15px; height: 15px; }
-.circle:hover .circle-x { color: var(--ink); background: rgba(242, 232, 214, 0.16); }
-.circle-back-name { font-family: 'Cinzel', Georgia, serif; font-size: 0.9rem; letter-spacing: 0.16em; color: var(--ink); }
-.circle-back-div { width: 34px; height: 1px; background: rgba(243, 201, 126, 0.6); }
-.circle-back-desc { margin: 0; font-size: 0.86rem; line-height: 1.55; color: var(--muted); }
-.circle-back-price { font-family: var(--serif); font-size: 1.15rem; color: var(--ink); }
-.circle-back-price span { font-size: 0.75rem; color: var(--muted); }
+.cdoor-fig { position: absolute; inset: 0; display: block; }
+.cdoor-fig img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(0.9) brightness(0.45);
+    transition: filter 1s ease;
+}
+.cdoor.is-open .cdoor-fig { inset: 0 0 auto 0; height: 44%; }
+.cdoor.is-open .cdoor-fig img {
+    filter: none;
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+}
+.cdoor-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(8, 7, 6, 0.85) 0%, rgba(8, 7, 6, 0.45) 100%); transition: opacity 0.6s ease; }
+.cdoor.is-open .cdoor-shade { opacity: 0; }
+
+/* Fechada */
+.cdoor-closed {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0 1.3rem;
+    transition: opacity 0.45s ease, transform 0.6s ease;
+}
+.cdoor-num { font-size: 0.62rem; letter-spacing: 0.3em; color: var(--gold); }
+.cdoor-name { font-family: var(--disp); font-size: 1rem; letter-spacing: 0.18em; color: var(--ink); white-space: nowrap; }
+.cdoor-mini { margin-left: auto; font-size: 0.78rem; letter-spacing: 0.04em; color: var(--muted); white-space: nowrap; }
+.cdoor.is-open .cdoor-closed { opacity: 0; transform: translateY(14px); pointer-events: none; }
+
+/* Aberta */
+.cdoor-open {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    padding: 0 1.3rem 1.6rem;
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.6s ease;
+}
+.cdoor.is-open .cdoor-open {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    transition: opacity 0.7s ease 0.35s, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.3s;
+}
+.cdoor-kicker { display: block; margin-bottom: 0.55rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
+.cdoor-title { margin: 0 0 0.3rem; font-family: var(--disp); font-weight: 400; font-size: clamp(1.7rem, 7vw, 2.6rem); letter-spacing: 0.1em; line-height: 1; color: var(--ink); }
+.cdoor-reveal { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+.cdoor.is-open .cdoor-reveal { grid-template-rows: 1fr; transition-delay: 0.25s; }
+.cdoor-reveal > div { overflow: hidden; }
+.cdoor-price { margin: 0.7rem 0 0.7rem; font-family: var(--serif); font-size: 2.1rem; line-height: 1; color: var(--gold); }
+.cdoor-price span { margin-left: 2px; font-family: var(--body); font-size: 0.78rem; color: var(--muted); }
+.cdoor-perks { list-style: none; margin: 0 0 1rem; padding: 0; }
+.cdoor-perks li { display: flex; align-items: center; gap: 0.75rem; padding: 0.42rem 0; border-bottom: 1px solid rgba(243, 201, 126, 0.12); font-size: 0.86rem; line-height: 1.4; color: var(--muted); }
+.cdoor-perks li::before { content: ''; flex: none; width: 5px; height: 5px; transform: rotate(45deg); background: var(--gold); }
+.cdoor-perks b { font-weight: 600; color: var(--ink); }
+.cdoor-open .circle-seats { margin-bottom: 1rem; }
+.cdoor-open .circle-seats + .cdoor-cta { margin-top: 0; }
+/* CTA com o raio girando na borda — leva à lista de fundadores. */
+.cdoor-cta {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-height: 48px;
+    padding: 0 1.5rem;
+    border: 1px solid rgba(243, 201, 126, 0.4);
+    border-radius: 999px;
+    background: #120e0a;
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.3s ease, gap 0.3s ease, border-color 0.3s ease;
+}
+.cdoor-cta::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--lc-ray), transparent 0deg, transparent 260deg, var(--gold) 320deg, #fff3cf 345deg, transparent 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: lc-ray 2.4s linear infinite;
+}
+.cdoor-cta-arrow { color: var(--gold); transition: transform 0.3s ease; }
+.cdoor-cta:hover, .cdoor-cta:focus-visible { color: var(--gold); gap: 1.3rem; border-color: rgba(243, 201, 126, 0.7); outline: none; }
+.cdoor-cta:hover .cdoor-cta-arrow { transform: translateX(3px); }
+
+/* Surgimento lento ao rolar (o v-reveal só põe .rv quando vai conseguir revelar).
+   Seletor mais específico que o .rv genérico para não perder a transição de abrir. */
+.cdoors.rv .cdoor { opacity: 0; transform: translateY(50px); }
+.cdoors.rv.is-in .cdoor {
+    opacity: 1;
+    transform: none;
+    transition:
+        opacity 1.6s ease calc(var(--i, 0) * 260ms),
+        transform 1.6s cubic-bezier(0.16, 0.84, 0.3, 1) calc(var(--i, 0) * 260ms),
+        height 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+        flex 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
 @media (min-width: 768px) {
-    .circulos-head { align-items: center; text-align: center; margin-bottom: 4rem; }
-    .circulos-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 21px; align-items: end; }
-    .circle { border-radius: 200px 200px 13px 13px; }
-    .circle-face { align-items: center; text-align: center; gap: 13px; min-height: 540px; padding: 3.4rem 1.1rem 2rem; }
-    .circle.is-hi .circle-face { min-height: 590px; }
-    .circle-img { top: 2.4rem; left: 0; right: auto; width: 100%; height: 60%; }
-    .circle-shade { background: linear-gradient(180deg, #0d0b09 0%, rgba(13, 11, 9, 0.75) 9%, rgba(13, 11, 9, 0.05) 28%, rgba(13, 11, 9, 0.2) 44%, #0d0b09 66%); }
-    .circle-body { margin-top: auto; gap: 13px; }
-    .circle-price { font-size: 2.1rem; }
-    .circle-div { display: block; width: 34px; height: 1px; background: rgba(243, 201, 126, 0.6); }
-    .circle-meta { text-align: center; }
-    .circle-back { align-items: center; text-align: center; gap: 14px; padding: 3.4rem 1.3rem 2rem; }
-    .circle-back-name { font-size: 1rem; }
-    .circle-back-desc { font-size: 0.9rem; }
-    .circle-back-price { font-size: 1.4rem; }
-    .circle-x { top: auto; bottom: 1rem; right: 50%; transform: translateX(50%); }
+    .circulos-head { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3rem; margin-bottom: 3.6rem; }
+}
+@media (min-width: 900px) {
+    .cdoors { flex-direction: row; height: 576px; border-bottom: 1px solid rgba(243, 201, 126, 0.16); }
+    .cdoor { flex: 1 1 0; min-width: 0; height: auto; border-bottom: 0; border-right: 1px solid rgba(243, 201, 126, 0.14); transition: flex 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+    .cdoor:last-child { border-right: 0; }
+    .cdoor.is-open { flex: 3.4 1 0; height: auto; }
+    .cdoor-fig, .cdoor.is-open .cdoor-fig { inset: 0 0 0 auto; width: min(100%, 384px); height: 100%; }
+    .cdoor.is-open .cdoor-fig img {
+        -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 35%);
+        mask-image: linear-gradient(90deg, transparent 0%, #000 35%);
+    }
+    .cdoor-shade { background: linear-gradient(180deg, rgba(8, 7, 6, 0.35) 0%, transparent 25%, transparent 45%, rgba(8, 7, 6, 0.92) 82%, #080706 100%); }
+    .cdoor-closed { inset: auto 0 0 0; flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0 1.4rem 1.6rem; }
+    .cdoor-name { font-size: 1rem; }
+    .cdoor-mini { margin-left: 0; }
+    .cdoor-open { right: auto; top: 50%; bottom: auto; width: min(62%, 440px); padding: 0 0 0 2.2rem; transform: translateY(-46%); }
+    .cdoor.is-open .cdoor-open { transform: translateY(-50%); }
+}
+/* Faixa intermediária: os nomes das portas fechadas ficam na vertical. */
+@media (min-width: 900px) and (max-width: 1099px) {
+    .cdoor-closed .cdoor-name { writing-mode: vertical-rl; transform: rotate(180deg); }
+    .cdoor-closed .cdoor-mini { display: none; }
+    .cdoor-open { width: min(70%, 400px); padding-left: 1.4rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .circle-inner, .circle-img { transition: none; }
+    .cdoor, .cdoor-fig img, .cdoor-open, .cdoor-closed, .cdoor-reveal, .cdoor::after { transition: none; }
+    .cdoor-cta::before { animation: none; }
 }
 
 /* ── Lista de fundadores ─────────────────────────────────────────────────── */
@@ -1947,6 +2210,9 @@ onBeforeUnmount(() => {
     .nudge { animation: none; }
     .destaques-track { transition: none; }
     .btn-gold:hover { transform: none; box-shadow: none; }
-    .portal-sticky { position: relative; height: auto; min-height: 70svh; padding: 20svh 0; }
+    .portal-sticky { position: relative; height: auto; min-height: 88svh; padding: 20svh 0; }
+    .portal-media, .portal-glow { animation: none; }
+    .lc-dust { display: none; }
+    .real-card::before, .real-rule::after { animation: none !important; }
 }
 </style>

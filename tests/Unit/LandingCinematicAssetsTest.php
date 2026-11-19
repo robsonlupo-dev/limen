@@ -106,3 +106,31 @@ it('references landing media only by self-hosted relative /landing/ paths', func
         expect(file_exists(landingPath($file)))->toBeTrue("Landing referencia mídia inexistente: {$ref}");
     }
 });
+
+it('pairs every animated landing figure with a still poster for reduced motion', function () {
+    // feat/landing-limiar-circulos: Círculos e "Só o que é real" usam WebP ANIMADO.
+    // Quem pede movimento reduzido recebe o pôster parado (<source media="(prefers-
+    // reduced-motion: reduce)">). Toda figura animada referenciada precisa do par.
+    $vue = file_get_contents(dirname(__DIR__, 2).'/resources/js/Pages/Landing.vue');
+
+    preg_match_all('#/landing/((?:circulo-anim|real)-[a-z]+)\.webp#', $vue, $m);
+    $stems = array_unique($m[1]);
+    expect($stems)->toHaveCount(8);
+    foreach ($stems as $stem) {
+        expect($vue)->toContain("/landing/{$stem}-still.webp");
+        expect(file_exists(landingPath("{$stem}-still.webp")))
+            ->toBeTrue("Falta o pôster parado de public/landing/{$stem}.webp");
+    }
+    expect($vue)->toContain('prefers-reduced-motion: reduce');
+});
+
+it('sends the circles CTA to the founders waitlist, never to a checkout', function () {
+    // Pré-lançamento: o botão de cada porta dos Círculos leva à lista de fundadores.
+    $vue = file_get_contents(dirname(__DIR__, 2).'/resources/js/Pages/Landing.vue');
+
+    expect($vue)->toContain('class="cdoor-cta"')
+        ->toContain("@click.stop=\"scrollToForm('member')\"")
+        ->toContain('Garantir minha vaga')
+        ->not->toContain("route('register')")
+        ->not->toContain("route('checkout");
+});

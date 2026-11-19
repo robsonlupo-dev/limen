@@ -243,7 +243,13 @@ Ao mexer numa feature, leia a seção dela lá. Cobertas:
   2 cenas juntas); e o card 1 dos Destaques virou vídeo
   (`destaque-01-convite-envelope.mp4`, autoplay/muted/loop/poster/aria-label, pausa
   fora de vista por IntersectionObserver). `prefers-reduced-motion` mantido (sem
-  autoplay/auto-avanço; card cai no `<img>`). **Anti-CSAM, Som de notificação**.
+  autoplay/auto-avanço; card cai no `<img>`). **O Limiar + Círculos em acordeão**
+  (`feat/landing-limiar-circulos`, 19/11/2026): o Portal virou a CORTINA em tela
+  cheia (zoom ≤1.7 para dentro do arco + névoa dourada); "Só o que é real" ganhou
+  figuras animadas (WebP) e o raio dourado na borda; os Círculos viraram acordeão de 5
+  portas do MESMO tamanho com painel de venda e CTA → lista de fundadores. Toda figura
+  animada tem par `*-still.webp` (reduced-motion — travado em teste). Desconto dos
+  Círculos é NOS PACOTES (ECONOMIA §3), não "em tudo". **Anti-CSAM, Som de notificação**.
 - **Roadmap social ("estilo Insta")** (`docs/ROADMAP_SOCIAL.md`): 3 ondas —
   Destaques, Stories VIP por tier, Status do dia, enquetes/reações (Onda 1);
   canal de transmissão + modo efêmero (Onda 2); fixar conteúdo + insights (Onda 3).
